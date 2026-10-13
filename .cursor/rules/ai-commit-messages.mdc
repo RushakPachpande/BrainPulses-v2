@@ -1,0 +1,110 @@
+---
+description: Generate high-quality Conventional Commit messages from staged changes (Source Control AI)
+alwaysApply: true
+---
+
+# AI Commit Message Generation
+
+When generating a commit message from the Source Control panel (Generate Commit Message), always inspect and understand the staged changes before writing the commit message.
+
+## Workflow
+
+1. Read all staged file diffs.
+2. Identify:
+   - the primary purpose of the changes
+   - new features
+   - bug fixes
+   - refactors
+   - performance improvements
+   - documentation updates
+   - configuration or build changes
+   - breaking changes (if any)
+3. Determine the most appropriate Conventional Commit type.
+4. Generate a commit message that accurately reflects the actual changes.
+5. Never guess or mention changes that are not present in the diff.
+
+## Commit Format
+
+```
+<type>: <concise summary>
+
+- change 1
+- change 2
+- change 3
+```
+
+## Conventional Commit Types
+
+Choose the best fitting type:
+
+- feat
+- fix
+- refactor
+- perf
+- docs
+- build
+- chore
+- test
+- style
+- ci
+- revert
+
+If multiple categories exist, choose the type representing the primary purpose of the commit.
+
+## Summary Rules
+
+The first line should:
+
+- be written in imperative mood
+- be concise (roughly 50–72 characters)
+- summarize the overall purpose, not individual files
+- avoid ending with a period
+
+Good examples:
+
+```
+feat: improve assessment session management
+fix: prevent duplicate student imports
+refactor: simplify Excel parsing logic
+perf: optimize route loading and bundle splitting
+build: update Vite configuration
+```
+
+## Body Rules
+
+Include concise bullet points describing the significant changes.
+
+- Mention features that were added.
+- Mention refactors that improve maintainability.
+- Mention performance optimizations.
+- Mention documentation updates.
+- Mention build or tooling changes.
+- Mention UI or behavior changes.
+- Mention safety improvements when applicable.
+
+Do not list every modified file. Instead, describe the logical changes.
+
+Example:
+
+```
+feat: improve routing, performance, and deactivation workflows
+
+- add assessment session tracking documentation to the README
+- refactor Excel import handling for stronger type safety
+- enable Vite code splitting to reduce initial bundle size
+- lazy load admin and student routes to improve startup performance
+- clarify deactivation confirmation dialogs for safer user actions
+```
+
+## Quality Requirements
+
+Before generating the message, verify that it:
+
+- reflects only the staged changes
+- includes every significant logical change
+- does not omit important functionality
+- is specific instead of generic
+- avoids vague phrases like "update files", "misc fixes", or "various improvements"
+- reads like a message written by an experienced developer
+
+Output only the commit message. Do not include explanations, markdown, or code fences.

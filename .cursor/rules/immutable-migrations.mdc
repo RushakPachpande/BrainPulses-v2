@@ -1,0 +1,34 @@
+---
+description: Never edit existing Prisma migrations — always add a new migration for any DB change
+alwaysApply: true
+---
+
+# Immutable Migrations
+
+Every database schema change is a **new** migration. Never modify, rename, delete, or squash existing migration files. This preserves history and keeps rollback/forward paths safe.
+
+## Requirements
+
+- Treat `api/prisma/migrations/**` as append-only history.
+- For any schema change (column, index, constraint, enum, table, rename, drop) — even a one-line fix — create a **new** migration.
+- Update `api/prisma/schema.prisma`, then generate a new migration (e.g. `npx prisma migrate dev --name <descriptive_name>` from `api/`).
+- Do not hand-edit applied `migration.sql` files to “fix” production or local DBs.
+- Do not rewrite the `init` or any prior timestamped migration.
+
+## Examples
+
+```text
+# ❌ BAD — edit an old migration
+api/prisma/migrations/20260804010000_grade_subject_unique_names/migration.sql
+
+# ✅ GOOD — add a new migration after updating schema.prisma
+api/prisma/migrations/20260804120000_add_foo_column/migration.sql
+```
+
+```prisma
+// schema.prisma changed → new migration, not a patch to yesterday’s SQL
+```
+
+## Exceptions
+
+- Only if the user **explicitly** asks to edit or reset migrations (e.g. local-only reset before first deploy). Default remains: never touch existing migrations.

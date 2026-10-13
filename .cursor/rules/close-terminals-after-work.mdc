@@ -1,0 +1,58 @@
+---
+description: Stop only agent-started processes; free Induction ports 3001/5173/5174 you bound — never kill pre-existing user listeners
+alwaysApply: true
+---
+
+# Close Terminals & Free Ports (Strict)
+
+Closing a terminal pane is **not** enough. Orphan Node/Vite processes from **agent** work often keep listening. Before every final reply, stop what **you** started and free only those ports.
+
+## Ports
+
+| Service | Port |
+|---------|------|
+| Web / Vite (`web/`) | **3001** |
+
+Do **not** leave **3001** occupied after your turn if **you** started anything that bound it. Do **not** free that port if it was already in use by the user.
+
+## Prefer External Dev Servers
+
+- The user runs long-lived `npm run dev` in an **external** terminal. Prefer that.
+- Follow `reuse-existing-dev-servers`: check listeners first; never auto-start `dev`; never kill a pre-existing listener.
+- Do **not** start persistent API/web servers in Cursor integrated terminals unless a short verification requires it **and** the port is free.
+- Prefer one-shot checks (`curl`, `npm run build`, `npx tsc`, tests) over keeping `dev` running.
+
+## Required End-of-Turn Checklist
+
+1. Stop every process/job **you** started this chat (dev, watch, background shells).
+2. Force-free **3001** / **5173** / **5174** **only** when **your** process (or an orphan from this chat) still holds them — never because the user left them listening.
+3. Confirm **your** listeners are gone before the final message.
+4. Never rely on the user to clean up; never tear down their already-running servers.
+
+## Force-Free Ports (Windows / PowerShell)
+
+Run before ending the turn **only** when agent-started work may still hold 3001/5173/5174:
+
+```powershell
+foreach ($port in 3001) {
+  Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue |
+    Select-Object -ExpandProperty OwningProcess -Unique |
+    ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+}
+```
+
+Fallback if `Get-NetTCPConnection` is unavailable:
+
+```powershell
+netstat -ano | findstr ":3001"
+# then: Stop-Process -Id <PID> -Force
+```
+
+Killing the terminal session PID alone is insufficient when children keep the port.
+
+## Exceptions
+
+- Leave a process running **only** if the user explicitly asks (e.g. "leave the server running").
+- Do **not** kill listeners on 3001 that the user already had running in an **external** terminal **unless** you (or an orphan from this chat) are what is holding the port, or the user asked you to free it.
+- Do **not** free port **3000** (LevelUP API) unless you started that process in this chat.
+- Postgres on **5432** (LevelUP) and **5433** (Induction Docker) is out of scope — do not stop DB containers unless asked.

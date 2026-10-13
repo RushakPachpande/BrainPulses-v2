@@ -1,0 +1,40 @@
+---
+description: Never auto-start npm run dev; reuse active listeners; only stop servers you started
+alwaysApply: true
+---
+
+# Reuse Existing Dev Servers
+
+Do **not** open or run apps with `npm run dev` (or equivalent long-lived servers) automatically.
+
+## Before Starting Anything
+
+1. Check whether the needed app is **already listening** (user external terminal, prior session, or another process).
+2. Ports: **3001**.
+3. If the port is already active → **use it**. Do not start a second instance. Do not kill it.
+
+```powershell
+# Example: is the API already up?
+Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue
+```
+
+```text
+❌ BAD — start npm run dev without checking; kill whatever is on 3001/5173/5174
+✅ GOOD — detect listener → hit that URL/API → only start if nothing is listening
+```
+
+## If You Must Start Dev
+
+- Start only when verification truly needs a live server **and** the port is free.
+- Prefer one-shot checks (`curl`, `npm run build`, `npx tsc`, tests) over `dev`.
+- Track every process **you** started in this chat.
+
+## After the Task
+
+- Stop **only** servers/sessions **you** created this chat so those ports are freed.
+- **Never** stop or force-kill a listener that was already active when you arrived (user-owned / external).
+- Align cleanup with `close-terminals-after-work`: free ports only when **your** process holds them.
+
+## Why
+
+Reusing the user’s running sessions keeps auth/cookies/state intact, avoids port conflicts, and leaves their external `dev` terminals alone while still cleaning up agent-started processes.

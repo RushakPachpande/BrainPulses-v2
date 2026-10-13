@@ -1,0 +1,30 @@
+---
+description: Prefer latest stable secure npm dependencies with clean audits when adding packages
+alwaysApply: true
+---
+
+# Secure Dependency Selection
+
+When adding packages (`npm install <dependency>`), choose **latest stable**, well-maintained, and **secure** options. Fulfilling the feature must not come at the cost of known vulnerabilities.
+
+## Requirements
+
+- Prefer the current **stable** release (not alpha/beta/nightly) unless the user asks for a prerelease.
+- Prefer packages with active maintenance, clear docs, and wide adoption when choices exist.
+- Avoid dependencies with known high/critical vulnerabilities; check or run `npm audit` when adding or upgrading.
+- Prefer zero or low audit findings. If a needed package has issues, pick a safer alternative or a patched version.
+- Do not add heavy or redundant libraries when the app already has an equivalent (especially UI — follow shadcn-only rules).
+- Pin via the lockfile (`package-lock.json`); install in the correct app (`api/`, `web/`, `levelup-admin/`, etc.) — never a shared root workspace unless one exists by design.
+- After install, confirm the app still builds/types-checks and no new audit blockers were introduced without calling them out.
+
+## Examples
+
+```text
+# ❌ BAD — random outdated package with known CVEs, or latest broken major with no review
+# ✅ GOOD — current stable, audited-clean (or patched), fits the app’s stack
+```
+
+```bash
+# Prefer: npm install <pkg>   # resolves to latest stable compatible with the project
+# Then:   npm audit           # when security is in doubt after adding deps
+```

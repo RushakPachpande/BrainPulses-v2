@@ -1,0 +1,54 @@
+---
+description: Auto-use all relevant skills — project (.agents, .cursor/skills) first, then global; multiple skills when needed
+alwaysApply: true
+---
+
+# Use Relevant Skills Automatically
+
+Do not work "raw" when skills already define the right workflow. Skills may be attached manually (`/skill`) or listed in the session — **either way, use every skill that fits the task**.
+
+## Skill Discovery Order
+
+Check skills in this order. **Project skills take precedence** over global skills when guidance conflicts.
+
+1. **Project — `.agents/`** — skills under `.agents/skills/` (and related paths in this repo)
+2. **Project — `.cursor/skills/`** — Cursor skills checked into this repo
+3. **Global** — user-level skills (e.g. `~/.cursor/skills/`, `~/.agents/skills/`, `~/.cursor/skills-cursor/`) when no project skill covers the task
+
+Scan both project locations before falling back to global. Do not skip project skills because a global skill with a similar name exists.
+
+## One Task, Multiple Skills
+
+Use **all relevant skills**, not just one. Many tasks span domains — combine skills whose workflows apply.
+
+| Task | Skills to combine |
+|------|-------------------|
+| New admin page with shadcn UI | `frontend-design` + `shadcn` + `responsive-testing` |
+| Prisma schema change + deploy note | `prisma-cli-migrate-dev` + `vps-deploy-change-log` (rule) |
+| Create a Cursor rule from a workflow | `create-rule` + domain skill (e.g. `prisma-cli-*`) |
+| Security review of a UI change | `review-security` + `shadcn` |
+
+Read each matching `SKILL.md` before implementing. Merge their steps; where they conflict, prefer **project** skill guidance over global.
+
+## Required Workflow
+
+1. **Parse** the user prompt for intent (create, fix, review, deploy, design, migrate, etc.).
+2. **Scan** `.agents/` and `.cursor/skills/` for matching skills.
+3. **Scan** global skills only for gaps not covered by project skills.
+4. **Read** every relevant `SKILL.md` **before** improvising.
+5. **Execute** using the combined workflows — do not wait for `/skill` when matches are obvious.
+
+```text
+❌ BAD — pick one skill arbitrarily; ignore project .agents skills; improvise a Prisma migration
+✅ GOOD — scan .agents + .cursor/skills → read prisma-cli-migrate-dev + immutable-migrations rule → run workflow
+```
+
+## When Not to Use a Skill
+
+- No skill matches — proceed normally.
+- A skill is clearly for a different domain — do not force-fit.
+- The user explicitly asks to skip skills or work a specific way.
+
+## Quality Bar
+
+Skill-guided work should be **better than raw execution**: correct paths, required formats, project conventions, and fewer missed steps. Using multiple skills when appropriate is expected, not optional.
