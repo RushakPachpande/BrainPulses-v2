@@ -10,11 +10,19 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:single": "tsc -b && vite build --mode singlefile",
-    "typecheck": "tsc -b --pretty false",
-    "lint": "eslint .",
+    "start": "npm run preview",
     "preview": "vite preview",
+    "typecheck": "tsc -b --pretty false",
+    "typecheck:check": "npm run typecheck",
+    "lint": "eslint .",
+    "lint:check": "npm run lint",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "format:fix": "npm run format",
+    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "check:fix": "npm run typecheck && npm run lint:fix && npm run format",
+    "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

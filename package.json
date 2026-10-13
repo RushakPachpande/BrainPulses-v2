@@ -12,12 +12,12 @@
     "lint:fix:admin": "npm run lint:fix --prefix admin",
     "typecheck:admin": "npm run typecheck --prefix admin",
     "typecheck:check:admin": "npm run typecheck:check --prefix admin",
-    "typecheck:fix:admin": "npm run typecheck:fix --prefix admin",
     "format:admin": "npm run format --prefix admin",
     "format:check:admin": "npm run format:check --prefix admin",
     "format:fix:admin": "npm run format:fix --prefix admin",
+    "check:admin": "npm run check --prefix admin",
     "check:fix:admin": "npm run check:fix --prefix admin",
-    "check:admin": "npm run typecheck && npm run lint && npm run format:check"
+    "tailwindcss:upgrade:admin": "npm run tailwindcss:upgrade --prefix admin"
   },
   "engines": {
     "node": ">=22"
