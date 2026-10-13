@@ -130,7 +130,7 @@ export function getDashboard() {
       {
         title: 'Registrations (monthly)',
         values: [40, 55, 48, 70, 82, 95],
-        color: '#2563eb',
+        color: 'var(--primary)',
         caption: 'September is the high point.',
       },
       {

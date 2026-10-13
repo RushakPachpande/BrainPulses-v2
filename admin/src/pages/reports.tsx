@@ -60,7 +60,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
         <BarChartCard
           title="Score distribution"
           values={[20, 45, 90, 70, 35]}
-          color="#2563eb"
+          color="var(--primary)"
           caption="Most attempts fall between 40 and 60."
           labels={['0–20', '20–40', '40–60', '60–80', '80–100']}
           emphasizeLast={false}

@@ -1,7 +1,6 @@
 import { Fragment, useEffect, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
 import {
-  ActivityIcon,
   BellIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
@@ -116,9 +115,7 @@ export function AdminLayout() {
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Brainpules">
                 <NavLink to="/dashboard" className="text-foreground">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
-                    <ActivityIcon />
-                  </span>
+                  <img src="/brand.svg" alt="" className="size-8 shrink-0" />
                   <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
                     Brainpules
                   </span>
