@@ -92,6 +92,8 @@ export const attemptCounts = [356, 201, 640, 98, 0, 0];
 export const questionCounts = [120, 200, 90, 150, 80, 300];
 export const usedInCounts = [3, 5, 2, 1, 4, 6];
 export const activityCounts = [3, 2, 4, 1, 5, 2];
+export const studentCourses = ['JEE', 'Aptitude', 'Scholarship', 'Olympiad', 'Career', 'Logic'];
+export const studentCities = ['Pune', 'Ahmedabad', 'Mumbai', 'Bengaluru', 'Delhi', 'Chennai'];
 export const resultScores = [82, 64, 47, 91];
 
 export const accessPeople = ['Meera Joshi', 'Karan Desai', 'Sana Khan', 'Rahul Nair'];

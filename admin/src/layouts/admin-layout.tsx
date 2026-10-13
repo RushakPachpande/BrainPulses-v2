@@ -38,6 +38,8 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
+import { PageHeaderProvider } from '@/contexts/page-header';
+import { usePageHeader } from '@/contexts/use-page-header';
 import { pageMeta } from '@/routes/meta';
 
 type NavLinkItem = { to: string; label: string; icon: LucideIcon; end: boolean };
@@ -74,6 +76,56 @@ function NavItem({ to, label, icon: Icon, end }: NavLinkItem) {
         </NavLink>
       </SidebarMenuButton>
     </SidebarMenuItem>
+  );
+}
+
+function PageHeader({
+  title,
+  description,
+  crumbs,
+}: {
+  title: string;
+  description?: string;
+  crumbs: string[];
+}) {
+  const { actions } = usePageHeader();
+
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <Breadcrumb>
+        <BreadcrumbList>
+          {crumbs.map((crumb, index) => {
+            const href = crumbHrefs[crumb];
+            const current = index === crumbs.length - 1;
+            return (
+              <Fragment key={`${crumb}-${index}`}>
+                {index > 0 ? <BreadcrumbSeparator /> : null}
+                <BreadcrumbItem>
+                  {current || !href ? (
+                    <BreadcrumbPage>{crumb}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <NavLink to={href} end>
+                        {crumb}
+                      </NavLink>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              </Fragment>
+            );
+          })}
+        </BreadcrumbList>
+      </Breadcrumb>
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-xl font-semibold">{title}</h1>
+          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+        </div>
+        {actions ? (
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">{actions}</div>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -150,68 +202,44 @@ export function AdminLayout() {
           </div>
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
-        <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
-          <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
-          <InputGroup className="max-w-117.5 min-w-0 flex-1 bg-muted">
-            <InputGroupAddon align="inline-start">
-              <SearchIcon />
-            </InputGroupAddon>
-            <InputGroupInput
-              type="search"
-              placeholder="Search"
-              aria-label="Search"
-              autoComplete="off"
-            />
-          </InputGroup>
-          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-            <ThemeToggle />
-            <Button type="button" variant="ghost" size="icon" aria-label="Notifications">
-              <BellIcon />
-            </Button>
-            <div className="flex items-center gap-2 border-l border-border pl-2 sm:pl-3">
-              <Avatar>
-                <AvatarFallback>MJ</AvatarFallback>
-              </Avatar>
-              <div className="hidden min-w-0 sm:block">
-                <div className="truncate text-sm font-medium">Meera Joshi</div>
-                <div className="truncate text-xs text-muted-foreground">Super Admin</div>
+      <PageHeaderProvider>
+        <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
+          <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
+            <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
+            <InputGroup className="max-w-117.5 min-w-0 flex-1 bg-muted">
+              <InputGroupAddon align="inline-start">
+                <SearchIcon />
+              </InputGroupAddon>
+              <InputGroupInput
+                type="search"
+                placeholder="Search"
+                aria-label="Search"
+                autoComplete="off"
+              />
+            </InputGroup>
+            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+              <ThemeToggle />
+              <Button type="button" variant="ghost" size="icon" aria-label="Notifications">
+                <BellIcon />
+              </Button>
+              <div className="flex items-center gap-2 border-l border-border pl-2 sm:pl-3">
+                <Avatar>
+                  <AvatarFallback>MJ</AvatarFallback>
+                </Avatar>
+                <div className="hidden min-w-0 sm:block">
+                  <div className="truncate text-sm font-medium">Meera Joshi</div>
+                  <div className="truncate text-xs text-muted-foreground">Super Admin</div>
+                </div>
               </div>
             </div>
+          </header>
+          <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
+            <PageHeader title={meta.title} description={meta.description} crumbs={crumbs} />
+            <ModuleNav pathname={pathname} />
+            <Outlet />
           </div>
-        </header>
-        <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
-          <div className="flex min-w-0 flex-col gap-2">
-            <Breadcrumb>
-              <BreadcrumbList>
-                {crumbs.map((crumb, index) => {
-                  const href = crumbHrefs[crumb];
-                  const current = index === crumbs.length - 1;
-                  return (
-                    <Fragment key={`${crumb}-${index}`}>
-                      {index > 0 ? <BreadcrumbSeparator /> : null}
-                      <BreadcrumbItem>
-                        {current || !href ? (
-                          <BreadcrumbPage>{crumb}</BreadcrumbPage>
-                        ) : (
-                          <BreadcrumbLink asChild>
-                            <NavLink to={href} end>
-                              {crumb}
-                            </NavLink>
-                          </BreadcrumbLink>
-                        )}
-                      </BreadcrumbItem>
-                    </Fragment>
-                  );
-                })}
-              </BreadcrumbList>
-            </Breadcrumb>
-            <h1 className="truncate text-xl font-semibold">{meta.title}</h1>
-          </div>
-          <ModuleNav pathname={pathname} />
-          <Outlet />
-        </div>
-      </SidebarInset>
+        </SidebarInset>
+      </PageHeaderProvider>
     </SidebarProvider>
   );
 }

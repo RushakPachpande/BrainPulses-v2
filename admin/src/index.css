@@ -107,6 +107,10 @@
   --control-h: 44px;
   --shadow-sm: 0 1px 2px rgb(20 33 61 / 0.06);
   --shadow-md: 0 4px 12px rgb(20 33 61 / 0.06);
+  --scrollbar-size: 6px;
+  --scrollbar-thumb: color-mix(in srgb, var(--primary) 55%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 80%, transparent);
+  --scrollbar-track: transparent;
 }
 
 .dark {
@@ -157,6 +161,8 @@
   --kpi-3: #2a1f4a;
   --kpi-4: #3d1c2c;
   --bar-muted: #3d2a5c;
+  --scrollbar-thumb: color-mix(in srgb, var(--primary) 70%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 90%, transparent);
 }
 
 @layer base {
@@ -209,13 +215,32 @@
   padding: 0;
 }
 
-/* Sidebar nav list scroller. */
-[data-slot='sidebar-content']::-webkit-scrollbar {
-  width: 4px;
+/* Narrow brand scrollbars (vertical + horizontal), including table overflow. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
 }
-[data-slot='sidebar-content']::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--sidebar-foreground) 45%, transparent);
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 [data-slot='card'][data-tint='0'] {

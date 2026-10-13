@@ -23,6 +23,8 @@ import {
   registeredCounts,
   resultScores,
   resultStatuses,
+  studentCities,
+  studentCourses,
   studentStatuses,
   usedInCounts,
   when,
@@ -44,6 +46,8 @@ export function getStudents() {
     activities: activityCounts[i],
     status: studentStatuses[i],
     lastLogin: when(i + 1, 10),
+    course: studentCourses[i],
+    city: studentCities[i],
   }));
 }
 

@@ -1,6 +1,16 @@
-export const pageMeta: Record<string, { title: string; crumb: string }> = {
+export type PageMeta = {
+  title: string;
+  crumb: string;
+  description?: string;
+};
+
+export const pageMeta: Record<string, PageMeta> = {
   '/dashboard': { crumb: 'Brainpules / Dashboard', title: 'Admin Dashboard' },
-  '/students': { crumb: 'Brainpules / Students', title: 'Students' },
+  '/students': {
+    crumb: 'Brainpules / Students',
+    title: 'Students',
+    description: 'Manage student accounts, view details, and track their learning progress.',
+  },
   '/users': { crumb: 'Brainpules / Users', title: 'User Management' },
   '/assessments': { crumb: 'Brainpules / Assessment', title: 'Assessments' },
   '/assessments/banks': {
