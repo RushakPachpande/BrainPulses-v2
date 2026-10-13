@@ -1,7 +1,7 @@
 import * as React from 'react';
 
-/* Drawer below 1024px, matching the previous admin shell. */
-const MOBILE_BREAKPOINT = 1024;
+/* Drawer below 768px, matching the Quizora shell. */
+const MOBILE_BREAKPOINT = 768;
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined);

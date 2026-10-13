@@ -1,12 +1,12 @@
-import { Fragment, useEffect } from 'react';
+import { Fragment, useEffect, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
 import {
   ActivityIcon,
   BellIcon,
-  ChevronsUpDownIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
   ListIcon,
+  SearchIcon,
   SlidersHorizontalIcon,
   UserCogIcon,
   UsersIcon,
@@ -23,13 +23,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Separator } from '@/components/ui/separator';
+import { Button } from '@/components/ui/button';
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import {
   Sidebar,
   SidebarContent,
@@ -68,7 +63,12 @@ function NavItem({ to, label, icon: Icon, end }: NavLinkItem) {
   const match = useMatch({ path: to, end });
   return (
     <SidebarMenuItem>
-      <SidebarMenuButton asChild isActive={Boolean(match)} tooltip={label}>
+      <SidebarMenuButton
+        asChild
+        isActive={Boolean(match)}
+        tooltip={label}
+        className="h-auto min-h-(--control-h) gap-3 px-3 group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:px-2"
+      >
         <NavLink to={to} end={end}>
           <Icon />
           <span>{label}</span>
@@ -96,21 +96,32 @@ export function AdminLayout() {
   }, [pathname]);
 
   return (
-    <SidebarProvider>
+    <SidebarProvider
+      style={
+        {
+          '--sidebar-width': '16rem',
+          '--sidebar-width-icon': '76px',
+        } as CSSProperties
+      }
+    >
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
       >
         Skip to content
       </a>
-      <Sidebar collapsible="offcanvas">
-        <SidebarHeader>
-          <SidebarMenu>
+      <Sidebar collapsible="icon">
+        <SidebarHeader className="min-h-18 justify-center border-b border-sidebar-border group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+          <SidebarMenu className="group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:items-center">
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Brainpules">
                 <NavLink to="/dashboard" className="text-foreground">
-                  <ActivityIcon />
-                  <span className="text-base font-semibold">Brainpules</span>
+                  <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
+                    <ActivityIcon />
+                  </span>
+                  <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
+                    Brainpules
+                  </span>
                 </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -119,7 +130,7 @@ export function AdminLayout() {
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
-              <SidebarMenu>
+              <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
                 {nav.map((item) => (
                   <NavItem key={item.to} {...item} />
                 ))}
@@ -127,71 +138,79 @@ export function AdminLayout() {
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
-        <SidebarFooter>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton
-                    size="lg"
-                    className="h-auto min-h-12 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                  >
-                    <Avatar>
-                      <AvatarFallback>MJ</AvatarFallback>
-                    </Avatar>
-                    <span className="grid min-w-0 flex-1 text-left leading-tight">
-                      <span className="truncate font-medium text-foreground">Meera Joshi</span>
-                      <span className="truncate text-xs text-muted-foreground">Super Admin</span>
-                    </span>
-                    <ChevronsUpDownIcon />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="top" align="start">
-                  <ThemeToggle />
-                  <DropdownMenuItem className="min-h-(--control-h)">
-                    <BellIcon />
-                    Notifications
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
+        <SidebarFooter className="border-t border-sidebar-border group-data-[collapsible=icon]:items-center">
+          <div className="flex w-full items-center gap-2 group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center">
+            <Avatar>
+              <AvatarFallback>MJ</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+              <div className="truncate text-sm font-medium text-foreground">Meera Joshi</div>
+              <div className="truncate text-xs text-muted-foreground">Super Admin</div>
+            </div>
+            <div className="group-data-[collapsible=icon]:hidden">
+              <ThemeToggle />
+            </div>
+          </div>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
-        <header className="flex min-h-16 min-w-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2">
+        <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
           <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
-          <Separator
-            orientation="vertical"
-            className="h-4 data-vertical:h-4 data-vertical:self-center"
-          />
-          <Breadcrumb className="min-w-0">
-            <BreadcrumbList>
-              {crumbs.map((crumb, index) => {
-                const href = crumbHrefs[crumb];
-                const current = index === crumbs.length - 1;
-                return (
-                  <Fragment key={`${crumb}-${index}`}>
-                    {index > 0 ? <BreadcrumbSeparator /> : null}
-                    <BreadcrumbItem>
-                      {current || !href ? (
-                        <BreadcrumbPage>{crumb}</BreadcrumbPage>
-                      ) : (
-                        <BreadcrumbLink asChild>
-                          <NavLink to={href} end>
-                            {crumb}
-                          </NavLink>
-                        </BreadcrumbLink>
-                      )}
-                    </BreadcrumbItem>
-                  </Fragment>
-                );
-              })}
-            </BreadcrumbList>
-          </Breadcrumb>
+          <InputGroup className="max-w-117.5 min-w-0 flex-1 bg-muted">
+            <InputGroupAddon align="inline-start">
+              <SearchIcon />
+            </InputGroupAddon>
+            <InputGroupInput
+              type="search"
+              placeholder="Search"
+              aria-label="Search"
+              autoComplete="off"
+            />
+          </InputGroup>
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+            <ThemeToggle />
+            <Button type="button" variant="ghost" size="icon" aria-label="Notifications">
+              <BellIcon />
+            </Button>
+            <div className="flex items-center gap-2 border-l border-border pl-2 sm:pl-3">
+              <Avatar>
+                <AvatarFallback>MJ</AvatarFallback>
+              </Avatar>
+              <div className="hidden min-w-0 sm:block">
+                <div className="truncate text-sm font-medium">Meera Joshi</div>
+                <div className="truncate text-xs text-muted-foreground">Super Admin</div>
+              </div>
+            </div>
+          </div>
         </header>
-        <div className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4 md:px-6">
-          <h1 className="truncate text-xl font-semibold">{meta.title}</h1>
+        <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Breadcrumb>
+              <BreadcrumbList>
+                {crumbs.map((crumb, index) => {
+                  const href = crumbHrefs[crumb];
+                  const current = index === crumbs.length - 1;
+                  return (
+                    <Fragment key={`${crumb}-${index}`}>
+                      {index > 0 ? <BreadcrumbSeparator /> : null}
+                      <BreadcrumbItem>
+                        {current || !href ? (
+                          <BreadcrumbPage>{crumb}</BreadcrumbPage>
+                        ) : (
+                          <BreadcrumbLink asChild>
+                            <NavLink to={href} end>
+                              {crumb}
+                            </NavLink>
+                          </BreadcrumbLink>
+                        )}
+                      </BreadcrumbItem>
+                    </Fragment>
+                  );
+                })}
+              </BreadcrumbList>
+            </Breadcrumb>
+            <h1 className="truncate text-xl font-semibold">{meta.title}</h1>
+          </div>
           <ModuleNav pathname={pathname} />
           <Outlet />
         </div>

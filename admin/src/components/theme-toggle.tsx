@@ -1,6 +1,6 @@
 import { MoonIcon, SunIcon } from 'lucide-react';
 import { useTheme } from '@/contexts/use-theme';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 export function ThemeToggle() {
   const { theme, toggle } = useTheme();
@@ -8,9 +8,15 @@ export function ThemeToggle() {
   const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
 
   return (
-    <DropdownMenuItem className="min-h-(--control-h)" onSelect={() => toggle()}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={toggle}
+      aria-label={label}
+      title={label}
+    >
       {isDark ? <SunIcon /> : <MoonIcon />}
-      {label}
-    </DropdownMenuItem>
+    </Button>
   );
 }
