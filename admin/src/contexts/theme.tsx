@@ -11,7 +11,7 @@ function applyDomTheme(theme: ThemeMode) {
   root.style.colorScheme = theme;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', theme === 'dark' ? '#0b142e' : '#0f1b3d');
+    ?.setAttribute('content', theme === 'dark' ? '#0e1524' : '#f5f7fb');
 }
 
 function loadTheme(): ThemeMode {

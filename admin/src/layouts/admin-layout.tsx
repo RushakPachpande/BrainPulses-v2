@@ -103,12 +103,12 @@ export function AdminLayout() {
       >
         Skip to content
       </a>
-      <Sidebar variant="inset" collapsible="offcanvas">
+      <Sidebar collapsible="offcanvas">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild size="lg" tooltip="Brainpules">
-                <NavLink to="/dashboard">
+                <NavLink to="/dashboard" className="text-foreground">
                   <ActivityIcon />
                   <span className="text-base font-semibold">Brainpules</span>
                 </NavLink>
@@ -140,7 +140,7 @@ export function AdminLayout() {
                       <AvatarFallback>MJ</AvatarFallback>
                     </Avatar>
                     <span className="grid min-w-0 flex-1 text-left leading-tight">
-                      <span className="truncate font-medium">Meera Joshi</span>
+                      <span className="truncate font-medium text-foreground">Meera Joshi</span>
                       <span className="truncate text-xs text-muted-foreground">Super Admin</span>
                     </span>
                     <ChevronsUpDownIcon />
@@ -159,7 +159,7 @@ export function AdminLayout() {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
-        <header className="flex min-h-16 min-w-0 flex-wrap items-center gap-2 border-b px-4 py-2">
+        <header className="flex min-h-16 min-w-0 flex-wrap items-center gap-2 border-b bg-card px-4 py-2">
           <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
           <Separator
             orientation="vertical"
