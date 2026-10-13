@@ -1,39 +1,26 @@
 ---
+description: Admin layouts are mobile-first and must work from phone width through large desktops
 alwaysApply: true
 ---
-# Responsive First
 
-Design and implement UI for every viewport from the start. Do not ship desktop-only layouts and patch mobile later.
+# Responsive first
 
-## Requirements
+Design admin pages for every viewport. Do not ship a desktop-only layout and patch phones later.
 
-- Support phones, tablets, laptops, and large desktops.
-- Prefer mobile-first Tailwind breakpoints (`sm:`, `md:`, `lg:`, `xl:`) over desktop-first overrides.
-- Layouts must reflow: stacks on small screens, multi-column only when space allows.
-- Touch targets stay usable on mobile (adequate tap size and spacing).
-- Avoid horizontal scroll on common viewports unless the content itself requires it (e.g. wide tables — then provide a clear overflow pattern).
-- Test mentally at ~375px, ~768px, and ~1280px before finishing UI work.
-- Prefer fluid units (`%`, `fr`, `minmax`, container queries when already in use) over fixed pixel widths for page chrome.
-
-## Examples
+- Mobile-first breakpoints: `sm:`, `md:`, `lg:`, `xl:`.
+- Stack on small screens; add columns only when space allows.
+- Keep tap targets usable. Avoid horizontal scroll unless the content needs it (wide tables use a clear overflow).
+- Check ~375px, ~768px, and ~1280px before finishing UI work.
+- Prefer `%`, `fr`, and `minmax` over fixed pixel widths for page chrome.
 
 ```tsx
-// ❌ BAD — desktop-only grid
+// ❌ BAD
 <div className="grid grid-cols-4 gap-4">...</div>
-
-// ✅ GOOD — mobile first
-<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">...</div>
-```
-
-```tsx
-// ❌ BAD — fixed width breaks small screens
 <aside className="w-[320px]">...</aside>
 
 // ✅ GOOD
+<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">...</div>
 <aside className="w-full md:w-64 lg:w-80">...</aside>
 ```
 
-## Browser Support
-
-- Stick to patterns already used in this project (modern evergreen browsers).
-- Do not rely on bleeding-edge CSS without a fallback already present in the codebase.
+Stay with patterns already in `admin/` (evergreen browsers). Do not add bleeding-edge CSS that the app does not already use.

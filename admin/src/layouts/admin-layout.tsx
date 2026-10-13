@@ -41,7 +41,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { pageMeta } from '@/routes/meta';
@@ -146,7 +145,7 @@ export function AdminLayout() {
     <SidebarProvider
       open={open}
       onOpenChange={onOpenChange}
-      style={{ '--sidebar-width': '268px', '--sidebar-width-icon': '76px' } as CSSProperties}
+      style={{ '--sidebar-width': '268px' } as CSSProperties}
     >
       <a
         href="#main"
@@ -167,7 +166,6 @@ export function AdminLayout() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
-            <SidebarTrigger className="shrink-0 group-data-[collapsible=icon]:hidden" />
           </div>
         </SidebarHeader>
         <SidebarContent>
@@ -193,12 +191,11 @@ export function AdminLayout() {
             </SidebarGroup>
           ))}
         </SidebarContent>
-        <SidebarRail />
       </Sidebar>
-      <SidebarInset>
-        <header className="flex flex-col gap-3 border-b bg-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex min-w-0 items-start gap-2">
-            <SidebarTrigger className="lg:hidden" />
+      <SidebarInset className="min-w-0">
+        <header className="flex min-h-14 min-w-0 items-center gap-2 border-b bg-card px-4 py-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
             <div className="min-w-0">
               <Breadcrumb>
                 <BreadcrumbList>
@@ -219,7 +216,7 @@ export function AdminLayout() {
               <h1 className="truncate text-xl font-semibold">{meta.title}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <ThemeToggle />
             <Button type="button" variant="outline" size="icon" aria-label="Notifications">
               <BellIcon />
@@ -230,7 +227,7 @@ export function AdminLayout() {
             <span className="hidden text-sm lg:inline">Meera Joshi · Super Admin</span>
           </div>
         </header>
-        <main id="main" tabIndex={-1} className="flex-1 px-4 py-4 md:px-6">
+        <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-x-hidden px-4 py-4 md:px-6">
           <Outlet />
         </main>
       </SidebarInset>

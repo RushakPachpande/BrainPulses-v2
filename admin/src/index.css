@@ -209,6 +209,15 @@
   padding: 0;
 }
 
+/* Collapsed and expanded nav lists share this scroller. Keep the bar narrow so 32px icons stay fully visible inside the 48px rail. */
+[data-slot='sidebar-content']::-webkit-scrollbar {
+  width: 4px;
+}
+[data-slot='sidebar-content']::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--sidebar-foreground) 45%, transparent);
+  border-radius: 999px;
+}
+
 [data-slot='card'][data-tint='0'] {
   background-color: var(--kpi-0);
 }

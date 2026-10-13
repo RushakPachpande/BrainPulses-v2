@@ -1,22 +1,22 @@
 ---
-description: Keep form controls one height and toolbars wrapping without stranding actions
+description: Single-line admin controls stay 44px; toolbars wrap with actions on the trailing edge
 alwaysApply: true
 ---
 
 # Control height and toolbars
 
-Single-line controls share `--control-h` (44px): inputs, selects, and `.btn`. Set `height` and `min-height` to that token. Do not invent a one-off height for a new field or button.
+`--control-h` is **44px** in `admin/src/index.css`. These selectors already set `height` and `min-height` to that token:
 
-Textareas, segment chips, and table text actions are the exceptions. Change those only when that component is intentionally a different control, and say so next to the rule.
+- `[data-slot='button']` (not icon sizes, not `link`)
+- `[data-slot='input']`, `[data-slot='select-trigger']`, `[data-slot='input-group']`
+
+Do not give a new single-line button, input, or select its own height. Icon buttons inside the workspace stay square at `--control-h`. Textareas and link buttons are the exceptions.
 
 ```css
-/* ❌ BAD — button shorter than the search field beside it */
-.btn { min-height: 40px; }
+/* ❌ BAD */
+button { height: 32px; }
 
-/* ✅ GOOD */
-.btn, input, select { height: var(--control-h); min-height: var(--control-h); }
+/* ✅ GOOD — leave the data-slot rules in index.css in place */
 ```
 
-Toolbars (`.toolbar`) wrap as a row. Search and filters stay in the row; `.actions` uses `margin-left: auto` so the button group sits on the trailing edge of whatever line it lands on. Do not use a flex spacer to push those buttons; a spacer collapses on wrap and pins the buttons to the left.
-
-Below 640px, search, each filter, and the action group each take the full row. Action buttons share that row instead of overflowing the page.
+Toolbars use `Toolbar` in `admin/src/components/toolbar.tsx`: a wrapping row, search and filters in flow, actions with `sm:ml-auto`. Below `sm`, search, each filter, and the action group are full width. Do not push actions with a flex spacer; it collapses on wrap.

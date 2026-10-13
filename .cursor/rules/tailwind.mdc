@@ -1,76 +1,22 @@
 ---
+description: Tailwind v4 for admin — tokens in index.css, no tailwind.config, no second palette
 alwaysApply: true
 ---
-# Tailwind CSS Best Practices
 
-## Project Setup
-- Use proper Tailwind configuration
-- Configure theme extension properly
-- Set up proper purge configuration
-- Use proper plugin integration
-- Configure custom spacing and breakpoints
-- Set up proper color palette
+# Tailwind v4
 
-## Component Styling
-- Use utility classes over custom CSS
-- Group related utilities with @apply when needed
-- Use proper responsive design utilities
-- Implement dark mode properly
-- Use proper state variants
-- Keep component styles consistent
+Admin styling is CSS-first. `admin/src/index.css` imports `tailwindcss`, `tw-animate-css`, and `shadcn/tailwind.css`, then defines tokens in `@theme` and `:root` / `.dark`. There is no `tailwind.config`.
 
-## Layout
-- Use Flexbox and Grid utilities effectively
-- Implement proper spacing system
-- Use container queries when needed
-- Implement proper responsive breakpoints
-- Use proper padding and margin utilities
-- Implement proper alignment utilities
+```css
+/* ❌ BAD — a second config or a one-off hex on a page */
+/* tailwind.config.js */
+<div className="bg-[#2563eb]" />
 
-## Typography
-- Use proper font size utilities
-- Implement proper line height
-- Use proper font weight utilities
-- Configure custom fonts properly
-- Use proper text alignment
-- Implement proper text decoration
+/* ✅ GOOD — semantic tokens already in index.css */
+<div className="bg-primary text-primary-foreground" />
+```
 
-## Colors
-- Use semantic color naming
-- Implement proper color contrast
-- Use opacity utilities effectively
-- Configure custom colors properly
-- Use proper gradient utilities
-- Implement proper hover states
-
-## Components
-- Use shadcn/ui components when available
-- Extend components properly
-- Keep component variants consistent
-- Implement proper animations
-- Use proper transition utilities
-- Keep accessibility in mind
-
-## Responsive Design
-- Use mobile-first approach
-- Implement proper breakpoints
-- Use container queries effectively
-- Handle different screen sizes properly
-- Implement proper responsive typography
-- Use proper responsive spacing
-
-## Performance
-- Use proper purge configuration
-- Minimize custom CSS
-- Use proper caching strategies
-- Implement proper code splitting
-- Optimize for production
-- Monitor bundle size
-
-## Best Practices
-- Follow naming conventions
-- Keep styles organized
-- Use proper documentation
-- Implement proper testing
-- Follow accessibility guidelines
-- Use proper version control
+- Use utilities for layout, spacing, and type. Prefer tokens: `primary`, `sidebar`, `success`, `warning`, `destructive`, `muted`, chart and kpi colors.
+- Dark mode is the `.dark` class (`@custom-variant dark`).
+- Add a new color in `index.css` (`:root`, `.dark`, and `@theme` when it should be a utility). Do not invent a parallel palette in a component.
+- `@apply` stays in `index.css` base layer, as it does today. Do not build component CSS files to replace utilities.

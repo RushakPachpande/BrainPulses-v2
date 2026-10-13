@@ -1,0 +1,18 @@
+---
+description: BrainPulses v2.0 is the admin Vite app only — do not copy other products from references/
+alwaysApply: true
+---
+
+# Project context
+
+This repo is **BrainPulses v2.0**. The only app is `admin/` (Vite 8, React 19, React Router, TypeScript, Tailwind v4, shadcn `radix-nova`, `lucide-react`). Root `package.json` only forwards scripts. Node `>=22`. Shell is PowerShell.
+
+```text
+❌ BAD — scaffold api/ or client/, or copy LevelUP / PGDM ports, Prisma, or env layout from references/
+✅ GOOD — change admin/ and use the scripts below
+```
+
+- Dev: `npm run dev:admin` from the repo root, or `npm run dev` inside `admin/`. Port **5173**, `strictPort`.
+- Checks: `npm run typecheck`, `npm run lint`, `npm run format:check` inside `admin/` (root: `typecheck:admin`, `lint:admin`, `format:admin`).
+- `references/` is read-only. Do not treat it as this app’s source of truth.
+- Do not add `api/` or `client/` unless the user asks.

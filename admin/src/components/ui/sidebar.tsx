@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -18,7 +19,7 @@ import {
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { PanelLeftIcon } from 'lucide-react';
+import { PanelLeftIcon, XIcon } from 'lucide-react';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -179,7 +180,8 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          showCloseButton={false}
+          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground"
           style={
             {
               '--sidebar-width': SIDEBAR_WIDTH_MOBILE,
@@ -191,7 +193,18 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <SheetClose asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="absolute top-2 right-2 z-10 size-11 text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              aria-label="Close sidebar"
+            >
+              <XIcon />
+            </Button>
+          </SheetClose>
+          <div className="flex h-full w-full flex-col **:data-[slot=sidebar-header]:pr-12">{children}</div>
         </SheetContent>
       </Sheet>
     );
@@ -353,7 +366,7 @@ function SidebarContent({ className, ...props }: React.ComponentProps<'div'>) {
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        'no-scrollbar flex min-h-0 flex-1 flex-col gap-0 overflow-auto group-data-[collapsible=icon]:overflow-hidden',
+        'flex min-h-0 flex-1 flex-col gap-0 overflow-x-hidden overflow-y-auto',
         className,
       )}
       {...props}
@@ -474,6 +487,7 @@ function SidebarMenuButton({
   size = 'default',
   tooltip,
   className,
+  onClick,
   ...props
 }: React.ComponentProps<'button'> & {
   asChild?: boolean;
@@ -481,7 +495,7 @@ function SidebarMenuButton({
   tooltip?: string | React.ComponentProps<typeof TooltipContent>;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : 'button';
-  const { isMobile, state } = useSidebar();
+  const { isMobile, state, setOpenMobile } = useSidebar();
 
   const button = (
     <Comp
@@ -491,6 +505,10 @@ function SidebarMenuButton({
       data-active={isActive}
       className={cn(sidebarMenuButtonVariants({ variant, size }), className)}
       {...props}
+      onClick={(event) => {
+        onClick?.(event);
+        if (isMobile) setOpenMobile(false);
+      }}
     />
   );
 
@@ -620,6 +638,7 @@ function SidebarMenuSubButton({
   size = 'md',
   isActive = false,
   className,
+  onClick,
   ...props
 }: React.ComponentProps<'a'> & {
   asChild?: boolean;
@@ -627,6 +646,7 @@ function SidebarMenuSubButton({
   isActive?: boolean;
 }) {
   const Comp = asChild ? Slot.Root : 'a';
+  const { isMobile, setOpenMobile } = useSidebar();
 
   return (
     <Comp
@@ -639,6 +659,10 @@ function SidebarMenuSubButton({
         className,
       )}
       {...props}
+      onClick={(event) => {
+        onClick?.(event);
+        if (isMobile) setOpenMobile(false);
+      }}
     />
   );
 }

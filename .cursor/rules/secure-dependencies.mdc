@@ -1,30 +1,23 @@
 ---
-description: Prefer latest stable secure npm dependencies with clean audits when adding packages
+description: Install npm packages only inside admin/, latest stable, and check audit impact
 alwaysApply: true
 ---
 
-# Secure Dependency Selection
+# Secure dependency selection
 
-When adding packages (`npm install <dependency>`), choose **latest stable**, well-maintained, and **secure** options. Fulfilling the feature must not come at the cost of known vulnerabilities.
-
-## Requirements
-
-- Prefer the current **stable** release (not alpha/beta/nightly) unless the user asks for a prerelease.
-- Prefer packages with active maintenance, clear docs, and wide adoption when choices exist.
-- Avoid dependencies with known high/critical vulnerabilities; check or run `npm audit` when adding or upgrading.
-- Prefer zero or low audit findings. If a needed package has issues, pick a safer alternative or a patched version.
-- Do not add heavy or redundant libraries when the app already has an equivalent (especially UI — follow shadcn-only rules).
-- Pin via the lockfile (`package-lock.json`); install in the correct app (`admin/`, `api/`, `client/`, etc.) — never a shared root workspace unless one exists by design.
-- After install, confirm the app still builds/types-checks and no new audit blockers were introduced without calling them out.
-
-## Examples
-
-```text
-# ❌ BAD — random outdated package with known CVEs, or latest broken major with no review
-# ✅ GOOD — current stable, audited-clean (or patched), fits the app’s stack
-```
+Install packages in `admin/`. Root `package.json` only forwards scripts; do not `npm install` there.
 
 ```bash
-# Prefer: npm install <pkg>   # resolves to latest stable compatible with the project
-# Then:   npm audit           # when security is in doubt after adding deps
+# ❌ BAD — install at the repo root, or add a second UI kit
+npm install some-ui-lib
+
+# ✅ GOOD — from admin/
+npm install <pkg>
+npm audit
 ```
+
+- Prefer the current stable release, not alpha/beta/nightly, unless the user asks.
+- Prefer maintained packages. Skip ones with known high or critical vulnerabilities; pick a patched version or a safer alternative.
+- Do not add a library the app already covers (UI follows `shadcn-only-ui`).
+- The lockfile is `admin/package-lock.json`.
+- After install, run `npm run typecheck` and `npm run lint` in `admin/`, and say so if `npm audit` reports a new blocker.

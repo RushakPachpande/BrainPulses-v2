@@ -1,40 +1,25 @@
 ---
-description: Never auto-start npm run dev; reuse active listeners; only stop servers you started
+description: Never auto-start the admin dev server; reuse port 5173 if it is already listening
 alwaysApply: true
 ---
 
-# Reuse Existing Dev Servers
+# Reuse existing dev servers
 
-Do **not** open or run apps with `npm run dev` (or equivalent long-lived servers) automatically.
+Do not start `npm run dev` or `npm run dev:admin` on your own.
 
-## Before Starting Anything
-
-1. Check whether the needed app is **already listening** (user external terminal, prior session, or another process).
-2. Ports: **5173** (`admin/` Vite, `strictPort`).
-3. If the port is already active → **use it**. Do not start a second instance. Do not kill it.
+1. Check whether **5173** is already listening (user terminal or a prior session).
+2. If it is, use `http://localhost:5173`. Do not start a second instance. Do not kill it.
+3. Start the server only when verification needs a live app **and** the port is free.
 
 ```powershell
-# Example: is the admin app already up?
 Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
 ```
 
 ```text
-❌ BAD — start npm run dev without checking; kill whatever is on 5173
-✅ GOOD — detect listener → hit that URL/API → only start if nothing is listening
+❌ BAD — npm run dev:admin without checking; then kill the user's server
+✅ GOOD — detect the listener, then open that URL
 ```
 
-## If You Must Start Dev
+From the repo root the script is `npm run dev:admin`. Inside `admin/` it is `npm run dev`. Vite will not move off 5173.
 
-- Start only when verification truly needs a live server **and** the port is free.
-- Prefer one-shot checks (`curl`, `npm run build`, `npx tsc`, tests) over `dev`.
-- Track every process **you** started in this chat.
-
-## After the Task
-
-- Stop **only** servers/sessions **you** created this chat so those ports are freed.
-- **Never** stop or force-kill a listener that was already active when you arrived (user-owned / external).
-- Align cleanup with `close-terminals-after-work`: free ports only when **your** process holds them.
-
-## Why
-
-Reusing the user’s running sessions keeps auth/cookies/state intact, avoids port conflicts, and leaves their external `dev` terminals alone while still cleaning up agent-started processes.
+Stop only servers you started in this chat. See `close-terminals-after-work`.

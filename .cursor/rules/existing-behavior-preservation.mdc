@@ -1,50 +1,20 @@
 ---
-description: Preserve existing behavior by default — smallest change surface; no unrequested refactors or interface breaks
+description: Change only what was asked; leave unrelated admin behavior alone
 alwaysApply: true
 ---
 
-# Existing Behavior Preservation Contract
+# Existing behavior preservation
 
-Treat all existing functionality as **protected by default**. Implement only the requested change with the **smallest possible change surface**.
+The admin app is working. Success is the requested change plus everything else unchanged.
 
-## Golden Rule
-
-The app is stable and working. Success = requested change **plus** all unrelated behavior unchanged. Do not improve, refactor, modernize, simplify, or redesign unless explicitly asked.
-
-## Preserve Unless Explicitly Requested
-
-Do **not** change: business logic, API contracts/payloads, DB/schema, validation, state, routing, authz, error/loading/success states, input/gesture behavior, responsive/a11y behavior, styling/layout (unless part of the request), or remove “unused” features.
-
-If it works and the task does not ask to change it → **leave it alone**.
-
-## No Unrequested Refactoring
-
-Do not use the task to: refactor nearby code, rename unrelated symbols/files, change architecture, swap libraries, upgrade packages, rewrite working components, convert patterns, clean unrelated debt, reformat large areas, or add abstractions when existing ones suffice.
-
-## Preserve Interfaces
-
-Treat signatures, props, events, API/DB formats, URL/query params, storage shapes, CSS class contracts, and shared component behavior as **contracts**. Change them only when the request requires it; call out necessary breaks and minimize impact.
-
-## Understand Before Editing
-
-Inspect implementation and call sites; know what must change vs stay. Prefer extend over rewrite. Never start by rewriting a working component from scratch.
-
-## Scope Strictly
-
-Change only what satisfies the request. Prefer: one component over five; CSS over JS when enough; local over shared/global; extend over replace.
-
-## Do Not Guess Intent
-
-If interpretations could disturb existing behavior → **ask**. Do not “fix” or add product/UX decisions that were not requested. Existing behavior is intentional unless proven broken or the task asks to change it.
-
-## Regression & Scope Boundaries
-
-- Before coding: state **requested change**, **protected behavior**, and **expected files**.
-- Prefer the option with fewer files/lines/deps/side effects, reuse, easy revert.
-- Validate per `no-regressions-clean-edits` / `code-quality-validation`. Fix regressions you caused; do not delete tests to pass.
-- Pre-existing unrelated bugs: **report**, do not silently expand scope.
+Do not change, unless the task asks: routing, fixtures, page copy, loading and empty states, layout, or shared component behavior. Do not rename nearby symbols, restyle a page, or rewrite a working component to “clean it up.”
 
 ```text
-❌ BAD — feature needs a button; also renames helpers, restyles the page, “cleans” nearby hooks
-✅ GOOD — add the button and the minimal wiring; leave everything else untouched
+❌ BAD — the task adds a button, and the edit also renames helpers and restyles the page
+✅ GOOD — add the button and the wiring it needs
 ```
+
+- Inspect the component and its call sites before editing. Extend it; do not replace it.
+- If two readings would change behavior that was not requested, ask.
+- Report unrelated bugs; do not fix them in the same change.
+- After a code change, run `npm run typecheck`, `npm run lint`, and `npm run format:check` in `admin/` when the edit can affect them. Fix regressions you caused.

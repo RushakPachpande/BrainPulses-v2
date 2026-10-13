@@ -1,39 +1,27 @@
 ---
-description: Ask clarifying questions before starting work when context is incomplete
+description: Ask before implementing when the admin task is missing goal, scope, or which page to change
 alwaysApply: true
 ---
 
-# Clarify Before Acting
+# Clarify before acting
 
-Do not start implementing, planning in depth, or making irreversible changes when important context is missing. Ask first — in every mode (Agent, Plan, Ask, Debug, or otherwise).
+Ask first when the request is missing something that would change the result. This applies in every mode.
 
-## When to ask
+Ask when any of these are unclear:
 
-Ask before proceeding if any of the following are unclear:
+- Goal or what “done” means
+- What is in scope
+- Which approach, when more than one is valid
+- Which page, fixture, or copy to change
 
-- Goal, success criteria, or constraints
-- Scope (what is in vs out)
-- Preferred approach when multiple valid options exist
-- Target files, APIs, designs, copy, or data the user did not provide
-- Acceptance criteria that would change the output meaningfully
+```text
+❌ BAD — "improve the dashboard" → rewrite layout and copy
+✅ GOOD — ask whether the change is layout, data, or copy, and which cards
 
-## How to ask
-
-- Ask focused questions early (batch related ones in one turn)
-- Prefer concrete options when helpful (A vs B) over open-ended prompts
-- State what you will assume only if the user wants you to proceed without answering
-- After answers, confirm understanding briefly, then act
-
-## Examples
-
-```
-❌ BAD: User says "improve the hero" → immediately rewrite layout and copy
-✅ GOOD: Ask which goal (conversion, clarity, brand), constraints, and whether copy may change
-
-❌ BAD: User says "add auth" → scaffold a full auth stack
-✅ GOOD: Ask provider preference, session vs JWT, and which pages need protection
+❌ BAD — "add a students filter" → invent filter fields
+✅ GOOD — ask which fields, using the columns already on the students page
 ```
 
-## Exception
+Batch related questions in one turn. After answers, confirm briefly, then act.
 
-If the request is already specific enough to produce a correct result, proceed without ritual questions. Do not delay obvious, well-scoped work.
+If the request is already specific, do the work. Do not ask ritual questions.
