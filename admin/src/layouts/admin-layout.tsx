@@ -1,5 +1,5 @@
-import { useEffect, useState, type CSSProperties } from "react";
-import { NavLink, Outlet, useLocation, useMatch } from "react-router";
+import { useEffect, useState, type CSSProperties } from 'react';
+import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
 import {
   ActivityIcon,
   BellIcon,
@@ -18,17 +18,17 @@ import {
   UserPlusIcon,
   UsersIcon,
   type LucideIcon,
-} from "lucide-react";
-import { ThemeToggle } from "@/components/theme-toggle";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+} from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
-import { Button } from "@/components/ui/button";
+} from '@/components/ui/breadcrumb';
+import { Button } from '@/components/ui/button';
 import {
   Sidebar,
   SidebarContent,
@@ -43,55 +43,59 @@ import {
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
-} from "@/components/ui/sidebar";
-import { pageMeta } from "@/routes/meta";
+} from '@/components/ui/sidebar';
+import { pageMeta } from '@/routes/meta';
 
-const SIDEBAR_KEY = "brainpulses-sidebar";
+const SIDEBAR_KEY = 'brainpulses-sidebar';
 
 type NavLinkItem = { to: string; label: string; icon: LucideIcon };
 type NavGroup = { label: string; items: NavLinkItem[] };
 
 const primary: NavLinkItem[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
-  { to: "/students", label: "Students", icon: UsersIcon },
-  { to: "/users", label: "Users", icon: UserCogIcon },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon },
+  { to: '/students', label: 'Students', icon: UsersIcon },
+  { to: '/users', label: 'Users', icon: UserCogIcon },
 ];
 
 const groups: NavGroup[] = [
   {
-    label: "Assessment",
+    label: 'Assessment',
     items: [
-      { to: "/assessments", label: "All assessments", icon: ListIcon },
-      { to: "/assessments/new", label: "Create Assessment", icon: PlusIcon },
-      { to: "/assessments/banks", label: "Question Banks", icon: BookOpenIcon },
-      { to: "/assessments/registrations", label: "Registrations & Student Data", icon: UserPlusIcon },
-      { to: "/assessments/reports", label: "Reports & Results", icon: ChartColumnIcon },
+      { to: '/assessments', label: 'All assessments', icon: ListIcon },
+      { to: '/assessments/new', label: 'Create Assessment', icon: PlusIcon },
+      { to: '/assessments/banks', label: 'Question Banks', icon: BookOpenIcon },
+      {
+        to: '/assessments/registrations',
+        label: 'Registrations & Student Data',
+        icon: UserPlusIcon,
+      },
+      { to: '/assessments/reports', label: 'Reports & Results', icon: ChartColumnIcon },
     ],
   },
   {
-    label: "Quiz",
+    label: 'Quiz',
     items: [
-      { to: "/quizzes", label: "All quizzes", icon: CircleHelpIcon },
-      { to: "/quizzes/new", label: "Create Quiz", icon: PlusIcon },
-      { to: "/quizzes/banks", label: "Question Banks", icon: ShieldIcon },
-      { to: "/quizzes/registrations", label: "Registrations & Student Data", icon: UserCheckIcon },
-      { to: "/quizzes/reports", label: "Reports & Results", icon: ChartLineIcon },
+      { to: '/quizzes', label: 'All quizzes', icon: CircleHelpIcon },
+      { to: '/quizzes/new', label: 'Create Quiz', icon: PlusIcon },
+      { to: '/quizzes/banks', label: 'Question Banks', icon: ShieldIcon },
+      { to: '/quizzes/registrations', label: 'Registrations & Student Data', icon: UserCheckIcon },
+      { to: '/quizzes/reports', label: 'Reports & Results', icon: ChartLineIcon },
     ],
   },
   {
-    label: "Settings",
+    label: 'Settings',
     items: [
-      { to: "/settings", label: "General Settings", icon: SlidersHorizontalIcon },
-      { to: "/settings/access", label: "User & Access Settings", icon: ShieldIcon },
-      { to: "/settings/notifications", label: "Notification Settings", icon: BellIcon },
-      { to: "/settings/system", label: "System Settings", icon: ServerIcon },
+      { to: '/settings', label: 'General Settings', icon: SlidersHorizontalIcon },
+      { to: '/settings/access', label: 'User & Access Settings', icon: ShieldIcon },
+      { to: '/settings/notifications', label: 'Notification Settings', icon: BellIcon },
+      { to: '/settings/system', label: 'System Settings', icon: ServerIcon },
     ],
   },
 ];
 
 function readSidebarOpen() {
   try {
-    return localStorage.getItem(SIDEBAR_KEY) !== "collapsed";
+    return localStorage.getItem(SIDEBAR_KEY) !== 'collapsed';
   } catch {
     return true;
   }
@@ -113,8 +117,8 @@ function NavItem({ to, label, icon: Icon }: NavLinkItem) {
 
 export function AdminLayout() {
   const { pathname } = useLocation();
-  const meta = pageMeta[pathname] ?? pageMeta["/dashboard"];
-  const crumbs = meta.crumb.split(" / ");
+  const meta = pageMeta[pathname] ?? pageMeta['/dashboard'];
+  const crumbs = meta.crumb.split(' / ');
   const [open, setOpen] = useState(readSidebarOpen);
 
   useEffect(() => {
@@ -122,7 +126,7 @@ export function AdminLayout() {
   }, [meta.title]);
 
   useEffect(() => {
-    const main = document.getElementById("main");
+    const main = document.getElementById('main');
     if (main instanceof HTMLElement && document.activeElement !== main) {
       main.focus({ preventScroll: true });
     }
@@ -132,7 +136,7 @@ export function AdminLayout() {
   function onOpenChange(next: boolean) {
     setOpen(next);
     try {
-      localStorage.setItem(SIDEBAR_KEY, next ? "expanded" : "collapsed");
+      localStorage.setItem(SIDEBAR_KEY, next ? 'expanded' : 'collapsed');
     } catch {
       /* ignore */
     }
@@ -142,7 +146,7 @@ export function AdminLayout() {
     <SidebarProvider
       open={open}
       onOpenChange={onOpenChange}
-      style={{ "--sidebar-width": "268px", "--sidebar-width-icon": "76px" } as CSSProperties}
+      style={{ '--sidebar-width': '268px', '--sidebar-width-icon': '76px' } as CSSProperties}
     >
       <a
         href="#main"

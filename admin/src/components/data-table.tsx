@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode } from 'react';
 import {
   Table,
   TableBody,
@@ -7,9 +7,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from '@/components/ui/table';
 
-const wrap = new Set(["Description", "Question Types", "Presentation Types"]);
+const wrap = new Set(['Description', 'Question Types', 'Presentation Types']);
 
 export function DataTable({
   caption,
@@ -39,9 +39,9 @@ export function DataTable({
               {row.map((cell, cellIndex) => (
                 <TableCell
                   key={columns[cellIndex]}
-                  className={wrap.has(columns[cellIndex]) ? "whitespace-normal" : undefined}
+                  className={wrap.has(columns[cellIndex]) ? 'whitespace-normal' : undefined}
                 >
-                  {cell ?? "—"}
+                  {cell ?? '—'}
                 </TableCell>
               ))}
             </TableRow>

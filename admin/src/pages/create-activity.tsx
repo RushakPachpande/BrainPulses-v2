@@ -1,9 +1,9 @@
-import type { FormEvent } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import type { FormEvent } from 'react';
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -11,22 +11,22 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import type { ActivityKind } from "@/services";
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import type { ActivityKind } from '@/services';
 
 const steps = [
-  "Basic Details",
-  "Registration Form",
-  "Select Question Banks",
-  "Assignment Rules",
-  "Behaviour Settings",
-  "Review & Publish",
+  'Basic Details',
+  'Registration Form',
+  'Select Question Banks',
+  'Assignment Rules',
+  'Behaviour Settings',
+  'Review & Publish',
 ];
 
 export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
-  const isQuiz = kind === "quiz";
-  const noun = isQuiz ? "Quiz" : "Assessment";
+  const isQuiz = kind === 'quiz';
+  const noun = isQuiz ? 'Quiz' : 'Assessment';
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -38,13 +38,15 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
         {steps.map((step, index) => (
           <li
             key={step}
-            aria-current={index === 0 ? "step" : undefined}
+            aria-current={index === 0 ? 'step' : undefined}
             className={cn(
-              "flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm",
-              index === 0 && "border-primary bg-accent text-accent-foreground",
+              'flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-sm',
+              index === 0 && 'border-primary bg-accent text-accent-foreground',
             )}
           >
-            <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs">{index + 1}</span>
+            <span className="flex size-6 items-center justify-center rounded-full bg-muted text-xs">
+              {index + 1}
+            </span>
             {step}
           </li>
         ))}
@@ -63,7 +65,7 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
                 <Input
                   id="activity-name"
                   required
-                  defaultValue={isQuiz ? "Weekly GK Quiz" : "JEE Mock Series 2026"}
+                  defaultValue={isQuiz ? 'Weekly GK Quiz' : 'JEE Mock Series 2026'}
                 />
               </Field>
               <Field>
@@ -72,8 +74,8 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
                   id="activity-description"
                   defaultValue={
                     isQuiz
-                      ? "Short weekly quiz with 20 MCQs to test general awareness."
-                      : "Full-length mock assessment covering Physics, Chemistry and Maths with timed sections."
+                      ? 'Short weekly quiz with 20 MCQs to test general awareness.'
+                      : 'Full-length mock assessment covering Physics, Chemistry and Maths with timed sections.'
                   }
                 />
                 <FieldDescription>Students see this on the start screen.</FieldDescription>

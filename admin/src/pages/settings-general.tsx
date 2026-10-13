@@ -1,9 +1,9 @@
-import type { FormEvent } from "react";
-import { UploadIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import type { FormEvent } from 'react';
+import { UploadIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -11,18 +11,18 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from '@/components/ui/select';
 
 const selects = [
-  ["time-zone", "Time Zone", "(GMT+05:30) India Standard Time"],
-  ["date-format", "Date Format", "DD MMM YYYY"],
-  ["time-format", "Time Format", "12-hour"],
-  ["language", "Language", "English"],
+  ['time-zone', 'Time Zone', '(GMT+05:30) India Standard Time'],
+  ['date-format', 'Date Format', 'DD MMM YYYY'],
+  ['time-format', 'Time Format', '12-hour'],
+  ['language', 'Language', 'English'],
 ] as const;
 
 const uploads = [
-  ["Logo", "brainpules-logo.png"],
-  ["Favicon", "favicon-32.png"],
+  ['Logo', 'brainpules-logo.png'],
+  ['Favicon', 'favicon-32.png'],
 ] as const;
 
 export function GeneralSettingsPage() {

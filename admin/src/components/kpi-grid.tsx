@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from '@/lib/utils';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 export function KpiGrid({
   items,
@@ -9,8 +9,8 @@ export function KpiGrid({
   return (
     <section
       className={cn(
-        "grid grid-cols-1 gap-4 sm:grid-cols-2",
-        items.length > 4 ? "xl:grid-cols-5" : "xl:grid-cols-4",
+        'grid grid-cols-1 gap-4 sm:grid-cols-2',
+        items.length > 4 ? 'xl:grid-cols-5' : 'xl:grid-cols-4',
       )}
     >
       {items.map(([label, value, delta, tint]) => (

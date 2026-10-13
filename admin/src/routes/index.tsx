@@ -1,17 +1,17 @@
-import { Navigate, Route, Routes } from "react-router";
-import { AdminLayout } from "@/layouts/admin-layout";
-import { ActivityListPage } from "@/pages/activity-list";
-import { CreateActivityPage } from "@/pages/create-activity";
-import { DashboardPage } from "@/pages/dashboard";
-import { QuestionBanksPage } from "@/pages/question-banks";
-import { RegistrationsPage } from "@/pages/registrations";
-import { ReportsPage } from "@/pages/reports";
-import { AccessSettingsPage } from "@/pages/settings-access";
-import { GeneralSettingsPage } from "@/pages/settings-general";
-import { NotificationSettingsPage } from "@/pages/settings-notifications";
-import { SystemSettingsPage } from "@/pages/settings-system";
-import { StudentsPage } from "@/pages/students";
-import { UsersPage } from "@/pages/users";
+import { Navigate, Route, Routes } from 'react-router';
+import { AdminLayout } from '@/layouts/admin-layout';
+import { ActivityListPage } from '@/pages/activity-list';
+import { CreateActivityPage } from '@/pages/create-activity';
+import { DashboardPage } from '@/pages/dashboard';
+import { QuestionBanksPage } from '@/pages/question-banks';
+import { RegistrationsPage } from '@/pages/registrations';
+import { ReportsPage } from '@/pages/reports';
+import { AccessSettingsPage } from '@/pages/settings-access';
+import { GeneralSettingsPage } from '@/pages/settings-general';
+import { NotificationSettingsPage } from '@/pages/settings-notifications';
+import { SystemSettingsPage } from '@/pages/settings-system';
+import { StudentsPage } from '@/pages/students';
+import { UsersPage } from '@/pages/users';
 
 export function AppRoutes() {
   return (

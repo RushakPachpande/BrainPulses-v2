@@ -1,10 +1,10 @@
-import { Link } from "react-router";
-import { PlusIcon, UploadIcon } from "lucide-react";
-import { BarChartCard } from "@/components/bar-chart-card";
-import { KpiGrid } from "@/components/kpi-grid";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getDashboard } from "@/services";
+import { Link } from 'react-router';
+import { PlusIcon, UploadIcon } from 'lucide-react';
+import { BarChartCard } from '@/components/bar-chart-card';
+import { KpiGrid } from '@/components/kpi-grid';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getDashboard } from '@/services';
 
 export function DashboardPage() {
   const data = getDashboard();
@@ -25,7 +25,10 @@ export function DashboardPage() {
           <CardContent>
             <ul className="flex flex-col gap-3">
               {data.activity.map(([text, time]) => (
-                <li key={text} className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                <li
+                  key={text}
+                  className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                >
                   <span>{text}</span>
                   <time className="shrink-0 text-sm text-muted-foreground">{time}</time>
                 </li>

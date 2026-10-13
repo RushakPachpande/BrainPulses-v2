@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button";
+import { Button } from '@/components/ui/button';
 
-export function RowActions({ viewLabel = "View" }: { viewLabel?: string }) {
+export function RowActions({ viewLabel = 'View' }: { viewLabel?: string }) {
   return (
     <div className="flex items-center">
       <Button type="button" variant="link">

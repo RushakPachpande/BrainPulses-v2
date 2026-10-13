@@ -1,8 +1,8 @@
-import { StatusBadge } from "@/components/status-badge";
-import { ToggleRow } from "@/components/toggle-row";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { getNotifications } from "@/services";
+import { StatusBadge } from '@/components/status-badge';
+import { ToggleRow } from '@/components/toggle-row';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { getNotifications } from '@/services';
 
 export function NotificationSettingsPage() {
   return (

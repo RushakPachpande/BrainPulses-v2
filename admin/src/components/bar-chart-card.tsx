@@ -1,7 +1,12 @@
-import { Bar, BarChart, Cell, XAxis } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { getMonths } from "@/services";
+import { Bar, BarChart, Cell, XAxis } from 'recharts';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
+import { getMonths } from '@/services';
 
 export function BarChartCard({
   title,
@@ -22,7 +27,7 @@ export function BarChartCard({
   const data = values.map((value, index) => ({
     label: axis[index],
     value,
-    fill: emphasizeLast && index !== values.length - 1 ? "var(--bar-muted)" : color,
+    fill: emphasizeLast && index !== values.length - 1 ? 'var(--bar-muted)' : color,
     opacity: emphasizeLast ? 1 : 0.4 + index * 0.12,
   }));
   const config = { value: { label: title, color } } satisfies ChartConfig;
@@ -34,7 +39,11 @@ export function BarChartCard({
         <CardDescription>{caption}</CardDescription>
       </CardHeader>
       <CardContent>
-        <ChartContainer config={config} className="aspect-auto h-44 w-full" aria-label={`${title}. ${caption}`}>
+        <ChartContainer
+          config={config}
+          className="aspect-auto h-44 w-full"
+          aria-label={`${title}. ${caption}`}
+        >
           <BarChart data={data} accessibilityLayer>
             <XAxis dataKey="label" tickLine={false} axisLine={false} />
             <ChartTooltip content={<ChartTooltipContent />} />

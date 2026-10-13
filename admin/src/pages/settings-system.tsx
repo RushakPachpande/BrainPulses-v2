@@ -1,8 +1,8 @@
-import { KpiGrid } from "@/components/kpi-grid";
-import { StatusBadge } from "@/components/status-badge";
-import { ToggleRow } from "@/components/toggle-row";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAuditLogs } from "@/services";
+import { KpiGrid } from '@/components/kpi-grid';
+import { StatusBadge } from '@/components/status-badge';
+import { ToggleRow } from '@/components/toggle-row';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { getAuditLogs } from '@/services';
 
 export function SystemSettingsPage() {
   const logs = getAuditLogs();
@@ -11,9 +11,9 @@ export function SystemSettingsPage() {
     <div className="flex flex-col gap-4">
       <KpiGrid
         items={[
-          ["System Status", "Healthy", "All services operational", 1],
-          ["Last Backup", "Today 02:00", "Size 1.8 GB", 0],
-          ["Uptime", "99.98%", "Last 30 days", 3],
+          ['System Status', 'Healthy', 'All services operational', 1],
+          ['Last Backup', 'Today 02:00', 'Size 1.8 GB', 0],
+          ['Uptime', '99.98%', 'Last 30 days', 3],
         ]}
       />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -54,7 +54,10 @@ export function SystemSettingsPage() {
           <CardContent>
             <ul className="flex flex-col gap-3">
               {logs.map(([text, time]) => (
-                <li key={text} className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4">
+                <li
+                  key={text}
+                  className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
+                >
                   <span>{text}</span>
                   <time className="shrink-0 text-sm text-muted-foreground">{time}</time>
                 </li>
