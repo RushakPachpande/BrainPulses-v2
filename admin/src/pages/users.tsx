@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   MoreVerticalIcon,
@@ -10,9 +7,10 @@ import {
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
+import { SortHeader } from '@/components/sort-header';
 import { StatusBadge } from '@/components/status-badge';
+import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -40,9 +38,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeaderActions } from '@/contexts/page-header';
-import { cn } from '@/lib/utils';
 import { getUsers } from '@/services';
-import { statusTone } from '@/utils/tone';
 
 type User = ReturnType<typeof getUsers>[number];
 
@@ -61,38 +57,6 @@ const sortColumns: { key: SortKey; label: string }[] = [
 
 function compareUsers(a: User, b: User, key: SortKey) {
   return String(a[key]).localeCompare(String(b[key]), undefined, { numeric: true });
-}
-
-function SortHeader({
-  label,
-  active,
-  direction,
-  onSort,
-}: {
-  label: string;
-  active: boolean;
-  direction: 'asc' | 'desc';
-  onSort: () => void;
-}) {
-  const Icon = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon;
-  const nextHint = !active
-    ? `Sort by ${label} ascending`
-    : direction === 'asc'
-      ? `Sort by ${label} descending`
-      : `Clear ${label} sort`;
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="-ml-2 h-auto gap-1 px-2 font-medium text-foreground hover:bg-transparent"
-      onClick={onSort}
-      aria-label={nextHint}
-      title={nextHint}
-    >
-      {label}
-      <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
-    </Button>
-  );
 }
 
 const usersHeaderActions = (
@@ -302,20 +266,7 @@ export function UsersPage() {
                     <TableCell>{user.assessmentAccess}</TableCell>
                     <TableCell>{user.quizAccess}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        data-tone={statusTone(user.status) || undefined}
-                        className="h-auto gap-1.5 rounded-full px-2.5 py-1"
-                      >
-                        <span
-                          className={cn(
-                            'size-1.5 shrink-0 rounded-full',
-                            user.status === 'Active' ? 'bg-success' : 'bg-destructive',
-                          )}
-                          aria-hidden="true"
-                        />
-                        {user.status}
-                      </Badge>
+                      <AccountStatusPill value={user.status} />
                     </TableCell>
                     <TableCell>{user.lastLogin}</TableCell>
                     <TableCell>

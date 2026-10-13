@@ -1,8 +1,11 @@
 import {
   accessPeople,
   activityCounts,
+  activityEndTimes,
+  activityStartTimes,
   admins,
   assessmentNames,
+  assessmentSubtitles,
   assignedCounts,
   assignmentStatuses,
   attemptCounts,
@@ -20,6 +23,7 @@ import {
   questionCounts,
   questionTypes,
   quizNames,
+  quizSubtitles,
   registeredCounts,
   resultScores,
   resultStatuses,
@@ -64,9 +68,15 @@ export function getUsers() {
 }
 
 export function getActivities(kind: ActivityKind) {
-  const names = kind === 'quiz' ? quizNames : assessmentNames;
+  const isQuiz = kind === 'quiz';
+  const names = isQuiz ? quizNames : assessmentNames;
+  const subtitles = isQuiz ? quizSubtitles : assessmentSubtitles;
+  const prefix = isQuiz ? 'QUZ-' : 'ASM-';
   return range(6).map((i) => ({
+    id: prefix + (2601 + i),
     name: names[i],
+    subtitle: subtitles[i],
+    iconTone: i % 6,
     status: flow[i],
     registered: registeredCounts[i],
     assigned: assignedCounts[i],
@@ -74,12 +84,15 @@ export function getActivities(kind: ActivityKind) {
     attempts: attemptCounts[i],
     start: when(i),
     end: when(i + 6, 10),
+    startTime: activityStartTimes[i],
+    endTime: activityEndTimes[i],
   }));
 }
 
 export function getQuestionBanks(kind: ActivityKind) {
   const count = kind === 'quiz' ? 5 : 6;
   return range(count).map((i) => ({
+    id: 'QB-' + (30101 + i),
     name: bankNames[i],
     description: bankDescriptions[i],
     questions: questionCounts[i],
@@ -103,6 +116,8 @@ export function getRegistrations(kind: ActivityKind) {
     bank: bankNames[i],
     assignment: assignmentStatuses[i],
     attempt: attemptStatuses[i],
+    city: studentCities[i],
+    course: studentCourses[i],
   }));
 }
 

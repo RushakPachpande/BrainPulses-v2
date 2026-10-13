@@ -1,8 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   MoreVerticalIcon,
@@ -10,12 +7,12 @@ import {
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
+import { SortHeader } from '@/components/sort-header';
+import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { statusTone } from '@/utils/tone';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,7 +39,6 @@ import {
 import { PageHeaderActions } from '@/contexts/page-header';
 import { getStudents } from '@/services';
 import { studentCities, studentCourses } from '@/services/fixtures';
-import { cn } from '@/lib/utils';
 
 type Student = ReturnType<typeof getStudents>[number];
 
@@ -65,38 +61,6 @@ function compareStudents(a: Student, b: Student, key: SortKey) {
   const right = b[key];
   if (typeof left === 'number' && typeof right === 'number') return left - right;
   return String(left).localeCompare(String(right), undefined, { numeric: true });
-}
-
-function SortHeader({
-  label,
-  active,
-  direction,
-  onSort,
-}: {
-  label: string;
-  active: boolean;
-  direction: 'asc' | 'desc';
-  onSort: () => void;
-}) {
-  const Icon = !active ? ArrowUpDownIcon : direction === 'asc' ? ArrowUpIcon : ArrowDownIcon;
-  const nextHint = !active
-    ? `Sort by ${label} ascending`
-    : direction === 'asc'
-      ? `Sort by ${label} descending`
-      : `Clear ${label} sort`;
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      className="-ml-2 h-auto gap-1 px-2 font-medium text-foreground hover:bg-transparent"
-      onClick={onSort}
-      aria-label={nextHint}
-      title={nextHint}
-    >
-      {label}
-      <Icon className="size-3.5 text-muted-foreground" aria-hidden="true" />
-    </Button>
-  );
 }
 
 const studentsHeaderActions = (
@@ -321,20 +285,7 @@ export function StudentsPage() {
                     <TableCell>{student.registered}</TableCell>
                     <TableCell>{student.activities} active</TableCell>
                     <TableCell>
-                      <Badge
-                        variant="outline"
-                        data-tone={statusTone(student.status) || undefined}
-                        className="h-auto gap-1.5 rounded-full px-2.5 py-1"
-                      >
-                        <span
-                          className={cn(
-                            'size-1.5 shrink-0 rounded-full',
-                            student.status === 'Active' ? 'bg-success' : 'bg-destructive',
-                          )}
-                          aria-hidden="true"
-                        />
-                        {student.status}
-                      </Badge>
+                      <AccountStatusPill value={student.status} />
                     </TableCell>
                     <TableCell>{student.lastLogin}</TableCell>
                     <TableCell>
