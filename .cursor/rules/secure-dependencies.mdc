@@ -14,7 +14,7 @@ When adding packages (`npm install <dependency>`), choose **latest stable**, wel
 - Avoid dependencies with known high/critical vulnerabilities; check or run `npm audit` when adding or upgrading.
 - Prefer zero or low audit findings. If a needed package has issues, pick a safer alternative or a patched version.
 - Do not add heavy or redundant libraries when the app already has an equivalent (especially UI — follow shadcn-only rules).
-- Pin via the lockfile (`package-lock.json`); install in the correct app (`api/`, `web/`, `levelup-admin/`, etc.) — never a shared root workspace unless one exists by design.
+- Pin via the lockfile (`package-lock.json`); install in the correct app (`admin/`, `api/`, `client/`, etc.) — never a shared root workspace unless one exists by design.
 - After install, confirm the app still builds/types-checks and no new audit blockers were introduced without calling them out.
 
 ## Examples

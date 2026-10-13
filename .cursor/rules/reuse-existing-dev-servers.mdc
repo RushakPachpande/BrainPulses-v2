@@ -10,16 +10,16 @@ Do **not** open or run apps with `npm run dev` (or equivalent long-lived servers
 ## Before Starting Anything
 
 1. Check whether the needed app is **already listening** (user external terminal, prior session, or another process).
-2. Ports: **3001**.
+2. Ports: **5173** (`admin/` Vite, `strictPort`).
 3. If the port is already active → **use it**. Do not start a second instance. Do not kill it.
 
 ```powershell
-# Example: is the API already up?
-Get-NetTCPConnection -LocalPort 3001 -State Listen -ErrorAction SilentlyContinue
+# Example: is the admin app already up?
+Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
 ```
 
 ```text
-❌ BAD — start npm run dev without checking; kill whatever is on 3001/5173/5174
+❌ BAD — start npm run dev without checking; kill whatever is on 5173
 ✅ GOOD — detect listener → hit that URL/API → only start if nothing is listening
 ```
 

@@ -1,0 +1,26 @@
+---
+description: Frontend UI uses shadcn components and lucide-react icons only
+alwaysApply: true
+---
+
+# shadcn-only UI
+
+Frontend apps (`admin/` now, `client/` later) build interface controls from shadcn components in `components/ui`. Icons come from `lucide-react` only. Tailwind utilities are for layout and spacing.
+
+Do not add another UI kit, and do not hand-roll controls shadcn already provides.
+
+```tsx
+// ❌ BAD — second library, or a custom button
+import { Button } from "@mui/material";
+<button className="rounded bg-blue-500 px-4">Save</button>
+
+// ✅ GOOD
+import { Button } from "@/components/ui/button";
+<Button type="submit">Save</Button>
+```
+
+- Allowed kits: none besides shadcn. That includes MUI, Chakra, Ant Design, Bootstrap, and Headless UI.
+- Do not hand-roll buttons, inputs, selects, dialogs, tables, badges, switches, or tabs.
+- Radix is allowed only inside the generated files in `components/ui`.
+- Compose pages from those primitives. App-specific layout (sidebar groups, page sections) stays outside `components/ui`.
+- The future Express API is not a UI surface. This rule does not apply to server code.
