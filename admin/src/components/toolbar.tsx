@@ -26,7 +26,7 @@ export function Toolbar({ filters, actions }: { filters: string[]; actions?: Rea
       </InputGroup>
       {filters.map((name) => (
         <Select key={name} defaultValue={name}>
-          <SelectTrigger aria-label={name} className="w-full sm:w-auto">
+          <SelectTrigger aria-label={name} className="w-full sm:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

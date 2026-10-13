@@ -5,6 +5,7 @@
   "scripts": {
     "dev:admin": "npm run dev --prefix admin",
     "build:admin": "npm run build --prefix admin",
+    "build:single:admin": "npm run build:single --prefix admin",
     "start:admin": "npm run start --prefix admin",
     "lint:admin": "npm run lint --prefix admin",
     "lint:check:admin": "npm run lint:check --prefix admin",
