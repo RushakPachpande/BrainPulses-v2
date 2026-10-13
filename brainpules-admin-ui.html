@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f1b3d">
+  <title>Brainpules Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #eef1f6;
+      --ws: #f6f8fb;
+      --card: #fff;
+      --tx: #14213d;
+      --mu: #6b778c;
+      --bd: #e3e8ef;
+      --pr: #2563eb;
+      --pl: #e8f0ff;
+      --nv: #0f1b3d;
+      --nv2: #1a2a57;
+      --ok-bg: #dcfce7;
+      --ok-fg: #15803d;
+      --wn-bg: #fef3c7;
+      --wn-fg: #b45309;
+      --er-bg: #fee2e2;
+      --er-fg: #b91c1c;
+      --gy-bg: #eef1f6;
+      --gy-fg: #64748b;
+      --info-fg: #1e40af;
+      --bar-muted: #bcd0f7;
+      --chart-violet: #7c3aed;
+      --chart-green: #16a34a;
+      --kpi-0: #eaf1ff;
+      --kpi-1: #e9f9ef;
+      --kpi-2: #fff4e0;
+      --kpi-3: #f1ebff;
+      --kpi-4: #ffeaf0;
+      --nav-fg: #b9c6ee;
+
+      --surface-0: var(--bg);
+      --surface-1: var(--ws);
+      --surface-2: var(--card);
+      --text-1: var(--tx);
+      --text-2: var(--mu);
+      --accent: var(--pr);
+      --accent-soft: var(--pl);
+      --border: var(--bd);
+      --sidebar: var(--nv);
+      --sidebar-2: var(--nv2);
+
+      --btn-bg: var(--card);
+      --btn-fg: var(--tx);
+      --btn-border: var(--bd);
+      --btn-primary-bg: var(--pr);
+      --btn-primary-fg: #fff;
+      --sidebar-fg: var(--nav-fg);
+      --pill-info-bg: var(--pl);
+      --pill-info-fg: var(--pr);
+
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --shadow-sm: 0 1px 2px rgb(20 33 61 / 0.06);
+      --shadow-md: 0 4px 12px rgb(20 33 61 / 0.06);
+      --sidebar-w: 268px;
+      --picker-h: 56px;
+      --font-ui: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+      --font-body: "Source Sans 3", "Segoe UI", sans-serif;
+      --ease: 180ms ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+    html { scroll-behavior: auto; }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background: var(--surface-0);
+      color: var(--text-1);
+      font-family: var(--font-body);
+      font-size: 1rem;
+      line-height: 1.5;
+      text-rendering: optimizeLegibility;
+    }
+    button, input, select, textarea { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+    h1, h2, h3, .logo, .btn, .nav-btn, .picker button, .segments button {
+      font-family: var(--font-ui);
+    }
+    h1, h2, h3 { letter-spacing: -0.02em; }
+    p { margin: 0; }
+
+    .sr {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .skip {
+      position: absolute;
+      left: 12px;
+      top: -48px;
+      z-index: 80;
+      background: var(--card);
+      color: var(--text-1);
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      box-shadow: var(--shadow-md);
+    }
+    .skip:focus { top: 8px; }
+
+    :focus { outline: none; }
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .picker {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: var(--picker-h);
+      padding: 8px 12px 10px;
+      background: var(--sidebar);
+      overflow-x: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--sidebar-2) transparent;
+    }
+    .picker::-webkit-scrollbar { height: 6px; }
+    .picker::-webkit-scrollbar-thumb { background: var(--sidebar-2); border-radius: 99px; }
+    .picker-label {
+      flex: none;
+      color: var(--nav-fg);
+      font-family: var(--font-ui);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0 6px 0 4px;
+    }
+    .picker button {
+      flex: none;
+      min-height: 36px;
+      border: 0;
+      border-radius: 999px;
+      padding: 6px 12px;
+      background: var(--sidebar-2);
+      color: var(--nav-fg);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      transition: background var(--ease), color var(--ease);
+    }
+    .picker button:hover { color: #fff; }
+    .picker button.on { background: var(--accent); color: #fff; }
+
+    .app {
+      display: grid;
+      grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+      align-items: start;
+      min-height: calc(100dvh - var(--picker-h));
+    }
+
+    .sidebar {
+      position: sticky;
+      top: var(--picker-h);
+      height: calc(100dvh - var(--picker-h));
+      overflow: auto;
+      background: var(--sidebar);
+      color: var(--sidebar-fg);
+      padding: 18px 12px 24px;
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 8px 18px;
+      color: #fff;
+      font-size: 1.25rem;
+      font-weight: 700;
+    }
+    .mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: var(--accent);
+      color: #fff;
+      flex: none;
+    }
+    .nav-group {
+      margin: 16px 10px 6px;
+      color: #fff;
+      font-family: var(--font-ui);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .nav-btn {
+      width: 100%;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-align: left;
+      border: 0;
+      border-radius: 10px;
+      padding: 8px 12px;
+      background: transparent;
+      color: var(--sidebar-fg);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      transition: background var(--ease), color var(--ease);
+    }
+    .nav-btn .ico { flex: none; }
+    .nav-btn:hover { background: var(--sidebar-2); color: #fff; }
+    .nav-btn.on { background: var(--accent); color: #fff; }
+    .nav-btn.sub { font-weight: 500; font-size: 0.875rem; padding-left: 14px; }
+    .nav-btn.sub.on {
+      background: var(--sidebar-2);
+      color: #fff;
+      box-shadow: inset 3px 0 var(--accent);
+    }
+    .sidebar { scrollbar-width: thin; scrollbar-color: var(--sidebar-2) transparent; }
+
+    .scrim {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      border: 0;
+      padding: 0;
+      background: rgb(15 27 61 / 0.48);
+    }
+
+    .workspace {
+      min-width: 0;
+      background: var(--surface-1);
+    }
+    .topbar {
+      position: sticky;
+      top: var(--picker-h);
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px 8px;
+      background: color-mix(in srgb, var(--surface-1) 92%, transparent);
+      backdrop-filter: blur(8px);
+    }
+    .crumb {
+      color: var(--text-2);
+      font-size: 0.8125rem;
+      margin-bottom: 2px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(1.375rem, 1.15rem + 0.8vw, 1.75rem);
+      font-weight: 700;
+      line-height: 1.2;
+    }
+    .who {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-2);
+      font-size: 0.875rem;
+      white-space: nowrap;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 0.8125rem;
+    }
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      color: var(--text-1);
+      transition: background var(--ease);
+    }
+    .icon-btn:hover { background: var(--accent-soft); }
+    .menu-btn, .icon-btn.close-nav { display: none; }
+
+    main {
+      padding: 8px 24px 48px;
+      max-width: 1240px;
+    }
+    main:focus { outline: none; }
+
+    .card {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      contain: layout style paint;
+    }
+    .card h2, .card h3 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+      font-weight: 700;
+    }
+    .fold {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 300px;
+    }
+
+    .kpis, .charts, .split, .duo, .notify-grid {
+      display: grid;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+    .charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+    .split { grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.9fr); }
+    .duo { grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr); }
+    .report-grid { grid-template-columns: minmax(220px, 0.8fr) minmax(0, 2fr); }
+    .notify-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
+
+    .kpi {
+      border: 0;
+      box-shadow: none;
+    }
+    .kpi p { color: var(--text-2); font-size: 0.875rem; }
+    .kpi strong {
+      display: block;
+      margin-top: 6px;
+      font-family: var(--font-ui);
+      font-size: clamp(1.5rem, 1.2rem + 0.8vw, 1.85rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+    .kpi .delta { margin-top: 6px; color: var(--ok-fg); font-size: 0.8125rem; font-weight: 600; }
+    .kpi.tint-0 { background: var(--kpi-0); }
+    .kpi.tint-1 { background: var(--kpi-1); }
+    .kpi.tint-2 { background: var(--kpi-2); }
+    .kpi.tint-3 { background: var(--kpi-3); }
+    .kpi.tint-4 { background: var(--kpi-4); }
+
+    .toolbar, .segments, .form-actions, .end-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .toolbar .spacer, .end-actions { margin-left: auto; }
+    .end-actions { justify-content: flex-end; width: 100%; }
+
+    .search, .field { position: relative; }
+    .search { flex: 1 1 220px; max-width: 320px; }
+    .search .ico {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      translate: 0 -50%;
+      color: var(--text-2);
+      pointer-events: none;
+    }
+    .search input { padding-left: 38px; }
+    input, select, textarea {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      padding: 8px 12px;
+      font-size: 0.9375rem;
+      transition: border-color var(--ease), background var(--ease);
+    }
+    textarea { min-height: 104px; resize: vertical; line-height: 1.5; }
+    .field select { min-width: 140px; color: var(--text-2); background: var(--card); }
+    input:hover, select:hover, textarea:hover { border-color: var(--bar-muted); }
+    input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--accent); }
+
+    .btn {
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border: 1px solid var(--btn-border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      background: var(--btn-bg);
+      color: var(--btn-fg);
+      font-size: 0.875rem;
+      font-weight: 600;
+      transition: background var(--ease), border-color var(--ease), scale 120ms ease;
+    }
+    .btn:hover { background: var(--accent-soft); border-color: var(--bar-muted); }
+    .btn:active { scale: 0.98; }
+    .btn.primary {
+      background: var(--btn-primary-bg);
+      border-color: var(--btn-primary-bg);
+      color: var(--btn-primary-fg);
+    }
+    .btn.primary:hover { background: color-mix(in srgb, var(--pr) 86%, #000); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn.block { width: 100%; }
+
+    .segments button {
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 14px;
+      background: var(--card);
+      color: var(--text-2);
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .segments button.on {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border-color: var(--bar-muted);
+    }
+
+    .table-wrap { overflow-x: auto; margin: 0 -4px; }
+    table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
+    caption.sr { caption-side: top; }
+    th {
+      text-align: left;
+      color: var(--text-2);
+      font-family: var(--font-ui);
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      padding: 10px 12px;
+      background: #f3f6fa;
+      white-space: nowrap;
+    }
+    th:first-child { border-radius: 8px 0 0 8px; }
+    th:last-child { border-radius: 0 8px 8px 0; }
+    td {
+      padding: 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    td.wrap { white-space: normal; min-width: 220px; max-width: 320px; }
+    tbody tr:hover td { background: var(--surface-1); }
+    td.num, .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .row-actions { display: flex; gap: 4px; flex-wrap: nowrap; }
+    .linkish {
+      min-height: 36px;
+      border: 0;
+      background: transparent;
+      color: var(--accent);
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 0.875rem;
+      border-radius: 8px;
+      padding: 4px 8px;
+    }
+    .linkish:hover { background: var(--accent-soft); }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: var(--pill-info-bg);
+      color: var(--pill-info-fg);
+      font-family: var(--font-ui);
+      font-size: 0.75rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .pill::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
+    .pill.wn { background: var(--wn-bg); color: var(--wn-fg); }
+    .pill.er { background: var(--er-bg); color: var(--er-fg); }
+    .pill.gy { background: var(--gy-bg); color: var(--gy-fg); }
+
+    .callout {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      border-radius: 12px;
+      background: var(--accent-soft);
+      color: var(--info-fg);
+      font-size: 0.9375rem;
+    }
+    .callout .ico { flex: none; margin-top: 2px; }
+
+    .steps {
+      display: flex;
+      gap: 8px;
+      margin: 0 0 16px;
+      padding: 0;
+      list-style: none;
+      overflow-x: auto;
+    }
+    .steps li {
+      flex: 1 0 140px;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--text-2);
+      font-family: var(--font-ui);
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+    .steps li span {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--surface-0);
+      font-size: 0.75rem;
+    }
+    .steps li.on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .steps li.on span { background: rgb(255 255 255 / 0.2); color: #fff; }
+
+    .form { max-width: 860px; display: grid; gap: 4px; }
+    .form label, .stack-fields label {
+      display: grid;
+      gap: 6px;
+      margin-top: 12px;
+      font-family: var(--font-ui);
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+    .req { color: var(--er-fg); }
+    .hint { color: var(--text-2); font-weight: 400; font-family: var(--font-body); font-size: 0.8125rem; }
+    .stack-fields { display: grid; gap: 6px; margin-top: 12px; }
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .upload-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 44px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+    }
+
+    .toggle-row, .person {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .toggle-row:last-child, .person:last-child { border-bottom: 0; }
+    .toggle-title { font-family: var(--font-ui); font-weight: 700; font-size: 0.9375rem; }
+    .switch {
+      width: 44px;
+      height: 44px;
+      flex: none;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      display: grid;
+      place-items: center;
+      padding: 0;
+    }
+    .switch i {
+      width: 40px;
+      height: 22px;
+      border-radius: 999px;
+      background: #cbd5e1;
+      position: relative;
+      transition: background var(--ease);
+    }
+    .switch i::after {
+      content: "";
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #fff;
+      transition: translate var(--ease);
+    }
+    .switch[aria-pressed="true"] i { background: var(--accent); }
+    .switch[aria-pressed="true"] i::after { translate: 18px 0; }
+
+    .access-switches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 12px;
+      align-items: center;
+      color: var(--text-2);
+      font-size: 0.8125rem;
+    }
+    .access-switches span { display: inline-flex; align-items: center; gap: 2px; }
+
+    .activity {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9375rem;
+    }
+    .activity:last-child { border-bottom: 0; }
+    .activity time { color: var(--text-2); font-size: 0.8125rem; white-space: nowrap; }
+
+    .quick { display: grid; gap: 8px; }
+    .chart { display: flex; flex-direction: column; }
+    .chart h2 { text-wrap: balance; min-height: 2.6em; }
+    .chart svg { width: 100%; height: auto; display: block; margin-top: auto; }
+    .chart figcaption { margin-top: 8px; color: var(--text-2); font-size: 0.8125rem; }
+
+    .choice {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+    }
+    .choice.correct {
+      background: var(--ok-bg);
+      color: var(--ok-fg);
+      border-color: #86efac;
+      font-weight: 700;
+    }
+    .channels { display: flex; gap: 6px; margin-top: 10px; }
+    .person small { display: block; color: var(--text-2); font-weight: 400; }
+
+    @media (max-width: 1023px) {
+      .menu-btn { display: grid; }
+      .app { grid-template-columns: 1fr; }
+      .sidebar {
+        position: fixed;
+        z-index: 50;
+        top: 0;
+        left: 0;
+        height: 100dvh;
+        width: min(86vw, 320px);
+        transform: translateX(-105%);
+        transition: transform 220ms ease;
+        padding-top: 12px;
+      }
+      body.nav-open .sidebar { transform: none; }
+      body.nav-open .scrim { display: block; }
+      .icon-btn.close-nav { display: grid; margin-left: auto; }
+      .logo-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+      .split, .duo, .report-grid { grid-template-columns: 1fr; }
+      .who span.meta { display: none; }
+      main, .topbar { padding-left: 16px; padding-right: 16px; }
+    }
+    @media (min-width: 1024px) {
+      .logo-row { display: block; }
+    }
+    @media (max-width: 640px) {
+      .picker button { min-height: 44px; }
+      .topbar { align-items: flex-start; }
+      h1 { max-width: 16ch; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <nav class="picker" aria-label="UI screens">
+    <span class="picker-label">Screens</span>
+    <button type="button" data-screen="0">Dashboard</button>
+    <button type="button" data-screen="1">Students</button>
+    <button type="button" data-screen="2">Users</button>
+    <button type="button" data-screen="3">Assessments</button>
+    <button type="button" data-screen="4">A · Banks</button>
+    <button type="button" data-screen="5">New assessment</button>
+    <button type="button" data-screen="6">A · Registrations</button>
+    <button type="button" data-screen="7">A · Reports</button>
+    <button type="button" data-screen="8">Quizzes</button>
+    <button type="button" data-screen="9">Q · Banks</button>
+    <button type="button" data-screen="10">New quiz</button>
+    <button type="button" data-screen="11">Q · Registrations</button>
+    <button type="button" data-screen="12">Q · Reports</button>
+    <button type="button" data-screen="13">General</button>
+    <button type="button" data-screen="14">Access</button>
+    <button type="button" data-screen="15">Notifications</button>
+    <button type="button" data-screen="16">System</button>
+  </nav>
+
+  <button type="button" class="scrim" id="scrim" data-close-nav tabindex="-1" aria-label="Close menu"></button>
+
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="logo-row">
+        <div class="logo"><span class="mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.2-5.5L13 18l2.2-6H21"/></svg></span>Brainpules</div>
+        <button type="button" class="icon-btn close-nav" data-close-nav aria-label="Close menu"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <nav aria-label="Primary">
+        <button type="button" class="nav-btn" data-screen="0"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</button>
+        <button type="button" class="nav-btn" data-screen="1"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>Students</button>
+        <button type="button" class="nav-btn" data-screen="2"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><circle cx="19" cy="11" r="2"/><path d="M19 8v1M19 13v1M16.5 9.5l.7.7M20.8 11.8l.7.7M16.5 12.5l.7-.7M20.8 10.2l.7-.7"/></svg>Users</button>
+
+        <p class="nav-group">Assessment</p>
+        <button type="button" class="nav-btn sub" data-screen="3">All assessments</button>
+        <button type="button" class="nav-btn sub" data-screen="5">Create Assessment</button>
+        <button type="button" class="nav-btn sub" data-screen="4">Question Banks</button>
+        <button type="button" class="nav-btn sub" data-screen="6">Registrations &amp; Student Data</button>
+        <button type="button" class="nav-btn sub" data-screen="7">Reports &amp; Results</button>
+
+        <p class="nav-group">Quiz</p>
+        <button type="button" class="nav-btn sub" data-screen="8">All quizzes</button>
+        <button type="button" class="nav-btn sub" data-screen="10">Create Quiz</button>
+        <button type="button" class="nav-btn sub" data-screen="9">Question Banks</button>
+        <button type="button" class="nav-btn sub" data-screen="11">Registrations &amp; Student Data</button>
+        <button type="button" class="nav-btn sub" data-screen="12">Reports &amp; Results</button>
+
+        <p class="nav-group">Settings</p>
+        <button type="button" class="nav-btn sub" data-screen="13">General Settings</button>
+        <button type="button" class="nav-btn sub" data-screen="14">User &amp; Access Settings</button>
+        <button type="button" class="nav-btn sub" data-screen="15">Notification Settings</button>
+        <button type="button" class="nav-btn sub" data-screen="16">System Settings</button>
+      </nav>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div style="display:flex;gap:10px;align-items:flex-start">
+          <button type="button" class="icon-btn menu-btn" id="menu" aria-expanded="false" aria-controls="sidebar" aria-label="Open menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <div>
+            <p class="crumb" id="crumb">Brainpules</p>
+            <h1 id="title">Admin Dashboard</h1>
+          </div>
+        </div>
+        <div class="who">
+          <button type="button" class="icon-btn" aria-label="Notifications"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9"/><path d="M10 20a2 2 0 0 0 4 0"/></svg></button>
+          <span class="avatar" aria-hidden="true">MJ</span>
+          <span class="meta">Meera Joshi · Super Admin</span>
+        </div>
+      </header>
+      <main id="main" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <script>
+    const NAMES = ["Aarav Sharma", "Priya Patel", "Rohan Mehta", "Sneha Kulkarni", "Vikram Singh", "Ananya Iyer"];
+    const ADMINS = ["Meera Joshi", "Karan Desai", "Sana Khan", "Rahul Nair", "Isha Gupta", "Dev Malhotra"];
+    const ASSESS = ["JEE Mock Series 2026", "Aptitude Screening Q4", "Scholarship Test 2026", "Physics Olympiad Prelim", "Career Readiness Test", "Logic & Reasoning Drive"];
+    const QUIZ = ["Weekly GK Quiz", "Maths Sprint #12", "Science Pop Quiz", "Current Affairs – Oct", "English Vocab Blitz", "Coding Basics Quiz"];
+    const BANKS = ["Physics – Mechanics", "Quantitative Aptitude", "Verbal Ability", "Chemistry Basics", "Logical Reasoning", "General Knowledge"];
+    const FLOW = ["Active", "Active", "Draft", "Completed", "Active", "Draft"];
+    const MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep"];
+
+    const SCREENS = [
+      { crumb: "Brainpules / Dashboard", title: "Admin Dashboard" },
+      { crumb: "Brainpules / Students", title: "Students" },
+      { crumb: "Brainpules / Users", title: "User Management" },
+      { crumb: "Brainpules / Assessment", title: "Assessments" },
+      { crumb: "Brainpules / Assessment / Question Banks", title: "Assessment Question Banks" },
+      { crumb: "Brainpules / Assessment / Create Assessment", title: "Create Assessment" },
+      { crumb: "Brainpules / Assessment / Registrations", title: "Registrations & Student Data" },
+      { crumb: "Brainpules / Assessment / Reports", title: "Assessment Reports & Results" },
+      { crumb: "Brainpules / Quiz", title: "Quizzes" },
+      { crumb: "Brainpules / Quiz / Question Banks", title: "Quiz Question Banks" },
+      { crumb: "Brainpules / Quiz / Create Quiz", title: "Create Quiz" },
+      { crumb: "Brainpules / Quiz / Registrations", title: "Registrations & Student Data" },
+      { crumb: "Brainpules / Quiz / Reports", title: "Quiz Reports & Results" },
+      { crumb: "Brainpules / Settings / General Settings", title: "General Settings" },
+      { crumb: "Brainpules / Settings / User & Access", title: "User & Access Settings" },
+      { crumb: "Brainpules / Settings / Notification", title: "Notification Settings" },
+      { crumb: "Brainpules / Settings / System Settings", title: "System Settings" }
+    ];
+
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    const person = (i) => NAMES[i % 6];
+    const mail = (i) => person(i).toLowerCase().replace(" ", ".") + "@mail.com";
+    const when = (i, month = 9) => String(3 + i * 4).padStart(2, "0") + " " + (month === 9 ? "Sep" : "Oct") + " 2026";
+    const phone = (i) => "+91 98" + (76000 + i * 1371) + "0" + i;
+
+    function tone(v) {
+      if (v === "Yes" || /Active|Completed|Assigned|Enabled|Published|Healthy|Passed/.test(v)) return "ok";
+      if (v === "Per access" || /Draft|Pending|In Progress|Not Started|Invited/.test(v)) return "wn";
+      if (v === "No" || /Inactive|Failed|Disabled|Absent/.test(v)) return "er";
+      if (/^Admin$/.test(v)) return "gy";
+      return "";
+    }
+    const pill = (v) => `<span class="pill ${tone(v)}">${esc(v)}</span>`;
+    const ico = (d, size = 18) => `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+    const I = {
+      search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+      plus: '<path d="M12 5v14M5 12h14"/>',
+      upload: '<path d="M12 16V5"/><path d="m7 9 5-5 5 5"/><path d="M5 19h14"/>',
+      download: '<path d="M12 5v11"/><path d="m7 12 5 5 5-5"/><path d="M5 19h14"/>',
+      info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>'
+    };
+    const btn = (label, primary, icon) => `<button type="button" class="btn${primary ? " primary" : ""}">${icon ? ico(I[icon]) : ""}<span>${esc(label)}</span></button>`;
+    const go = (label, screen, primary, icon) => `<button type="button" class="btn${primary ? " primary" : ""}" data-screen="${screen}">${icon ? ico(I[icon]) : ""}<span>${esc(label)}</span></button>`;
+    const actions = () => `<div class="row-actions"><button type="button" class="linkish">View</button><button type="button" class="linkish">Edit</button><button type="button" class="linkish" aria-label="More actions">More</button></div>`;
+
+    function table(cols, rows, caption) {
+      const wrap = new Set(["Description", "Question Types", "Presentation Types"]);
+      const head = cols.map((c) => `<th scope="col">${esc(c)}</th>`).join("");
+      const body = rows.map((row) => `<tr>${cols.map((c) => `<td${wrap.has(c) ? ' class="wrap"' : ""}>${row[c] ?? "—"}</td>`).join("")}</tr>`).join("");
+      return `<div class="table-wrap"><table><caption class="sr">${esc(caption)}</caption><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+    }
+    function filters(names, buttons) {
+      const fields = names.map((n) => `<label class="field"><span class="sr">${esc(n)}</span><select aria-label="${esc(n)}"><option>${esc(n)}</option></select></label>`).join("");
+      return `<div class="toolbar"><label class="search">${ico(I.search)}<span class="sr">Search</span><input type="search" placeholder="Search" autocomplete="off"></label>${fields}<span class="spacer"></span><div class="actions">${buttons}</div></div>`;
+    }
+    function segments(items) {
+      return `<div class="segments" role="tablist">${items.map((t, i) => `<button type="button" role="tab" aria-selected="${i === 0}" class="${i ? "" : "on"}">${esc(t)}</button>`).join("")}</div>`;
+    }
+    function kpis(items) {
+      return `<section class="kpis">${items.map(([label, value, delta, tint]) => `<article class="card kpi tint-${tint}"><p>${esc(label)}</p><strong>${esc(value)}</strong>${delta ? `<p class="delta">${esc(delta)}</p>` : ""}</article>`).join("")}</section>`;
+    }
+    function bars(title, values, color, caption) {
+      const max = Math.max(...values);
+      const marks = values.map((v, i) => {
+        const h = Math.round((v / max) * 108);
+        const x = 24 + i * 56;
+        const y = 128 - h;
+        const fill = i === values.length - 1 ? color : "#bcd0f7";
+        return `<g><title>${MONTHS[i]}: ${v}</title><rect x="${x}" y="${y}" width="32" height="${h}" rx="6" fill="${fill}"/><text x="${x + 16}" y="150" text-anchor="middle" fill="#6b778c" font-size="12" font-family="Source Sans 3, sans-serif">${MONTHS[i]}</text></g>`;
+      }).join("");
+      return `<figure class="card chart"><h2>${esc(title)}</h2><svg viewBox="0 0 360 164" role="img" aria-label="${esc(title)}. ${esc(caption)}">${marks}</svg><figcaption>${esc(caption)}</figcaption></figure>`;
+    }
+    function dist() {
+      const bins = [20, 45, 90, 70, 35];
+      const labels = ["0–20", "20–40", "40–60", "60–80", "80–100"];
+      const marks = bins.map((v, i) => {
+        const h = v;
+        const x = 16 + i * 70;
+        return `<g><title>${labels[i]}: ${v}</title><rect x="${x}" y="${128 - h}" width="44" height="${h}" rx="6" fill="#2563eb" opacity="${0.4 + i * 0.12}"/><text x="${x + 22}" y="148" text-anchor="middle" fill="#6b778c" font-size="12" font-family="Source Sans 3, sans-serif">${labels[i]}</text></g>`;
+      }).join("");
+      return `<figure class="card chart"><h2>Score distribution</h2><svg viewBox="0 0 360 164" role="img" aria-label="Score distribution. Most attempts fall between 40 and 60.">${marks}</svg><figcaption>Most attempts fall between 40 and 60.</figcaption></figure>`;
+    }
+    function toggle(label, hint, on) {
+      return `<div class="toggle-row"><div><p class="toggle-title">${esc(label)}</p><p class="hint">${esc(hint)}</p></div><button type="button" class="switch" aria-pressed="${on ? "true" : "false"}" aria-label="${esc(label)}"><i></i></button></div>`;
+    }
+    function sw(label, on) {
+      return `<span>${esc(label)} <button type="button" class="switch" aria-pressed="${on ? "true" : "false"}" aria-label="${esc(label)}"><i></i></button></span>`;
+    }
+
+    const studentStatus = (i) => ["Active", "Active", "Inactive", "Active", "Active", "Inactive"][i % 6];
+    const assignStatus = (i) => ["Assigned", "Assigned", "Pending", "Assigned", "Assigned", "Pending"][i % 6];
+    const attemptStatus = (i) => ["Completed", "In Progress", "Not Started", "Completed", "Completed", "Not Started"][i % 6];
+    const resultStatus = (i) => ["Passed", "Passed", "Failed", "Passed", "Passed", "Failed"][i % 6];
+
+    function studentRows() {
+      return Array.from({ length: 6 }, (_, i) => ({
+        "Unique ID": `<span class="num">${"BP-" + (24101 + i)}</span>`,
+        "Student Name": `<strong>${esc(person(i))}</strong>`,
+        Email: esc(mail(i)),
+        Phone: `<span class="num">${phone(i)}</span>`,
+        "Registration Date": when(i),
+        "Assigned Activities": [3, 2, 4, 1, 5, 2][i] + " active",
+        Status: pill(studentStatus(i)),
+        "Last Login": when(i + 1, 10),
+        Actions: actions()
+      }));
+    }
+    function userRows() {
+      return Array.from({ length: 6 }, (_, i) => ({
+        Name: `<strong>${esc(ADMINS[i])}</strong>`,
+        Email: esc(ADMINS[i].toLowerCase().replace(" ", ".") + "@brainpules.com"),
+        Role: pill(i % 3 ? "Admin" : "Super Admin"),
+        "Assessment Access": esc(["Full", "Full", "View only", "Full", "None", "Full"][i]),
+        "Quiz Access": esc(["Full", "Edit", "Full", "None", "Full", "View only"][i]),
+        Status: pill(studentStatus(i)),
+        "Last Login": when(i + 1, 10),
+        Actions: actions()
+      }));
+    }
+    function activityRows(kind) {
+      const names = kind === "quiz" ? QUIZ : ASSESS;
+      const cols = kind === "quiz"
+        ? ["Quiz Name", "Status", "Question Banks", "Registered Students", "Assigned Students", "Attempts", "Start Date", "End Date", "Actions"]
+        : ["Assessment Name", "Status", "Registered Students", "Assigned Students", "Question Banks", "Attempts", "Start Date", "End Date", "Actions"];
+      const rows = Array.from({ length: 6 }, (_, i) => {
+        const row = {
+          Status: pill(FLOW[i]),
+          "Registered Students": `<span class="num">${[420, 312, 880, 150, 265, 98][i]}</span>`,
+          "Assigned Students": `<span class="num">${[400, 298, 850, 140, 240, 90][i]}</span>`,
+          "Question Banks": `<span class="num">${[3, 2, 4, 1, 2, 3][i]}</span>`,
+          Attempts: `<span class="num">${[356, 201, 640, 98, 0, 0][i]}</span>`,
+          "Start Date": when(i),
+          "End Date": when(i + 6, 10),
+          Actions: actions()
+        };
+        row[kind === "quiz" ? "Quiz Name" : "Assessment Name"] = `<strong>${esc(names[i])}</strong>`;
+        return row;
+      });
+      return table(cols, rows, kind === "quiz" ? "Quizzes" : "Assessments");
+    }
+    function bankRows(kind) {
+      if (kind === "quiz") {
+        const rows = Array.from({ length: 5 }, (_, i) => ({
+          "Question Bank Name": `<strong>${esc(BANKS[i])}</strong>`,
+          "Number of Questions": `<span class="num">${[120, 200, 90, 150, 80][i]}</span>`,
+          "Presentation Types": esc(["One at a time", "All on page", "One at a time", "Timed card", "One at a time"][i]),
+          "Last Updated": when(i, 10),
+          "Used In": [3, 5, 2, 1, 4][i] + " quizzes",
+          Status: pill(FLOW[i]),
+          Actions: actions()
+        }));
+        return table(["Question Bank Name", "Number of Questions", "Presentation Types", "Last Updated", "Used In", "Status", "Actions"], rows, "Quiz question banks");
+      }
+      const rows = Array.from({ length: 6 }, (_, i) => ({
+        "Question Bank Name": `<strong>${esc(BANKS[i])}</strong>`,
+        Description: esc(["Core concepts & numericals", "Speed & accuracy set", "Reading, grammar, vocab", "Periodic table & reactions", "Puzzles & patterns", "Current affairs & static GK"][i]),
+        "Number of Questions": `<span class="num">${[120, 200, 90, 150, 80, 300][i]}</span>`,
+        "Question Types": esc(["MCQ, Numeric", "MCQ, Short answer", "MCQ, Passage", "MCQ, Match", "MCQ, Image", "MCQ"][i]),
+        "Last Updated": when(i, 10),
+        "Used In": [3, 5, 2, 1, 4, 6][i] + " assessments",
+        Status: pill(FLOW[i]),
+        Actions: actions()
+      }));
+      return table(["Question Bank Name", "Description", "Number of Questions", "Question Types", "Last Updated", "Used In", "Status", "Actions"], rows, "Assessment question banks");
+    }
+    function regRows(kind) {
+      const label = kind === "quiz" ? "Quiz" : "Assessment";
+      const names = kind === "quiz" ? QUIZ : ASSESS;
+      const rows = Array.from({ length: 6 }, (_, i) => ({
+        "Unique ID": `<span class="num">${"BP-" + (24101 + i)}</span>`,
+        "Student Name": `<strong>${esc(person(i))}</strong>`,
+        Email: esc(mail(i)),
+        Phone: `<span class="num">${phone(i)}</span>`,
+        "Registration Date": when(i),
+        [label]: esc(names[i]),
+        "Assigned Question Bank": esc(BANKS[i]),
+        "Assignment Status": pill(assignStatus(i)),
+        "Attempt Status": pill(attemptStatus(i))
+      }));
+      return table(["Unique ID", "Student Name", "Email", "Phone", "Registration Date", label, "Assigned Question Bank", "Assignment Status", "Attempt Status"], rows, label + " registrations");
+    }
+    function resultRows(kind) {
+      const label = kind === "quiz" ? "Quiz" : "Assessment";
+      const names = kind === "quiz" ? QUIZ : ASSESS;
+      const scores = [82, 64, 47, 91];
+      const rows = Array.from({ length: 4 }, (_, i) => ({
+        Student: `<strong>${esc(person(i))}</strong>`,
+        [label]: esc(names[i % 6]),
+        Attempt: "#1",
+        Score: `<span class="num">${scores[i]}/100</span>`,
+        Percentage: `<span class="num">${scores[i]}%</span>`,
+        Status: pill(resultStatus(i)),
+        "Submitted On": when(i, 10),
+        "View Result": `<button type="button" class="linkish">View result</button>`
+      }));
+      return table(["Student", label, "Attempt", "Score", "Percentage", "Status", "Submitted On", "View Result"], rows, label + " results");
+    }
+
+    function dashboard() {
+      return kpis([
+        ["Total Students", "12,480", "▲ 8.2% this month", 0],
+        ["Active Assessments", "14", "3 starting soon", 1],
+        ["Active Quizzes", "26", "▲ 4 this week", 2],
+        ["Completed Attempts", "9,371", "▲ 12.5%", 3]
+      ]) + `<div class="charts fold">${bars("Registrations (monthly)", [40, 55, 48, 70, 82, 95], "#2563eb", "September is the high point.")}${bars("Assessment performance (avg %)", [58, 61, 64, 63, 67, 68], "#7c3aed", "Average moved from 58% to 68%.")}${bars("Quiz performance (avg %)", [70, 66, 72, 75, 74, 79], "#16a34a", "Quiz average is 79% in September.")}</div>` +
+        `<div class="split fold"><section class="card"><h2>Recent activities</h2>${[
+          ["Priya Patel registered for JEE Mock Series 2026", "4 min ago"],
+          ["Weekly GK Quiz published by Meera Joshi", "16 min ago"],
+          ["Rohan Mehta completed Aptitude Screening Q4", "28 min ago"],
+          ["Question bank Verbal Ability updated", "40 min ago"],
+          ["45 students bulk-uploaded", "52 min ago"]
+        ].map(([t, time]) => `<div class="activity"><span>${esc(t)}</span><time>${esc(time)}</time></div>`).join("")}</section><section class="card"><h2>Quick actions</h2><div class="quick">${go("Create Assessment", 5, true, "plus")}${go("Create Quiz", 10, false, "plus")}${go("Upload Students", 1, false, "upload")}${go("Add User", 2, false, "plus")}</div></section></div>`;
+    }
+    function students() {
+      return filters(["Status", "Course", "City"], btn("Upload Students", false, "upload") + btn("Add Student", true, "plus")) + `<section class="card">${table(["Unique ID", "Student Name", "Email", "Phone", "Registration Date", "Assigned Activities", "Status", "Last Login", "Actions"], studentRows(), "Students")}</section>`;
+    }
+    function users() {
+      return filters(["Role", "Status"], btn("Add User", true, "plus")) + `<section class="card">${table(["Name", "Email", "Role", "Assessment Access", "Quiz Access", "Status", "Last Login", "Actions"], userRows(), "Admin users")}</section>`;
+    }
+    function listScreen(kind) {
+      const noun = kind === "quiz" ? "Quiz" : "Assessment";
+      const all = kind === "quiz" ? ["All (32)", "Active (26)", "Draft (4)", "Completed (2)"] : ["All (24)", "Active (14)", "Draft (6)", "Completed (4)"];
+      const target = kind === "quiz" ? 10 : 5;
+      return segments(all) + filters(["Status", "Date"], go("Create " + noun, target, true, "plus")) + `<section class="card">${activityRows(kind)}</section>`;
+    }
+    function banks(kind) {
+      const note = kind === "quiz"
+        ? "Quiz question banks contain MCQs with options A, B, C, and D, and exactly one correct answer."
+        : "Reusable question banks for the Assessment module. A bank can be attached to any assessment.";
+      const sample = kind === "quiz" ? `<section class="card"><h2>Sample MCQ</h2><p>Which planet is known as the Red Planet?</p><div style="height:10px"></div>${["A. Venus", "B. Mars", "C. Jupiter", "D. Saturn"].map((o, i) => `<div class="choice${i === 1 ? " correct" : ""}">${esc(o)}${i === 1 ? " · Correct" : ""}</div>`).join("")}</section>` : "";
+      const body = `<section class="card">${bankRows(kind)}</section>`;
+      return `<div class="callout">${ico(I.info)}<p>${esc(note)}</p></div>` + filters(["Type", "Status"], btn("Bulk Upload", false, "upload") + btn("Create Question Bank", true, "plus")) +
+        (kind === "quiz" ? `<div class="duo">${sample}${body}</div>` : body);
+    }
+    function create(kind) {
+      const isQuiz = kind === "quiz";
+      const steps = ["Basic Details", "Registration Form", "Select Question Banks", "Assignment Rules", "Behaviour Settings", "Review & Publish"];
+      return `<ol class="steps" aria-label="Create progress">${steps.map((s, i) => `<li class="${i ? "" : "on"}"${i ? "" : ' aria-current="step"'}><span>${i + 1}</span>${esc(s)}</li>`).join("")}</ol>` +
+        `<form class="card form" action="#" onsubmit="return false"><h2>Basic Details</h2><label>${isQuiz ? "Quiz" : "Assessment"} Name <span class="req">*</span><input required value="${isQuiz ? "Weekly GK Quiz" : "JEE Mock Series 2026"}"></label><label>Description<textarea>${isQuiz ? "Short weekly quiz with 20 MCQs to test general awareness." : "Full-length mock assessment covering Physics, Chemistry and Maths with timed sections."}</textarea><span class="hint">Students see this on the start screen.</span></label><div class="form-row"><label>Start Date <span class="req">*</span><input required value="15 Oct 2026, 10:00 AM"></label><label>End Date <span class="req">*</span><input required value="30 Oct 2026, 06:00 PM"></label><label>Status<select><option>Draft</option><option>Active</option></select></label></div><div class="form-actions end-actions">${btn("Save Draft")}${btn("Next", true)}</div></form>`;
+    }
+    function registrations(kind) {
+      const label = kind === "quiz" ? "Quiz" : "Assessment";
+      const extra = kind === "quiz" ? "Attempt Status" : "Student Status";
+      return filters([label, "City", "Course", "Registration Date", "Assignment Status", extra], btn("Download Filtered Data", true, "download")) + `<section class="card">${regRows(kind)}</section>`;
+    }
+    function reports(kind) {
+      const label = kind === "quiz" ? "Quiz" : "Assessment";
+      const current = kind === "quiz" ? "Weekly GK Quiz" : "JEE Mock Series 2026";
+      return filters([label + ": " + current, "Date range", "Student", "Status"], btn("Generate Report", true) + btn("Export", false, "download")) +
+        kpis([["Registered", "482", "", 0], ["Assigned", "455", "", 1], ["Attempted", "398", "", 2], ["Completed", "371", "", 3], ["Average Score", "68.4%", "▲ 3.1% vs last", 4]]) +
+        `<div class="report-grid fold">${dist()}<section class="card">${resultRows(kind)}</section></div>`;
+    }
+    function general() {
+      const fields = [
+        ["Organization Name", `<input value="Brainpules Learning Pvt. Ltd.">`],
+        ["Time Zone", `<select><option>(GMT+05:30) India Standard Time</option></select>`],
+        ["Date Format", `<select><option>DD MMM YYYY</option></select>`],
+        ["Time Format", `<select><option>12-hour</option></select>`],
+        ["Language", `<select><option>English</option></select>`]
+      ];
+      const uploads = [
+        ["Logo", "brainpules-logo.png"],
+        ["Favicon", "favicon-32.png"]
+      ].map(([label, file]) => `<div class="stack-fields"><p class="toggle-title">${esc(label)}</p><div class="upload-line"><span>${esc(file)}</span>${btn("Upload new", false, "upload")}</div></div>`).join("");
+      return `<form class="card form" action="#" onsubmit="return false"><label>Platform Name<input value="Brainpules"></label>${uploads}${fields.map(([l, c]) => `<label>${esc(l)}${c}</label>`).join("")}<div class="form-actions end-actions">${btn("Cancel")}${btn("Save Changes", true)}</div></form>`;
+    }
+    function access() {
+      const people = ["Meera Joshi", "Karan Desai", "Sana Khan", "Rahul Nair"].map((name, i) => {
+        const role = i ? "Admin" : "Super Admin";
+        const id = name.toLowerCase().split(" ")[0];
+        return `<div class="person"><div><strong>${esc(name)}</strong> ${pill(role)}<small>${id}@brainpules.com</small></div><div class="access-switches">${sw("Assessment", i !== 3)}${sw("Quiz", i !== 2)}${sw("Enabled", i !== 3)}</div></div>`;
+      }).join("");
+      const perms = ["Manage users", "Create assessments", "Create quizzes", "View reports", "Export data", "System settings"].map((p, i) => {
+        const admin = i === 5 ? pill("No") : i < 2 ? pill("Per access") : pill("Yes");
+        return `<tr><td>${esc(p)}</td><td>${pill("Yes")}</td><td>${admin}</td></tr>`;
+      }).join("");
+      return `<div class="duo"><section class="card"><h2>Admin users</h2>${people}</section><section class="card"><h2>Roles</h2><div class="person"><span>Super Admin</span>${pill("Full control")}</div><div class="person"><span>Admin</span>${pill("Limited")}</div></section></div><section class="card"><h2>Permissions</h2><div class="table-wrap"><table><caption class="sr">Role permissions</caption><thead><tr><th scope="col">Permission</th><th scope="col">Super Admin</th><th scope="col">Admin</th></tr></thead><tbody>${perms}</tbody></table></div></section>`;
+    }
+    function notify() {
+      const items = [
+        ["Student Registration", "Notify admins when a student registers", true],
+        ["Assessment Completion", "Alert when a student completes an assessment", true],
+        ["Quiz Completion", "Alert when a student completes a quiz", true],
+        ["Admin Notifications", "Account, role, and access changes", true],
+        ["Email Notifications", "Send summaries to admin email", true],
+        ["Daily Digest", "Daily 8:00 AM activity summary", false]
+      ];
+      return `<div class="notify-grid">${items.map(([a, b, on], i) => `<section class="card kpi tint-${i % 5}">${toggle(a, b, on)}<div class="channels">${pill("Email")}${pill("In-app")}</div></section>`).join("")}</div><div class="end-actions">${btn("Save Changes", true)}</div>`;
+    }
+    function system() {
+      const logs = [
+        ["Meera Joshi published Weekly GK Quiz", "1h ago"],
+        ["Karan Desai changed role: Sana Khan", "2h ago"],
+        ["Super Admin exported student data", "3h ago"]
+      ].map(([t, time]) => `<div class="activity"><span>${esc(t)}</span><time>${time}</time></div>`).join("");
+      return kpis([["System Status", "Healthy", "All services operational", 1], ["Last Backup", "Today 02:00", "Size 1.8 GB", 0], ["Uptime", "99.98%", "Last 30 days", 3]]) +
+        `<div class="duo"><section class="card"><h2>Security</h2>${toggle("Two-factor authentication", "Required for all admins", true)}${toggle("Password expiry (90 days)", "Force periodic reset", true)}</section><section class="card"><h2>Session / Login</h2>${toggle("Auto logout after 30 min", "Idle session timeout", true)}${toggle("Limit failed logins (5)", "Lock account temporarily", true)}</section><section class="card"><h2>Backup &amp; data retention</h2>${toggle("Daily automated backup", "Retained for 30 days", true)}<div class="person"><span>Student data retention</span>${pill("3 years")}</div></section><section class="card"><h2>Audit logs</h2>${logs}</section></div>`;
+    }
+
+    const RENDER = [dashboard, students, users, () => listScreen("assessment"), () => banks("assessment"), () => create("assessment"), () => registrations("assessment"), () => reports("assessment"), () => listScreen("quiz"), () => banks("quiz"), () => create("quiz"), () => registrations("quiz"), () => reports("quiz"), general, access, notify, system];
+
+    const menu = document.getElementById("menu");
+    const sidebar = document.getElementById("sidebar");
+    const mobileNav = window.matchMedia("(max-width: 1023px)");
+    function syncNavA11y() {
+      const drawerClosed = mobileNav.matches && !document.body.classList.contains("nav-open");
+      sidebar.toggleAttribute("inert", drawerClosed);
+    }
+    function openNav() {
+      document.body.classList.add("nav-open");
+      menu.setAttribute("aria-expanded", "true");
+      sidebar.removeAttribute("inert");
+      sidebar.querySelector(".nav-btn")?.focus();
+    }
+    function closeNav(restore) {
+      document.body.classList.remove("nav-open");
+      menu.setAttribute("aria-expanded", "false");
+      syncNavA11y();
+      if (restore) menu.focus();
+    }
+    mobileNav.addEventListener("change", syncNavA11y);
+    function show(index, moveFocus) {
+      const screen = SCREENS[index];
+      document.getElementById("crumb").textContent = screen.crumb;
+      document.getElementById("title").textContent = screen.title;
+      document.getElementById("main").innerHTML = RENDER[index]();
+      document.querySelectorAll(".picker [data-screen], #sidebar [data-screen]").forEach((el) => {
+        const on = Number(el.dataset.screen) === index;
+        el.classList.toggle("on", on);
+        if (on) el.setAttribute("aria-current", "page");
+        else el.removeAttribute("aria-current");
+      });
+      closeNav(false);
+      if (moveFocus) document.getElementById("main").focus({ preventScroll: true });
+      window.scrollTo(0, 0);
+    }
+
+    document.body.addEventListener("click", (e) => {
+      const tab = e.target.closest("[role='tab']");
+      if (tab && tab.parentElement.classList.contains("segments")) {
+        [...tab.parentElement.children].forEach((node) => {
+          const on = node === tab;
+          node.classList.toggle("on", on);
+          node.setAttribute("aria-selected", String(on));
+        });
+        return;
+      }
+      const sw = e.target.closest(".switch");
+      if (sw) {
+        const on = sw.getAttribute("aria-pressed") !== "true";
+        sw.setAttribute("aria-pressed", String(on));
+        return;
+      }
+      if (e.target.closest("[data-close-nav]")) { closeNav(true); return; }
+      if (e.target.closest("#menu")) { openNav(); return; }
+      const dest = e.target.closest("[data-screen]");
+      if (dest) show(Number(dest.dataset.screen), true);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.body.classList.contains("nav-open")) closeNav(true);
+    });
+    show(0, false);
+  </script>
+</body>
+</html>
