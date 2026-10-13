@@ -11,9 +11,11 @@ import {
   UploadIcon,
 } from 'lucide-react';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { statusTone } from '@/utils/tone';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -319,16 +321,20 @@ export function StudentsPage() {
                     <TableCell>{student.registered}</TableCell>
                     <TableCell>{student.activities} active</TableCell>
                     <TableCell>
-                      <span className="inline-flex items-center gap-1.5 text-sm">
+                      <Badge
+                        variant="outline"
+                        data-tone={statusTone(student.status) || undefined}
+                        className="h-auto gap-1.5 rounded-full px-2.5 py-1"
+                      >
                         <span
                           className={cn(
-                            'size-1.5 rounded-full',
+                            'size-1.5 shrink-0 rounded-full',
                             student.status === 'Active' ? 'bg-success' : 'bg-destructive',
                           )}
                           aria-hidden="true"
                         />
                         {student.status}
-                      </span>
+                      </Badge>
                     </TableCell>
                     <TableCell>{student.lastLogin}</TableCell>
                     <TableCell>

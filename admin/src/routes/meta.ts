@@ -11,7 +11,11 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Students',
     description: 'Manage student accounts, view details, and track their learning progress.',
   },
-  '/users': { crumb: 'Brainpules / Users', title: 'User Management' },
+  '/users': {
+    crumb: 'Brainpules / Users',
+    title: 'User Management',
+    description: 'Manage admin users, roles, and access to assessments and quizzes.',
+  },
   '/assessments': { crumb: 'Brainpules / Assessment', title: 'Assessments' },
   '/assessments/banks': {
     crumb: 'Brainpules / Assessment / Question Banks',
