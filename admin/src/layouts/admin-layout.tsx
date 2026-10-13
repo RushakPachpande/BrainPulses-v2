@@ -1,40 +1,41 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { Fragment, useEffect } from 'react';
 import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
 import {
   ActivityIcon,
   BellIcon,
-  BookOpenIcon,
-  ChartColumnIcon,
-  ChartLineIcon,
+  ChevronsUpDownIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
   ListIcon,
-  PlusIcon,
-  ServerIcon,
-  ShieldIcon,
   SlidersHorizontalIcon,
-  UserCheckIcon,
   UserCogIcon,
-  UserPlusIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { ModuleNav } from '@/components/module-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Breadcrumb,
   BreadcrumbItem,
+  BreadcrumbLink,
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Separator } from '@/components/ui/separator';
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -45,67 +46,30 @@ import {
 } from '@/components/ui/sidebar';
 import { pageMeta } from '@/routes/meta';
 
-const SIDEBAR_KEY = 'brainpulses-sidebar';
+type NavLinkItem = { to: string; label: string; icon: LucideIcon; end: boolean };
 
-type NavLinkItem = { to: string; label: string; icon: LucideIcon };
-type NavGroup = { label: string; items: NavLinkItem[] };
-
-const primary: NavLinkItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon },
-  { to: '/students', label: 'Students', icon: UsersIcon },
-  { to: '/users', label: 'Users', icon: UserCogIcon },
+const nav: NavLinkItem[] = [
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
+  { to: '/students', label: 'Students', icon: UsersIcon, end: true },
+  { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
+  { to: '/assessments', label: 'Assessments', icon: ListIcon, end: false },
+  { to: '/quizzes', label: 'Quizzes', icon: CircleHelpIcon, end: false },
+  { to: '/settings', label: 'Settings', icon: SlidersHorizontalIcon, end: false },
 ];
 
-const groups: NavGroup[] = [
-  {
-    label: 'Assessment',
-    items: [
-      { to: '/assessments', label: 'All assessments', icon: ListIcon },
-      { to: '/assessments/new', label: 'Create Assessment', icon: PlusIcon },
-      { to: '/assessments/banks', label: 'Question Banks', icon: BookOpenIcon },
-      {
-        to: '/assessments/registrations',
-        label: 'Registrations & Student Data',
-        icon: UserPlusIcon,
-      },
-      { to: '/assessments/reports', label: 'Reports & Results', icon: ChartColumnIcon },
-    ],
-  },
-  {
-    label: 'Quiz',
-    items: [
-      { to: '/quizzes', label: 'All quizzes', icon: CircleHelpIcon },
-      { to: '/quizzes/new', label: 'Create Quiz', icon: PlusIcon },
-      { to: '/quizzes/banks', label: 'Question Banks', icon: ShieldIcon },
-      { to: '/quizzes/registrations', label: 'Registrations & Student Data', icon: UserCheckIcon },
-      { to: '/quizzes/reports', label: 'Reports & Results', icon: ChartLineIcon },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
-      { to: '/settings', label: 'General Settings', icon: SlidersHorizontalIcon },
-      { to: '/settings/access', label: 'User & Access Settings', icon: ShieldIcon },
-      { to: '/settings/notifications', label: 'Notification Settings', icon: BellIcon },
-      { to: '/settings/system', label: 'System Settings', icon: ServerIcon },
-    ],
-  },
-];
+const crumbHrefs: Record<string, string> = {
+  Brainpules: '/dashboard',
+  Assessment: '/assessments',
+  Quiz: '/quizzes',
+  Settings: '/settings',
+};
 
-function readSidebarOpen() {
-  try {
-    return localStorage.getItem(SIDEBAR_KEY) !== 'collapsed';
-  } catch {
-    return true;
-  }
-}
-
-function NavItem({ to, label, icon: Icon }: NavLinkItem) {
-  const match = useMatch({ path: to, end: true });
+function NavItem({ to, label, icon: Icon, end }: NavLinkItem) {
+  const match = useMatch({ path: to, end });
   return (
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={Boolean(match)} tooltip={label}>
-        <NavLink to={to} end>
+        <NavLink to={to} end={end}>
           <Icon />
           <span>{label}</span>
         </NavLink>
@@ -118,7 +82,6 @@ export function AdminLayout() {
   const { pathname } = useLocation();
   const meta = pageMeta[pathname] ?? pageMeta['/dashboard'];
   const crumbs = meta.crumb.split(' / ');
-  const [open, setOpen] = useState(readSidebarOpen);
 
   useEffect(() => {
     document.title = `${meta.title} · Brainpules Admin`;
@@ -132,104 +95,106 @@ export function AdminLayout() {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  function onOpenChange(next: boolean) {
-    setOpen(next);
-    try {
-      localStorage.setItem(SIDEBAR_KEY, next ? 'expanded' : 'collapsed');
-    } catch {
-      /* ignore */
-    }
-  }
-
   return (
-    <SidebarProvider
-      open={open}
-      onOpenChange={onOpenChange}
-      style={{ '--sidebar-width': '268px' } as CSSProperties}
-    >
+    <SidebarProvider>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
       >
         Skip to content
       </a>
-      <Sidebar collapsible="icon">
+      <Sidebar variant="inset" collapsible="offcanvas">
         <SidebarHeader>
-          <div className="flex items-center gap-1">
-            <SidebarMenu className="min-w-0 flex-1">
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild size="lg" tooltip="Brainpules">
-                  <NavLink to="/dashboard">
-                    <ActivityIcon />
-                    <span className="text-base font-semibold">Brainpules</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </div>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton asChild size="lg" tooltip="Brainpules">
+                <NavLink to="/dashboard">
+                  <ActivityIcon />
+                  <span className="text-base font-semibold">Brainpules</span>
+                </NavLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarHeader>
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {primary.map((item) => (
+                {nav.map((item) => (
                   <NavItem key={item.to} {...item} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-          {groups.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {group.items.map((item) => (
-                    <NavItem key={item.to} {...item} />
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          ))}
         </SidebarContent>
-      </Sidebar>
-      <SidebarInset className="min-w-0">
-        <header className="flex min-h-14 min-w-0 items-center gap-2 border-b bg-card px-4 py-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
-            <div className="min-w-0">
-              <Breadcrumb>
-                <BreadcrumbList>
-                  {crumbs.map((crumb, index) => (
-                    <span key={`${crumb}-${index}`} className="inline-flex items-center gap-1.5">
-                      {index > 0 ? <BreadcrumbSeparator /> : null}
-                      <BreadcrumbItem>
-                        {index === crumbs.length - 1 ? (
-                          <BreadcrumbPage>{crumb}</BreadcrumbPage>
-                        ) : (
-                          <span>{crumb}</span>
-                        )}
-                      </BreadcrumbItem>
+        <SidebarFooter>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size="lg"
+                    className="h-auto min-h-12 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                  >
+                    <Avatar>
+                      <AvatarFallback>MJ</AvatarFallback>
+                    </Avatar>
+                    <span className="grid min-w-0 flex-1 text-left leading-tight">
+                      <span className="truncate font-medium">Meera Joshi</span>
+                      <span className="truncate text-xs text-muted-foreground">Super Admin</span>
                     </span>
-                  ))}
-                </BreadcrumbList>
-              </Breadcrumb>
-              <h1 className="truncate text-xl font-semibold">{meta.title}</h1>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <ThemeToggle />
-            <Button type="button" variant="outline" size="icon" aria-label="Notifications">
-              <BellIcon />
-            </Button>
-            <Avatar>
-              <AvatarFallback>MJ</AvatarFallback>
-            </Avatar>
-            <span className="hidden text-sm lg:inline">Meera Joshi · Super Admin</span>
-          </div>
+                    <ChevronsUpDownIcon />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="top" align="start">
+                  <ThemeToggle />
+                  <DropdownMenuItem className="min-h-(--control-h)">
+                    <BellIcon />
+                    Notifications
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
+        <header className="flex min-h-16 min-w-0 flex-wrap items-center gap-2 border-b px-4 py-2">
+          <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
+          <Separator
+            orientation="vertical"
+            className="h-4 data-vertical:h-4 data-vertical:self-center"
+          />
+          <Breadcrumb className="min-w-0">
+            <BreadcrumbList>
+              {crumbs.map((crumb, index) => {
+                const href = crumbHrefs[crumb];
+                const current = index === crumbs.length - 1;
+                return (
+                  <Fragment key={`${crumb}-${index}`}>
+                    {index > 0 ? <BreadcrumbSeparator /> : null}
+                    <BreadcrumbItem>
+                      {current || !href ? (
+                        <BreadcrumbPage>{crumb}</BreadcrumbPage>
+                      ) : (
+                        <BreadcrumbLink asChild>
+                          <NavLink to={href} end>
+                            {crumb}
+                          </NavLink>
+                        </BreadcrumbLink>
+                      )}
+                    </BreadcrumbItem>
+                  </Fragment>
+                );
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
         </header>
-        <main id="main" tabIndex={-1} className="min-w-0 flex-1 overflow-x-hidden px-4 py-4 md:px-6">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 px-4 py-4 md:px-6">
+          <h1 className="truncate text-xl font-semibold">{meta.title}</h1>
+          <ModuleNav pathname={pathname} />
           <Outlet />
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

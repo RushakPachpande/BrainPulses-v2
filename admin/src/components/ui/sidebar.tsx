@@ -204,7 +204,9 @@ function Sidebar({
               <XIcon />
             </Button>
           </SheetClose>
-          <div className="flex h-full w-full flex-col **:data-[slot=sidebar-header]:pr-12">{children}</div>
+          <div className="flex h-full w-full flex-col **:data-[slot=sidebar-header]:pr-12">
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     );
@@ -507,7 +509,8 @@ function SidebarMenuButton({
       {...props}
       onClick={(event) => {
         onClick?.(event);
-        if (isMobile) setOpenMobile(false);
+        const opensMenu = event.currentTarget.getAttribute('aria-haspopup') === 'menu';
+        if (isMobile && !opensMenu) setOpenMobile(false);
       }}
     />
   );
