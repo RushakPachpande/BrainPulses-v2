@@ -1,0 +1,22 @@
+---
+description: Keep form controls one height and toolbars wrapping without stranding actions
+alwaysApply: true
+---
+
+# Control height and toolbars
+
+Single-line controls share `--control-h` (44px): inputs, selects, and `.btn`. Set `height` and `min-height` to that token. Do not invent a one-off height for a new field or button.
+
+Textareas, segment chips, and table text actions are the exceptions. Change those only when that component is intentionally a different control, and say so next to the rule.
+
+```css
+/* ❌ BAD — button shorter than the search field beside it */
+.btn { min-height: 40px; }
+
+/* ✅ GOOD */
+.btn, input, select { height: var(--control-h); min-height: var(--control-h); }
+```
+
+Toolbars (`.toolbar`) wrap as a row. Search and filters stay in the row; `.actions` uses `margin-left: auto` so the button group sits on the trailing edge of whatever line it lands on. Do not use a flex spacer to push those buttons; a spacer collapses on wrap and pins the buttons to the left.
+
+Below 640px, search, each filter, and the action group each take the full row. Action buttons share that row instead of overflowing the page.

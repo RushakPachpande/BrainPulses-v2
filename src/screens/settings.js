@@ -13,7 +13,7 @@ export function general() {
     ["Logo", "brainpules-logo.png"],
     ["Favicon", "favicon-32.png"],
   ].map(([label, file]) => `<div class="stack-fields"><p class="toggle-title">${esc(label)}</p><div class="upload-line"><span>${esc(file)}</span>${button("Upload new", false, "upload")}</div></div>`).join("");
-  return `<form class="card form" action="#" onsubmit="return false"><label>Platform Name<input value="Brainpules"></label>${uploads}${fields.map(([label, control]) => `<label>${esc(label)}${control}</label>`).join("")}<div class="form-actions end-actions">${button("Cancel")}${button("Save Changes", true)}</div></form>`;
+  return `<form class="card form" action="#" onsubmit="return false"><label>Platform Name<input value="Brainpules"></label>${fields.map(([label, control]) => `<label>${esc(label)}${control}</label>`).join("")}${uploads}<div class="form-actions end-actions">${button("Cancel")}${button("Save Changes", true)}</div></form>`;
 }
 
 export function access() {

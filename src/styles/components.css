@@ -22,8 +22,9 @@
   margin-bottom: 16px;
 }
 .kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
-.charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
-.split { grid-template-columns: minmax(0, 1.7fr) minmax(240px, 0.9fr); }
+.charts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); align-items: stretch; }
+.split { grid-template-columns: minmax(0, 1fr) 280px; align-items: stretch; }
+.split > .card { height: 100%; }
 .duo { grid-template-columns: minmax(0, 1.15fr) minmax(260px, 0.85fr); }
 .report-grid { grid-template-columns: minmax(220px, 0.8fr) minmax(0, 2fr); }
 .notify-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
@@ -47,18 +48,34 @@
 .kpi.tint-3 { background: var(--kpi-3); }
 .kpi.tint-4 { background: var(--kpi-4); }
 
-.toolbar, .segments, .form-actions, .end-actions {
+.toolbar {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   margin-bottom: 14px;
 }
-.toolbar .spacer, .end-actions { margin-left: auto; }
-.end-actions { justify-content: flex-end; width: 100%; }
+.segments, .form-actions, .end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+.toolbar .spacer { display: none; }
+.toolbar .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+.end-actions { justify-content: flex-end; width: 100%; margin-left: auto; }
 
 .search, .field { position: relative; }
 .search { flex: 1 1 220px; max-width: 320px; }
+.field { flex: 1 1 148px; max-width: 200px; }
 .search .ico {
   position: absolute;
   left: 12px;
@@ -70,21 +87,32 @@
 .search input { padding-left: 38px; }
 input, select, textarea {
   width: 100%;
-  min-height: 44px;
+  min-height: var(--control-h);
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--card);
-  padding: 8px 12px;
+  background-color: var(--card);
+  padding: 0 12px;
   font-size: 0.9375rem;
-  transition: border-color var(--ease), background var(--ease);
+  line-height: 1.2;
+  transition: border-color var(--ease), background-color var(--ease);
 }
-textarea { min-height: 104px; resize: vertical; line-height: 1.5; }
-.field select { min-width: 140px; color: var(--text-2); background: var(--card); }
+input, select, .btn { height: var(--control-h); }
+textarea { height: auto; min-height: 104px; padding: 12px; resize: vertical; line-height: 1.5; }
+.field select { min-width: 140px; color: var(--text-2); }
+select {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b778c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+}
 input:hover, select:hover, textarea:hover { border-color: var(--bar-muted); }
 input:focus-visible, select:focus-visible, textarea:focus-visible { border-color: var(--accent); }
 
 .btn {
-  min-height: 44px;
+  height: var(--control-h);
+  min-height: var(--control-h);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -124,7 +152,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { border-color
   border-color: var(--bar-muted);
 }
 
-.table-wrap { overflow-x: auto; margin: 0 -4px; }
+.table-wrap {
+  overflow: auto;
+  margin: 0 -4px;
+  max-height: calc(100dvh - var(--topbar-h) - 11rem);
+}
 table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.9375rem; }
 caption.sr { caption-side: top; }
 th {
@@ -138,6 +170,9 @@ th {
   padding: 10px 12px;
   background: #f3f6fa;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 th:first-child { border-radius: 8px 0 0 8px; }
 th:last-child { border-radius: 0 8px 8px 0; }
@@ -241,7 +276,22 @@ td.num, .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 }
 .steps li.on span { background: rgb(255 255 255 / 0.2); color: #fff; }
 
-.form { max-width: 860px; display: grid; gap: 4px; }
+.form {
+  width: 100%;
+  max-width: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 20px;
+  align-items: start;
+}
+.form > h2,
+.form > .form-actions,
+.form > .form-row,
+.form > .stack-fields,
+.form > label:has(textarea),
+.form > label:has(input[required]) {
+  grid-column: 1 / -1;
+}
 .form label, .stack-fields label {
   display: grid;
   gap: 6px;
@@ -334,10 +384,10 @@ td.num, .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .activity:last-child { border-bottom: 0; }
 .activity time { color: var(--text-2); font-size: 0.8125rem; white-space: nowrap; }
 
-.quick { display: grid; gap: 8px; }
-.chart { display: flex; flex-direction: column; }
+.quick { display: grid; gap: 8px; align-content: start; }
+.chart { display: flex; flex-direction: column; height: 100%; }
 .chart h2 { text-wrap: balance; min-height: 2.6em; }
-.chart svg { width: 100%; height: auto; display: block; margin-top: auto; }
+.chart svg { width: 100%; flex: 1; min-height: 180px; height: auto; display: block; margin-top: auto; }
 .chart figcaption { margin-top: 8px; color: var(--text-2); font-size: 0.8125rem; }
 
 .choice {
@@ -359,6 +409,22 @@ td.num, .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .channels { display: flex; gap: 6px; margin-top: 10px; }
 .person small { display: block; color: var(--text-2); font-weight: 400; }
 
+@media (min-width: 1024px) {
+  .charts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
 @media (max-width: 1023px) {
-  .split, .duo, .report-grid { grid-template-columns: 1fr; }
+  .split, .duo, .report-grid, .charts { grid-template-columns: 1fr; }
+}
+@media (max-width: 800px) {
+  .form { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .toolbar .search,
+  .toolbar .field,
+  .toolbar .actions {
+    flex: 1 1 100%;
+    max-width: none;
+    margin-left: 0;
+  }
+  .toolbar .actions .btn { flex: 1 1 auto; }
 }

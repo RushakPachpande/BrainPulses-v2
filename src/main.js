@@ -6,7 +6,41 @@ import "./styles/tokens.css";
 const menu = document.getElementById("menu");
 const sidebar = document.getElementById("sidebar");
 const main = document.getElementById("main");
+const collapseBtn = document.getElementById("collapse");
+const navTip = document.getElementById("nav-tip");
 const mobileNav = window.matchMedia("(max-width: 1023px)");
+const desktopNav = window.matchMedia("(min-width: 1024px)");
+const SIDEBAR_KEY = "brainpulses-sidebar";
+
+function syncCollapseButton() {
+  const collapsed = document.documentElement.classList.contains("sidebar-collapsed");
+  collapseBtn.setAttribute("aria-expanded", String(!collapsed));
+  collapseBtn.setAttribute("aria-label", collapsed ? "Expand sidebar" : "Collapse sidebar");
+}
+
+function setCollapsed(collapsed) {
+  document.documentElement.classList.toggle("sidebar-collapsed", collapsed);
+  syncCollapseButton();
+  hideTip();
+  try {
+    localStorage.setItem(SIDEBAR_KEY, collapsed ? "collapsed" : "expanded");
+  } catch (e) {}
+}
+
+function showTip(link) {
+  if (!desktopNav.matches || !document.documentElement.classList.contains("sidebar-collapsed")) return;
+  const label = link.querySelector(".nav-label");
+  if (!label) return;
+  const rect = link.getBoundingClientRect();
+  navTip.textContent = label.textContent;
+  navTip.hidden = false;
+  navTip.style.top = rect.top + rect.height / 2 + "px";
+  navTip.style.left = rect.right + 8 + "px";
+}
+
+function hideTip() {
+  navTip.hidden = true;
+}
 
 function syncNavA11y() {
   const drawerClosed = mobileNav.matches && !document.body.classList.contains("nav-open");
@@ -75,6 +109,10 @@ document.body.addEventListener("click", (event) => {
     closeNav(true);
     return;
   }
+  if (event.target.closest("#collapse")) {
+    setCollapsed(!document.documentElement.classList.contains("sidebar-collapsed"));
+    return;
+  }
   if (event.target.closest("#menu")) {
     openNav();
     return;
@@ -86,6 +124,24 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && document.body.classList.contains("nav-open")) closeNav(true);
 });
 
+sidebar.addEventListener("mouseover", (event) => {
+  const link = event.target.closest(".nav-btn");
+  if (link && sidebar.contains(link)) showTip(link);
+});
+sidebar.addEventListener("mouseout", (event) => {
+  const link = event.target.closest(".nav-btn");
+  if (link && !link.contains(event.relatedTarget)) hideTip();
+});
+sidebar.addEventListener("focusin", (event) => {
+  const link = event.target.closest(".nav-btn");
+  if (link) showTip(link);
+});
+sidebar.addEventListener("focusout", (event) => {
+  if (!sidebar.contains(event.relatedTarget)) hideTip();
+});
+
+sidebar.addEventListener("scroll", hideTip, { passive: true });
 mobileNav.addEventListener("change", syncNavA11y);
+syncCollapseButton();
 window.addEventListener("hashchange", () => render(true));
 render(false);
