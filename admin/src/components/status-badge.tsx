@@ -1,11 +1,7 @@
-import { Badge } from '@/components/ui/badge';
+import { StatusPill } from '@/components/status-pill';
 import { statusTone } from '@/utils/tone';
 
 export function StatusBadge({ value }: { value: string }) {
-  const tone = statusTone(value);
-  return (
-    <Badge variant="outline" data-tone={tone || undefined}>
-      {value}
-    </Badge>
-  );
+  const tone = statusTone(value) || 'gy';
+  return <StatusPill value={value} tone={tone} showDot={false} />;
 }

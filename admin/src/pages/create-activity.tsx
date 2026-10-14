@@ -1,5 +1,6 @@
-import type { FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { cn } from '@/lib/utils';
+import { DateTimePicker } from '@/components/date-time-picker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -27,6 +28,8 @@ const steps = [
 export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'Quiz' : 'Assessment';
+  const [startDate, setStartDate] = useState(() => new Date(2026, 9, 15, 10, 0, 0));
+  const [endDate, setEndDate] = useState(() => new Date(2026, 9, 30, 18, 0, 0));
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -85,13 +88,18 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
                   <FieldLabel htmlFor="start-date">
                     Start Date <span className="text-destructive">*</span>
                   </FieldLabel>
-                  <Input id="start-date" required defaultValue="15 Oct 2026, 10:00 AM" />
+                  <DateTimePicker
+                    id="start-date"
+                    required
+                    value={startDate}
+                    onChange={setStartDate}
+                  />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="end-date">
                     End Date <span className="text-destructive">*</span>
                   </FieldLabel>
-                  <Input id="end-date" required defaultValue="30 Oct 2026, 06:00 PM" />
+                  <DateTimePicker id="end-date" required value={endDate} onChange={setEndDate} />
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="status">Status</FieldLabel>

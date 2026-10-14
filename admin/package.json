@@ -9,19 +9,30 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "typecheck": "tsc -b --pretty false",
-    "lint": "eslint .",
+    "build:single": "tsc -b && vite build --mode singlefile",
+    "start": "npm run preview",
     "preview": "vite preview",
+    "typecheck": "tsc -b --pretty false",
+    "typecheck:check": "npm run typecheck",
+    "lint": "eslint .",
+    "lint:check": "npm run lint",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "format:fix": "npm run format",
+    "check": "npm run typecheck && npm run lint && npm run format:check",
+    "check:fix": "npm run typecheck && npm run lint:fix && npm run format",
+    "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
+    "date-fns": "^4.4.0",
     "lucide-react": "^1.56.0",
     "radix-ui": "^1.8.1",
     "react": "^19.2.8",
+    "react-day-picker": "^10.0.2",
     "react-dom": "^19.2.8",
     "react-router": "^8.4.0",
     "recharts": "^3.8.0",
@@ -44,6 +55,7 @@
     "prettier": "^3.9.10",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.71.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vite-plugin-singlefile": "^2.3.3"
   }
 }

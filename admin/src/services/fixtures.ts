@@ -92,6 +92,40 @@ export const attemptCounts = [356, 201, 640, 98, 0, 0];
 export const questionCounts = [120, 200, 90, 150, 80, 300];
 export const usedInCounts = [3, 5, 2, 1, 4, 6];
 export const activityCounts = [3, 2, 4, 1, 5, 2];
+export const studentCourses = ['JEE', 'Aptitude', 'Scholarship', 'Olympiad', 'Career', 'Logic'];
+export const studentCities = ['Pune', 'Ahmedabad', 'Mumbai', 'Bengaluru', 'Delhi', 'Chennai'];
+export const assessmentSubtitles = [
+  'Engineering • Mock Test',
+  'Aptitude • Screening',
+  'Scholarship • Competitive',
+  'Science • Olympiad',
+  'Career • Soft Skills',
+  'Aptitude • Reasoning',
+];
+export const quizSubtitles = [
+  'General Knowledge • Weekly',
+  'Mathematics • Timed',
+  'Science • Pop Quiz',
+  'Current Affairs • Monthly',
+  'English • Vocabulary',
+  'Coding • Basics',
+];
+export const activityStartTimes = [
+  '10:00 AM',
+  '02:00 PM',
+  '09:30 AM',
+  '11:00 AM',
+  '03:00 PM',
+  '04:30 PM',
+];
+export const activityEndTimes = [
+  '01:00 PM',
+  '05:00 PM',
+  '12:30 PM',
+  '02:00 PM',
+  '06:00 PM',
+  '07:30 PM',
+];
 export const resultScores = [82, 64, 47, 91];
 
 export const accessPeople = ['Meera Joshi', 'Karan Desai', 'Sana Khan', 'Rahul Nair'];

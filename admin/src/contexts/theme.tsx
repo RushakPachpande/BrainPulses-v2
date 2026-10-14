@@ -11,12 +11,12 @@ function applyDomTheme(theme: ThemeMode) {
   root.style.colorScheme = theme;
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', theme === 'dark' ? '#0b142e' : '#0f1b3d');
+    ?.setAttribute('content', theme === 'dark' ? '#081020' : '#fafaff');
 }
 
 function loadTheme(): ThemeMode {
   try {
-    return localStorage.getItem(STORAGE_KEY) === 'dark' ? 'dark' : 'light';
+    return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark';
   } catch {
     return 'light';
   }

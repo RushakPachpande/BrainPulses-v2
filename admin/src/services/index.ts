@@ -1,8 +1,11 @@
 import {
   accessPeople,
   activityCounts,
+  activityEndTimes,
+  activityStartTimes,
   admins,
   assessmentNames,
+  assessmentSubtitles,
   assignedCounts,
   assignmentStatuses,
   attemptCounts,
@@ -20,9 +23,12 @@ import {
   questionCounts,
   questionTypes,
   quizNames,
+  quizSubtitles,
   registeredCounts,
   resultScores,
   resultStatuses,
+  studentCities,
+  studentCourses,
   studentStatuses,
   usedInCounts,
   when,
@@ -44,13 +50,15 @@ export function getStudents() {
     activities: activityCounts[i],
     status: studentStatuses[i],
     lastLogin: when(i + 1, 10),
+    course: studentCourses[i],
+    city: studentCities[i],
   }));
 }
 
 export function getUsers() {
   return range(6).map((i) => ({
     name: admins[i],
-    email: admins[i].toLowerCase().replace(' ', '.') + '@brainpules.com',
+    email: admins[i].toLowerCase().replace(' ', '.') + '@brainpulses.com',
     role: i % 3 ? 'Admin' : 'Super Admin',
     assessmentAccess: ['Full', 'Full', 'View only', 'Full', 'None', 'Full'][i],
     quizAccess: ['Full', 'Edit', 'Full', 'None', 'Full', 'View only'][i],
@@ -60,9 +68,15 @@ export function getUsers() {
 }
 
 export function getActivities(kind: ActivityKind) {
-  const names = kind === 'quiz' ? quizNames : assessmentNames;
+  const isQuiz = kind === 'quiz';
+  const names = isQuiz ? quizNames : assessmentNames;
+  const subtitles = isQuiz ? quizSubtitles : assessmentSubtitles;
+  const prefix = isQuiz ? 'QUZ-' : 'ASM-';
   return range(6).map((i) => ({
+    id: prefix + (2601 + i),
     name: names[i],
+    subtitle: subtitles[i],
+    iconTone: i % 6,
     status: flow[i],
     registered: registeredCounts[i],
     assigned: assignedCounts[i],
@@ -70,12 +84,15 @@ export function getActivities(kind: ActivityKind) {
     attempts: attemptCounts[i],
     start: when(i),
     end: when(i + 6, 10),
+    startTime: activityStartTimes[i],
+    endTime: activityEndTimes[i],
   }));
 }
 
 export function getQuestionBanks(kind: ActivityKind) {
   const count = kind === 'quiz' ? 5 : 6;
   return range(count).map((i) => ({
+    id: 'QB-' + (30101 + i),
     name: bankNames[i],
     description: bankDescriptions[i],
     questions: questionCounts[i],
@@ -99,6 +116,8 @@ export function getRegistrations(kind: ActivityKind) {
     bank: bankNames[i],
     assignment: assignmentStatuses[i],
     attempt: attemptStatuses[i],
+    city: studentCities[i],
+    course: studentCourses[i],
   }));
 }
 
@@ -130,7 +149,7 @@ export function getDashboard() {
       {
         title: 'Registrations (monthly)',
         values: [40, 55, 48, 70, 82, 95],
-        color: '#2563eb',
+        color: 'var(--primary)',
         caption: 'September is the high point.',
       },
       {
@@ -159,7 +178,7 @@ export function getDashboard() {
 export function getAccessUsers() {
   return accessPeople.map((name, i) => ({
     name,
-    email: name.toLowerCase().split(' ')[0] + '@brainpules.com',
+    email: name.toLowerCase().split(' ')[0] + '@brainpulses.com',
     role: i ? 'Admin' : 'Super Admin',
     assessment: i !== 3,
     quiz: i !== 2,

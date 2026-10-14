@@ -1,0 +1,18 @@
+---
+description: Fix ESLint errors and warnings without changing app behavior or UI
+alwaysApply: true
+---
+
+# Respect lint
+
+Treat ESLint **errors and warnings** as blockers for the change that introduced or touched them. Do not leave new lint noise, and clear existing warnings in files you edit when a safe fix exists.
+
+```text
+❌ BAD — ship with react-refresh or unused-var warnings; or silence with eslint-disable to avoid thinking
+✅ GOOD — fix the root cause (split non-component exports, rename unused params with _, correct types)
+```
+
+- Prefer a real fix over `eslint-disable`. Disable only when the rule is wrong for that line and say why in a short comment.
+- Preserve existing behavior, style, layout, and design while fixing lint. Do not restyle or refactor around the warning.
+- After UI or `admin/src` edits, run `npm run lint` (and typecheck when types moved) in `admin/`. Clear warnings you caused before finishing.
+- Fast Refresh: component files export only components. Put helpers, `cva` variants, and constants in a sibling module (e.g. `button-variants.ts`).

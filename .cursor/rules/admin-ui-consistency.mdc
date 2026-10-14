@@ -1,0 +1,43 @@
+---
+description: Keep admin UI chrome consistent with ChatGPT references and already-revamped list pages
+alwaysApply: true
+---
+
+# Admin UI consistency
+
+When building or revamping admin pages, follow [`docs/design/DESIGN.md`](docs/design/DESIGN.md) and the chrome already shipped on Students, Users, Assessments/Quizzes, Registrations, and Question Banks. Do not invent a parallel layout, palette, or control pattern. Tokens stay in `admin/src/index.css` (the last `:root` and `.dark` blocks); controls stay in `@/components/ui`.
+
+## List page chrome
+
+Use this stack unless the mock clearly differs:
+
+1. **Meta** — title + description in `admin/src/routes/meta.ts`
+2. **Header actions** — `PageHeaderActions` for primary/outline page actions (Create, Bulk Upload, Download). Not the toolbar
+3. **ModuleNav** — shared `module-nav.tsx` (icon + label; active = `bg-accent text-accent-foreground`). Do not fork per page
+4. **Optional Alert** — one info `Alert` when the page has a note
+5. **KPI row** — flat cards, label + value; `grid-cols-1 sm:grid-cols-2 xl:grid-cols-4`; no tinted fills; display-only (filter via toolbar)
+6. **Toolbar** — `Toolbar` with search + selects; **Clear Filters** on the right (`sm:ml-auto`)
+7. **Table** — `Table` inside `Card` (no `DataTable`); checkbox selection; `SortHeader` from `@/components/sort-header`; kebab View/Edit; footer “Showing X to Y of Z …”, rows 10/20/50, pagination
+
+```tsx
+// ❌ BAD — Create in the toolbar; DataTable; invent KPI tint cards
+<Toolbar actions={<Button>Create</Button>} />
+<DataTable columns={…} rows={…} />
+
+// ✅ GOOD — header actions + Card table like students.tsx / activity-list.tsx
+<PageHeaderActions>
+  <Button variant="outline">Bulk Upload</Button>
+  <Button>Create …</Button>
+</PageHeaderActions>
+```
+
+## Tables: no decorative glyphs
+
+Do **not** put avatars, initials, or decorative icons in name / Unique ID / title columns unless the user explicitly asks. Text only (`font-medium` for names is fine). KPI cards and ModuleNav may still use icons.
+
+## Status and shared chrome
+
+- Status pills: reuse `@/components/status-pill`. Attempt **Completed** uses `ok`. Activity and question-bank **Completed** uses `pr` (`FlowStatusPill`). Do not invent a third color.
+- Do not copy-paste `SortHeader` or pill markup into pages; import the shared components.
+- Kind-shared pages (`kind: 'assessment' | 'quiz'`) keep one component; swap labels/columns only.
+- Prefer existing samples: `students.tsx`, `users.tsx`, `activity-list.tsx`, `registrations.tsx`, `question-banks.tsx`.
