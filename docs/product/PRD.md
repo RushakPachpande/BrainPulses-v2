@@ -50,7 +50,7 @@ Unknown routes currently redirect to `/dashboard`; this is not an authorization 
 **Settings:** four categories; detect unsaved changes; report success only after persistence confirmation; preserve input after recoverable errors; file selection is not upload completion.
 
 ## 5. UX requirements
-Follow `docs/design/DESIGN.md`: 44 px controls, 1 px borders, 12 px default card radius, semantic tokens, shadcn/ui, lucide-react, responsive tables, accessible focus and both themes.
+Follow `docs/design/DESIGN.md` and `docs/COLOR_PALETTE.md`: 44 px controls, 1 px borders, 12 px cards, 8 px buttons, Plus Jakarta Sans and Source Sans 3, Royal Violet `#45058F` (dark primary `#7E22CE`), semantic tokens, shadcn/ui, lucide-react, responsive tables, accessible focus, and both themes. Dark is the default.
 
 ## 6. Acceptance criteria
 Requirements and permissions defined; shared design patterns reused; server validation/authorization exists; async states handled; tests pass; keyboard/responsive behavior reviewed; no unauthorized data/secrets leak; docs updated.

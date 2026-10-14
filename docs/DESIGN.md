@@ -5,7 +5,9 @@
 > architecture, interaction patterns, accessibility, and design-system
 > implementation.
 >
-> **Status:** Initial design contract. Treat confirmed requirements as
+> **Status:** Product and interaction contract. Visual tokens follow the
+> current admin theme in [`design/DESIGN.md`](design/DESIGN.md) and
+> [`COLOR_PALETTE.md`](COLOR_PALETTE.md). Treat confirmed requirements as
 > mandatory. Treat items marked **Decision required** as open
 > architecture choices; do not silently invent a production decision.
 
@@ -60,9 +62,12 @@ AI agents must follow these rules before editing or generating code.
 
 ### 2.2 Preserve the source of truth
 
--   This file defines design intent and UI conventions. Existing
-    validated architecture and explicit project decisions take
-    precedence where this document marks a decision as open.
+-   This file defines product intent and interaction conventions.
+    Color, type, radius, and admin chrome follow
+    [`design/DESIGN.md`](design/DESIGN.md) and
+    [`COLOR_PALETTE.md`](COLOR_PALETTE.md). Existing validated
+    architecture and explicit project decisions take precedence where
+    this document marks a decision as open.
 -   If code and this document disagree, do not silently make a broad
     change. Explain the conflict and propose the smallest safe
     resolution.
@@ -175,7 +180,7 @@ authenticated identity and server-validated authorization context.
 
 -   Expanded sidebar target width: **256 px**.
 -   Collapsed sidebar target width: **76 px**.
--   Top bar target height: **72 px**.
+-   Top bar and sidebar header minimum height: **64 px**.
 -   Main content maximum width: approximately **1600 px**.
 -   Main page padding: approximately **28 px**, reducing at narrower
     breakpoints.
@@ -239,78 +244,53 @@ title or disappear off-screen.
     floating decorative shapes, random icon styles, fake charts, and
     meaningless dashboard metrics.
 
-### 5.2 Initial theme tokens
+### 5.2 Theme tokens
 
-Use CSS custom properties or the project's equivalent token system.
-Components should not hardcode theme-specific colors.
+Use the semantic tokens in `admin/src/index.css`. Components should not
+hardcode theme colors. The canonical pairs are in
+[`COLOR_PALETTE.md`](COLOR_PALETTE.md). Summary:
 
 #### Light theme
 
-  -------------------------------------------------------------------------
-  Token                     Initial value           Use
-  ------------------------- ----------------------- -----------------------
-  `--color-bg`              `#F5F7FB`               Application canvas
-
-  `--color-surface`         `#FFFFFF`               Cards, sidebar, menus
-
-  `--color-surface-muted`   `#F0F3F9`               Input backgrounds,
-                                                    subtle areas
-
-  `--color-text`            `#17233F`               Main text
-
-  `--color-text-muted`      `#71809D`               Secondary text
-
-  `--color-border`          `#E4E9F2`               Dividers and outlines
-
-  `--color-primary`         `#2463EB`               Primary actions and
-                                                    links
-
-  `--color-primary-soft`    `#EAF1FF`               Selected navigation and
-                                                    soft emphasis
-
-  `--color-success`         `#12966B`               Success states
-
-  `--color-danger`          `#C83E4D`               Destructive actions and
-                                                    errors
-
-  `--color-warning`         `#A96708`               Warnings
-  -------------------------------------------------------------------------
+| Token | Value | Use |
+|---|---|---|
+| `--background` | `#FAFAFF` | Application canvas |
+| `--card` | `#FFFFFF` | Cards and menus |
+| `--sidebar` | `#F5F3FF` | Sidebar |
+| `--muted` | `#F1F5F9` | Quiet fills and search fields |
+| `--foreground` | `#0F172A` | Main text |
+| `--muted-foreground` | `#485563` | Secondary text |
+| `--border` | `#E4E7F0` | Dividers and outlines |
+| `--primary` | `#45058F` | Primary actions |
+| `--accent` | `#EDE9FE` | Selected navigation and module tabs |
+| `--ring` | `#7E22CE` | Keyboard focus |
+| `--success` | `#047857` | Success |
+| `--destructive` | `#DC2626` | Destructive actions and errors |
+| `--warning` | `#B45309` | Warnings |
 
 #### Dark theme
 
-  -------------------------------------------------------------------------
-  Token                     Initial value           Use
-  ------------------------- ----------------------- -----------------------
-  `--color-bg`              `#0E1524`               Application canvas
+Dark is the default until the user stores `brainpulses-theme=light`.
 
-  `--color-surface`         `#151F31`               Cards, sidebar, menus
+| Token | Value | Use |
+|---|---|---|
+| `--background` | `#081020` | Application canvas |
+| `--card` | `#111827` | Cards and menus |
+| `--sidebar` | `#0B1425` | Sidebar |
+| `--muted` | `#1F2937` | Quiet fills |
+| `--foreground` | `#F8FAFC` | Main text |
+| `--muted-foreground` | `#CBD5E1` | Secondary text |
+| `--border` | `#334155` | Dividers and outlines |
+| `--primary` | `#7E22CE` | Primary actions |
+| `--accent` | `#2D1B4E` | Selected navigation |
+| `--ring` | `#C084FC` | Keyboard focus |
+| `--success` | `#34D399` | Success |
+| `--destructive` | `#F87171` | Destructive actions and errors |
+| `--warning` | `#FBBF24` | Warnings |
 
-  `--color-surface-muted`   `#1D2940`               Input backgrounds,
-                                                    subtle areas
-
-  `--color-text`            `#EDF2FF`               Main text
-
-  `--color-text-muted`      `#9BAAC5`               Secondary text
-
-  `--color-border`          `#2A3850`               Dividers and outlines
-
-  `--color-primary`         `#6C9CFF`               Primary actions and
-                                                    links
-
-  `--color-primary-soft`    `#1B3155`               Selected navigation and
-                                                    soft emphasis
-
-  `--color-success`         `#46D4A2`               Success states
-
-  `--color-danger`          `#FF7C88`               Destructive actions and
-                                                    errors
-
-  `--color-warning`         `#F3BD69`               Warnings
-  -------------------------------------------------------------------------
-
-These are starting values. Verify text, control, focus, and status
-contrast before shipping. Do not assume that a color combination passes
-accessibility simply because it looks good.
+Verify text, control, focus, and status contrast before shipping. Do not
+assume that a color combination passes accessibility simply because it
+looks good.
 
 ### 5.3 Spacing and shape
 
@@ -318,35 +298,33 @@ Use a consistent 4 px base spacing scale:
 
 `4, 8, 12, 16, 20, 24, 32, 40, 48, 64 px`
 
-Initial shape rules: - Small controls: 8--10 px radius - Cards and
-panels: 12--14 px radius - Pills: reserved for status labels or
-intentionally pill-shaped controls - Borders: 1 px using the border
-token - Shadows: subtle and limited to surfaces that need elevation -
-Focus rings: clearly visible in both themes
+Shape rules: buttons 8 px radius; inputs and selects 9 px radius; cards
+12 px radius; status pills fully rounded. Borders are 1 px using the
+border token. Shadows stay on the `--shadow-sm`, `--shadow-md`, and
+`--shadow-lg` tokens. Focus rings are clearly visible in both themes.
+Single-line buttons, inputs, and selects are 44 px tall.
 
 Do not use a different radius or shadow for every component. Define
 shared tokens.
 
 ### 5.4 Typography
 
--   Use the existing product font if one is established; otherwise use a
-    readable system sans-serif stack.
--   Use a clear scale for page titles, section headings, body text,
-    labels, and helper text.
--   Body text should generally be at least 14 px in dense desktop UI;
-    avoid tiny text for important information.
+-   Headings use Plus Jakarta Sans. Body, tables, and labels use Source
+    Sans 3. Fallback is Segoe UI, then sans-serif.
+-   Page titles are 24–30 px and weight 700. Section titles are 18–22 px.
+    Body is 16 px. UI copy (`.text-sm`) is 15 px. Labels, breadcrumbs,
+    and badges (`.text-xs`) are 13 px. Table heads are 13 px uppercase.
 -   Do not communicate status by color alone.
--   Use sentence case for labels and actions unless a documented brand
-    convention requires otherwise.
--   Keep headings concise and avoid all-caps body labels.
+-   Use sentence case for labels and actions.
+-   Keep headings concise. Table heads are the only uppercase text.
 
 ### 5.5 Gradients and illustration
 
 -   Default to flat surfaces.
--   Gradients are optional and rare; if used, limit them to a specific
-    branded highlight that does not compete with content.
--   Never apply decorative gradients to every card, the entire sidebar,
-    tables, or form controls.
+-   Do not add decorative gradients, glass panels, or rainbow metric
+    tiles.
+-   Never apply a gradient to cards, the sidebar, tables, or form
+    controls.
 -   Do not use decorative imagery as a substitute for meaningful
     information.
 -   Icons must come from one consistent icon family and share a
@@ -356,35 +334,29 @@ shared tokens.
 
 ## 6. Component Standards
 
-Create shared components for recurring patterns. Adapt names to the
-existing repository rather than forcing a new naming convention.
+The admin app already has these patterns. Reuse them. Names below are
+the shipped components, not a second set to invent.
 
 ### Core shell
 
--   `AppShell`
--   `Sidebar`
--   `NavigationGroup`
--   `NavigationItem`
--   `Topbar`
--   `UserMenu`
+-   `AdminLayout` in `admin/src/layouts/admin-layout.tsx`
+-   shadcn `Sidebar` (256 px, 76 px rail, drawer below 768 px)
+-   `ModuleNav` for Assessments, Quizzes, and Settings
+-   Sticky top bar: sidebar toggle, global search, theme, notifications, identity
 -   `ThemeToggle`
--   `PageHeader`
+-   Page title, description, and `PageHeaderActions`
 
 ### Data and feedback
 
--   `Card`
--   `StatCard`
--   `DataTable`
--   `Pagination`
--   `SearchField`
--   `FilterBar`
--   `StatusBadge`
--   `ProgressBar`
--   `EmptyState`
--   `ErrorState`
--   `LoadingSkeleton`
--   `Toast` or the established notification pattern
--   `ConfirmDialog`
+-   shadcn `Card` (12 px, flat; KPI tiles stay on the card color)
+-   `KpiGrid` for summary metrics
+-   shadcn `Table` inside a card for lists; `DataTable` only where a page already uses it
+-   `Toolbar` for search and filters
+-   `SortHeader` for sortable columns
+-   `StatusPill` and its account, flow, assignment, and attempt wrappers
+-   `Skeleton` while loading
+-   Sonner for toasts
+-   shadcn `Dialog` for confirmation
 
 ### Assessment UI (future implementation)
 
@@ -516,8 +488,9 @@ Target **WCAG 2.2 AA** as the product accessibility baseline.
     selected filters, or in-progress UI state.
 -   Ensure charts, status badges, borders, skeletons, menus, dialogs,
     and focus rings adapt to the active theme.
--   Respect `prefers-color-scheme` for the initial default unless the
-    product has a stored user preference.
+-   Dark is the initial theme. A stored `brainpulses-theme` value of
+    `light` selects the light theme. Do not flash the opposite theme on
+    load.
 -   If theme preference persistence is implemented, store only the
     preference; never store sensitive information in browser storage.
 -   Avoid transitions that briefly flash the wrong theme on page load.

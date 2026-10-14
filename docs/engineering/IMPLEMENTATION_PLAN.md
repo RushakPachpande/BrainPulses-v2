@@ -8,7 +8,7 @@ Confirm customer segment, MVP, roles/permissions, tenancy, backend/database/auth
 **Exit:** PRD approved; decisions have owners; ADRs recorded; MVP acceptance criteria prioritized.
 
 ## Phase 1 — UI foundation
-Enforce DESIGN.md/palette; audit shared shadcn components; standardize 44 px controls, 1 px borders, 12 px card radius, spacing and icons; review routes for responsive/accessibility/async states; remove or label fixture metrics.
+Enforce `docs/design/DESIGN.md` and `docs/COLOR_PALETTE.md` (current admin theme: porcelain and night navy, Royal Violet `#45058F`, dark primary `#7E22CE`). Audit shared shadcn components; keep 44 px controls, 1 px borders, 12 px card radius, 8 px buttons, the type scale, and Lucide icons; review routes for responsive, accessibility, and async states; remove or label fixture metrics.
 
 **Exit:** routes reviewed, no critical layout/theme regressions, shared patterns reused, type-check/lint/build pass.
 

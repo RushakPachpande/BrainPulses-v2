@@ -8,8 +8,9 @@
 | [BRD](product/BRD.md) | Business goals, stakeholders, scope, value, risks | Draft for validation |
 | [PRD](product/PRD.md) | Product requirements, features and acceptance criteria | Initial baseline |
 | [TRD](engineering/TRD.md) | Stack, architecture and technical requirements | Frontend current; backend proposed |
-| [DESIGN](design/DESIGN.md) | Mandatory UI/UX/component rules | Normative |
-| [Color palette](../COLOR_PALETTE.md) | Brand and semantic colors | Canonical |
+| [DESIGN](design/DESIGN.md) | Mandatory UI/UX contract for the current admin theme | Normative |
+| [Color palette](COLOR_PALETTE.md) | Brand and semantic colors for that theme | Canonical |
+| [Stitch extraction](../.stitch/DESIGN.md) | Same visual system, formatted for Stitch | Current |
 | [App flow](../APP_FLOW.md) | Routes and journeys | Current + target |
 | [AI Agent Guide](../AI_AGENT_GUIDE.md) | Required AI coding workflow | Normative |
 | [DB Structure](architecture/DB_STRUCTURE.md) | Future data model | Draft; not implemented |
@@ -22,7 +23,8 @@
 
 ## Verified current-state facts
 - `admin/` is React + TypeScript + Vite.
-- UI uses Tailwind CSS v4, shadcn/ui local components, Radix UI, `lucide-react`, React Router, Recharts and Sonner.
+- UI uses Tailwind CSS v4, shadcn/ui (`radix-nova`), Radix UI, `lucide-react`, React Router, Recharts and Sonner.
+- The live theme is Royal Violet `#45058F` on a porcelain canvas in light mode, and Vivid Violet `#7E22CE` on night navy in dark mode. Dark is the default. Tokens are the last `:root` and `.dark` blocks in `admin/src/index.css`.
 - Current routes cover dashboard, students, users, assessments, quizzes, question banks, registrations, reports and four settings pages.
 - `admin/src/services/index.ts` reads fixture data from `admin/src/services/fixtures.ts`.
 - Settings saves and asset selections are local prototype interactions, not confirmed persistent writes/uploads.
