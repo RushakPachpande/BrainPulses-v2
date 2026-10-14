@@ -1,0 +1,18 @@
+# Dependencies & build
+node_modules
+dist
+coverage
+*.tsbuildinfo
+
+# Lockfile (npm owns this)
+package-lock.json
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Runtime / generated
+uploads
+src/generated
+prisma/migrations

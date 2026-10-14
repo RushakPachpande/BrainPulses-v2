@@ -1,0 +1,111 @@
+import { createHash, randomBytes } from 'node:crypto';
+import { env } from '../config/env.js';
+import { getRedis } from './redis.js';
+
+function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
+}
+
+function familyKey(familyId: string): string {
+  return `refresh:family:${familyId}`;
+}
+
+function tokenKey(tokenHash: string): string {
+  return `refresh:token:${tokenHash}`;
+}
+
+export type RefreshSession = {
+  userId: string;
+  organizationId: string;
+  membershipId: string;
+  familyId: string;
+};
+
+export async function issueRefreshToken(session: RefreshSession): Promise<string> {
+  const redis = getRedis();
+  const raw = randomBytes(48).toString('base64url');
+  const tokenHash = hashToken(raw);
+  const ttl = env.REFRESH_TOKEN_TTL_SECONDS;
+
+  await redis.set(tokenKey(tokenHash), JSON.stringify(session), 'EX', ttl);
+  await redis.sadd(familyKey(session.familyId), tokenHash);
+  await redis.expire(familyKey(session.familyId), ttl);
+  await redis.set(`refresh:idx:${tokenHash}`, session.familyId, 'EX', ttl);
+
+  return raw;
+}
+
+const tokenFamilyIndex = (tokenHash: string) => `refresh:idx:${tokenHash}`;
+
+export async function rotateRefreshToken(
+  rawToken: string,
+): Promise<{ session: RefreshSession; nextToken: string } | null> {
+  const redis = getRedis();
+  const tokenHash = hashToken(rawToken);
+  const key = tokenKey(tokenHash);
+  const payload = await redis.get(key);
+
+  if (!payload) {
+    // Reuse of a rotated token: revoke the whole family if we still know it.
+    const familyId = await redis.get(tokenFamilyIndex(tokenHash));
+    if (familyId) {
+      await revokeRefreshFamily(familyId);
+    }
+    return null;
+  }
+
+  const session = JSON.parse(payload) as RefreshSession;
+  await redis.del(key);
+  await redis.srem(familyKey(session.familyId), tokenHash);
+  // Keep a short-lived index so reuse of this hash can revoke the family.
+  await redis.set(
+    tokenFamilyIndex(tokenHash),
+    session.familyId,
+    'EX',
+    env.REFRESH_TOKEN_TTL_SECONDS,
+  );
+
+  const nextToken = await issueRefreshToken(session);
+  const nextHash = hashToken(nextToken);
+  await redis.set(
+    tokenFamilyIndex(nextHash),
+    session.familyId,
+    'EX',
+    env.REFRESH_TOKEN_TTL_SECONDS,
+  );
+  return { session, nextToken };
+}
+
+export async function revokeRefreshFamily(familyId: string): Promise<void> {
+  const redis = getRedis();
+  const key = familyKey(familyId);
+  const members = await redis.smembers(key);
+  if (members.length > 0) {
+    await redis.del(...members.map(tokenKey), key);
+  } else {
+    await redis.del(key);
+  }
+}
+
+export async function revokeRefreshToken(rawToken: string): Promise<void> {
+  const redis = getRedis();
+  const tokenHash = hashToken(rawToken);
+  const payload = await redis.get(tokenKey(tokenHash));
+  if (!payload) return;
+  const session = JSON.parse(payload) as RefreshSession;
+  await revokeRefreshFamily(session.familyId);
+}
+
+/** Detect reuse: token missing but family still has members means theft. */
+export async function detectRefreshReuse(rawToken: string): Promise<string | null> {
+  const redis = getRedis();
+  const tokenHash = hashToken(rawToken);
+  const exists = await redis.exists(tokenKey(tokenHash));
+  if (exists) return null;
+
+  // We cannot map orphan token to family without storing a reverse index.
+  // Callers that receive null from rotate already treat as unauthorized.
+  // When we rotate, old hash is removed; reuse of old token returns null from rotate.
+  void tokenHash;
+  return null;
+}

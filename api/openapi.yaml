@@ -1,0 +1,320 @@
+openapi: 3.1.0
+info:
+  title: BrainPulses API
+  version: 0.1.0
+  description: Multi-tenant admin and attempt API for BrainPulses v2.0.
+servers:
+  - url: http://127.0.0.1:3002
+paths:
+  /health:
+    get:
+      summary: Liveness
+      responses:
+        '200':
+          description: OK
+  /health/ready:
+    get:
+      summary: Readiness (Postgres + Redis)
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Dependencies unavailable
+  /api/auth/sign-in:
+    post:
+      summary: Sign in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Authenticated or organization selection required
+        '401':
+          description: Invalid credentials
+  /api/auth/select-organization:
+    post:
+      summary: Complete multi-org sign-in
+      responses:
+        '200':
+          description: Session issued
+  /api/auth/refresh:
+    post:
+      summary: Rotate refresh cookie and issue access token
+      responses:
+        '200':
+          description: New access token
+  /api/auth/sign-out:
+    post:
+      summary: Revoke refresh family
+      responses:
+        '200':
+          description: Signed out
+  /api/auth/session:
+    get:
+      summary: Current admin session
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Session
+  /api/auth/student/sign-in:
+    post:
+      summary: Student sign-in
+      responses:
+        '200':
+          description: Student access token
+  /api/students:
+    get:
+      summary: List students
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated list
+    post:
+      summary: Create student
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Created
+  /api/students/{id}:
+    get:
+      summary: Student detail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Student
+    patch:
+      summary: Update student
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Updated
+  /api/students/{id}/deactivate:
+    post:
+      summary: Deactivate student
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Deactivated
+  /api/users:
+    get:
+      summary: List memberships
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated list
+  /api/users/invite:
+    post:
+      summary: Invite user to current organization
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Invited
+  /api/activities:
+    get:
+      summary: List activities
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: kind
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [assessment, quiz]
+      responses:
+        '200':
+          description: Paginated list
+    post:
+      summary: Create activity
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Created
+  /api/activities/{id}/publish:
+    post:
+      summary: Publish activity (full access)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Published
+        '403':
+          description: Insufficient access
+  /api/banks:
+    get:
+      summary: List question banks
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated list
+  /api/banks/{id}/import:
+    post:
+      summary: Import questions from CSV
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Import result with row errors
+  /api/registrations:
+    get:
+      summary: List registrations
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated list
+  /api/registrations/assign:
+    post:
+      summary: Assign students to an activity
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Assigned
+  /api/attempts/start:
+    post:
+      summary: Start attempt (student)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Attempt started
+  /api/attempts/{id}/save:
+    post:
+      summary: Save answers with revision
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Acknowledged
+        '409':
+          description: Stale revision
+  /api/attempts/{id}/submit:
+    post:
+      summary: Submit attempt (Idempotency-Key required)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Result
+  /api/results:
+    get:
+      summary: List results
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated list
+  /api/results/{id}/publish:
+    post:
+      summary: Publish result
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Published
+  /api/results/{id}/regrade:
+    post:
+      summary: Regrade result
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Regraded
+  /api/dashboard/summary:
+    get:
+      summary: Dashboard KPIs and recent activity
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Summary
+  /api/settings/{group}:
+    get:
+      summary: Read settings group
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [general, access, notifications, system]
+      responses:
+        '200':
+          description: Settings
+    patch:
+      summary: Patch settings group
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: group
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [general, access, notifications, system]
+      responses:
+        '200':
+          description: Updated
+  /api/audit:
+    get:
+      summary: List audit events (super_admin)
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated list
+  /api/files/initiate:
+    post:
+      summary: Initiate private file upload
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Upload target
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          required: [code, message, requestId]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            requestId: { type: string }
+            fields:
+              type: object
+              additionalProperties: { type: string }
+    Page:
+      type: object
+      properties:
+        limit: { type: integer }
+        nextCursor: { type: string, nullable: true }
+        hasMore: { type: boolean }
+        total: { type: integer }
