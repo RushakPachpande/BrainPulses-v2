@@ -58,7 +58,7 @@ export function getStudents() {
 export function getUsers() {
   return range(6).map((i) => ({
     name: admins[i],
-    email: admins[i].toLowerCase().replace(' ', '.') + '@brainpules.com',
+    email: admins[i].toLowerCase().replace(' ', '.') + '@brainpulses.com',
     role: i % 3 ? 'Admin' : 'Super Admin',
     assessmentAccess: ['Full', 'Full', 'View only', 'Full', 'None', 'Full'][i],
     quizAccess: ['Full', 'Edit', 'Full', 'None', 'Full', 'View only'][i],
@@ -178,7 +178,7 @@ export function getDashboard() {
 export function getAccessUsers() {
   return accessPeople.map((name, i) => ({
     name,
-    email: name.toLowerCase().split(' ')[0] + '@brainpules.com',
+    email: name.toLowerCase().split(' ')[0] + '@brainpulses.com',
     role: i ? 'Admin' : 'Super Admin',
     assessment: i !== 3,
     quiz: i !== 2,

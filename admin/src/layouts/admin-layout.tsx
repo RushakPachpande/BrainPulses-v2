@@ -54,7 +54,7 @@ const nav: NavLinkItem[] = [
 ];
 
 const crumbHrefs: Record<string, string> = {
-  Brainpules: '/dashboard',
+  BrainPulses: '/dashboard',
   Assessment: '/assessments',
   Quiz: '/quizzes',
   Settings: '/settings',
@@ -135,7 +135,7 @@ export function AdminLayout() {
   const crumbs = meta.crumb.split(' / ');
 
   useEffect(() => {
-    document.title = `${meta.title} · Brainpules Admin`;
+    document.title = `${meta.title} · BrainPulses Admin`;
   }, [meta.title]);
 
   useEffect(() => {
@@ -165,11 +165,11 @@ export function AdminLayout() {
         <SidebarHeader className="min-h-18 justify-center border-b border-sidebar-border group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
           <SidebarMenu className="group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:items-center">
             <SidebarMenuItem>
-              <SidebarMenuButton asChild size="lg" tooltip="Brainpules">
+              <SidebarMenuButton asChild size="lg" tooltip="BrainPulses">
                 <NavLink to="/dashboard" className="text-foreground">
                   <img src="/brand.svg" alt="" className="size-8 shrink-0" />
                   <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
-                    Brainpules
+                    BrainPulses
                   </span>
                 </NavLink>
               </SidebarMenuButton>
@@ -206,7 +206,7 @@ export function AdminLayout() {
         <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
           <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
             <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
-            <InputGroup className="max-w-117.5 min-w-0 flex-1 bg-muted">
+            <InputGroup className="min-w-0 max-w-117.5 flex-1 bg-muted">
               <InputGroupAddon align="inline-start">
                 <SearchIcon />
               </InputGroupAddon>

@@ -2,13 +2,14 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { statusTone, type StatusTone } from '@/utils/tone';
 
-export type PillTone = Exclude<StatusTone, ''>;
+export type PillTone = Exclude<StatusTone, ''> | 'pr';
 
 const toneDot: Record<PillTone, string> = {
   ok: 'bg-success',
   wn: 'bg-warning',
   er: 'bg-destructive',
   gy: 'bg-muted-foreground',
+  pr: 'bg-primary',
 };
 
 export function StatusPill({
@@ -32,8 +33,7 @@ export function StatusPill({
 
 /** Active / Draft / Completed (activity + question bank flow). */
 export function FlowStatusPill({ status }: { status: string }) {
-  const tone: PillTone =
-    status === 'Active' || status === 'Completed' ? 'ok' : 'wn';
+  const tone: PillTone = status === 'Completed' ? 'pr' : status === 'Active' ? 'ok' : 'wn';
   return <StatusPill value={status} tone={tone} />;
 }
 

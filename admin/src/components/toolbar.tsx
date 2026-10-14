@@ -1,4 +1,5 @@
 import { SearchIcon } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import {
@@ -35,10 +36,24 @@ export function Toolbar({
   onSearchChange?: (value: string) => void;
 }) {
   const structured = isFilterDefs(filters);
+  const [inputValue, setInputValue] = useState(searchValue ?? '');
+
+  // Keep typing immediate in the input while delaying expensive filtering/API work.
+  useEffect(() => {
+    setInputValue(searchValue ?? '');
+  }, [searchValue]);
+
+  useEffect(() => {
+    const committedValue = searchValue ?? '';
+    if (!onSearchChange || inputValue === committedValue) return;
+
+    const timeoutId = window.setTimeout(() => onSearchChange(inputValue), 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [inputValue, onSearchChange, searchValue]);
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-      <InputGroup className="w-full sm:w-64">
+    <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <InputGroup className="w-full min-w-0 sm:min-w-[12rem] sm:flex-1 sm:basis-64">
         <InputGroupAddon align="inline-start">
           <SearchIcon />
         </InputGroupAddon>
@@ -47,14 +62,14 @@ export function Toolbar({
           placeholder={searchPlaceholder}
           aria-label={searchPlaceholder}
           autoComplete="off"
-          value={searchValue}
-          onChange={onSearchChange ? (event) => onSearchChange(event.target.value) : undefined}
+          value={inputValue}
+          onChange={(event) => setInputValue(event.target.value)}
         />
       </InputGroup>
       {structured
         ? filters.map((filter) => (
             <Select key={filter.name} value={filter.value} onValueChange={filter.onValueChange}>
-              <SelectTrigger aria-label={filter.name} className="w-full sm:w-40">
+              <SelectTrigger aria-label={filter.name} className="w-full shrink-0 sm:w-40">
                 <span className="truncate">
                   {filter.name}: {filter.value}
                 </span>
@@ -72,7 +87,7 @@ export function Toolbar({
           ))
         : filters.map((name) => (
             <Select key={name} defaultValue={name}>
-              <SelectTrigger aria-label={name} className="w-full sm:w-40">
+              <SelectTrigger aria-label={name} className="w-full shrink-0 sm:w-40">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -83,7 +98,9 @@ export function Toolbar({
             </Select>
           ))}
       {actions ? (
-        <div className="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">{actions}</div>
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none">
+          {actions}
+        </div>
       ) : null}
     </div>
   );
