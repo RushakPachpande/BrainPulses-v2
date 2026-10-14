@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useState, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
 import {
-  BellIcon,
   ChevronDownIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
@@ -12,6 +11,7 @@ import {
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -22,7 +22,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { Button } from '@/components/ui/button';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import {
   Sidebar,
@@ -312,18 +311,7 @@ export function AdminLayout() {
             </InputGroup>
             <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
               <ThemeToggle />
-              <Button type="button" variant="ghost" size="icon" aria-label="Notifications">
-                <BellIcon />
-              </Button>
-              <div className="flex items-center gap-2 border-l border-border pl-2 sm:pl-3">
-                <Avatar>
-                  <AvatarFallback>MJ</AvatarFallback>
-                </Avatar>
-                <div className="hidden min-w-0 sm:block">
-                  <div className="truncate text-sm font-medium">Meera Joshi</div>
-                  <div className="truncate text-xs text-muted-foreground">Super Admin</div>
-                </div>
-              </div>
+              <NotificationsMenu />
             </div>
           </header>
           <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
