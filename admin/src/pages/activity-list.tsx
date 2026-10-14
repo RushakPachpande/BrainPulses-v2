@@ -11,9 +11,16 @@ import {
   PlusIcon,
   RotateCcwIcon,
 } from 'lucide-react';
+import { DateRangeFilter } from '@/components/date-range-filter';
 import { SortHeader } from '@/components/sort-header';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import {
+  ALL_DATE_RANGE,
+  isDateInRange,
+  parseFixtureDate,
+  type DateRangeValue,
+} from '@/lib/date-range';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -118,7 +125,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const activities = useMemo(() => getActivities(kind), [kind]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
-  const [dateRange, setDateRange] = useState('All');
+  const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -135,21 +142,13 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
         setPage(1);
       },
     },
-    {
-      name: 'Date Range',
-      options: ['All'],
-      value: dateRange,
-      onValueChange: (value) => {
-        setDateRange(value);
-        setPage(1);
-      },
-    },
   ];
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     let rows = activities.filter((item) => {
       if (status !== 'All' && item.status !== status) return false;
+      if (!isDateInRange(parseFixtureDate(item.start), dateRange)) return false;
       if (!query) return true;
       return item.name.toLowerCase().includes(query) || item.subtitle.toLowerCase().includes(query);
     });
@@ -162,7 +161,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     }
 
     return rows;
-  }, [activities, search, status, sortKey, sortDir]);
+  }, [activities, search, status, dateRange, sortKey, sortDir]);
 
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
@@ -178,7 +177,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   function clearFilters() {
     setSearch('');
     setStatus('All');
-    setDateRange('All');
+    setDateRange(ALL_DATE_RANGE);
     setPage(1);
   }
 
@@ -310,6 +309,15 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
           setSearch(value);
           setPage(1);
         }}
+        dateRange={
+          <DateRangeFilter
+            value={dateRange}
+            onApply={(next) => {
+              setDateRange(next);
+              setPage(1);
+            }}
+          />
+        }
         actions={
           <Button
             type="button"

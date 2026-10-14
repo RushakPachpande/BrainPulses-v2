@@ -25,12 +25,14 @@ function isFilterDefs(filters: string[] | ToolbarFilter[]): filters is ToolbarFi
 export function Toolbar({
   filters,
   actions,
+  dateRange,
   searchPlaceholder = 'Search',
   searchValue,
   onSearchChange,
 }: {
   filters: string[] | ToolbarFilter[];
   actions?: ReactNode;
+  dateRange?: ReactNode;
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
@@ -97,6 +99,7 @@ export function Toolbar({
               </SelectContent>
             </Select>
           ))}
+      {dateRange ? <div className="w-full shrink-0 sm:w-56">{dateRange}</div> : null}
       {actions ? (
         <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none">
           {actions}

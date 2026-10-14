@@ -20,9 +20,14 @@ export function ThemeToggle() {
     const nextTheme = isDark ? 'light' : 'dark';
     const root = document.documentElement;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const startViewTransition = (document as Document & {
-      startViewTransition?: (callback: () => void) => { ready?: Promise<void>; finished?: Promise<void> };
-    }).startViewTransition;
+    const startViewTransition = (
+      document as Document & {
+        startViewTransition?: (callback: () => void) => {
+          ready?: Promise<void>;
+          finished?: Promise<void>;
+        };
+      }
+    ).startViewTransition;
 
     const applyTheme = () => {
       // Update the class before React commits so the View Transition captures the new palette atomically.
@@ -43,7 +48,8 @@ export function ThemeToggle() {
       Math.max(y, window.innerHeight - y),
     );
     const point = `${(x / window.innerWidth) * 100}% ${(y / window.innerHeight) * 100}%`;
-    const radiusPercent = (radius / (Math.hypot(window.innerWidth, window.innerHeight) / Math.SQRT2)) * 100;
+    const radiusPercent =
+      (radius / (Math.hypot(window.innerWidth, window.innerHeight) / Math.SQRT2)) * 100;
 
     transitioningRef.current = true;
     setTransitioning(true);
@@ -52,14 +58,21 @@ export function ThemeToggle() {
     root.style.setProperty('--bp-theme-clip-from', `circle(0% at ${point})`);
 
     const transition = startViewTransition.call(document, applyTheme);
-    transition.ready?.then(() => {
-      root.animate(
-        {
-          clipPath: [`circle(0% at ${point})`, `circle(${radiusPercent}% at ${point})`],
-        },
-        { duration: 460, easing: 'cubic-bezier(0.22, 1, 0.36, 1)', fill: 'forwards', pseudoElement: '::view-transition-new(root)' },
-      );
-    }).catch(() => undefined);
+    transition.ready
+      ?.then(() => {
+        root.animate(
+          {
+            clipPath: [`circle(0% at ${point})`, `circle(${radiusPercent}% at ${point})`],
+          },
+          {
+            duration: 460,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            fill: 'forwards',
+            pseudoElement: '::view-transition-new(root)',
+          },
+        );
+      })
+      .catch(() => undefined);
 
     const cleanup = () => {
       delete root.dataset.bpThemeTransition;
