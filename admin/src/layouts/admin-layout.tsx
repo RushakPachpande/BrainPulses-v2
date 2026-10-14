@@ -1,7 +1,8 @@
-import { Fragment, useEffect, type CSSProperties } from 'react';
+import { Fragment, useEffect, useState, type CSSProperties } from 'react';
 import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
 import {
   BellIcon,
+  ChevronDownIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
   ListIcon,
@@ -11,7 +12,6 @@ import {
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
-import { ModuleNav } from '@/components/module-nav';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
@@ -35,6 +35,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
 } from '@/components/ui/sidebar';
@@ -43,14 +46,49 @@ import { usePageHeader } from '@/contexts/use-page-header';
 import { pageMeta } from '@/routes/meta';
 
 type NavLinkItem = { to: string; label: string; icon: LucideIcon; end: boolean };
+type NavChildItem = { to: string; label: string; end: boolean };
+type NavGroupItem = NavLinkItem & { children?: NavChildItem[] };
 
-const nav: NavLinkItem[] = [
+const nav: NavGroupItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
   { to: '/students', label: 'Students', icon: UsersIcon, end: true },
   { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
-  { to: '/assessments', label: 'Assessments', icon: ListIcon, end: false },
-  { to: '/quizzes', label: 'Quizzes', icon: CircleHelpIcon, end: false },
-  { to: '/settings', label: 'Settings', icon: SlidersHorizontalIcon, end: false },
+  {
+    to: '/assessments',
+    label: 'Assessments',
+    icon: ListIcon,
+    end: false,
+    children: [
+      { to: '/assessments', label: 'All Assessments', end: true },
+      { to: '/assessments/banks', label: 'Question Banks', end: true },
+      { to: '/assessments/registrations', label: 'Registrations', end: true },
+      { to: '/assessments/reports', label: 'Reports & Results', end: true },
+    ],
+  },
+  {
+    to: '/quizzes',
+    label: 'Quizzes',
+    icon: CircleHelpIcon,
+    end: false,
+    children: [
+      { to: '/quizzes', label: 'All Quizzes', end: true },
+      { to: '/quizzes/banks', label: 'Question Banks', end: true },
+      { to: '/quizzes/registrations', label: 'Registrations', end: true },
+      { to: '/quizzes/reports', label: 'Reports & Results', end: true },
+    ],
+  },
+  {
+    to: '/settings',
+    label: 'Settings',
+    icon: SlidersHorizontalIcon,
+    end: false,
+    children: [
+      { to: '/settings', label: 'General', end: true },
+      { to: '/settings/access', label: 'User & Access', end: true },
+      { to: '/settings/notifications', label: 'Notifications', end: true },
+      { to: '/settings/system', label: 'System', end: true },
+    ],
+  },
 ];
 
 const crumbHrefs: Record<string, string> = {
@@ -60,21 +98,76 @@ const crumbHrefs: Record<string, string> = {
   Settings: '/settings',
 };
 
-function NavItem({ to, label, icon: Icon, end }: NavLinkItem) {
+function NavItem({ item, pathname }: { item: NavGroupItem; pathname: string }) {
+  const { to, label, icon: Icon, end, children } = item;
   const match = useMatch({ path: to, end });
+  const groupIsActive = Boolean(match) || Boolean(children?.some((child) => pathname === child.to));
+  const [expanded, setExpanded] = useState(groupIsActive);
+
+  useEffect(() => {
+    if (groupIsActive) setExpanded(true);
+  }, [groupIsActive]);
+
+  if (!children) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          asChild
+          isActive={Boolean(match)}
+          tooltip={label}
+          className="h-auto min-h-(--control-h) gap-3 px-3 group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:px-2"
+        >
+          <NavLink to={to} end={end}>
+            <Icon />
+            <span>{label}</span>
+          </NavLink>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
-        asChild
-        isActive={Boolean(match)}
+        type="button"
+        isActive={groupIsActive}
         tooltip={label}
+        aria-expanded={expanded}
+        aria-controls={`${to.replace(/\W+/g, '-')}-submenu`}
+        aria-label={`${expanded ? 'Collapse' : 'Expand'} ${label} submenu`}
+        onClick={() => setExpanded((value) => !value)}
         className="h-auto min-h-(--control-h) gap-3 px-3 group-data-[collapsible=icon]:min-h-8 group-data-[collapsible=icon]:px-2"
       >
-        <NavLink to={to} end={end}>
-          <Icon />
-          <span>{label}</span>
-        </NavLink>
+        <Icon />
+        <span className="flex-1 text-left">{label}</span>
+        <ChevronDownIcon
+          className={`ml-auto size-4 shrink-0 transition-transform duration-150 group-data-[collapsible=icon]:hidden ${expanded ? 'rotate-180' : ''}`}
+        />
       </SidebarMenuButton>
+      {expanded ? (
+        <SidebarMenuSub
+          id={`${to.replace(/\W+/g, '-')}-submenu`}
+          className="mt-1 gap-1 border-sidebar-border/80 pl-3"
+        >
+          {children.map((child) => {
+            const active = pathname === child.to;
+            return (
+              <SidebarMenuSubItem key={child.to}>
+                <SidebarMenuSubButton
+                  asChild
+                  isActive={active}
+                  size="md"
+                  className="min-h-9 h-auto px-2.5 py-2 text-sm"
+                >
+                  <NavLink to={child.to} end={child.end} aria-current={active ? 'page' : undefined}>
+                    <span>{child.label}</span>
+                  </NavLink>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            );
+          })}
+        </SidebarMenuSub>
+      ) : null}
     </SidebarMenuItem>
   );
 }
@@ -181,7 +274,7 @@ export function AdminLayout() {
             <SidebarGroupContent>
               <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
                 {nav.map((item) => (
-                  <NavItem key={item.to} {...item} />
+                  <NavItem key={item.to} item={item} pathname={pathname} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -235,7 +328,6 @@ export function AdminLayout() {
           </header>
           <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
             <PageHeader title={meta.title} description={meta.description} crumbs={crumbs} />
-            <ModuleNav pathname={pathname} />
             <Outlet />
           </div>
         </SidebarInset>
