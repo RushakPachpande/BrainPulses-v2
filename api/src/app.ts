@@ -5,8 +5,10 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { RedisStore } from 'rate-limit-redis';
 import { env } from './config/env.js';
+import { createCorsOriginDelegate } from './lib/cors-origin.js';
 import { getRedis, isRedisReady } from './lib/redis.js';
 import { prisma } from './lib/prisma.js';
+
 import { errorHandler } from './middleware/error-handler.js';
 import { requestId } from './middleware/request-id.js';
 import { activitiesRouter } from './modules/activities/routes.js';
@@ -40,13 +42,12 @@ export function createApp() {
   );
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',')
-        .map((s) => s.trim())
-        .filter(Boolean),
+      origin: createCorsOriginDelegate(env.CORS_ORIGIN, env.NODE_ENV),
       credentials: true,
       exposedHeaders: ['Content-Disposition', 'x-request-id', 'Retry-After'],
     }),
   );
+
   app.use(cookieParser());
   app.use(express.json({ limit: '2mb' }));
 

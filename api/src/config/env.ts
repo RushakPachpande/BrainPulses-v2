@@ -6,7 +6,8 @@ const envSchema = z
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
       .default(process.env.NODE_ENV === 'test' ? 'test' : 'development'),
-    HOST: z.string().default('127.0.0.1'),
+    HOST: z.string().default('0.0.0.0'),
+
     PORT: z.coerce.number().default(3002),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().min(1),

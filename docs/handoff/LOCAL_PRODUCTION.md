@@ -4,13 +4,16 @@ Run Admin, Student Client, and API against Docker Postgres/Redis with seeded dem
 
 ## Ports
 
-| Service | URL / host |
-|---|---|
-| Admin (Vite) | http://localhost:5173 |
-| Student client (Vite) | http://localhost:5174 |
-| API | http://127.0.0.1:3002 |
-| Postgres | 127.0.0.1:5434 |
-| Redis | 127.0.0.1:6381 |
+| Service | Loopback | LAN (same Wi‑Fi / Ethernet) |
+|---|---|---|
+| Admin (Vite) | http://localhost:5173 | `http://<lan-ip>:5173` |
+| Student client (Vite) | http://localhost:5174 | `http://<lan-ip>:5174` |
+| API | http://127.0.0.1:3002 | `http://<lan-ip>:3002` |
+
+| Postgres | 127.0.0.1:5434 | not published for peers |
+| Redis | 127.0.0.1:6381 | not published for peers |
+
+Admin, client, and API listen on `0.0.0.0` in development. Prefer the Vite Network URLs for peers; `/api` is proxied to the API on the host. Outside production, the API also accepts CORS from RFC1918 origins (in addition to `CORS_ORIGIN`). If peers cannot connect, allow inbound TCP 5173 / 5174 / 3002 in Windows Firewall.
 
 ## One-time setup
 
@@ -31,9 +34,10 @@ cd client; npm ci; cd ..
 cd api; npm ci; cd ..
 ```
 
-Confirm `admin/.env` has `VITE_USE_FIXTURES=false` and `api/.env.dev` includes both SPA origins:
+Confirm `admin/.env` has `VITE_USE_FIXTURES=false` and `api/.env.dev` includes:
 
 ```text
+HOST=0.0.0.0
 CORS_ORIGIN=http://localhost:5173,http://localhost:5174
 ```
 
