@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import '../src/config/load-env.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { Pool } from 'pg';

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { ApiError } from '@/lib/api-client';
 import {
   ActivityIcon,
   ArchiveIcon,
@@ -14,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
-import { getAuditLogs } from '@/services';
+import { getAuditLogs, getSettingsGroup, patchSettingsGroup } from '@/services';
 
 const initialSecurity = [true, true, true, true, true];
 const settingLabels = [
@@ -32,9 +34,26 @@ const settingLabels = [
 ];
 
 export function SystemSettingsPage() {
-  const logs = getAuditLogs();
+  const [logs, setLogs] = useState<readonly (readonly [string, string, string])[]>([]);
   const [security, setSecurity] = useState(initialSecurity);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void getAuditLogs()
+      .then(setLogs)
+      .catch(() => setLogs([]));
+    void getSettingsGroup('system')
+      .then(({ values }) => {
+        const maintenance = Boolean(values.maintenanceMode);
+        setSecurity((current) =>
+          current.map((value, index) => (index === 0 ? maintenance : value)),
+        );
+      })
+      .catch(() => {
+        /* keep defaults */
+      });
+  }, []);
   function toggle(index: number, next: boolean) {
     setSecurity((current) => current.map((value, i) => (i === index ? next : value)));
     setSaved(false);
@@ -198,8 +217,8 @@ export function SystemSettingsPage() {
             </CardHeader>
             <CardContent className="px-5 py-2">
               <ol className="flex flex-col">
-                {logs.map(([text, time], index) => (
-                  <li key={text} className="relative flex gap-3 py-3">
+                {logs.map(([id, text, time], index) => (
+                  <li key={id} className="relative flex gap-3 py-3">
                     <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
                       <ActivityIcon className="size-3.5" />
                     </span>
@@ -227,7 +246,22 @@ export function SystemSettingsPage() {
             'Changes are a UI preview and do not update server security policies.'
           )}
         </p>
-        <Button type="button" onClick={() => setSaved(true)}>
+        <Button
+          type="button"
+          disabled={saving}
+          onClick={() => {
+            setSaving(true);
+            void patchSettingsGroup('system', { maintenanceMode: security[0] })
+              .then(() => {
+                setSaved(true);
+                toast.success('System settings saved.');
+              })
+              .catch((err) => {
+                toast.error(err instanceof ApiError ? err.message : 'Could not save settings.');
+              })
+              .finally(() => setSaving(false));
+          }}
+        >
           <SaveIcon data-icon="inline-start" /> Save system settings
         </Button>
       </div>

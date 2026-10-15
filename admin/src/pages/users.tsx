@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAsyncService } from '@/hooks/use-async-service';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -38,9 +39,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeaderActions } from '@/contexts/page-header';
-import { getUsers } from '@/services';
-
-type User = ReturnType<typeof getUsers>[number];
+import { getUsers, type AdminUser as User } from '@/services';
 
 type SortKey =
   'name' | 'email' | 'role' | 'assessmentAccess' | 'quizAccess' | 'status' | 'lastLogin';
@@ -73,7 +72,7 @@ const usersHeaderActions = (
 );
 
 export function UsersPage() {
-  const users = useMemo(() => getUsers(), []);
+  const { data: users = [] } = useAsyncService(() => getUsers(), []);
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('All');
   const [status, setStatus] = useState('All');

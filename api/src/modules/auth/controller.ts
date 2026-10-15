@@ -26,6 +26,10 @@ export async function refresh(req: Request, res: Response, next: NextFunction) {
       req.cookies as Record<string, string | undefined>,
       res,
     );
+    if (!result) {
+      res.status(204).end();
+      return;
+    }
     res.json({ data: result });
   } catch (err) {
     next(err);

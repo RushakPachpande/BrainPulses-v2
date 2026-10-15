@@ -1,5 +1,8 @@
 import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ApiError } from '@/lib/api-client';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import type { ActivityKind } from '@/services';
+import { createActivity, publishActivity, type ActivityKind } from '@/services';
 
 const steps = [
   'Basic Details',
@@ -26,13 +29,48 @@ const steps = [
 ];
 
 export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
+  const navigate = useNavigate();
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'Quiz' : 'Assessment';
+  const listPath = isQuiz ? '/quizzes' : '/assessments';
+  const [name, setName] = useState(isQuiz ? 'Weekly GK Quiz' : 'JEE Mock Series 2026');
+  const [description, setDescription] = useState(
+    isQuiz
+      ? 'Short weekly quiz with 20 MCQs to test general awareness.'
+      : 'Full-length mock assessment covering Physics, Chemistry and Maths with timed sections.',
+  );
+  const [status, setStatus] = useState('draft');
   const [startDate, setStartDate] = useState(() => new Date(2026, 9, 15, 10, 0, 0));
   const [endDate, setEndDate] = useState(() => new Date(2026, 9, 30, 18, 0, 0));
+  const [saving, setSaving] = useState(false);
+
+  async function saveActivity(publish: boolean) {
+    setSaving(true);
+    try {
+      const created = await createActivity({
+        kind,
+        name: name.trim(),
+        subtitle: description.trim() || undefined,
+        startsAt: startDate,
+        endsAt: endDate,
+      });
+      if (publish || status === 'active') {
+        await publishActivity(created.id);
+      }
+      toast.success(`${noun} created.`);
+      void navigate(listPath);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : `Could not create ${noun.toLowerCase()}.`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
+    void saveActivity(false);
   }
 
   return (
@@ -68,18 +106,16 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
                 <Input
                   id="activity-name"
                   required
-                  defaultValue={isQuiz ? 'Weekly GK Quiz' : 'JEE Mock Series 2026'}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
                 />
               </Field>
               <Field>
                 <FieldLabel htmlFor="activity-description">Description</FieldLabel>
                 <Textarea
                   id="activity-description"
-                  defaultValue={
-                    isQuiz
-                      ? 'Short weekly quiz with 20 MCQs to test general awareness.'
-                      : 'Full-length mock assessment covering Physics, Chemistry and Maths with timed sections.'
-                  }
+                  value={description}
+                  onChange={(event) => setDescription(event.target.value)}
                 />
                 <FieldDescription>Students see this on the start screen.</FieldDescription>
               </Field>
@@ -103,7 +139,7 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
                 </Field>
                 <Field>
                   <FieldLabel htmlFor="status">Status</FieldLabel>
-                  <Select defaultValue="draft">
+                  <Select value={status} onValueChange={setStatus}>
                     <SelectTrigger id="status" className="w-full">
                       <SelectValue />
                     </SelectTrigger>
@@ -117,10 +153,17 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
                 </Field>
               </div>
               <div className="flex flex-wrap justify-end gap-2">
-                <Button type="button" variant="outline">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => void saveActivity(false)}
+                >
                   Save Draft
                 </Button>
-                <Button type="submit">Next</Button>
+                <Button type="submit" disabled={saving}>
+                  Next
+                </Button>
               </div>
             </FieldGroup>
           </form>

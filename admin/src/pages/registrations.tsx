@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAsyncService } from '@/hooks/use-async-service';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -44,8 +45,7 @@ import { PageHeaderActions } from '@/contexts/page-header';
 import { cn } from '@/lib/utils';
 import { getRegistrations, type ActivityKind } from '@/services';
 import { assessmentNames, quizNames, studentCities, studentCourses } from '@/services/fixtures';
-
-type Registration = ReturnType<typeof getRegistrations>[number];
+import type { RegistrationRow as Registration } from '@/services/types';
 
 type SortKey =
   'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'bank' | 'assignment' | 'attempt';
@@ -73,7 +73,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'attempt', label: attemptLabel },
   ];
 
-  const rows = useMemo(() => getRegistrations(kind), [kind]);
+  const { data: rows = [] } = useAsyncService(() => getRegistrations(kind), [kind]);
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState('All');
   const [city, setCity] = useState('All');

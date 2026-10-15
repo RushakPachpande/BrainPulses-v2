@@ -96,16 +96,19 @@ export async function revokeRefreshToken(rawToken: string): Promise<void> {
   await revokeRefreshFamily(session.familyId);
 }
 
-/** Detect reuse: token missing but family still has members means theft. */
+/**
+ * Detect reuse: token missing from live set but still indexed to a family.
+ * Returns the family id if reuse is detected (and revokes the family).
+ */
 export async function detectRefreshReuse(rawToken: string): Promise<string | null> {
   const redis = getRedis();
   const tokenHash = hashToken(rawToken);
   const exists = await redis.exists(tokenKey(tokenHash));
   if (exists) return null;
 
-  // We cannot map orphan token to family without storing a reverse index.
-  // Callers that receive null from rotate already treat as unauthorized.
-  // When we rotate, old hash is removed; reuse of old token returns null from rotate.
-  void tokenHash;
-  return null;
+  const familyId = await redis.get(tokenFamilyIndex(tokenHash));
+  if (!familyId) return null;
+
+  await revokeRefreshFamily(familyId);
+  return familyId;
 }

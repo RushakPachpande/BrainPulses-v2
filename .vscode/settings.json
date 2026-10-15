@@ -1,4 +1,4 @@
 {
   "terminal.integrated.defaultProfile.windows": "Command Prompt",
-  "terminal.integrated.cwd": "${workspaceFolder}\\admin"
+  "terminal.integrated.cwd": "${workspaceFolder}"
 }

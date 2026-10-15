@@ -1,9 +1,16 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { AccessLevel, ActivityKind, MembershipRole } from '#prisma';
-import { unauthorized, forbidden } from '../lib/errors.js';
+import { badRequest, unauthorized, forbidden } from '../lib/errors.js';
 import { verifyToken } from '../lib/jwt.js';
 import { tenantStore } from '../lib/prisma.js';
 import type { AuthActor } from '../types/auth-actor.js';
+
+const accessRank: Record<AccessLevel, number> = {
+  none: 0,
+  view: 1,
+  edit: 2,
+  full: 3,
+};
 
 function bearer(req: Request): string | null {
   const header = req.header('authorization');
@@ -80,14 +87,14 @@ function accessForKind(actor: AuthActor | undefined, kind: ActivityKind): Access
   return kind === 'assessment' ? actor.assessmentAccess : actor.quizAccess;
 }
 
-export function requireAccess(kind: ActivityKind, min: AccessLevel) {
-  const rank: Record<AccessLevel, number> = {
-    none: 0,
-    view: 1,
-    edit: 2,
-    full: 3,
-  };
+function maxOrgAccess(actor: Extract<AuthActor, { kind: 'user' }>): AccessLevel {
+  const a = accessRank[actor.assessmentAccess];
+  const q = accessRank[actor.quizAccess];
+  const rank = Math.max(a, q);
+  return (Object.entries(accessRank).find(([, v]) => v === rank)?.[0] as AccessLevel) ?? 'none';
+}
 
+export function requireAccess(kind: ActivityKind, min: AccessLevel) {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.actor || req.actor.kind !== 'user') {
       next(unauthorized());
@@ -98,11 +105,42 @@ export function requireAccess(kind: ActivityKind, min: AccessLevel) {
       return;
     }
     const level = accessForKind(req.actor, kind);
-    if (rank[level] < rank[min]) {
+    if (accessRank[level] < accessRank[min]) {
       next(forbidden());
       return;
     }
     next();
+  };
+}
+
+/** Max of assessment/quiz access — for org-wide resources (students, users, settings, files). */
+export function requireOrgAccess(min: AccessLevel) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.actor || req.actor.kind !== 'user') {
+      next(unauthorized());
+      return;
+    }
+    if (req.actor.role === 'super_admin') {
+      next();
+      return;
+    }
+    if (accessRank[maxOrgAccess(req.actor)] < accessRank[min]) {
+      next(forbidden());
+      return;
+    }
+    next();
+  };
+}
+
+/** Read kind from query or body then apply requireAccess. */
+export function requireKindAccess(min: AccessLevel, source: 'query' | 'body' = 'query') {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const raw = source === 'query' ? req.query.kind : (req.body as { kind?: unknown })?.kind;
+    if (raw !== 'assessment' && raw !== 'quiz') {
+      next(badRequest('Activity kind is required.'));
+      return;
+    }
+    requireAccess(raw, min)(req, res, next);
   };
 }
 

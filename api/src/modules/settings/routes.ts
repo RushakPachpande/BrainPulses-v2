@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import type { NextFunction, Request, Response } from 'express';
-import { requireAuth, requireUser, userActor, withTenantContext } from '../../middleware/auth.js';
+import {
+  requireAuth,
+  requireUser,
+  requireOrgAccess,
+  userActor,
+  withTenantContext,
+} from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import { groupParamSchema, patchSettingsSchema } from './schema.js';
 import * as service from './service.js';
@@ -11,6 +17,7 @@ settingsRouter.use(requireAuth, requireUser, withTenantContext);
 
 settingsRouter.get(
   '/:group',
+  requireOrgAccess('view'),
   validate({ params: groupParamSchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -28,6 +35,7 @@ settingsRouter.get(
 
 settingsRouter.patch(
   '/:group',
+  requireOrgAccess('full'),
   validate({ params: groupParamSchema, body: patchSettingsSchema }),
   async (req: Request, res: Response, next: NextFunction) => {
     try {

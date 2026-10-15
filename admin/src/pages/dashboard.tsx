@@ -4,16 +4,22 @@ import { BarChartCard } from '@/components/bar-chart-card';
 import { KpiGrid } from '@/components/kpi-grid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAsyncService } from '@/hooks/use-async-service';
 import { getDashboard } from '@/services';
 
 export function DashboardPage() {
-  const data = getDashboard();
+  const { data } = useAsyncService(() => getDashboard(), []);
+  const dataView = data ?? {
+    kpis: [] as const,
+    charts: [],
+    activity: [] as const,
+  };
 
   return (
     <div className="flex flex-col gap-4">
-      <KpiGrid items={data.kpis} />
+      <KpiGrid items={dataView.kpis} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {data.charts.map((chart) => (
+        {dataView.charts.map((chart) => (
           <BarChartCard key={chart.title} {...chart} />
         ))}
       </div>
@@ -24,9 +30,9 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-3">
-              {data.activity.map(([text, time]) => (
+              {dataView.activity.map(([id, text, time]) => (
                 <li
-                  key={text}
+                  key={id}
                   className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
                 >
                   <span>{text}</span>

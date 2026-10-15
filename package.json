@@ -26,6 +26,8 @@
     "check:fix:admin": "npm run check:fix --prefix admin",
     "check:api": "npm run check --prefix api && npm run test --prefix api",
     "test:api": "npm run test --prefix api",
+    "test:admin": "npm run test --prefix admin",
+    "check": "npm run check:api && npm run check:admin && npm run test:admin",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "npm run prisma:migrate --prefix api",

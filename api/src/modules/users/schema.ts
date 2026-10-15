@@ -8,20 +8,24 @@ export const userListQuerySchema = listQuerySchema.extend({
   sort: z.enum(['name', 'email', 'createdAt']).optional(),
 });
 
-export const inviteUserSchema = z.object({
-  name: z.string().trim().min(1).max(200),
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
-  role: z.enum(['super_admin', 'admin']).default('admin'),
-  assessmentAccess: accessLevelSchema.default('full'),
-  quizAccess: accessLevelSchema.default('full'),
-});
+export const inviteUserSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    email: z.string().email(),
+    password: z.string().min(8).max(128),
+    role: z.enum(['super_admin', 'admin']).default('admin'),
+    assessmentAccess: accessLevelSchema.default('full'),
+    quizAccess: accessLevelSchema.default('full'),
+  })
+  .strict();
 
-export const updateMembershipSchema = z.object({
-  role: z.enum(['super_admin', 'admin']).optional(),
-  assessmentAccess: accessLevelSchema.optional(),
-  quizAccess: accessLevelSchema.optional(),
-  isActive: z.boolean().optional(),
-});
+export const updateMembershipSchema = z
+  .object({
+    role: z.enum(['super_admin', 'admin']).optional(),
+    assessmentAccess: accessLevelSchema.optional(),
+    quizAccess: accessLevelSchema.optional(),
+    isActive: z.boolean().optional(),
+  })
+  .strict();
 
 export const idParamSchema = z.object({ id: z.string().uuid() });

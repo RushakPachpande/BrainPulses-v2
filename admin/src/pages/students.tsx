@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAsyncService } from '@/hooks/use-async-service';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -37,10 +38,8 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { PageHeaderActions } from '@/contexts/page-header';
-import { getStudents } from '@/services';
+import { getStudents, type Student } from '@/services';
 import { studentCities, studentCourses } from '@/services/fixtures';
-
-type Student = ReturnType<typeof getStudents>[number];
 
 type SortKey =
   'id' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
@@ -77,7 +76,7 @@ const studentsHeaderActions = (
 );
 
 export function StudentsPage() {
-  const students = useMemo(() => getStudents(), []);
+  const { data: students = [] } = useAsyncService(() => getStudents(), []);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [course, setCourse] = useState('All');

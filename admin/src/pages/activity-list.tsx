@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAsyncService } from '@/hooks/use-async-service';
 import { Link } from 'react-router';
 import {
   CheckCircle2Icon,
@@ -50,8 +51,7 @@ import {
 import { PageHeaderActions } from '@/contexts/page-header';
 import { cn } from '@/lib/utils';
 import { getActivities, type ActivityKind } from '@/services';
-
-type Activity = ReturnType<typeof getActivities>[number];
+import type { Activity } from '@/services/types';
 
 type SortKey =
   'name' | 'status' | 'registered' | 'assigned' | 'banks' | 'attempts' | 'start' | 'end';
@@ -122,7 +122,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
         { key: 'end', label: 'End Date' },
       ];
 
-  const activities = useMemo(() => getActivities(kind), [kind]);
+  const { data: activities = [] } = useAsyncService(() => getActivities(kind), [kind]);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);

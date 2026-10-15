@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { requireAuth, requireUser, withTenantContext } from '../../middleware/auth.js';
+import {
+  requireAuth,
+  requireUser,
+  requireKindAccess,
+  withTenantContext,
+} from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
@@ -17,9 +22,19 @@ export const banksRouter = Router();
 
 banksRouter.use(requireAuth, requireUser, withTenantContext);
 
-banksRouter.get('/', validate({ query: bankListQuerySchema }), controller.list);
+banksRouter.get(
+  '/',
+  requireKindAccess('view', 'query'),
+  validate({ query: bankListQuerySchema }),
+  controller.list,
+);
 banksRouter.get('/:id', validate({ params: idParamSchema }), controller.get);
-banksRouter.post('/', validate({ body: createBankSchema }), controller.create);
+banksRouter.post(
+  '/',
+  requireKindAccess('edit', 'body'),
+  validate({ body: createBankSchema }),
+  controller.create,
+);
 banksRouter.patch(
   '/:id',
   validate({ params: idParamSchema, body: updateBankSchema }),

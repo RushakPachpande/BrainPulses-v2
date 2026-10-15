@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useAsyncService } from '@/hooks/use-async-service';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -47,8 +48,7 @@ import { PageHeaderActions } from '@/contexts/page-header';
 import { cn } from '@/lib/utils';
 import { getQuestionBanks, type ActivityKind } from '@/services';
 import { presentationTypes, questionTypes } from '@/services/fixtures';
-
-type Bank = ReturnType<typeof getQuestionBanks>[number];
+import type { QuestionBank as Bank } from '@/services/types';
 
 type SortKey =
   'name' | 'description' | 'questions' | 'types' | 'presentation' | 'updated' | 'usedIn' | 'status';
@@ -111,7 +111,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
         { key: 'status', label: 'Status' },
       ];
 
-  const banks = useMemo(() => getQuestionBanks(kind), [kind]);
+  const { data: banks = [] } = useAsyncService(() => getQuestionBanks(kind), [kind]);
   const [search, setSearch] = useState('');
   const [type, setType] = useState('All');
   const [status, setStatus] = useState('All');

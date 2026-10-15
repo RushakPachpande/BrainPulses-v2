@@ -1,224 +1,207 @@
+import { apiGetData, apiGetList, apiPatchData, apiPostData } from '@/lib/api-client';
 import {
-  accessPeople,
-  activityCounts,
-  activityEndTimes,
-  activityStartTimes,
-  admins,
-  assessmentNames,
-  assessmentSubtitles,
-  assignedCounts,
-  assignmentStatuses,
-  attemptCounts,
-  attemptStatuses,
-  bankCounts,
-  bankDescriptions,
-  bankNames,
-  flow,
-  mail,
-  months,
-  permissions,
-  personName,
-  phone,
-  presentationTypes,
-  questionCounts,
-  questionTypes,
-  quizNames,
-  quizSubtitles,
-  registeredCounts,
-  resultScores,
-  resultStatuses,
-  studentCities,
-  studentCourses,
-  studentStatuses,
-  usedInCounts,
-  when,
-} from './fixtures';
+  buildReportSummaryFromResults,
+  mapAccessUserFromApi,
+  mapActivityFromApi,
+  mapAuditLogsFromApi,
+  mapBankFromApi,
+  mapDashboardFromApi,
+  mapNotificationsFromSettings,
+  mapRegistrationFromApi,
+  mapResultFromApi,
+  mapStudentFromApi,
+  mapUserFromApi,
+  notificationValuesFromPreferences,
+} from './api-mappers';
+import {
+  fixturesGetAccessUsers,
+  fixturesGetActivities,
+  fixturesGetAuditLogs,
+  fixturesGetDashboard,
+  fixturesGetMonths,
+  fixturesGetNotifications,
+  fixturesGetPermissions,
+  fixturesGetQuestionBanks,
+  fixturesGetRegistrations,
+  fixturesGetReportSummary,
+  fixturesGetResults,
+  fixturesGetStudents,
+  fixturesGetUsers,
+} from './fixtures-sync';
+import type {
+  AccessUser,
+  ActivityKind,
+  AdminUser,
+  AuditLogRow,
+  DashboardData,
+  NotificationPreference,
+  PermissionRow,
+  ReportSummaryRow,
+  Student,
+} from './types';
 
-export type ActivityKind = 'assessment' | 'quiz';
+export type { ActivityKind, Student, AdminUser, AccessUser, DashboardData } from './types';
 
-function range(n: number) {
-  return Array.from({ length: n }, (_, i) => i);
+const useFixtures = import.meta.env.VITE_USE_FIXTURES === 'true';
+
+type ApiStudentRow = Parameters<typeof mapStudentFromApi>[0];
+type ApiUserRow = Parameters<typeof mapUserFromApi>[0];
+type ApiActivityRow = Parameters<typeof mapActivityFromApi>[0];
+type ApiBankRow = Parameters<typeof mapBankFromApi>[0];
+type ApiRegistrationRow = Parameters<typeof mapRegistrationFromApi>[0];
+type ApiResultRow = Parameters<typeof mapResultFromApi>[0];
+type ApiAccessRow = Parameters<typeof mapAccessUserFromApi>[0];
+type ApiDashboardSummary = Parameters<typeof mapDashboardFromApi>[0];
+
+export async function getStudents(): Promise<Student[]> {
+  if (useFixtures) return fixturesGetStudents();
+  const rows = await apiGetList<ApiStudentRow>('/api/students', { limit: 100 });
+  return rows.map(mapStudentFromApi);
 }
 
-export function getStudents() {
-  return range(6).map((i) => ({
-    id: 'BP-' + (24101 + i),
-    name: personName(i),
-    email: mail(i),
-    phone: phone(i),
-    registered: when(i),
-    activities: activityCounts[i],
-    status: studentStatuses[i],
-    lastLogin: when(i + 1, 10),
-    course: studentCourses[i],
-    city: studentCities[i],
-  }));
+export async function getUsers(): Promise<AdminUser[]> {
+  if (useFixtures) return fixturesGetUsers();
+  const rows = await apiGetList<ApiUserRow>('/api/users', { limit: 100 });
+  return rows.map(mapUserFromApi);
 }
 
-export function getUsers() {
-  return range(6).map((i) => ({
-    name: admins[i],
-    email: admins[i].toLowerCase().replace(' ', '.') + '@brainpulses.com',
-    role: i % 3 ? 'Admin' : 'Super Admin',
-    assessmentAccess: ['Full', 'Full', 'View only', 'Full', 'None', 'Full'][i],
-    quizAccess: ['Full', 'Edit', 'Full', 'None', 'Full', 'View only'][i],
-    status: studentStatuses[i],
-    lastLogin: when(i + 1, 10),
-  }));
+export async function getActivities(kind: ActivityKind) {
+  if (useFixtures) return fixturesGetActivities(kind);
+  const rows = await apiGetList<ApiActivityRow>('/api/activities', {
+    kind,
+    limit: 100,
+  });
+  return rows.map((row, index) => mapActivityFromApi(row, index));
 }
 
-export function getActivities(kind: ActivityKind) {
-  const isQuiz = kind === 'quiz';
-  const names = isQuiz ? quizNames : assessmentNames;
-  const subtitles = isQuiz ? quizSubtitles : assessmentSubtitles;
-  const prefix = isQuiz ? 'QUZ-' : 'ASM-';
-  return range(6).map((i) => ({
-    id: prefix + (2601 + i),
-    name: names[i],
-    subtitle: subtitles[i],
-    iconTone: i % 6,
-    status: flow[i],
-    registered: registeredCounts[i],
-    assigned: assignedCounts[i],
-    banks: bankCounts[i],
-    attempts: attemptCounts[i],
-    start: when(i),
-    end: when(i + 6, 10),
-    startTime: activityStartTimes[i],
-    endTime: activityEndTimes[i],
-  }));
+export async function getQuestionBanks(kind: ActivityKind) {
+  if (useFixtures) return fixturesGetQuestionBanks(kind);
+  const rows = await apiGetList<ApiBankRow>('/api/banks', {
+    kind,
+    limit: 100,
+  });
+  return rows.map(mapBankFromApi);
 }
 
-export function getQuestionBanks(kind: ActivityKind) {
-  const count = kind === 'quiz' ? 5 : 6;
-  return range(count).map((i) => ({
-    id: 'QB-' + (30101 + i),
-    name: bankNames[i],
-    description: bankDescriptions[i],
-    questions: questionCounts[i],
-    types: questionTypes[i],
-    presentation: presentationTypes[i],
-    updated: when(i, 10),
-    usedIn: usedInCounts[i],
-    status: flow[i],
-  }));
+export async function getRegistrations(kind: ActivityKind) {
+  if (useFixtures) return fixturesGetRegistrations(kind);
+  const rows = await apiGetList<ApiRegistrationRow>('/api/registrations', {
+    kind,
+    limit: 100,
+  });
+  return rows.map(mapRegistrationFromApi);
 }
 
-export function getRegistrations(kind: ActivityKind) {
-  const names = kind === 'quiz' ? quizNames : assessmentNames;
-  return range(6).map((i) => ({
-    id: 'BP-' + (24101 + i),
-    name: personName(i),
-    email: mail(i),
-    phone: phone(i),
-    registered: when(i),
-    activity: names[i],
-    bank: bankNames[i],
-    assignment: assignmentStatuses[i],
-    attempt: attemptStatuses[i],
-    city: studentCities[i],
-    course: studentCourses[i],
-  }));
-}
-
-export function getResults(kind: ActivityKind) {
-  const names = kind === 'quiz' ? quizNames : assessmentNames;
-  return resultScores.map((score, i) => ({
-    student: personName(i),
-    activity: names[i % 6],
-    attempt: '#1',
-    score,
-    submitted: when(i, 10),
-    status: resultStatuses[i],
-  }));
+export async function getResults(kind: ActivityKind) {
+  if (useFixtures) return fixturesGetResults(kind);
+  const rows = await apiGetList<ApiResultRow>('/api/results', {
+    kind,
+    limit: 100,
+  });
+  return rows.map(mapResultFromApi);
 }
 
 export function getMonths() {
-  return months;
+  return fixturesGetMonths();
 }
 
-export function getDashboard() {
-  return {
-    kpis: [
-      ['Total Students', '12,480', '▲ 8.2% this month', 0],
-      ['Active Assessments', '14', '3 starting soon', 1],
-      ['Active Quizzes', '26', '▲ 4 this week', 2],
-      ['Completed Attempts', '9,371', '▲ 12.5%', 3],
-    ] as const,
-    charts: [
-      {
-        title: 'Registrations (monthly)',
-        values: [40, 55, 48, 70, 82, 95],
-        color: 'var(--primary)',
-        caption: 'September is the high point.',
-      },
-      {
-        title: 'Assessment performance (avg %)',
-        values: [58, 61, 64, 63, 67, 68],
-        color: '#7c3aed',
-        caption: 'Average moved from 58% to 68%.',
-      },
-      {
-        title: 'Quiz performance (avg %)',
-        values: [70, 66, 72, 75, 74, 79],
-        color: '#16a34a',
-        caption: 'Quiz average is 79% in September.',
-      },
-    ],
-    activity: [
-      ['Priya Patel registered for JEE Mock Series 2026', '4 min ago'],
-      ['Weekly GK Quiz published by Meera Joshi', '16 min ago'],
-      ['Rohan Mehta completed Aptitude Screening Q4', '28 min ago'],
-      ['Question bank Verbal Ability updated', '40 min ago'],
-      ['45 students bulk-uploaded', '52 min ago'],
-    ] as const,
-  };
+export async function getDashboard(): Promise<DashboardData> {
+  if (useFixtures) return fixturesGetDashboard();
+  const summary = await apiGetData<ApiDashboardSummary>('/api/dashboard/summary');
+  return mapDashboardFromApi(summary);
 }
 
-export function getAccessUsers() {
-  return accessPeople.map((name, i) => ({
-    name,
-    email: name.toLowerCase().split(' ')[0] + '@brainpulses.com',
-    role: i ? 'Admin' : 'Super Admin',
-    assessment: i !== 3,
-    quiz: i !== 2,
-    enabled: i !== 3,
-  }));
+export async function getAccessUsers(): Promise<AccessUser[]> {
+  if (useFixtures) return fixturesGetAccessUsers();
+  const rows = await apiGetList<ApiAccessRow>('/api/users', {
+    limit: 100,
+  });
+  return rows.map(mapAccessUserFromApi);
 }
 
-export function getPermissions() {
-  return permissions.map((name, i) => ({
-    name,
-    superAdmin: 'Yes',
-    admin: i === 5 ? 'No' : i < 2 ? 'Per access' : 'Yes',
-  }));
+export async function getPermissions(): Promise<PermissionRow[]> {
+  return fixturesGetPermissions();
 }
 
-export function getNotifications() {
-  return [
-    ['Student Registration', 'Notify admins when a student registers', true],
-    ['Assessment Completion', 'Alert when a student completes an assessment', true],
-    ['Quiz Completion', 'Alert when a student completes a quiz', true],
-    ['Admin Notifications', 'Account, role, and access changes', true],
-    ['Email Notifications', 'Send summaries to admin email', true],
-    ['Daily Digest', 'Daily 8:00 AM activity summary', false],
-  ] as const;
+export async function getNotifications(): Promise<NotificationPreference[]> {
+  if (useFixtures) return [...fixturesGetNotifications()];
+  const settings = await apiGetData<{ group: string; values: Record<string, unknown> }>(
+    '/api/settings/notifications',
+  );
+  return mapNotificationsFromSettings(settings.values);
 }
 
-export function getAuditLogs() {
-  return [
-    ['Meera Joshi published Weekly GK Quiz', '1h ago'],
-    ['Karan Desai changed role: Sana Khan', '2h ago'],
-    ['Super Admin exported student data', '3h ago'],
-  ] as const;
+export async function getAuditLogs(): Promise<AuditLogRow[]> {
+  if (useFixtures) return [...fixturesGetAuditLogs()];
+  const rows = await apiGetList<{
+    id: string;
+    actor: string;
+    action: string;
+    createdAt: string;
+  }>('/api/audit', { limit: 10 });
+  return mapAuditLogsFromApi(rows);
 }
 
-export function getReportSummary() {
-  return [
-    ['Registered', '482', '', 0],
-    ['Assigned', '455', '', 1],
-    ['Attempted', '398', '', 2],
-    ['Completed', '371', '', 3],
-    ['Average Score', '68.4%', '▲ 3.1% vs last', 4],
-  ] as const;
+export async function getReportSummary(kind: ActivityKind): Promise<ReportSummaryRow[]> {
+  if (useFixtures) return [...fixturesGetReportSummary()];
+  const results = await getResults(kind);
+  return [...buildReportSummaryFromResults(results)];
+}
+
+export async function createActivity(payload: {
+  kind: ActivityKind;
+  name: string;
+  subtitle?: string;
+  startsAt?: Date;
+  endsAt?: Date;
+  presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+  bankIds?: string[];
+}) {
+  if (useFixtures) {
+    return { id: crypto.randomUUID(), code: 'LOCAL' };
+  }
+  return apiPostData<{ id: string; code: string }>('/api/activities', {
+    ...payload,
+    startsAt: payload.startsAt?.toISOString(),
+    endsAt: payload.endsAt?.toISOString(),
+  });
+}
+
+export async function getSettingsGroup(group: 'general' | 'access' | 'notifications' | 'system') {
+  if (useFixtures) return { group, values: {} as Record<string, unknown> };
+  return apiGetData<{ group: string; values: Record<string, unknown> }>(`/api/settings/${group}`);
+}
+
+export async function patchSettingsGroup(
+  group: 'general' | 'access' | 'notifications' | 'system',
+  values: Record<string, unknown>,
+) {
+  if (useFixtures) return { group, values };
+  return apiPatchData<{ group: string; values: Record<string, unknown> }>(
+    `/api/settings/${group}`,
+    { values },
+  );
+}
+
+export async function saveNotificationPreferences(
+  prefs: { title: string; hint: string; enabled: boolean }[],
+) {
+  return patchSettingsGroup('notifications', notificationValuesFromPreferences(prefs));
+}
+
+export async function updateMembershipAccess(
+  membershipId: string,
+  patch: {
+    assessmentAccess?: 'full' | 'none';
+    quizAccess?: 'full' | 'none';
+    isActive?: boolean;
+  },
+) {
+  if (useFixtures) return patch;
+  return apiPatchData(`/api/users/${membershipId}`, patch);
+}
+
+export async function publishActivity(activityId: string) {
+  if (useFixtures) return { id: activityId };
+  return apiPostData(`/api/activities/${activityId}/publish`);
 }

@@ -50,6 +50,10 @@ paths:
       responses:
         '200':
           description: New access token
+        '204':
+          description: No refresh cookie (anonymous / signed out)
+        '401':
+          description: Refresh token invalid, reused, or membership inactive
   /api/auth/sign-out:
     post:
       summary: Revoke refresh family
@@ -122,6 +126,24 @@ paths:
       responses:
         '201':
           description: Invited
+  /api/users/{id}:
+    patch:
+      summary: Update membership
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Updated
+  /api/users/{id}/deactivate:
+    post:
+      summary: Deactivate membership
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Deactivated
   /api/activities:
     get:
       summary: List activities
@@ -142,6 +164,23 @@ paths:
       responses:
         '201':
           description: Created
+  /api/activities/{id}:
+    get:
+      summary: Activity detail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Activity
+    patch:
+      summary: Update activity
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Updated
   /api/activities/{id}/publish:
     post:
       summary: Publish activity (full access)
@@ -153,6 +192,15 @@ paths:
           description: Published
         '403':
           description: Insufficient access
+  /api/activities/{id}/archive:
+    post:
+      summary: Archive activity (full access)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Archived
   /api/banks:
     get:
       summary: List question banks
@@ -160,6 +208,53 @@ paths:
       responses:
         '200':
           description: Paginated list
+    post:
+      summary: Create question bank
+      security: [{ bearerAuth: [] }]
+      responses:
+        '201':
+          description: Created
+  /api/banks/{id}:
+    get:
+      summary: Bank detail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Bank
+    patch:
+      summary: Update bank
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Updated
+  /api/banks/{id}/questions:
+    post:
+      summary: Add question to bank
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '201':
+          description: Created
+  /api/banks/{id}/questions/{questionId}:
+    patch:
+      summary: Update question (new version)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: questionId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated
   /api/banks/{id}/import:
     post:
       summary: Import questions from CSV
@@ -183,6 +278,20 @@ paths:
       responses:
         '200':
           description: Assigned
+  /api/registrations/unassign:
+    post:
+      summary: Unassign students from an activity
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Unassigned
+  /api/registrations/export:
+    get:
+      summary: Export registrations CSV
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: CSV
   /api/attempts/start:
     post:
       summary: Start attempt (student)
@@ -210,6 +319,15 @@ paths:
       responses:
         '200':
           description: Result
+  /api/attempts/{id}/resume:
+    get:
+      summary: Resume in-progress attempt
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Attempt state
   /api/results:
     get:
       summary: List results
@@ -217,6 +335,15 @@ paths:
       responses:
         '200':
           description: Paginated list
+  /api/results/{id}:
+    get:
+      summary: Result detail
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Result
   /api/results/{id}/publish:
     post:
       summary: Publish result
@@ -276,6 +403,15 @@ paths:
       responses:
         '200':
           description: Paginated list
+  /api/audit/{id}:
+    get:
+      summary: Audit event detail (super_admin)
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Event
   /api/files/initiate:
     post:
       summary: Initiate private file upload
@@ -283,6 +419,35 @@ paths:
       responses:
         '201':
           description: Upload target
+  /api/files/{id}/content:
+    put:
+      summary: Upload file bytes
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Finalized
+  /api/files/{id}/download-token:
+    post:
+      summary: Mint short-lived download token
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Token
+  /api/files/download:
+    get:
+      summary: Download via opaque token (query or x-download-token header)
+      parameters:
+        - name: token
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File bytes
 components:
   securitySchemes:
     bearerAuth:

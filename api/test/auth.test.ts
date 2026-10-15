@@ -1,15 +1,8 @@
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
-import { closeRedis } from '../src/lib/redis.js';
-import { disconnectPrisma } from '../src/lib/prisma.js';
+import { describe, it } from 'node:test';
 import { cookieHeader, getTestApp, request } from './helpers.js';
 
 describe('auth', () => {
-  after(async () => {
-    await closeRedis();
-    await disconnectPrisma();
-  });
-
   it('rejects wrong password', async () => {
     const app = await getTestApp();
     const res = await request(app, 'POST', '/api/auth/sign-in', {
@@ -52,6 +45,12 @@ describe('auth', () => {
       assert.equal(body.data.status, 'authenticated');
       assert.ok(body.data.session?.accessToken);
     }
+  });
+
+  it('returns 204 when refresh cookie is absent', async () => {
+    const app = await getTestApp();
+    const res = await request(app, 'POST', '/api/auth/refresh');
+    assert.equal(res.status, 204);
   });
 
   it('revokes refresh family on reuse', async () => {

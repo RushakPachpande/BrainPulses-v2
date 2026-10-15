@@ -7,15 +7,19 @@ export const registrationListQuerySchema = listQuerySchema.extend({
   status: z.enum(['assigned', 'unassigned', 'all']).default('all'),
 });
 
-export const assignSchema = z.object({
-  activityId: z.string().uuid(),
-  studentIds: z.array(z.string().uuid()).min(1),
-});
+export const assignSchema = z
+  .object({
+    activityId: z.string().uuid(),
+    studentIds: z.array(z.string().uuid()).min(1),
+  })
+  .strict();
 
-export const unassignSchema = z.object({
-  activityId: z.string().uuid(),
-  studentIds: z.array(z.string().uuid()).min(1),
-});
+export const unassignSchema = z
+  .object({
+    activityId: z.string().uuid(),
+    studentIds: z.array(z.string().uuid()).min(1),
+  })
+  .strict();
 
 export const exportQuerySchema = z.object({
   activityId: z.string().uuid(),

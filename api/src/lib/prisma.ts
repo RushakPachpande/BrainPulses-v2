@@ -173,7 +173,11 @@ export async function withTenant<T>(organizationId: string, fn: () => Promise<T>
   return tenantStore.run({ organizationId }, fn);
 }
 
+let prismaDisconnected = false;
+
 export async function disconnectPrisma(): Promise<void> {
+  if (prismaDisconnected) return;
+  prismaDisconnected = true;
   await basePrisma.$disconnect();
   await pool.end();
 }

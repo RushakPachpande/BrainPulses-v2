@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
-import { after, describe, it } from 'node:test';
-import { closeRedis } from '../src/lib/redis.js';
-import { disconnectPrisma, prisma } from '../src/lib/prisma.js';
+import { describe, it } from 'node:test';
+import { prisma } from '../src/lib/prisma.js';
 import { getTestApp, request } from './helpers.js';
 
 async function studentToken() {
@@ -18,11 +17,6 @@ async function studentToken() {
 }
 
 describe('attempts', () => {
-  after(async () => {
-    await closeRedis();
-    await disconnectPrisma();
-  });
-
   it('rejects stale revision and accepts idempotent submit', async () => {
     const app = await getTestApp();
     const token = await studentToken();

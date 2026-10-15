@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { requireAuth, requireUser, withTenantContext } from '../../middleware/auth.js';
+import {
+  requireAuth,
+  requireUser,
+  requireOrgAccess,
+  withTenantContext,
+} from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
@@ -13,11 +18,27 @@ export const usersRouter = Router();
 
 usersRouter.use(requireAuth, requireUser, withTenantContext);
 
-usersRouter.get('/', validate({ query: userListQuerySchema }), controller.list);
-usersRouter.post('/invite', validate({ body: inviteUserSchema }), controller.invite);
+usersRouter.get(
+  '/',
+  requireOrgAccess('view'),
+  validate({ query: userListQuerySchema }),
+  controller.list,
+);
+usersRouter.post(
+  '/invite',
+  requireOrgAccess('full'),
+  validate({ body: inviteUserSchema }),
+  controller.invite,
+);
 usersRouter.patch(
   '/:id',
+  requireOrgAccess('full'),
   validate({ params: idParamSchema, body: updateMembershipSchema }),
   controller.update,
 );
-usersRouter.post('/:id/deactivate', validate({ params: idParamSchema }), controller.deactivate);
+usersRouter.post(
+  '/:id/deactivate',
+  requireOrgAccess('full'),
+  validate({ params: idParamSchema }),
+  controller.deactivate,
+);

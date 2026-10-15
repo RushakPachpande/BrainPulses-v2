@@ -1,9 +1,9 @@
 import { parse } from 'csv-parse/sync';
-import { Prisma } from '#prisma';
+import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { nextHumanCode } from '../../lib/codes.js';
 import { stripFormulaInjection } from '../../lib/csv.js';
-import { conflict, notFound, unprocessable } from '../../lib/errors.js';
+import { conflict, forbidden, notFound, unprocessable } from '../../lib/errors.js';
 import { buildPage, listEnvelope } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
@@ -14,6 +14,27 @@ import type {
   updateBankSchema,
   updateQuestionSchema,
 } from './schema.js';
+
+const accessRank: Record<AccessLevel, number> = {
+  none: 0,
+  view: 1,
+  edit: 2,
+  full: 3,
+};
+
+type AccessActor = {
+  role: MembershipRole;
+  assessmentAccess: AccessLevel;
+  quizAccess: AccessLevel;
+};
+
+export function assertBankAccess(actor: AccessActor, kind: ActivityKind, min: AccessLevel) {
+  if (actor.role === 'super_admin') return;
+  const level = kind === 'assessment' ? actor.assessmentAccess : actor.quizAccess;
+  if (accessRank[level] < accessRank[min]) {
+    throw forbidden('Insufficient access for this question bank.');
+  }
+}
 
 function mapBank(b: {
   id: string;
@@ -112,7 +133,7 @@ export async function listBanks(
   return listEnvelope(items.map(mapBank), page);
 }
 
-export async function getBank(organizationId: string, id: string) {
+export async function getBank(organizationId: string, id: string, actor?: AccessActor) {
   const bank = await prisma.questionBank.findFirst({
     where: { organizationId, id },
     include: {
@@ -130,6 +151,7 @@ export async function getBank(organizationId: string, id: string) {
     },
   });
   if (!bank) throw notFound('Question bank not found.');
+  if (actor) assertBankAccess(actor, bank.kind, 'view');
   return {
     ...mapBank(bank),
     items: bank.questions.map(mapQuestionPublic),
@@ -139,8 +161,10 @@ export async function getBank(organizationId: string, id: string) {
 export async function createBank(
   organizationId: string,
   actorUserId: string,
+  actor: AccessActor,
   input: z.infer<typeof createBankSchema>,
 ) {
+  assertBankAccess(actor, input.kind, 'edit');
   const code = input.code ?? (await nextHumanCode(organizationId, 'QB', 'bank'));
   try {
     const bank = await prisma.questionBank.create({
@@ -177,11 +201,13 @@ export async function createBank(
 export async function updateBank(
   organizationId: string,
   actorUserId: string,
+  actor: AccessActor,
   id: string,
   input: z.infer<typeof updateBankSchema>,
 ) {
   const existing = await prisma.questionBank.findFirst({ where: { organizationId, id } });
   if (!existing) throw notFound('Question bank not found.');
+  assertBankAccess(actor, existing.kind, 'edit');
 
   const bank = await prisma.questionBank.update({
     where: { id },
@@ -264,11 +290,13 @@ async function createQuestionVersion(
 export async function createQuestion(
   organizationId: string,
   actorUserId: string,
+  actor: AccessActor,
   bankId: string,
   input: z.infer<typeof createQuestionSchema>,
 ) {
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
   if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'edit');
 
   const code = input.code ?? `Q-${Date.now().toString(36)}`;
   const question = await prisma.question.create({
@@ -313,10 +341,15 @@ export async function createQuestion(
 export async function updateQuestion(
   organizationId: string,
   actorUserId: string,
+  actor: AccessActor,
   bankId: string,
   questionId: string,
   input: z.infer<typeof updateQuestionSchema>,
 ) {
+  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'edit');
+
   const question = await prisma.question.findFirst({
     where: { organizationId, bankId, id: questionId },
     include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
@@ -379,12 +412,14 @@ export async function updateQuestion(
 export async function importQuestions(
   organizationId: string,
   actorUserId: string,
+  actor: AccessActor,
   bankId: string,
   csv: string,
   idempotencyKey?: string,
 ) {
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
   if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'edit');
 
   if (idempotencyKey) {
     const existing = await prisma.auditEvent.findFirst({
@@ -449,7 +484,7 @@ export async function importQuestions(
     }
 
     try {
-      await createQuestion(organizationId, actorUserId, bankId, {
+      await createQuestion(organizationId, actorUserId, actor, bankId, {
         type,
         stem,
         points: Number(row.points ?? 1) || 1,

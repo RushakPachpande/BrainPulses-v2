@@ -14,7 +14,9 @@ export async function list(req: Request, res: Response, next: NextFunction) {
 export async function get(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    res.json({ data: await service.getActivity(actor.organizationId, req.params.id as string) });
+    res.json({
+      data: await service.getActivity(actor.organizationId, req.params.id as string, actor),
+    });
   } catch (err) {
     next(err);
   }

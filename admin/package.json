@@ -22,6 +22,8 @@
     "format:fix": "npm run format",
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "check:fix": "npm run typecheck && npm run lint:fix && npm run format",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade"
   },
   "dependencies": {
@@ -43,6 +45,9 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^24.19.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
@@ -52,10 +57,12 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.13.0",
+    "jsdom": "^26.1.0",
     "prettier": "^3.9.10",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.71.2",
     "vite": "^8.3.0",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "vitest": "^3.2.4"
   }
 }

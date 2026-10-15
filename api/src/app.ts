@@ -25,16 +25,25 @@ import { usersRouter } from './modules/users/routes.js';
 export function createApp() {
   const app = express();
 
+  if (env.NODE_ENV === 'production' && !isRedisReady()) {
+    throw new Error('Redis must be ready in production for rate limits and refresh tokens.');
+  }
+
   app.set('trust proxy', 1);
   app.use(requestId);
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
   app.use(
     cors({
       origin: env.CORS_ORIGIN.split(',')
         .map((s) => s.trim())
         .filter(Boolean),
       credentials: true,
-      exposedHeaders: ['Content-Disposition', 'x-request-id'],
+      exposedHeaders: ['Content-Disposition', 'x-request-id', 'Retry-After'],
     }),
   );
   app.use(cookieParser());
@@ -44,6 +53,25 @@ export function createApp() {
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     standardHeaders: true as const,
     legacyHeaders: false as const,
+    handler: (
+      req: express.Request,
+      res: express.Response,
+      _next: express.NextFunction,
+      options: {
+        statusCode: number;
+        message: string | object;
+        windowMs: number;
+      },
+    ) => {
+      res.setHeader('Retry-After', String(Math.ceil(options.windowMs / 1000)));
+      res.status(options.statusCode).json({
+        error: {
+          code: 'RATE_LIMITED',
+          message: 'Too many requests. Try again later.',
+          requestId: req.requestId,
+        },
+      });
+    },
   };
 
   function redisStore() {
@@ -51,7 +79,6 @@ export function createApp() {
       prefix: 'rl:bp:',
       sendCommand: async (...args: string[]) => {
         const [command, ...rest] = args;
-        // ioredis call typing is loose across versions
         return await (
           getRedis() as unknown as {
             call: (
@@ -63,22 +90,31 @@ export function createApp() {
     });
   }
 
-  const skipInTest = env.NODE_ENV === 'test' ? () => true : undefined;
+  const skipInTest =
+    env.NODE_ENV === 'test' && process.env.ENABLE_RATE_LIMIT_IN_TEST !== 'true'
+      ? () => true
+      : undefined;
+  const useRedisStore = isRedisReady();
 
   const apiLimiter = rateLimit({
     ...limiterOptions,
     max: env.RATE_LIMIT_MAX,
     skip: (req) => Boolean(skipInTest?.()) || req.originalUrl.startsWith('/api/auth'),
     validate: { xForwardedForHeader: false },
-    ...(isRedisReady() ? { store: redisStore() } : {}),
+    ...(useRedisStore ? { store: redisStore() } : {}),
   });
 
   const authLimiter = rateLimit({
     ...limiterOptions,
     max: env.AUTH_RATE_LIMIT_MAX,
-    skip: skipInTest,
+    // Brute-force budget applies to sign-in; refresh/sign-out are session hygiene on every boot.
+    skip: (req) => {
+      if (skipInTest?.()) return true;
+      const path = (req.originalUrl.split('?')[0] ?? '').replace(/\/$/, '');
+      return path === '/api/auth/refresh' || path === '/api/auth/sign-out';
+    },
     validate: { xForwardedForHeader: false },
-    ...(isRedisReady() ? { store: redisStore() } : {}),
+    ...(useRedisStore ? { store: redisStore() } : {}),
   });
 
   app.get('/health', (_req, res) => {

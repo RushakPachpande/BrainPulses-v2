@@ -1,18 +1,78 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { mkdir, readFile, unlink } from 'node:fs/promises';
+import { mkdir, readFile, unlink, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import type { Readable } from 'node:stream';
+import { Transform, type Readable } from 'node:stream';
 import { env } from '../../config/env.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { getRedis } from '../../lib/redis.js';
+import type { AccessLevel, MembershipRole } from '#prisma';
+
+const ALLOWED_UPLOADS: { mime: string; exts: string[] }[] = [
+  { mime: 'image/png', exts: ['.png'] },
+  { mime: 'image/jpeg', exts: ['.jpg', '.jpeg'] },
+  { mime: 'image/webp', exts: ['.webp'] },
+  { mime: 'image/gif', exts: ['.gif'] },
+  { mime: 'application/pdf', exts: ['.pdf'] },
+  { mime: 'text/csv', exts: ['.csv'] },
+  { mime: 'text/plain', exts: ['.txt', '.csv'] },
+  {
+    mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    exts: ['.xlsx'],
+  },
+];
+
+const BLOCKED_EXTS = new Set([
+  '.html',
+  '.htm',
+  '.js',
+  '.mjs',
+  '.exe',
+  '.bat',
+  '.cmd',
+  '.sh',
+  '.php',
+  '.svg',
+]);
+
+const accessRank: Record<AccessLevel, number> = {
+  none: 0,
+  view: 1,
+  edit: 2,
+  full: 3,
+};
+
+function assertAllowedFile(originalName: string, mimeType: string) {
+  const ext = path.extname(originalName).toLowerCase();
+  if (!ext || BLOCKED_EXTS.has(ext)) {
+    throw badRequest('File extension is not allowed.');
+  }
+  const match = ALLOWED_UPLOADS.find((a) => a.mime === mimeType && a.exts.includes(ext));
+  if (!match) {
+    throw badRequest('MIME type or extension is not allowed.');
+  }
+}
 
 async function ensureUploadDir(organizationId: string) {
   const dir = path.resolve(env.UPLOAD_DIR, organizationId);
   await mkdir(dir, { recursive: true });
   return dir;
+}
+
+function byteLimitTransform(maxBytes: number) {
+  let total = 0;
+  return new Transform({
+    transform(chunk, _enc, cb) {
+      total += chunk.length;
+      if (total > maxBytes) {
+        cb(badRequest('Upload exceeds declared size.'));
+        return;
+      }
+      cb(null, chunk);
+    },
+  });
 }
 
 export async function initiateUpload(
@@ -23,9 +83,10 @@ export async function initiateUpload(
   if (input.sizeBytes <= 0 || input.sizeBytes > 20 * 1024 * 1024) {
     throw badRequest('File size must be between 1 byte and 20MB.');
   }
+  assertAllowedFile(input.originalName, input.mimeType);
 
   const dir = await ensureUploadDir(organizationId);
-  const storageName = `${randomUUID()}${path.extname(input.originalName)}`;
+  const storageName = `${randomUUID()}${path.extname(input.originalName).toLowerCase()}`;
   const storagePath = path.join(dir, storageName);
 
   const file = await prisma.fileObject.create({
@@ -57,11 +118,26 @@ export async function finalizeUpload(
   if (!file) throw notFound('File not found.');
   if (file.finalizedAt) throw badRequest('File already finalized.');
 
-  await pipeline(stream, createWriteStream(file.storagePath));
+  try {
+    await pipeline(stream, byteLimitTransform(file.sizeBytes), createWriteStream(file.storagePath));
+  } catch (err) {
+    try {
+      await unlink(file.storagePath);
+    } catch {
+      // ignore
+    }
+    throw err;
+  }
+
+  const info = await stat(file.storagePath);
+  if (info.size > file.sizeBytes) {
+    await unlink(file.storagePath).catch(() => undefined);
+    throw badRequest('Upload exceeds declared size.');
+  }
 
   const updated = await prisma.fileObject.update({
     where: { id: fileId },
-    data: { finalizedAt: new Date() },
+    data: { finalizedAt: new Date(), sizeBytes: info.size },
   });
 
   return {
@@ -73,11 +149,27 @@ export async function finalizeUpload(
   };
 }
 
-export async function createDownloadToken(organizationId: string, userId: string, fileId: string) {
+export async function createDownloadToken(
+  organizationId: string,
+  userId: string,
+  fileId: string,
+  actor: {
+    role: MembershipRole;
+    assessmentAccess: AccessLevel;
+    quizAccess: AccessLevel;
+  },
+) {
   const file = await prisma.fileObject.findFirst({
     where: { organizationId, id: fileId, finalizedAt: { not: null } },
   });
   if (!file) throw notFound('File not found.');
+
+  const isUploader = file.uploadedById === userId;
+  const maxAccess = Math.max(accessRank[actor.assessmentAccess], accessRank[actor.quizAccess]);
+  const canEdit = actor.role === 'super_admin' || maxAccess >= accessRank.edit;
+  if (!isUploader && !canEdit) {
+    throw forbidden('Insufficient access to download this file.');
+  }
 
   const token = randomBytes(32).toString('base64url');
   const hash = createHash('sha256').update(token).digest('hex');
@@ -91,6 +183,7 @@ export async function createDownloadToken(organizationId: string, userId: string
   return {
     token,
     expiresIn: env.FILE_DOWNLOAD_TTL_SECONDS,
+    // Query token retained for SPA simplicity; residual Referer risk documented in THREAT_MODEL.
     downloadPath: `/api/files/download?token=${token}`,
   };
 }

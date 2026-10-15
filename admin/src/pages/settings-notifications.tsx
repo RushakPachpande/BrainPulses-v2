@@ -1,15 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { ApiError } from '@/lib/api-client';
 import { BellRingIcon, CheckCircle2Icon, MailIcon, SaveIcon, SmartphoneIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
-import { getNotifications } from '@/services';
+import { getNotifications, saveNotificationPreferences } from '@/services';
 
 export function NotificationSettingsPage() {
-  const [notifications, setNotifications] = useState(() =>
-    getNotifications().map(([title, hint, enabled]) => ({ title, hint, enabled })),
-  );
+  const [notifications, setNotifications] = useState<
+    { title: string; hint: string; enabled: boolean }[]
+  >([]);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void getNotifications()
+      .then((rows) =>
+        setNotifications(rows.map(([title, hint, enabled]) => ({ title, hint, enabled }))),
+      )
+      .catch(() => setNotifications([]));
+  }, []);
   function toggle(index: number) {
     setNotifications((current) =>
       current.map((item, i) => (i === index ? { ...item, enabled: !item.enabled } : item)),
@@ -87,7 +98,22 @@ export function NotificationSettingsPage() {
             </span>
           )}
         </div>
-        <Button type="button" onClick={() => setSaved(true)}>
+        <Button
+          type="button"
+          disabled={saving}
+          onClick={() => {
+            setSaving(true);
+            void saveNotificationPreferences(notifications)
+              .then(() => {
+                setSaved(true);
+                toast.success('Notification preferences saved.');
+              })
+              .catch((err) => {
+                toast.error(err instanceof ApiError ? err.message : 'Could not save preferences.');
+              })
+              .finally(() => setSaving(false));
+          }}
+        >
           <SaveIcon data-icon="inline-start" /> Save preferences
         </Button>
       </div>

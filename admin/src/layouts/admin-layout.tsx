@@ -1,16 +1,19 @@
 import { Fragment, useEffect, useState, type CSSProperties } from 'react';
-import { NavLink, Outlet, useLocation, useMatch } from 'react-router';
+import { NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-router';
 import {
   ChevronDownIcon,
   CircleHelpIcon,
   LayoutDashboardIcon,
   ListIcon,
+  LogOutIcon,
   SearchIcon,
   SlidersHorizontalIcon,
   UserCogIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { useAuth } from '@/contexts/auth-context';
+import { Button } from '@/components/ui/button';
 import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -222,9 +225,24 @@ function PageHeader({
 }
 
 export function AdminLayout() {
+  const auth = useAuth();
+  const navigate = useNavigate();
   const { pathname } = useLocation();
   const meta = pageMeta[pathname] ?? pageMeta['/dashboard'];
   const crumbs = meta.crumb.split(' / ');
+  const userName = auth.status === 'authenticated' ? auth.user.name : 'Admin';
+  const userRole =
+    auth.status === 'authenticated'
+      ? auth.membership.role === 'super_admin'
+        ? 'Super Admin'
+        : 'Admin'
+      : 'Administrator';
+  const userInitials = userName
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
 
   useEffect(() => {
     document.title = `${meta.title} · BrainPulses Admin`;
@@ -282,14 +300,26 @@ export function AdminLayout() {
         <SidebarFooter className="border-t border-sidebar-border group-data-[collapsible=icon]:items-center">
           <div className="flex w-full items-center gap-2 group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center">
             <Avatar>
-              <AvatarFallback>MJ</AvatarFallback>
+              <AvatarFallback>{userInitials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-              <div className="truncate text-sm font-medium text-foreground">Meera Joshi</div>
-              <div className="truncate text-xs text-muted-foreground">Super Admin</div>
+              <div className="truncate text-sm font-medium text-foreground">{userName}</div>
+              <div className="truncate text-xs text-muted-foreground">{userRole}</div>
             </div>
-            <div className="group-data-[collapsible=icon]:hidden">
+            <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
               <ThemeToggle />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => {
+                  void auth.signOut().then(() => navigate('/login', { replace: true }));
+                }}
+              >
+                <LogOutIcon />
+              </Button>
             </div>
           </div>
         </SidebarFooter>

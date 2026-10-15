@@ -106,7 +106,15 @@ export async function listActivities(
   return listEnvelope(items.map(mapActivity), page);
 }
 
-export async function getActivity(organizationId: string, id: string) {
+export async function getActivity(
+  organizationId: string,
+  id: string,
+  actor?: {
+    role: MembershipRole;
+    assessmentAccess: AccessLevel;
+    quizAccess: AccessLevel;
+  },
+) {
   const activity = await prisma.activity.findFirst({
     where: { organizationId, id },
     include: {
@@ -116,6 +124,15 @@ export async function getActivity(organizationId: string, id: string) {
     },
   });
   if (!activity) throw notFound('Activity not found.');
+  if (actor) {
+    assertActivityAccess(
+      actor.role,
+      actor.assessmentAccess,
+      actor.quizAccess,
+      activity.kind,
+      'view',
+    );
+  }
   return {
     ...mapActivity(activity),
     bankIds: activity.activityBanks.map((ab) => ab.bankId),

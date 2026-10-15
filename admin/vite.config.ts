@@ -20,6 +20,15 @@ function emptyDistKeepSingle(): Plugin {
   };
 }
 
+const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3002';
+
+const apiProxy = {
+  '/api': {
+    target: apiProxyTarget,
+    changeOrigin: true,
+  },
+} as const;
+
 export default defineConfig(({ command, mode }) => {
   const singleFile = command === 'build' && mode === 'singlefile';
 
@@ -39,6 +48,10 @@ export default defineConfig(({ command, mode }) => {
       strictPort: true,
       host: '0.0.0.0',
       open: false,
+      proxy: { ...apiProxy },
+    },
+    preview: {
+      proxy: { ...apiProxy },
     },
     build: {
       outDir: singleFile ? 'dist/single' : 'dist',

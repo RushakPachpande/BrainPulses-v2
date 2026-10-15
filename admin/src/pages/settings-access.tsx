@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { ApiError } from '@/lib/api-client';
 import { KeyRoundIcon, ShieldCheckIcon, UsersIcon } from 'lucide-react';
 import { StatusBadge } from '@/components/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,19 +14,46 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { getAccessUsers, getPermissions } from '@/services';
+import {
+  getAccessUsers,
+  getPermissions,
+  updateMembershipAccess,
+  type AccessUser,
+} from '@/services';
 
 export function AccessSettingsPage() {
-  const [people, setPeople] = useState(() => getAccessUsers());
-  const permissions = getPermissions();
+  const [people, setPeople] = useState<AccessUser[]>([]);
+  const [permissions, setPermissions] = useState<Awaited<ReturnType<typeof getPermissions>>>([]);
   const [changed, setChanged] = useState(false);
 
+  useEffect(() => {
+    void getAccessUsers()
+      .then(setPeople)
+      .catch(() => setPeople([]));
+    void getPermissions()
+      .then(setPermissions)
+      .catch(() => setPermissions([]));
+  }, []);
+
   function toggle(index: number, key: 'assessment' | 'quiz' | 'enabled') {
-    setPeople((current) =>
-      current.map((person, personIndex) =>
+    setPeople((current) => {
+      const next = current.map((person, personIndex) =>
         personIndex === index ? { ...person, [key]: !person[key] } : person,
-      ),
-    );
+      );
+      const person = next[index];
+      if (person?.membershipId) {
+        void updateMembershipAccess(person.membershipId, {
+          ...(key === 'assessment'
+            ? { assessmentAccess: person.assessment ? 'full' : 'none' }
+            : {}),
+          ...(key === 'quiz' ? { quizAccess: person.quiz ? 'full' : 'none' } : {}),
+          ...(key === 'enabled' ? { isActive: person.enabled } : {}),
+        }).catch((err) => {
+          toast.error(err instanceof ApiError ? err.message : 'Could not update access.');
+        });
+      }
+      return next;
+    });
     setChanged(true);
   }
 

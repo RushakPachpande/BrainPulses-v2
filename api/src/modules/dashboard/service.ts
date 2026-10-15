@@ -77,6 +77,7 @@ export async function getDashboardSummary(organizationId: string) {
       },
     ],
     activity: recentAudit.map((e) => ({
+      id: e.id,
       text: `${e.actorUser?.name ?? e.actorType} ${e.action}`,
       at: e.createdAt,
     })),

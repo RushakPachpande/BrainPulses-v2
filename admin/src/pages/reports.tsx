@@ -14,12 +14,16 @@ import {
   parseFixtureDate,
   type DateRangeValue,
 } from '@/lib/date-range';
+import { useAsyncService } from '@/hooks/use-async-service';
 import { getReportSummary, getResults, type ActivityKind } from '@/services';
 
 export function ReportsPage({ kind }: { kind: ActivityKind }) {
   const label = kind === 'quiz' ? 'Quiz' : 'Assessment';
   const current = kind === 'quiz' ? 'Weekly GK Quiz' : 'JEE Mock Series 2026';
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
+
+  const { data: allResults = [] } = useAsyncService(() => getResults(kind), [kind]);
+  const { data: summary = [] } = useAsyncService(() => getReportSummary(kind), [kind]);
 
   const columns = [
     'Student',
@@ -33,10 +37,8 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
   ];
 
   const results = useMemo(() => {
-    return getResults(kind).filter((row) =>
-      isDateInRange(parseFixtureDate(row.submitted), dateRange),
-    );
-  }, [kind, dateRange]);
+    return allResults.filter((row) => isDateInRange(parseFixtureDate(row.submitted), dateRange));
+  }, [allResults, dateRange]);
 
   const rows = results.map((row) => [
     <span key="student" className="font-medium">
@@ -72,7 +74,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
           </>
         }
       />
-      <KpiGrid items={getReportSummary()} />
+      <KpiGrid items={summary} />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,22rem)_1fr]">
         <BarChartCard
           title="Score distribution"

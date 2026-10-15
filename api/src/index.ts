@@ -2,10 +2,13 @@ import 'temporal-polyfill/full/global';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { disconnectPrisma } from './lib/prisma.js';
-import { closeRedis, initRedis } from './lib/redis.js';
+import { closeRedis, initRedis, isRedisReady } from './lib/redis.js';
 
 async function main() {
   await initRedis();
+  if (env.NODE_ENV === 'production' && !isRedisReady()) {
+    throw new Error('Redis must be ready before starting the API in production.');
+  }
   const app = createApp();
 
   const server = app.listen(env.PORT, env.HOST, () => {

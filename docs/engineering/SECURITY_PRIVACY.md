@@ -24,4 +24,6 @@ Define data categories/purpose, required fields, retention, deletion/export, bac
 Use structured logs and request IDs. Record actor/action/target/time/outcome as needed. Restrict audit access; never log tokens/passwords or unnecessary PII/answer payloads. Define log retention.
 
 ## Release gates
-Threat model, authorization/tenant tests, dependency and secret scans, upload/export tests, backup/restore plan, and critical/high findings resolved or formally accepted.
+Threat model ([THREAT_MODEL.md](./THREAT_MODEL.md)), authorization/tenant tests (`npm run test --prefix api`), dependency and secret scans (`npm audit` in `api/` and `admin/`), upload/export tests, backup/restore plan, and critical/high findings resolved or formally accepted.
+
+Run before release: `npm run check` from the repo root (API check+tests, admin check, admin Vitest). See also [THREAT_MODEL.md](./THREAT_MODEL.md) and [RESPONSIVE_CHECKLIST.md](./RESPONSIVE_CHECKLIST.md).

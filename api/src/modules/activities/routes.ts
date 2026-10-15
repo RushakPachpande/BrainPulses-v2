@@ -1,5 +1,10 @@
 import { Router } from 'express';
-import { requireAuth, requireUser, withTenantContext } from '../../middleware/auth.js';
+import {
+  requireAuth,
+  requireUser,
+  requireKindAccess,
+  withTenantContext,
+} from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
@@ -13,9 +18,19 @@ export const activitiesRouter = Router();
 
 activitiesRouter.use(requireAuth, requireUser, withTenantContext);
 
-activitiesRouter.get('/', validate({ query: activityListQuerySchema }), controller.list);
+activitiesRouter.get(
+  '/',
+  requireKindAccess('view', 'query'),
+  validate({ query: activityListQuerySchema }),
+  controller.list,
+);
 activitiesRouter.get('/:id', validate({ params: idParamSchema }), controller.get);
-activitiesRouter.post('/', validate({ body: createActivitySchema }), controller.create);
+activitiesRouter.post(
+  '/',
+  requireKindAccess('edit', 'body'),
+  validate({ body: createActivitySchema }),
+  controller.create,
+);
 activitiesRouter.patch(
   '/:id',
   validate({ params: idParamSchema, body: updateActivitySchema }),

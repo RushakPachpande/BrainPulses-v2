@@ -158,7 +158,8 @@ export async function selectOrganization(
 
 export async function refresh(reqCookies: Record<string, string | undefined>, res: Response) {
   const raw = reqCookies[REFRESH_COOKIE];
-  if (!raw) throw unauthorized('Refresh token missing.');
+  // No cookie = anonymous visitor (fresh load / after sign-out), not an auth failure.
+  if (!raw) return null;
 
   const rotated = await rotateRefreshToken(raw);
   if (!rotated) {

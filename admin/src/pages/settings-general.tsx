@@ -1,4 +1,13 @@
-import { useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import { toast } from 'sonner';
+import { ApiError } from '@/lib/api-client';
 import {
   Building2Icon,
   CheckCircle2Icon,
@@ -20,6 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getSettingsGroup, patchSettingsGroup } from '@/services';
 
 const initialSettings = {
   platformName: 'BrainPulses',
@@ -51,6 +61,24 @@ function SettingField({
 export function GeneralSettingsPage() {
   const [settings, setSettings] = useState(initialSettings);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void getSettingsGroup('general')
+      .then(({ values }) => {
+        setSettings((current) => ({
+          ...current,
+          platformName: String(values.orgDisplayName ?? current.platformName),
+          timezone: String(values.timezone ?? current.timezone),
+          language: String(values.locale ?? current.language).startsWith('en')
+            ? 'English'
+            : current.language,
+        }));
+      })
+      .catch(() => {
+        /* keep defaults */
+      });
+  }, []);
   const [logoName, setLogoName] = useState('brainpulses-logo.svg');
   const [faviconName, setFaviconName] = useState('favicon-32.png');
   const logoInput = useRef<HTMLInputElement>(null);
@@ -65,9 +93,22 @@ export function GeneralSettingsPage() {
     if (file) setName(file.name);
     setSaved(false);
   }
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaved(true);
+    setSaving(true);
+    try {
+      await patchSettingsGroup('general', {
+        orgDisplayName: settings.platformName,
+        timezone: settings.timezone,
+        locale: settings.language === 'English' ? 'en-IN' : settings.language,
+      });
+      setSaved(true);
+      toast.success('General settings saved.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not save settings.');
+    } finally {
+      setSaving(false);
+    }
   }
   function reset() {
     setSettings(initialSettings);
@@ -222,7 +263,7 @@ export function GeneralSettingsPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-5 px-5 py-5 sm:px-6">
               <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 p-4 sm:flex-row sm:items-center">
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-border bg-[#45058F] p-2">
+                <div className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-border bg-primary p-2">
                   <img
                     src="/brand.svg"
                     alt="BrainPulses logo preview"
@@ -313,7 +354,7 @@ export function GeneralSettingsPage() {
           <Button type="button" variant="outline" onClick={reset}>
             <XIcon data-icon="inline-start" /> Reset
           </Button>
-          <Button type="submit">
+          <Button type="submit" disabled={saving}>
             <SaveIcon data-icon="inline-start" /> Save changes
           </Button>
         </div>
