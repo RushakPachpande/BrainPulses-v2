@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useAsyncService } from '@/hooks/use-async-service';
 import {
   CheckCircle2Icon,
@@ -262,13 +263,15 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   return (
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
-        <Button type="button" variant="outline" className="w-full sm:w-auto">
+        <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
           <UploadIcon data-icon="inline-start" />
           Bulk Upload
         </Button>
-        <Button type="button" className="w-full sm:w-auto">
-          <PlusIcon data-icon="inline-start" />
-          Create Question Bank
+        <Button asChild className="w-full sm:w-auto">
+          <Link to={isQuiz ? '/quizzes/banks/new' : '/assessments/banks/new'}>
+            <PlusIcon data-icon="inline-start" />
+            Create Question Bank
+          </Link>
         </Button>
       </PageHeaderActions>
 

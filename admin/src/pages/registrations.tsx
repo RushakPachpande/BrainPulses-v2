@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useAsyncService } from '@/hooks/use-async-service';
 import {
   CheckCircle2Icon,
@@ -261,13 +262,15 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   return (
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
-        <Button type="button" variant="outline" className="w-full sm:w-auto">
+        <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
           <DownloadIcon data-icon="inline-start" />
           Download Filtered Data
         </Button>
-        <Button type="button" className="w-full sm:w-auto">
-          <PlusIcon data-icon="inline-start" />
-          Add Registration
+        <Button asChild className="w-full sm:w-auto">
+          <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
+            <PlusIcon data-icon="inline-start" />
+            Add Registration
+          </Link>
         </Button>
       </PageHeaderActions>
 

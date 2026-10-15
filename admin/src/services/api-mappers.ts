@@ -60,7 +60,8 @@ export function mapStudentFromApi(row: {
   lastLoginAt: string | Date | null;
 }): Student {
   return {
-    id: row.code,
+    id: row.id,
+    code: row.code,
     name: row.name,
     email: row.email,
     phone: row.phone ?? '—',
@@ -154,6 +155,8 @@ export function mapBankFromApi(row: {
 
 export function mapRegistrationFromApi(row: {
   id: string;
+  studentId: string;
+  activityId: string;
   code: string;
   name: string;
   email: string;
@@ -167,6 +170,9 @@ export function mapRegistrationFromApi(row: {
 }): RegistrationRow {
   return {
     id: row.code,
+    registrationId: row.id,
+    studentId: row.studentId,
+    activityId: row.activityId,
     name: row.name,
     email: row.email,
     phone: row.phone ?? '—',

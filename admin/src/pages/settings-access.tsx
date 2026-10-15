@@ -210,7 +210,7 @@ export function AccessSettingsPage() {
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {changed
-            ? 'Access changes are staged locally in this prototype.'
+            ? 'Access changes are saved to membership records.'
             : 'Review access changes before applying them.'}
         </p>
         <button

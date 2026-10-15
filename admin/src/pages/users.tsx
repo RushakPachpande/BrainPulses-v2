@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useAsyncService } from '@/hooks/use-async-service';
 import {
   ChevronLeftIcon,
@@ -60,13 +61,15 @@ function compareUsers(a: User, b: User, key: SortKey) {
 
 const usersHeaderActions = (
   <>
-    <Button type="button" variant="outline" className="w-full sm:w-auto">
+    <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
       <UploadIcon data-icon="inline-start" />
       Upload Users
     </Button>
-    <Button type="button" className="w-full sm:w-auto">
-      <PlusIcon data-icon="inline-start" />
-      Add User
+    <Button asChild className="w-full sm:w-auto">
+      <Link to="/users/new">
+        <PlusIcon data-icon="inline-start" />
+        Add User
+      </Link>
     </Button>
   </>
 );

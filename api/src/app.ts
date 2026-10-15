@@ -19,6 +19,7 @@ import { filesRouter } from './modules/files/routes.js';
 import { registrationsRouter } from './modules/registrations/routes.js';
 import { resultsRouter } from './modules/results/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
+import { studentPortalRouter } from './modules/student-portal/routes.js';
 import { studentsRouter } from './modules/students/routes.js';
 import { usersRouter } from './modules/users/routes.js';
 
@@ -137,6 +138,7 @@ export function createApp() {
 
   app.use('/api', apiLimiter);
   app.use('/api/auth', authLimiter, authRouter);
+  app.use('/api/student', studentPortalRouter);
   app.use('/api/students', studentsRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/activities', activitiesRouter);

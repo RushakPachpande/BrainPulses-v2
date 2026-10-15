@@ -94,7 +94,7 @@ export function NotificationSettingsPage() {
             </span>
           ) : (
             <span className="text-muted-foreground">
-              Notification preferences are local until connected to your notification service.
+              Notification preferences are stored in organization settings.
             </span>
           )}
         </div>

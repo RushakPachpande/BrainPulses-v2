@@ -1,0 +1,117 @@
+# Local production-like stack — BrainPulses v2.0
+
+Run Admin, Student Client, and API against Docker Postgres/Redis with seeded demo data. This is the supported way to test end-to-end as an end customer before cloud hosting.
+
+## Ports
+
+| Service | URL / host |
+|---|---|
+| Admin (Vite) | http://localhost:5173 |
+| Student client (Vite) | http://localhost:5174 |
+| API | http://127.0.0.1:3002 |
+| Postgres | 127.0.0.1:5434 |
+| Redis | 127.0.0.1:6381 |
+
+## One-time setup
+
+Requirements: Node.js **22+**, Docker Desktop, npm 10+.
+
+```powershell
+# From repo root
+Copy-Item api\.env.dev.example api\.env.dev   # if missing
+Copy-Item admin\.env.example admin\.env       # if missing
+Copy-Item client\.env.example client\.env     # optional for preview builds
+
+npm run db:up
+npm run db:migrate
+npm run db:seed
+
+cd admin; npm ci; cd ..
+cd client; npm ci; cd ..
+cd api; npm ci; cd ..
+```
+
+Confirm `admin/.env` has `VITE_USE_FIXTURES=false` and `api/.env.dev` includes both SPA origins:
+
+```text
+CORS_ORIGIN=http://localhost:5173,http://localhost:5174
+```
+
+## Start (three terminals)
+
+```powershell
+npm run dev:api
+npm run dev:admin
+npm run dev:client
+```
+
+Health checks:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:3002/health
+Invoke-RestMethod http://127.0.0.1:3002/health/ready
+```
+
+## Seed credentials
+
+| Role | Email | Password |
+|---|---|---|
+| Super admin | `admin@brainpulses.com` | `Password123!` |
+| View-only admin | `viewer@brainpulses.com` | `Password123!` |
+| Student | `student1@mail.com` | `Student123!` |
+| Student | `student2@mail.com` | `Student123!` |
+| Student | `student3@mail.com` | `Student123!` |
+
+Demo organization slug: `demo`.
+
+Seeded activities (assigned to demo students):
+
+- Assessment `ASM-26001` — JEE Mock Series 2026 (5 questions)
+- Quiz `QZ-26001` — Weekly General Knowledge (5 questions)
+- Quiz `QZ-26002` — Maths Sprint #12 (5 questions)
+
+## Production-like preview (built assets)
+
+```powershell
+npm run build:api
+npm run start:api
+
+npm run build:admin
+npm run start:admin
+
+npm run build:client
+npm run start:client
+```
+
+For SPA preview builds, set `VITE_API_URL=http://localhost:3002` in `admin/.env` and `client/.env` (dev mode uses the Vite proxy instead).
+
+## Reset data
+
+```powershell
+npm run db:down
+# optional: docker volume prune if you need a clean Postgres volume
+npm run db:up
+npm run db:migrate
+npm run db:seed
+```
+
+## Verify gates
+
+```powershell
+npm run check:api
+npm run check:admin
+npm run test:admin
+npm run typecheck:client
+npm run build:client
+```
+
+## Known limitations (not cloud production)
+
+See also the QA handoff `PRODUCTION_GATES.md` themes. Still open for a public launch:
+
+- No cloud IdP / MFA / password reset flows
+- Student JWT is access-token only (sessionStorage); no refresh-cookie rotation for students
+- File upload / CSV import UI is partially disabled (API supports bank import)
+- Hosting, CSP, monitoring, and backup drill are not configured here
+
+This stack is suitable for stakeholder UAT on a trusted machine with synthetic seed data.

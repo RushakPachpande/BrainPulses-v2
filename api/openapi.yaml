@@ -73,6 +73,44 @@ paths:
       responses:
         '200':
           description: Student access token
+  /api/student/me:
+    get:
+      summary: Current student profile
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Student profile
+    patch:
+      summary: Update student display name
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Updated profile
+  /api/student/activities:
+    get:
+      summary: List activities assigned to the signed-in student
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated assigned activities
+  /api/student/results:
+    get:
+      summary: List results for the signed-in student
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          description: Paginated own results
+  /api/student/results/{id}:
+    get:
+      summary: Own result detail with answer review
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Result detail
+        '404':
+          description: Not found
   /api/students:
     get:
       summary: List students

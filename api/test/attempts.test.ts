@@ -102,4 +102,80 @@ describe('attempts', () => {
     assert.equal(result1.id, result2.id);
     assert.equal(Number(result1.score), 1);
   });
+
+  it('resumes an in-progress attempt with saved answers and remaining deadline', async () => {
+    const app = await getTestApp();
+    const token = await studentToken();
+    const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
+    assert.ok(activity);
+    const student = await prisma.student.findFirst({
+      where: { email: 'student1@mail.com' },
+    });
+    assert.ok(student);
+    await prisma.attemptResponse.deleteMany({
+      where: { attempt: { studentId: student.id, activityId: activity.id } },
+    });
+    await prisma.result.deleteMany({
+      where: { studentId: student.id, activityId: activity.id },
+    });
+    await prisma.attempt.deleteMany({
+      where: { studentId: student.id, activityId: activity.id },
+    });
+
+    const start = await request(app, 'POST', '/api/attempts/start', {
+      headers: { authorization: `Bearer ${token}` },
+      body: { activityId: activity.id },
+    });
+    assert.equal(start.status, 201);
+    const started = (
+      start.body as {
+        data: {
+          attempt: { id: string; revision: number; deadlineAt: string };
+          questions: { questionVersionId: string }[];
+        };
+      }
+    ).data;
+
+    await request(app, 'POST', `/api/attempts/${started.attempt.id}/save`, {
+      headers: { authorization: `Bearer ${token}` },
+      body: {
+        revision: started.attempt.revision,
+        responses: [
+          {
+            questionVersionId: started.questions[0]!.questionVersionId,
+            answer: { label: 'A' },
+          },
+        ],
+      },
+    });
+
+    const resume = await request(app, 'GET', `/api/attempts/${started.attempt.id}/resume`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(resume.status, 200);
+    const resumed = (
+      resume.body as {
+        data: {
+          attempt: {
+            id: string;
+            status: string;
+            deadlineAt: string;
+            responses: { questionVersionId: string; answer: { label?: string } }[];
+          };
+          questions: unknown[];
+        };
+      }
+    ).data;
+    assert.equal(resumed.attempt.id, started.attempt.id);
+    assert.equal(resumed.attempt.status, 'in_progress');
+    assert.ok(resumed.questions.length >= 1);
+    assert.ok(
+      resumed.attempt.responses.some(
+        (r) =>
+          r.questionVersionId === started.questions[0]!.questionVersionId &&
+          r.answer?.label === 'A',
+      ),
+    );
+    assert.ok(new Date(resumed.attempt.deadlineAt).getTime() > Date.now());
+  });
 });

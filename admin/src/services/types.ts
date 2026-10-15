@@ -2,6 +2,7 @@ export type ActivityKind = 'assessment' | 'quiz';
 
 export type Student = {
   id: string;
+  code: string;
   name: string;
   email: string;
   phone: string;
@@ -54,6 +55,9 @@ export type QuestionBank = {
 
 export type RegistrationRow = {
   id: string;
+  registrationId: string;
+  studentId: string;
+  activityId: string;
   name: string;
   email: string;
   phone: string;

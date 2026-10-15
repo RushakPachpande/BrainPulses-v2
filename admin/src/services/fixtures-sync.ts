@@ -41,7 +41,8 @@ function range(n: number) {
 
 export function fixturesGetStudents() {
   return range(6).map((i) => ({
-    id: 'BP-' + (24101 + i),
+    id: `stu-fixture-${i}`,
+    code: 'BP-' + (24101 + i),
     name: personName(i),
     email: mail(i),
     phone: phone(i),
@@ -107,6 +108,9 @@ export function fixturesGetRegistrations(kind: ActivityKind) {
   const names = kind === 'quiz' ? quizNames : assessmentNames;
   return range(6).map((i) => ({
     id: 'BP-' + (24101 + i),
+    registrationId: `reg-${i}`,
+    studentId: `stu-${i}`,
+    activityId: `act-${i}`,
     name: personName(i),
     email: mail(i),
     phone: phone(i),

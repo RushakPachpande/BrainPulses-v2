@@ -17,9 +17,7 @@ export const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
  */
 export function resolveEnvPath(): string | undefined {
   const isProduction = process.env.NODE_ENV === 'production';
-  const candidates = isProduction
-    ? ['.env.prod', '.env']
-    : ['.env.dev', '.env'];
+  const candidates = isProduction ? ['.env.prod', '.env'] : ['.env.dev', '.env'];
 
   for (const name of candidates) {
     const fullPath = resolve(apiRoot, name);

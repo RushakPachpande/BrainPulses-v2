@@ -45,7 +45,7 @@ import {
 } from '@/components/ui/sidebar';
 import { PageHeaderProvider } from '@/contexts/page-header';
 import { usePageHeader } from '@/contexts/use-page-header';
-import { pageMeta } from '@/routes/meta';
+import { resolvePageMeta } from '@/routes/meta';
 
 type NavLinkItem = { to: string; label: string; icon: LucideIcon; end: boolean };
 type NavChildItem = { to: string; label: string; end: boolean };
@@ -228,7 +228,7 @@ export function AdminLayout() {
   const auth = useAuth();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const meta = pageMeta[pathname] ?? pageMeta['/dashboard'];
+  const meta = resolvePageMeta(pathname);
   const crumbs = meta.crumb.split(' / ');
   const userName = auth.status === 'authenticated' ? auth.user.name : 'Admin';
   const userRole =

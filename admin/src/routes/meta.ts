@@ -11,10 +11,18 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Students',
     description: 'Manage student accounts, view details, and track their learning progress.',
   },
+  '/students/new': {
+    crumb: 'BrainPulses / Students / Add Student',
+    title: 'Add Student',
+  },
   '/users': {
     crumb: 'BrainPulses / Users',
     title: 'User Management',
     description: 'Manage admin users, roles, and access to assessments and quizzes.',
+  },
+  '/users/new': {
+    crumb: 'BrainPulses / Users / Invite User',
+    title: 'Invite User',
   },
   '/assessments': {
     crumb: 'BrainPulses / Assessment',
@@ -27,6 +35,10 @@ export const pageMeta: Record<string, PageMeta> = {
     description:
       'Manage reusable question banks for assessments. A bank can be attached to multiple assessments.',
   },
+  '/assessments/banks/new': {
+    crumb: 'BrainPulses / Assessment / Question Banks / Create',
+    title: 'Create Question Bank',
+  },
   '/assessments/new': {
     crumb: 'BrainPulses / Assessment / Create Assessment',
     title: 'Create Assessment',
@@ -36,6 +48,10 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Registrations & Student Data',
     description:
       'View all student registrations, their assigned question banks, and assessment status.',
+  },
+  '/assessments/registrations/new': {
+    crumb: 'BrainPulses / Assessment / Registrations / Assign',
+    title: 'Assign Students',
   },
   '/assessments/reports': {
     crumb: 'BrainPulses / Assessment / Reports',
@@ -52,12 +68,20 @@ export const pageMeta: Record<string, PageMeta> = {
     description:
       'Manage reusable question banks for quizzes. Banks use MCQs with one correct answer.',
   },
+  '/quizzes/banks/new': {
+    crumb: 'BrainPulses / Quiz / Question Banks / Create',
+    title: 'Create Question Bank',
+  },
   '/quizzes/new': { crumb: 'BrainPulses / Quiz / Create Quiz', title: 'Create Quiz' },
   '/quizzes/registrations': {
     crumb: 'BrainPulses / Quiz / Registrations',
     title: 'Registrations & Student Data',
     description:
       'View all student registrations, their assigned question banks, and quiz attempt status.',
+  },
+  '/quizzes/registrations/new': {
+    crumb: 'BrainPulses / Quiz / Registrations / Assign',
+    title: 'Assign Students',
   },
   '/quizzes/reports': { crumb: 'BrainPulses / Quiz / Reports', title: 'Quiz Reports & Results' },
   '/settings': { crumb: 'BrainPulses / Settings / General Settings', title: 'General Settings' },
@@ -74,3 +98,11 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'System Settings',
   },
 };
+
+export function resolvePageMeta(pathname: string): PageMeta {
+  if (pageMeta[pathname]) return pageMeta[pathname]!;
+  if (/^\/students\/[^/]+\/edit$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Students / Edit Student', title: 'Edit Student' };
+  }
+  return pageMeta['/dashboard']!;
+}

@@ -10,7 +10,8 @@ vi.mock('@/services', async () => {
     ...actual,
     getStudents: vi.fn(async () => [
       {
-        id: 'STU-1',
+        id: 'uuid-stu-1',
+        code: 'STU-1',
         name: 'Ada Lovelace',
         email: 'ada@example.com',
         phone: '555-0100',

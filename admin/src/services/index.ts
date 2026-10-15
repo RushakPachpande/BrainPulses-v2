@@ -205,3 +205,123 @@ export async function publishActivity(activityId: string) {
   if (useFixtures) return { id: activityId };
   return apiPostData(`/api/activities/${activityId}/publish`);
 }
+
+export async function archiveActivity(activityId: string) {
+  if (useFixtures) return { id: activityId };
+  return apiPostData(`/api/activities/${activityId}/archive`);
+}
+
+export async function createStudent(payload: {
+  name: string;
+  email: string;
+  phone?: string;
+  course?: string;
+  city?: string;
+  password?: string;
+  code?: string;
+}) {
+  if (useFixtures) return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
+  return apiPostData<{ id: string; code: string }>('/api/students', payload);
+}
+
+export async function updateStudent(
+  id: string,
+  payload: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    course?: string;
+    city?: string;
+    password?: string;
+    isActive?: boolean;
+  },
+) {
+  if (useFixtures) return { id, ...payload };
+  return apiPatchData(`/api/students/${id}`, payload);
+}
+
+export async function deactivateStudent(id: string) {
+  if (useFixtures) return { id };
+  return apiPostData(`/api/students/${id}/deactivate`);
+}
+
+export async function getStudent(id: string) {
+  if (useFixtures) {
+    const rows = await getStudents();
+    const found = rows.find((s) => s.id === id);
+    if (!found) throw new Error('Student not found');
+    return found;
+  }
+  const row = await apiGetData<ApiStudentRow>(`/api/students/${id}`);
+  return mapStudentFromApi(row);
+}
+
+export async function inviteUser(payload: {
+  name: string;
+  email: string;
+  password: string;
+  role?: 'super_admin' | 'admin';
+  assessmentAccess?: 'full' | 'edit' | 'view' | 'none';
+  quizAccess?: 'full' | 'edit' | 'view' | 'none';
+}) {
+  if (useFixtures) return { id: crypto.randomUUID() };
+  return apiPostData('/api/users/invite', payload);
+}
+
+export async function deactivateMembership(membershipId: string) {
+  if (useFixtures) return { id: membershipId };
+  return apiPostData(`/api/users/${membershipId}/deactivate`);
+}
+
+export async function createQuestionBank(payload: {
+  kind: ActivityKind;
+  name: string;
+  description?: string;
+  presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+  code?: string;
+}) {
+  if (useFixtures) return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
+  return apiPostData<{ id: string; code: string }>('/api/banks', payload);
+}
+
+export async function updateQuestionBank(
+  id: string,
+  payload: {
+    name?: string;
+    description?: string;
+    presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+    status?: 'draft' | 'active' | 'completed' | 'archived';
+  },
+) {
+  if (useFixtures) return { id, ...payload };
+  return apiPatchData(`/api/banks/${id}`, payload);
+}
+
+export async function addBankQuestion(
+  bankId: string,
+  payload: {
+    type: string;
+    stem: string;
+    points?: number;
+    options?: { label: string; body: string; isCorrect: boolean }[];
+    answerKey?: Record<string, unknown>;
+  },
+) {
+  if (useFixtures) return { id: crypto.randomUUID() };
+  return apiPostData(`/api/banks/${bankId}/questions`, payload);
+}
+
+export async function assignRegistrations(activityId: string, studentIds: string[]) {
+  if (useFixtures) return [];
+  return apiPostData('/api/registrations/assign', { activityId, studentIds });
+}
+
+export async function unassignRegistrations(activityId: string, studentIds: string[]) {
+  if (useFixtures) return [];
+  return apiPostData('/api/registrations/unassign', { activityId, studentIds });
+}
+
+export async function publishResult(resultId: string) {
+  if (useFixtures) return { id: resultId };
+  return apiPostData(`/api/results/${resultId}/publish`);
+}

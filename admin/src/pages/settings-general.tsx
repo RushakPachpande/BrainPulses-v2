@@ -346,7 +346,7 @@ export function GeneralSettingsPage() {
             </span>
           ) : (
             <span className="text-muted-foreground">
-              Changes are local to this prototype until connected to a settings API.
+              Changes are saved to the organization settings API.
             </span>
           )}
         </div>

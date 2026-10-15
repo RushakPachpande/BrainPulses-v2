@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useAsyncService } from '@/hooks/use-async-service';
 import {
   ChevronLeftIcon,
@@ -42,10 +43,10 @@ import { getStudents, type Student } from '@/services';
 import { studentCities, studentCourses } from '@/services/fixtures';
 
 type SortKey =
-  'id' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
+  'code' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
 
 const sortColumns: { key: SortKey; label: string }[] = [
-  { key: 'id', label: 'Unique ID' },
+  { key: 'code', label: 'Unique ID' },
   { key: 'name', label: 'Student' },
   { key: 'email', label: 'Email' },
   { key: 'phone', label: 'Phone' },
@@ -64,13 +65,15 @@ function compareStudents(a: Student, b: Student, key: SortKey) {
 
 const studentsHeaderActions = (
   <>
-    <Button type="button" variant="outline" className="w-full sm:w-auto">
+    <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
       <UploadIcon data-icon="inline-start" />
       Upload Students
     </Button>
-    <Button type="button" className="w-full sm:w-auto">
-      <PlusIcon data-icon="inline-start" />
-      Add Student
+    <Button asChild className="w-full sm:w-auto">
+      <Link to="/students/new">
+        <PlusIcon data-icon="inline-start" />
+        Add Student
+      </Link>
     </Button>
   </>
 );
@@ -125,7 +128,7 @@ export function StudentsPage() {
       if (city !== 'All' && student.city !== city) return false;
       if (!query) return true;
       return (
-        student.id.toLowerCase().includes(query) ||
+        student.code.toLowerCase().includes(query) ||
         student.name.toLowerCase().includes(query) ||
         student.email.toLowerCase().includes(query)
       );
@@ -275,7 +278,7 @@ export function StudentsPage() {
                         aria-label={`Select ${student.name}`}
                       />
                     </TableCell>
-                    <TableCell className="tabular-nums">{student.id}</TableCell>
+                    <TableCell className="tabular-nums">{student.code}</TableCell>
                     <TableCell>
                       <span className="font-medium">{student.name}</span>
                     </TableCell>
@@ -300,8 +303,9 @@ export function StudentsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <Link to={`/students/${student.id}/edit`}>Edit</Link>
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
