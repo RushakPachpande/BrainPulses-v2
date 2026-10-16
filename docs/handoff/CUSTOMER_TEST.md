@@ -27,7 +27,7 @@ Prerequisites: follow [`LOCAL_PRODUCTION.md`](LOCAL_PRODUCTION.md) until all thr
 ## 3. Student journey (thin E2E)
 
 1. Open http://localhost:5174/login
-2. Sign in as `student1@mail.com` / `Student123!`
+2. Sign in with Unique ID `BP-24101` (Unique ID tab) — or use Phone tab with `+91` / `9876510000`, read the OTP from the API console (`[otp] …`), then verify
 3. Dashboard shows assigned quizzes/assessments
 4. Open **My quizzes** → start **Weekly General Knowledge** (or resume if open)
 5. Answer at least one question; wait briefly (autosave)
@@ -35,6 +35,8 @@ Prerequisites: follow [`LOCAL_PRODUCTION.md`](LOCAL_PRODUCTION.md) until all thr
 7. Submit the attempt
 8. Confirm score on **My results** and open result detail (answer review)
 9. In Admin → **Quizzes → Reports**, confirm the submitted result appears
+
+Optional: confirm Phone OTP fails with a wrong 6-digit code; Unique ID `BP-NOPE` shows an error.
 
 ## 4. Integrity checks
 

@@ -8,18 +8,46 @@ import {
   type ReactNode,
 } from 'react';
 import { ApiError, getAccessToken } from '../lib/api-client';
-import { getMe, studentSignIn, studentSignOut } from '../services/api';
+import {
+  getMe,
+  studentRequestOtp,
+  studentResendOtp,
+  studentSignInByCode,
+  studentSignOut,
+  studentVerifyOtp,
+} from '../services/api';
 import type { StudentProfile } from '../services/types';
+
+const DEFAULT_ORG_SLUG = 'demo';
 
 type AuthState = {
   ready: boolean;
   student: StudentProfile | null;
-  signIn: (email: string, password: string) => Promise<void>;
+  signInWithCode: (code: string) => Promise<void>;
+  requestPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
+  resendPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
+  verifyPhoneOtp: (countryCode: string, mobileNumber: string, otp: string) => Promise<void>;
   signOut: () => void;
   refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+
+async function profileFromAuth(data: {
+  student: { id: string; code: string; name: string; email: string };
+  organization: { id: string; name: string; slug: string };
+}): Promise<StudentProfile> {
+  return getMe().catch(() => ({
+    id: data.student.id,
+    code: data.student.code,
+    name: data.student.name,
+    email: data.student.email,
+    phone: null,
+    course: null,
+    city: null,
+    organization: data.organization,
+  }));
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -56,20 +84,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const data = await studentSignIn(email, password, 'demo');
-    const me = await getMe().catch(() => ({
-      id: data.student.id,
-      code: data.student.code,
-      name: data.student.name,
-      email: data.student.email,
-      phone: null,
-      course: null,
-      city: null,
-      organization: data.organization,
-    }));
-    setStudent(me);
+  const signInWithCode = useCallback(async (code: string) => {
+    const data = await studentSignInByCode(code.trim(), DEFAULT_ORG_SLUG);
+    setStudent(await profileFromAuth(data));
   }, []);
+
+  const requestPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
+    await studentRequestOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
+  }, []);
+
+  const resendPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
+    await studentResendOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
+  }, []);
+
+  const verifyPhoneOtp = useCallback(
+    async (countryCode: string, mobileNumber: string, otp: string) => {
+      const data = await studentVerifyOtp(countryCode, mobileNumber, otp, DEFAULT_ORG_SLUG);
+      setStudent(await profileFromAuth(data));
+    },
+    [],
+  );
 
   const signOut = useCallback(() => {
     studentSignOut();
@@ -77,8 +111,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, student, signIn, signOut, refreshProfile }),
-    [ready, student, signIn, signOut, refreshProfile],
+    () => ({
+      ready,
+      student,
+      signInWithCode,
+      requestPhoneOtp,
+      resendPhoneOtp,
+      verifyPhoneOtp,
+      signOut,
+      refreshProfile,
+    }),
+    [
+      ready,
+      student,
+      signInWithCode,
+      requestPhoneOtp,
+      resendPhoneOtp,
+      verifyPhoneOtp,
+      signOut,
+      refreshProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 export type ToolbarFilter = {
   name: string;
@@ -39,6 +40,7 @@ export function Toolbar({
 }) {
   const structured = isFilterDefs(filters);
   const [inputValue, setInputValue] = useState(searchValue ?? '');
+  const debouncedInput = useDebouncedValue(inputValue, 300);
 
   // Keep typing immediate in the input while delaying expensive filtering/API work.
   useEffect(() => {
@@ -46,12 +48,11 @@ export function Toolbar({
   }, [searchValue]);
 
   useEffect(() => {
+    if (!onSearchChange) return;
     const committedValue = searchValue ?? '';
-    if (!onSearchChange || inputValue === committedValue) return;
-
-    const timeoutId = window.setTimeout(() => onSearchChange(inputValue), 300);
-    return () => window.clearTimeout(timeoutId);
-  }, [inputValue, onSearchChange, searchValue]);
+    if (debouncedInput === committedValue) return;
+    onSearchChange(debouncedInput);
+  }, [debouncedInput, onSearchChange, searchValue]);
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">

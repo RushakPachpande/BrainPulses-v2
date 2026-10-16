@@ -9,12 +9,24 @@ import {
   verifyToken,
 } from '../../lib/jwt.js';
 import { verifyPassword } from '../../lib/password.js';
+import { normalizePhone, toE164 } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import {
   issueRefreshToken,
   revokeRefreshToken,
   rotateRefreshToken,
 } from '../../lib/refresh-tokens.js';
+import {
+  generateOtpDigits,
+  storeStudentOtp,
+  verifyStudentOtp,
+} from '../../lib/student-otp.js';
+import {
+  DEV_FIXED_OTP,
+  DEV_FIXED_OTP_PHONE,
+  sendSmsOtp,
+} from '../../lib/twilio.js';
+import type { Student } from '#prisma';
 
 const REFRESH_COOKIE = 'bp_refresh';
 
@@ -252,32 +264,11 @@ export async function getSession(actor: {
   };
 }
 
-export async function studentSignIn(input: {
-  email: string;
-  password: string;
-  organizationSlug?: string;
-}) {
-  const students = await prisma.student.findMany({
-    where: {
-      email: input.email.toLowerCase(),
-      isActive: true,
-      ...(input.organizationSlug
-        ? { organization: { slug: input.organizationSlug, isActive: true } }
-        : { organization: { isActive: true } }),
-    },
-    include: { organization: true },
-  });
+type StudentWithOrg = Student & {
+  organization: { id: string; name: string; slug: string };
+};
 
-  if (students.length === 0) throw unauthorized('Invalid email or password.');
-  if (students.length > 1 && !input.organizationSlug) {
-    throw badRequest('Multiple organizations match; provide organizationSlug.');
-  }
-
-  const student = students[0]!;
-  if (!student.passwordHash) throw unauthorized('Student login is not enabled.');
-  const ok = await verifyPassword(input.password, student.passwordHash);
-  if (!ok) throw unauthorized('Invalid email or password.');
-
+async function issueStudentSession(student: StudentWithOrg) {
   await prisma.student.update({
     where: { id: student.id },
     data: { lastLoginAt: new Date() },
@@ -302,4 +293,181 @@ export async function studentSignIn(input: {
       slug: student.organization.slug,
     },
   };
+}
+
+function orgFilter(organizationSlug?: string) {
+  return organizationSlug
+    ? { organization: { slug: organizationSlug, isActive: true } }
+    : { organization: { isActive: true } };
+}
+
+async function findActiveStudents(
+  where: Record<string, unknown>,
+  organizationSlug?: string,
+): Promise<StudentWithOrg[]> {
+  return prisma.student.findMany({
+    where: {
+      ...where,
+      isActive: true,
+      ...orgFilter(organizationSlug),
+    },
+    include: { organization: true },
+  });
+}
+
+function requireSingleStudent(
+  students: StudentWithOrg[],
+  organizationSlug: string | undefined,
+  notFoundMessage: string,
+): StudentWithOrg {
+  if (students.length === 0) throw unauthorized(notFoundMessage);
+  if (students.length > 1 && !organizationSlug) {
+    throw badRequest('Multiple organizations match; provide organizationSlug.');
+  }
+  return students[0]!;
+}
+
+export async function studentSignIn(input: {
+  email: string;
+  password: string;
+  organizationSlug?: string;
+}) {
+  const students = await findActiveStudents(
+    { email: input.email.toLowerCase() },
+    input.organizationSlug,
+  );
+
+  const student = requireSingleStudent(
+    students,
+    input.organizationSlug,
+    'Invalid email or password.',
+  );
+  if (!student.passwordHash) throw unauthorized('Student login is not enabled.');
+  const ok = await verifyPassword(input.password, student.passwordHash);
+  if (!ok) throw unauthorized('Invalid email or password.');
+
+  return issueStudentSession(student);
+}
+
+export async function studentSignInByCode(input: {
+  code: string;
+  organizationSlug?: string;
+}) {
+  const code = input.code.trim();
+  const students = await findActiveStudents({ code }, input.organizationSlug);
+  const student = requireSingleStudent(students, input.organizationSlug, 'Invalid Unique ID.');
+  return issueStudentSession(student);
+}
+
+async function resolveStudentForPhone(input: {
+  countryCode: string;
+  mobileNumber: string;
+  organizationSlug?: string;
+}): Promise<StudentWithOrg | null> {
+  const phone = toE164(input.countryCode, input.mobileNumber);
+  if (!phone) return null;
+
+  const students = await findActiveStudents({ phone }, input.organizationSlug);
+  if (students.length === 0) {
+    // Fallback: match common spaced format still present in older rows
+    const spaced = normalizePhone(`${input.countryCode} ${input.mobileNumber}`);
+    if (spaced && spaced !== phone) {
+      const alt = await findActiveStudents({ phone: spaced }, input.organizationSlug);
+      if (alt.length === 1) return alt[0]!;
+      if (alt.length > 1 && !input.organizationSlug) {
+        throw badRequest('Multiple organizations match; provide organizationSlug.');
+      }
+    }
+    return null;
+  }
+  if (students.length > 1 && !input.organizationSlug) {
+    throw badRequest('Multiple organizations match; provide organizationSlug.');
+  }
+  return students[0]!;
+}
+
+async function issueAndSendOtp(student: StudentWithOrg, phone: string): Promise<string> {
+  const otp =
+    !env.TWILIO_ENABLED && phone === DEV_FIXED_OTP_PHONE
+      ? DEV_FIXED_OTP
+      : generateOtpDigits();
+
+  await storeStudentOtp({
+    organizationId: student.organizationId,
+    phone,
+    studentId: student.id,
+    otp,
+  });
+  await sendSmsOtp(phone, otp);
+  return otp;
+}
+
+/** Always returns a generic success payload (no user enumeration). */
+export async function studentRequestOtp(input: {
+  countryCode: string;
+  mobileNumber: string;
+  organizationSlug?: string;
+}) {
+  const phone = toE164(input.countryCode, input.mobileNumber);
+  if (!phone) throw badRequest('Invalid phone number.');
+
+  let debugOtp: string | undefined;
+  const student = await resolveStudentForPhone(input);
+  if (student) {
+    const storedPhone = student.phone ? normalizePhone(student.phone) ?? phone : phone;
+    const otp = await issueAndSendOtp(student, storedPhone);
+    if (env.NODE_ENV === 'test') debugOtp = otp;
+  } else if (!env.TWILIO_ENABLED) {
+    // Dev/local: still print an OTP for whatever number was typed so the console
+    // always shows a code (verify still requires a registered student).
+    const otp = generateOtpDigits();
+    console.info(
+      `[otp] TWILIO_ENABLED=false — OTP for ${phone}: ${otp} (no matching student; verify will fail)`,
+    );
+  }
+
+  return {
+    ok: true,
+    message: 'If that number is registered, an OTP has been sent.',
+    ...(debugOtp ? { debugOtp } : {}),
+  };
+}
+
+export async function studentResendOtp(input: {
+  countryCode: string;
+  mobileNumber: string;
+  organizationSlug?: string;
+}) {
+  return studentRequestOtp(input);
+}
+
+export async function studentVerifyOtp(input: {
+  countryCode: string;
+  mobileNumber: string;
+  otp: string;
+  organizationSlug?: string;
+}) {
+  const phone = toE164(input.countryCode, input.mobileNumber);
+  if (!phone) throw badRequest('Invalid phone number.');
+
+  const student = await resolveStudentForPhone(input);
+  if (!student) throw unauthorized('Invalid or expired OTP.');
+
+  const storedPhone = student.phone ? normalizePhone(student.phone) ?? phone : phone;
+  const result = await verifyStudentOtp({
+    organizationId: student.organizationId,
+    phone: storedPhone,
+    otp: input.otp,
+  });
+
+  if (!result.ok) {
+    if (result.reason === 'exhausted') {
+      throw unauthorized('Too many invalid attempts. Request a new OTP.');
+    }
+    throw unauthorized('Invalid or expired OTP.');
+  }
+
+  if (result.studentId !== student.id) throw unauthorized('Invalid or expired OTP.');
+
+  return issueStudentSession(student);
 }

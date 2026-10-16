@@ -5,6 +5,7 @@ import { nextHumanCode } from '../../lib/codes.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope } from '../../lib/pagination.js';
 import { hashPassword } from '../../lib/password.js';
+import { normalizePhone } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
 import type { createStudentSchema, studentListQuerySchema, updateStudentSchema } from './schema.js';
@@ -95,7 +96,7 @@ export async function createStudent(
         code,
         name: input.name,
         email: input.email.toLowerCase(),
-        phone: input.phone,
+        phone: input.phone ? normalizePhone(input.phone) : input.phone,
         course: input.course,
         city: input.city,
         passwordHash: input.password ? await hashPassword(input.password) : null,
@@ -114,7 +115,7 @@ export async function createStudent(
     return mapStudent(student);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw conflict('A student with that email or code already exists.');
+      throw conflict('A student with that email, code, or phone already exists.');
     }
     throw err;
   }
@@ -134,7 +135,9 @@ export async function updateStudent(
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.email !== undefined ? { email: input.email.toLowerCase() } : {}),
-      ...(input.phone !== undefined ? { phone: input.phone } : {}),
+      ...(input.phone !== undefined
+        ? { phone: input.phone ? normalizePhone(input.phone) : input.phone }
+        : {}),
       ...(input.course !== undefined ? { course: input.course } : {}),
       ...(input.city !== undefined ? { city: input.city } : {}),
       ...(input.code !== undefined ? { code: input.code } : {}),

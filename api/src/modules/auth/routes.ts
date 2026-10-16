@@ -2,7 +2,15 @@ import { Router } from 'express';
 import { requireAuth, requireUser } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
-import { selectOrganizationSchema, signInSchema, studentSignInSchema } from './schema.js';
+import {
+  selectOrganizationSchema,
+  signInSchema,
+  studentRequestOtpSchema,
+  studentResendOtpSchema,
+  studentSignInByCodeSchema,
+  studentSignInSchema,
+  studentVerifyOtpSchema,
+} from './schema.js';
 
 export const authRouter = Router();
 
@@ -16,6 +24,26 @@ authRouter.post(
   '/student/sign-in',
   validate({ body: studentSignInSchema }),
   controller.studentSignIn,
+);
+authRouter.post(
+  '/student/sign-in-by-code',
+  validate({ body: studentSignInByCodeSchema }),
+  controller.studentSignInByCode,
+);
+authRouter.post(
+  '/student/request-otp',
+  validate({ body: studentRequestOtpSchema }),
+  controller.studentRequestOtp,
+);
+authRouter.post(
+  '/student/resend-otp',
+  validate({ body: studentResendOtpSchema }),
+  controller.studentResendOtp,
+);
+authRouter.post(
+  '/student/verify-otp',
+  validate({ body: studentVerifyOtpSchema }),
+  controller.studentVerifyOtp,
 );
 authRouter.post('/refresh', controller.refresh);
 authRouter.post('/sign-out', controller.signOut);

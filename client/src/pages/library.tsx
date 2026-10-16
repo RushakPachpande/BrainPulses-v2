@@ -20,13 +20,17 @@ import {
   KindIcon,
   Status,
 } from '../components/ui-bits';
+import { useDebouncedValue } from '../hooks/use-debounced-value';
 import { listActivities } from '../services/api';
 import type { ActivityKind, StudentActivity } from '../services/types';
 
 export function LibraryPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<StudentActivity[]>([]);
-  const [search, setSearch] = useState('');
+  const [searchInput, setSearchInput] = useState('');
+  const debouncedSearch = useDebouncedValue(searchInput, 300);
+  // Clear empties the filter immediately; typing still waits 300ms.
+  const search = searchInput === '' ? '' : debouncedSearch;
   const [view, setView] = useState('All');
   const [error, setError] = useState('');
   const isQuiz = kind === 'quiz';
@@ -124,11 +128,11 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
             <input
               aria-label="Search activities"
               placeholder="Search activities"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
             />
-            {search && (
-              <button aria-label="Clear search" type="button" onClick={() => setSearch('')}>
+            {searchInput && (
+              <button aria-label="Clear search" type="button" onClick={() => setSearchInput('')}>
                 <X size={14} />
               </button>
             )}
@@ -195,7 +199,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
               className="btn outline"
               type="button"
               onClick={() => {
-                setSearch('');
+                setSearchInput('');
                 setView('All');
               }}
             >

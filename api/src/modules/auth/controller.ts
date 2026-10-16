@@ -66,3 +66,39 @@ export async function studentSignIn(req: Request, res: Response, next: NextFunct
     next(err);
   }
 }
+
+export async function studentSignInByCode(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await authService.studentSignInByCode(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function studentRequestOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await authService.studentRequestOtp(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function studentResendOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await authService.studentResendOtp(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function studentVerifyOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await authService.studentVerifyOtp(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}

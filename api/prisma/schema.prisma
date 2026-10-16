@@ -164,6 +164,7 @@ model Student {
 
   @@unique([organizationId, code])
   @@unique([organizationId, email])
+  @@unique([organizationId, phone])
   @@index([organizationId, isActive])
   @@index([organizationId, name])
   @@map("students")

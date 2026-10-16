@@ -314,13 +314,17 @@ async function main() {
       where: {
         organizationId_code: { organizationId: org.id, code: `BP-${24101 + i}` },
       },
-      update: { passwordHash: studentPw, isActive: true },
+      update: {
+        passwordHash: studentPw,
+        isActive: true,
+        phone: `+9198765${10000 + i}`,
+      },
       create: {
         organizationId: org.id,
         code: `BP-${24101 + i}`,
         name: ['Priya Patel', 'Rohan Mehta', 'Sana Khan'][i]!,
         email: `student${i + 1}@mail.com`,
-        phone: `+91 98765${10000 + i}`,
+        phone: `+9198765${10000 + i}`,
         course: ['JEE', 'Aptitude', 'Scholarship'][i],
         city: ['Pune', 'Mumbai', 'Delhi'][i],
         passwordHash: studentPw,

@@ -5,8 +5,6 @@ import {
   CircleHelp,
   Home,
   Menu,
-  Moon,
-  Sun,
   Target,
   Trophy,
   UserRound,
@@ -14,8 +12,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { ThemeToggle } from '../components/theme-toggle';
 import { useAuth } from '../contexts/auth';
-import { readStorage, writeStorage } from '../storage';
 import { formatDateLabel } from '../components/ui-bits';
 
 const nav = [
@@ -29,7 +27,6 @@ export function StudentShell({ title, children }: { title: string; children?: Re
   const { student, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
-  const [dark, setDark] = useState(() => readStorage('brainpulses-client-theme') !== 'light');
   const [mobile, setMobile] = useState(false);
   const [toast, setToast] = useState('');
   const name = student?.name ?? 'Student';
@@ -38,11 +35,6 @@ export function StudentShell({ title, children }: { title: string; children?: Re
     .map((x) => x[0])
     .slice(0, 2)
     .join('');
-
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', dark);
-    writeStorage('brainpulses-client-theme', dark ? 'dark' : 'light');
-  }, [dark]);
 
   useEffect(() => {
     if (!toast) return;
@@ -127,14 +119,7 @@ export function StudentShell({ title, children }: { title: string; children?: Re
             <CalendarDays size={15} />
             {formatDateLabel(new Date().toISOString())}
           </div>
-          <button
-            className="icon-btn"
-            aria-label="Toggle theme"
-            onClick={() => setDark((x) => !x)}
-            type="button"
-          >
-            {dark ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          <ThemeToggle />
           <button
             className="icon-btn"
             aria-label="Notifications"
@@ -154,7 +139,9 @@ export function StudentShell({ title, children }: { title: string; children?: Re
         </div>
       </header>
       <main className="main-content">
-        {children ?? <Outlet />}
+        <div className="page-enter" key={location.pathname}>
+          {children ?? <Outlet />}
+        </div>
         {toast && (
           <div className="toast">
             {toast}

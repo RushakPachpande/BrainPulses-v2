@@ -40,9 +40,11 @@
     "helmet": "^8.1.0",
     "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
+    "libphonenumber-js": "^1.13.15",
     "pg": "^8.23.1",
     "rate-limit-redis": "^4.2.2",
     "temporal-polyfill": "^1.0.6",
+    "twilio": "^6.2.0",
     "uuid": "^11.1.0",
     "zod": "^3.25.76"
   },

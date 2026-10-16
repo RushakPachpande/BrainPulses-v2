@@ -14,14 +14,66 @@ import type {
   StudentResultSummary,
 } from './types';
 
+type StudentAuthPayload = {
+  accessToken: string;
+  student: { id: string; code: string; name: string; email: string };
+  organization: { id: string; name: string; slug: string };
+};
+
+/** Archived email/password login — kept for restore; not used by live UI. */
 export async function studentSignIn(email: string, password: string, organizationSlug?: string) {
-  const data = await apiPostData<{
-    accessToken: string;
-    student: { id: string; code: string; name: string; email: string };
-    organization: { id: string; name: string; slug: string };
-  }>('/api/auth/student/sign-in', {
+  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/sign-in', {
     email,
     password,
+    ...(organizationSlug ? { organizationSlug } : {}),
+  });
+  setAccessToken(data.accessToken);
+  return data;
+}
+
+export async function studentSignInByCode(code: string, organizationSlug?: string) {
+  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/sign-in-by-code', {
+    code,
+    ...(organizationSlug ? { organizationSlug } : {}),
+  });
+  setAccessToken(data.accessToken);
+  return data;
+}
+
+export async function studentRequestOtp(
+  countryCode: string,
+  mobileNumber: string,
+  organizationSlug?: string,
+) {
+  return apiPostData<{ ok: boolean; message: string }>('/api/auth/student/request-otp', {
+    countryCode,
+    mobileNumber,
+    ...(organizationSlug ? { organizationSlug } : {}),
+  });
+}
+
+export async function studentResendOtp(
+  countryCode: string,
+  mobileNumber: string,
+  organizationSlug?: string,
+) {
+  return apiPostData<{ ok: boolean; message: string }>('/api/auth/student/resend-otp', {
+    countryCode,
+    mobileNumber,
+    ...(organizationSlug ? { organizationSlug } : {}),
+  });
+}
+
+export async function studentVerifyOtp(
+  countryCode: string,
+  mobileNumber: string,
+  otp: string,
+  organizationSlug?: string,
+) {
+  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/verify-otp', {
+    countryCode,
+    mobileNumber,
+    otp,
     ...(organizationSlug ? { organizationSlug } : {}),
   });
   setAccessToken(data.accessToken);
