@@ -45,9 +45,9 @@ export function SystemSettingsPage() {
       .catch(() => setLogs([]));
     void getSettingsGroup('system')
       .then(({ values }) => {
-        const maintenance = Boolean(values.maintenanceMode);
+        const requireTwoFactor = Boolean(values.requireTwoFactor);
         setSecurity((current) =>
-          current.map((value, index) => (index === 0 ? maintenance : value)),
+          current.map((value, index) => (index === 0 ? requireTwoFactor : value)),
         );
       })
       .catch(() => {
@@ -251,7 +251,7 @@ export function SystemSettingsPage() {
           disabled={saving}
           onClick={() => {
             setSaving(true);
-            void patchSettingsGroup('system', { maintenanceMode: security[0] })
+            void patchSettingsGroup('system', { requireTwoFactor: security[0] })
               .then(() => {
                 setSaved(true);
                 toast.success('System settings saved.');

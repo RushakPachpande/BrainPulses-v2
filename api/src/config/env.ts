@@ -28,6 +28,8 @@ const envSchema = z
     RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().default(120),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
+    /** Trusted proxy hop count. 0 = direct connections (default). */
+    TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().default(60),
     TWILIO_ENABLED: z
       .string()
@@ -53,15 +55,20 @@ const envSchema = z
         message: 'COOKIE_SECURE must be true in production.',
       });
     }
-    if (data.TWILIO_ENABLED) {
-      for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
-        if (!data[key]) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} is required when TWILIO_ENABLED=true.`,
-          });
-        }
+    if (!data.TWILIO_ENABLED) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['TWILIO_ENABLED'],
+        message: 'TWILIO_ENABLED must be true in production.',
+      });
+    }
+    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
+      if (!data[key]) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [key],
+          message: `${key} is required in production.`,
+        });
       }
     }
   });

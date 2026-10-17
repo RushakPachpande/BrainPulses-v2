@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { userActor } from '../../middleware/auth.js';
+import { studentActor, userActor } from '../../middleware/auth.js';
 import * as authService from './service.js';
 
 export async function signIn(req: Request, res: Response, next: NextFunction) {
@@ -97,6 +97,16 @@ export async function studentResendOtp(req: Request, res: Response, next: NextFu
 export async function studentVerifyOtp(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await authService.studentVerifyOtp(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function studentSignOut(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = studentActor(req);
+    const result = await authService.studentSignOutSession(actor);
     res.json({ data: result });
   } catch (err) {
     next(err);

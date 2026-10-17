@@ -150,15 +150,14 @@ export async function listMyResults(
   studentId: string,
   query: z.infer<typeof studentResultsQuerySchema>,
 ) {
+  const activityFilter: Prisma.ActivityWhereInput = {
+    ...(query.kind !== 'all' ? { kind: query.kind } : {}),
+    ...(query.q ? { name: { contains: query.q, mode: 'insensitive' } } : {}),
+  };
   const where: Prisma.ResultWhereInput = {
     organizationId,
     studentId,
-    ...(query.kind !== 'all' ? { activity: { kind: query.kind } } : {}),
-    ...(query.q
-      ? {
-          activity: { name: { contains: query.q, mode: 'insensitive' } },
-        }
-      : {}),
+    ...(Object.keys(activityFilter).length > 0 ? { activity: activityFilter } : {}),
     ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
@@ -230,10 +229,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
   });
   const byId = new Map(versions.map((v) => [v.id, v]));
 
-  const includeKeys =
-    result.releaseStatus === 'published' ||
-    result.attempt.status === 'submitted' ||
-    result.attempt.status === 'auto_submitted';
+  const includeKeys = result.releaseStatus === 'published';
 
   const review = result.attempt.responses.map((response) => {
     const version = byId.get(response.questionVersionId);
@@ -249,7 +245,9 @@ export async function getMyResult(organizationId: string, studentId: string, res
       };
     }
     const pts = toNumber(version.points);
-    const earned = scoreObjective(version.type, version.answerKey, response.answer, pts);
+    const earned = includeKeys
+      ? scoreObjective(version.type, version.answerKey, response.answer, pts)
+      : null;
     const correctLabels = includeKeys
       ? version.options.filter((o) => o.isCorrect).map((o) => o.label)
       : [];
@@ -262,7 +260,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
         ...(includeKeys ? { isCorrect: o.isCorrect } : {}),
       })),
       yourAnswer: response.answer,
-      correct: earned === null ? null : earned > 0,
+      correct: includeKeys ? (earned === null ? null : earned > 0) : null,
       correctLabels,
       explanation: null,
     };

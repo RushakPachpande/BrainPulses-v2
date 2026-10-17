@@ -22,6 +22,7 @@ const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
   },
   system: {
     maintenanceMode: false,
+    requireTwoFactor: false,
     supportEmail: 'support@brainpulses.example',
   },
 };

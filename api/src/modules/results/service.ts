@@ -1,10 +1,26 @@
-import { Prisma } from '#prisma';
+import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
-import { notFound } from '../../lib/errors.js';
+import { badRequest, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { assertActivityAccess } from '../activities/service.js';
 import type { z } from 'zod';
 import type { resultListQuerySchema } from './schema.js';
+
+export type ResultsActor = {
+  userId: string;
+  role: MembershipRole;
+  assessmentAccess: AccessLevel;
+  quizAccess: AccessLevel;
+};
+
+function viewableKinds(actor: ResultsActor): ActivityKind[] {
+  if (actor.role === 'super_admin') return ['assessment', 'quiz'];
+  const kinds: ActivityKind[] = [];
+  if (actor.assessmentAccess !== 'none') kinds.push('assessment');
+  if (actor.quizAccess !== 'none') kinds.push('quiz');
+  return kinds;
+}
 
 function mapResult(r: {
   id: string;
@@ -39,12 +55,24 @@ function mapResult(r: {
 
 export async function listResults(
   organizationId: string,
+  actor: ResultsActor,
   query: z.infer<typeof resultListQuerySchema>,
 ) {
+  const kinds = viewableKinds(actor);
+  const allowedKinds =
+    query.kind && kinds.includes(query.kind)
+      ? [query.kind]
+      : query.kind
+        ? []
+        : kinds;
+
   const where: Prisma.ResultWhereInput = {
     organizationId,
     ...(query.activityId ? { activityId: query.activityId } : {}),
-    ...(query.kind ? { activity: { kind: query.kind } } : {}),
+    activity:
+      allowedKinds.length > 0
+        ? { kind: { in: allowedKinds } }
+        : { id: '00000000-0000-0000-0000-000000000000' },
     ...(query.releaseStatus !== 'all' ? { releaseStatus: query.releaseStatus } : {}),
     ...(query.q
       ? {
@@ -97,7 +125,7 @@ export async function getResult(organizationId: string, id: string) {
 
 export async function publishResult(
   organizationId: string,
-  actorUserId: string,
+  actor: ResultsActor,
   id: string,
   idempotencyKey?: string,
 ) {
@@ -115,8 +143,18 @@ export async function publishResult(
     }
   }
 
-  const existing = await prisma.result.findFirst({ where: { organizationId, id } });
+  const existing = await prisma.result.findFirst({
+    where: { organizationId, id },
+    include: { activity: true },
+  });
   if (!existing) throw notFound('Result not found.');
+  assertActivityAccess(
+    actor.role,
+    actor.assessmentAccess,
+    actor.quizAccess,
+    existing.activity.kind,
+    'full',
+  );
 
   await prisma.result.update({
     where: { id },
@@ -126,7 +164,7 @@ export async function publishResult(
   await writeAudit({
     organizationId,
     actorType: 'user',
-    actorUserId,
+    actorUserId: actor.userId,
     action: 'result.publish',
     targetType: 'result',
     targetId: id,
@@ -138,20 +176,38 @@ export async function publishResult(
 
 export async function regradeResult(
   organizationId: string,
-  actorUserId: string,
+  actor: ResultsActor,
   id: string,
   input: { score: number; reason: string },
 ) {
-  const existing = await prisma.result.findFirst({ where: { organizationId, id } });
+  const existing = await prisma.result.findFirst({
+    where: { organizationId, id },
+    include: { activity: { select: { kind: true, passingPercent: true } } },
+  });
   if (!existing) throw notFound('Result not found.');
+  assertActivityAccess(
+    actor.role,
+    actor.assessmentAccess,
+    actor.quizAccess,
+    existing.activity.kind,
+    'full',
+  );
 
   const maxScore = Number(existing.maxScore);
+  if (input.score > maxScore) {
+    throw badRequest('Score cannot exceed max score.', { score: String(maxScore) });
+  }
   const percent = maxScore > 0 ? (input.score / maxScore) * 100 : 0;
+  const passing =
+    existing.activity.passingPercent !== null
+      ? Number(existing.activity.passingPercent)
+      : null;
+  const passed = passing === null ? existing.passed : percent >= passing;
 
   await prisma.$transaction([
     prisma.result.update({
       where: { id },
-      data: { score: input.score, percent },
+      data: { score: input.score, percent, passed },
     }),
     prisma.resultRevision.create({
       data: {
@@ -168,7 +224,7 @@ export async function regradeResult(
   await writeAudit({
     organizationId,
     actorType: 'user',
-    actorUserId,
+    actorUserId: actor.userId,
     action: 'result.regrade',
     targetType: 'result',
     targetId: id,

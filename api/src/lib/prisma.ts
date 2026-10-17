@@ -76,6 +76,26 @@ function injectOrgOnCreate(
   }
 }
 
+/** Flatten Prisma compound unique selectors (e.g. organizationId_activityId_studentId) for findFirst. */
+function flattenCompoundUniqueWhere(where: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(where)) {
+    if (
+      value &&
+      typeof value === 'object' &&
+      !Array.isArray(value) &&
+      key.includes('_') &&
+      !('equals' in (value as object)) &&
+      !('in' in (value as object))
+    ) {
+      Object.assign(out, value as Record<string, unknown>);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 function assertResultOrg(model: string, result: unknown) {
   const ctx = tenantStore.getStore();
   if (!ctx || !TENANT_MODELS.has(model) || result == null) return result;
@@ -130,14 +150,15 @@ export const prisma = basePrisma.$extends({
           (operation === 'update' || operation === 'delete')
         ) {
           const where = (args as { where: Record<string, unknown> }).where;
-          if (!('organizationId' in where)) {
+          const flattened = flattenCompoundUniqueWhere(where);
+          if (!('organizationId' in flattened)) {
             const existing = await (
               basePrisma as unknown as Record<
                 string,
                 { findFirst: (a: unknown) => Promise<{ organizationId: string } | null> }
               >
             )[modelName]!.findFirst({
-              where: { ...where, organizationId: ctx.organizationId },
+              where: { ...flattened, organizationId: ctx.organizationId },
               select: { organizationId: true },
             });
             if (!existing) {
@@ -145,7 +166,7 @@ export const prisma = basePrisma.$extends({
               (err as { code?: string }).code = 'P2025';
               throw err;
             }
-          } else if (where.organizationId !== ctx.organizationId) {
+          } else if (flattened.organizationId !== ctx.organizationId) {
             throw new Error(`Tenant scope mismatch on ${modelName} ${operation}`);
           }
         }

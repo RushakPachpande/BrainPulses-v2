@@ -3,6 +3,7 @@ import {
   apiGetList,
   apiPatchData,
   apiPostData,
+  getAccessToken,
   setAccessToken,
 } from '../lib/api-client';
 import type {
@@ -31,10 +32,15 @@ export async function studentSignIn(email: string, password: string, organizatio
   return data;
 }
 
-export async function studentSignInByCode(code: string, organizationSlug?: string) {
+export async function studentSignInByCode(
+  code: string,
+  organizationSlug?: string,
+  replaceSession?: boolean,
+) {
   const data = await apiPostData<StudentAuthPayload>('/api/auth/student/sign-in-by-code', {
     code,
     ...(organizationSlug ? { organizationSlug } : {}),
+    ...(replaceSession ? { replaceSession: true } : {}),
   });
   setAccessToken(data.accessToken);
   return data;
@@ -69,18 +75,28 @@ export async function studentVerifyOtp(
   mobileNumber: string,
   otp: string,
   organizationSlug?: string,
+  replaceSession?: boolean,
 ) {
   const data = await apiPostData<StudentAuthPayload>('/api/auth/student/verify-otp', {
     countryCode,
     mobileNumber,
     otp,
     ...(organizationSlug ? { organizationSlug } : {}),
+    ...(replaceSession ? { replaceSession: true } : {}),
   });
   setAccessToken(data.accessToken);
   return data;
 }
 
-export function studentSignOut() {
+export async function studentSignOut() {
+  const token = getAccessToken();
+  if (token) {
+    try {
+      await apiPostData<{ ok: boolean }>('/api/auth/student/sign-out', {});
+    } catch {
+      /* best-effort; clear local token anyway */
+    }
+  }
   setAccessToken(null);
 }
 

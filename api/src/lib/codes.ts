@@ -12,6 +12,7 @@ export async function nextHumanCode(
 
   let latest: string | null = null;
   if (kind === 'student') {
+    // Student codes are BP-24NNN (offset form); sequence is the trailing digits after BP-.
     const row = await prisma.student.findFirst({
       where: { organizationId, code: { startsWith: `${prefix}-` } },
       orderBy: { code: 'desc' },
@@ -20,14 +21,14 @@ export async function nextHumanCode(
     latest = row?.code ?? null;
   } else if (kind === 'activity') {
     const row = await prisma.activity.findFirst({
-      where: { organizationId, code: { startsWith: `${prefix}-` } },
+      where: { organizationId, code: { startsWith: base } },
       orderBy: { code: 'desc' },
       select: { code: true },
     });
     latest = row?.code ?? null;
   } else if (kind === 'bank') {
     const row = await prisma.questionBank.findFirst({
-      where: { organizationId, code: { startsWith: `${prefix}-` } },
+      where: { organizationId, code: { startsWith: base } },
       orderBy: { code: 'desc' },
       select: { code: true },
     });
@@ -36,8 +37,21 @@ export async function nextHumanCode(
 
   let seq = 1;
   if (latest) {
-    const match = latest.match(/-(\d+)$/);
-    if (match?.[1]) seq = Number(match[1]) + 1;
+    if (kind === 'student') {
+      const match = latest.match(/^[A-Z]+-(\d+)$/);
+      if (match?.[1]) {
+        const n = Number(match[1]);
+        // Stored as 24000+seq historically; recover seq from absolute number.
+        seq = n >= 24_000 ? n - 24_000 + 1 : n + 1;
+      }
+    } else {
+      // Only the sequence after the current-year base (e.g. ASM-26001 → 1).
+      if (latest.startsWith(base)) {
+        const seqPart = latest.slice(base.length);
+        const n = Number(seqPart);
+        if (Number.isFinite(n)) seq = n + 1;
+      }
+    }
   }
 
   if (kind === 'student') {

@@ -30,6 +30,10 @@ export async function update(req: Request, res: Response, next: NextFunction) {
       actor.role,
       req.params.id as string,
       req.body,
+      {
+        assessmentAccess: actor.assessmentAccess,
+        quizAccess: actor.quizAccess,
+      },
     );
     res.json({ data });
   } catch (err) {
@@ -45,6 +49,10 @@ export async function deactivate(req: Request, res: Response, next: NextFunction
       actor.userId,
       actor.role,
       req.params.id as string,
+      {
+        assessmentAccess: actor.assessmentAccess,
+        quizAccess: actor.quizAccess,
+      },
     );
     res.json({ data });
   } catch (err) {

@@ -2,7 +2,9 @@ import { env } from '../config/env.js';
 
 export async function sendSmsOtp(toPhone: string, otp: string): Promise<void> {
   if (!env.TWILIO_ENABLED) {
-    console.info(`[otp] TWILIO_ENABLED=false — OTP for ${toPhone}: ${otp}`);
+    if (env.NODE_ENV !== 'production') {
+      console.info(`[otp] TWILIO_ENABLED=false — OTP for ${toPhone}: ${otp}`);
+    }
     return;
   }
 

@@ -32,6 +32,10 @@ export async function request(
 
   const server = appInstance.listen(0);
   try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', () => resolve());
+      server.once('error', reject);
+    });
     const address = server.address();
     if (!address || typeof address === 'string') throw new Error('No address');
     const res = await fetch(`http://127.0.0.1:${address.port}${path}`, {

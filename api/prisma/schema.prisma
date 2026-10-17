@@ -323,7 +323,7 @@ model Attempt {
   startedAt        DateTime      @map("started_at") @db.Timestamptz(3)
   deadlineAt       DateTime      @map("deadline_at") @db.Timestamptz(3)
   submittedAt      DateTime?     @map("submitted_at") @db.Timestamptz(3)
-  submitIdempotencyKey String?   @unique @map("submit_idempotency_key")
+  submitIdempotencyKey String?   @map("submit_idempotency_key")
   createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -335,6 +335,7 @@ model Attempt {
 
   @@index([organizationId, activityId, studentId, status])
   @@index([organizationId, studentId, status])
+  @@index([organizationId, id, submitIdempotencyKey])
   @@map("attempts")
 }
 

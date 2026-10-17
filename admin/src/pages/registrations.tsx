@@ -211,7 +211,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const pageRows = filtered.slice(start, start + size);
   const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
 
-  const pageIds = pageRows.map((row) => row.id);
+  const pageIds = pageRows.map((row) => row.registrationId);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const somePageSelected = pageIds.some((id) => selected.has(id));
 
@@ -365,11 +365,16 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                 </TableRow>
               ) : (
                 pageRows.map((row) => (
-                  <TableRow key={row.id} data-state={selected.has(row.id) ? 'selected' : undefined}>
+                  <TableRow
+                    key={row.registrationId}
+                    data-state={selected.has(row.registrationId) ? 'selected' : undefined}
+                  >
                     <TableCell>
                       <Checkbox
-                        checked={selected.has(row.id)}
-                        onCheckedChange={(checked) => toggleOne(row.id, checked === true)}
+                        checked={selected.has(row.registrationId)}
+                        onCheckedChange={(checked) =>
+                          toggleOne(row.registrationId, checked === true)
+                        }
                         aria-label={`Select ${row.name}`}
                       />
                     </TableCell>

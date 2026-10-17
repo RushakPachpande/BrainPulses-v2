@@ -2,7 +2,6 @@ import { parse } from 'csv-parse/sync';
 import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { nextHumanCode } from '../../lib/codes.js';
-import { stripFormulaInjection } from '../../lib/csv.js';
 import { conflict, forbidden, notFound, unprocessable } from '../../lib/errors.js';
 import { buildPage, listEnvelope } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
@@ -352,7 +351,13 @@ export async function updateQuestion(
 
   const question = await prisma.question.findFirst({
     where: { organizationId, bankId, id: questionId },
-    include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+    include: {
+      versions: {
+        orderBy: { version: 'desc' },
+        take: 1,
+        include: { options: { orderBy: { sortOrder: 'asc' } } },
+      },
+    },
   });
   if (!question) throw notFound('Question not found.');
 
@@ -362,8 +367,19 @@ export async function updateQuestion(
   const type = input.type ?? question.type;
   const stem = input.stem ?? question.stem;
   const points = input.points ?? Number(question.points);
-  const options = input.options ?? [];
-  const answerKey = input.answerKey ?? {};
+  const options =
+    input.options ??
+    latest?.options.map((o) => ({
+      label: o.label,
+      body: o.body,
+      isCorrect: o.isCorrect,
+    })) ??
+    [];
+  const answerKey =
+    input.answerKey ??
+    (latest?.answerKey && typeof latest.answerKey === 'object'
+      ? (latest.answerKey as Record<string, unknown>)
+      : {});
 
   await prisma.question.update({
     where: { id: questionId },
@@ -453,7 +469,7 @@ export async function importQuestions(
 
   for (let i = 0; i < records.length; i++) {
     const row = records[i]!;
-    const stem = stripFormulaInjection(row.stem ?? row.question ?? '');
+    const stem = (row.stem ?? row.question ?? '').trim();
     const typeRaw = (row.type ?? 'single_mcq').toLowerCase();
     if (!stem) {
       errors.push({ row: i + 2, message: 'stem is required' });
@@ -476,7 +492,7 @@ export async function importQuestions(
 
     const options: { label: string; body: string; isCorrect: boolean }[] = [];
     for (const label of ['A', 'B', 'C', 'D', 'E']) {
-      const body = stripFormulaInjection(row[`option_${label}`] ?? row[label] ?? '');
+      const body = (row[`option_${label}`] ?? row[label] ?? '').trim();
       if (body) {
         const correct = (row.correct ?? '').toUpperCase().includes(label);
         options.push({ label, body, isCorrect: correct });

@@ -43,19 +43,25 @@ export function CreateActivityPage({ kind }: { kind: ActivityKind }) {
   const [startDate, setStartDate] = useState(() => new Date(2026, 9, 15, 10, 0, 0));
   const [endDate, setEndDate] = useState(() => new Date(2026, 9, 30, 18, 0, 0));
   const [saving, setSaving] = useState(false);
+  const [createdId, setCreatedId] = useState<string | null>(null);
 
   async function saveActivity(publish: boolean) {
     setSaving(true);
     try {
-      const created = await createActivity({
-        kind,
-        name: name.trim(),
-        subtitle: description.trim() || undefined,
-        startsAt: startDate,
-        endsAt: endDate,
-      });
+      let activityId = createdId;
+      if (!activityId) {
+        const created = await createActivity({
+          kind,
+          name: name.trim(),
+          subtitle: description.trim() || undefined,
+          startsAt: startDate,
+          endsAt: endDate,
+        });
+        activityId = created.id;
+        setCreatedId(created.id);
+      }
       if (publish || status === 'active') {
-        await publishActivity(created.id);
+        await publishActivity(activityId);
       }
       toast.success(`${noun} created.`);
       void navigate(listPath);

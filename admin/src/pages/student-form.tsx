@@ -66,9 +66,9 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' }) {
         await updateStudent(studentId, {
           name: name.trim(),
           email: email.trim(),
-          phone: phone.trim() || undefined,
-          course: course.trim() || undefined,
-          city: city.trim() || undefined,
+          phone: phone.trim() || null,
+          course: course.trim() || null,
+          city: city.trim() || null,
           ...(password ? { password } : {}),
         });
         toast.success('Student updated.');

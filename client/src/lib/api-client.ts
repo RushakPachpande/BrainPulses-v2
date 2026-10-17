@@ -3,12 +3,19 @@ import { readSessionStorage, removeSessionStorage, writeSessionStorage } from '.
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly fields?: Record<string, string>;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(
+    status: number,
+    code: string,
+    message: string,
+    fields?: Record<string, string>,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -35,18 +42,29 @@ function apiBaseUrl(): string {
 
 async function parseApiError(res: Response): Promise<ApiError> {
   try {
-    const body = (await res.json()) as { error?: { code?: string; message?: string } };
+    const body = (await res.json()) as {
+      error?: { code?: string; message?: string; fields?: Record<string, string> };
+    };
     if (body.error) {
       return new ApiError(
         res.status,
         body.error.code ?? 'UNKNOWN',
         body.error.message ?? (res.statusText || 'Request failed.'),
+        body.error.fields,
       );
     }
   } catch {
     /* ignore */
   }
   return new ApiError(res.status, 'UNKNOWN', res.statusText || 'Request failed.');
+}
+
+export function isSessionActiveConflict(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    err.status === 409 &&
+    err.fields?.reason === 'SESSION_ACTIVE'
+  );
 }
 
 async function request(

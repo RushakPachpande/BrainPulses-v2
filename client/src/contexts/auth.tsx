@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { ApiError, getAccessToken } from '../lib/api-client';
+import { ApiError, getAccessToken, isSessionActiveConflict } from '../lib/api-client';
 import {
   getMe,
   studentRequestOtp,
@@ -20,13 +20,25 @@ import type { StudentProfile } from '../services/types';
 
 const DEFAULT_ORG_SLUG = 'demo';
 
+export class SessionActiveError extends Error {
+  constructor() {
+    super('SESSION_ACTIVE');
+    this.name = 'SessionActiveError';
+  }
+}
+
 type AuthState = {
   ready: boolean;
   student: StudentProfile | null;
-  signInWithCode: (code: string) => Promise<void>;
+  signInWithCode: (code: string, replaceSession?: boolean) => Promise<void>;
   requestPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
   resendPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
-  verifyPhoneOtp: (countryCode: string, mobileNumber: string, otp: string) => Promise<void>;
+  verifyPhoneOtp: (
+    countryCode: string,
+    mobileNumber: string,
+    otp: string,
+    replaceSession?: boolean,
+  ) => Promise<void>;
   signOut: () => void;
   refreshProfile: () => Promise<void>;
 };
@@ -84,9 +96,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signInWithCode = useCallback(async (code: string) => {
-    const data = await studentSignInByCode(code.trim(), DEFAULT_ORG_SLUG);
-    setStudent(await profileFromAuth(data));
+  const signInWithCode = useCallback(async (code: string, replaceSession?: boolean) => {
+    try {
+      const data = await studentSignInByCode(code.trim(), DEFAULT_ORG_SLUG, replaceSession);
+      setStudent(await profileFromAuth(data));
+    } catch (err) {
+      if (!replaceSession && isSessionActiveConflict(err)) throw new SessionActiveError();
+      throw err;
+    }
   }, []);
 
   const requestPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
@@ -98,16 +115,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const verifyPhoneOtp = useCallback(
-    async (countryCode: string, mobileNumber: string, otp: string) => {
-      const data = await studentVerifyOtp(countryCode, mobileNumber, otp, DEFAULT_ORG_SLUG);
-      setStudent(await profileFromAuth(data));
+    async (
+      countryCode: string,
+      mobileNumber: string,
+      otp: string,
+      replaceSession?: boolean,
+    ) => {
+      try {
+        const data = await studentVerifyOtp(
+          countryCode,
+          mobileNumber,
+          otp,
+          DEFAULT_ORG_SLUG,
+          replaceSession,
+        );
+        setStudent(await profileFromAuth(data));
+      } catch (err) {
+        if (!replaceSession && isSessionActiveConflict(err)) throw new SessionActiveError();
+        throw err;
+      }
     },
     [],
   );
 
   const signOut = useCallback(() => {
-    studentSignOut();
-    setStudent(null);
+    void studentSignOut().finally(() => setStudent(null));
   }, []);
 
   const value = useMemo(

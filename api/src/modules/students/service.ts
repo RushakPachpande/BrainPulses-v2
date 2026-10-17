@@ -130,33 +130,42 @@ export async function updateStudent(
   const existing = await prisma.student.findFirst({ where: { organizationId, id } });
   if (!existing) throw notFound('Student not found.');
 
-  const student = await prisma.student.update({
-    where: { id },
-    data: {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.email !== undefined ? { email: input.email.toLowerCase() } : {}),
-      ...(input.phone !== undefined
-        ? { phone: input.phone ? normalizePhone(input.phone) : input.phone }
-        : {}),
-      ...(input.course !== undefined ? { course: input.course } : {}),
-      ...(input.city !== undefined ? { city: input.city } : {}),
-      ...(input.code !== undefined ? { code: input.code } : {}),
-      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-      ...(input.password !== undefined ? { passwordHash: await hashPassword(input.password) } : {}),
-    },
-    include: { _count: { select: { registrations: true } } },
-  });
+  try {
+    const student = await prisma.student.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.email !== undefined ? { email: input.email.toLowerCase() } : {}),
+        ...(input.phone !== undefined
+          ? { phone: input.phone ? normalizePhone(input.phone) : input.phone }
+          : {}),
+        ...(input.course !== undefined ? { course: input.course } : {}),
+        ...(input.city !== undefined ? { city: input.city } : {}),
+        ...(input.code !== undefined ? { code: input.code } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+        ...(input.password !== undefined
+          ? { passwordHash: await hashPassword(input.password) }
+          : {}),
+      },
+      include: { _count: { select: { registrations: true } } },
+    });
 
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'student.update',
-    targetType: 'student',
-    targetId: id,
-  });
-  await invalidateDashboard(organizationId);
-  return mapStudent(student);
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId,
+      action: 'student.update',
+      targetType: 'student',
+      targetId: id,
+    });
+    await invalidateDashboard(organizationId);
+    return mapStudent(student);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw conflict('A student with that email, code, or phone already exists.');
+    }
+    throw err;
+  }
 }
 
 export async function deactivateStudent(organizationId: string, actorUserId: string, id: string) {

@@ -36,25 +36,29 @@ export function AccessSettingsPage() {
   }, []);
 
   function toggle(index: number, key: 'assessment' | 'quiz' | 'enabled') {
-    setPeople((current) => {
-      const next = current.map((person, personIndex) =>
-        personIndex === index ? { ...person, [key]: !person[key] } : person,
+    const target = people[index];
+    if (!target) return;
+    const nextValue = !target[key];
+    const setField = (value: boolean) =>
+      setPeople((current) =>
+        current.map((person) =>
+          person.membershipId === target.membershipId && person.email === target.email
+            ? { ...person, [key]: value }
+            : person,
+        ),
       );
-      const person = next[index];
-      if (person?.membershipId) {
-        void updateMembershipAccess(person.membershipId, {
-          ...(key === 'assessment'
-            ? { assessmentAccess: person.assessment ? 'full' : 'none' }
-            : {}),
-          ...(key === 'quiz' ? { quizAccess: person.quiz ? 'full' : 'none' } : {}),
-          ...(key === 'enabled' ? { isActive: person.enabled } : {}),
-        }).catch((err) => {
-          toast.error(err instanceof ApiError ? err.message : 'Could not update access.');
-        });
-      }
-      return next;
-    });
+    setField(nextValue);
     setChanged(true);
+
+    if (!target.membershipId) return;
+    void updateMembershipAccess(target.membershipId, {
+      ...(key === 'assessment' ? { assessmentAccess: nextValue ? 'full' : 'none' } : {}),
+      ...(key === 'quiz' ? { quizAccess: nextValue ? 'full' : 'none' } : {}),
+      ...(key === 'enabled' ? { isActive: nextValue } : {}),
+    }).catch((err) => {
+      setField(!nextValue);
+      toast.error(err instanceof ApiError ? err.message : 'Could not update access.');
+    });
   }
 
   return (

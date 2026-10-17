@@ -170,7 +170,7 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
 
   const maybe = await autoSubmitIfExpired(attempt);
   if (maybe && 'result' in maybe) {
-    return { attempt: mapAttempt(attempt), submitted: true, result: maybe.result };
+    return { attempt: maybe.attempt, submitted: true, result: maybe.result };
   }
 
   const live = await prisma.attempt.findFirst({
@@ -236,6 +236,22 @@ export async function saveAttempt(
   const nextRevision = live.revision + 1;
 
   await prisma.$transaction(async (tx) => {
+    const guarded = await tx.attempt.updateMany({
+      where: {
+        organizationId,
+        id: attemptId,
+        status: 'in_progress',
+        revision: input.revision,
+        deadlineAt: { gt: new Date() },
+      },
+      data: { revision: nextRevision },
+    });
+    if (guarded.count !== 1) {
+      throw conflict('Stale revision. Reload the attempt and retry.', {
+        revision: String(live.revision),
+      });
+    }
+
     for (const r of input.responses) {
       const existing = await tx.attemptResponse.findFirst({
         where: {
@@ -244,31 +260,19 @@ export async function saveAttempt(
           questionVersionId: r.questionVersionId,
         },
       });
-      if (existing) {
-        await tx.attemptResponse.updateMany({
-          where: { organizationId, id: existing.id },
-          data: {
-            answer: r.answer as Prisma.InputJsonValue,
-            revision: nextRevision,
-          },
-        });
-      } else {
-        await tx.attemptResponse.create({
-          data: {
-            organizationId,
-            attemptId,
-            questionVersionId: r.questionVersionId,
-            answer: r.answer as Prisma.InputJsonValue,
-            revision: nextRevision,
-          },
+      if (!existing) {
+        throw badRequest('Unknown question for this attempt.', {
+          questionVersionId: r.questionVersionId,
         });
       }
+      await tx.attemptResponse.updateMany({
+        where: { organizationId, id: existing.id },
+        data: {
+          answer: r.answer as Prisma.InputJsonValue,
+          revision: nextRevision,
+        },
+      });
     }
-
-    await tx.attempt.updateMany({
-      where: { organizationId, id: attemptId },
-      data: { revision: nextRevision },
-    });
   });
 
   const updated = await prisma.attempt.findFirst({
@@ -291,7 +295,12 @@ async function submitAttemptInternal(
   opts: { auto: boolean; idempotencyKey: string },
 ) {
   const existingByKey = await prisma.attempt.findFirst({
-    where: { organizationId, submitIdempotencyKey: opts.idempotencyKey },
+    where: {
+      organizationId,
+      id: attemptId,
+      studentId,
+      submitIdempotencyKey: opts.idempotencyKey,
+    },
     include: { result: true, responses: true },
   });
   if (existingByKey?.result) {
@@ -355,14 +364,17 @@ async function submitAttemptInternal(
   const status = opts.auto ? 'auto_submitted' : 'submitted';
 
   const [updated, result] = await prisma.$transaction(async (tx) => {
-    await tx.attempt.updateMany({
-      where: { organizationId, id: attemptId },
+    const locked = await tx.attempt.updateMany({
+      where: { organizationId, id: attemptId, status: 'in_progress' },
       data: {
         status,
         submittedAt,
         submitIdempotencyKey: opts.idempotencyKey,
       },
     });
+    if (locked.count !== 1) {
+      throw conflict('Attempt already submitted.');
+    }
 
     const upd = await tx.attempt.findFirst({
       where: { organizationId, id: attemptId },

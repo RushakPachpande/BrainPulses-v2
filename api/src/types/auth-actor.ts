@@ -14,4 +14,5 @@ export type AuthActor =
       kind: 'student';
       studentId: string;
       organizationId: string;
+      sessionId: string;
     };

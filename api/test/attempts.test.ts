@@ -10,6 +10,7 @@ async function studentToken() {
       email: 'student1@mail.com',
       password: 'Student123!',
       organizationSlug: 'demo',
+      replaceSession: true,
     },
   });
   assert.equal(res.status, 200);

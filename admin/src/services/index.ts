@@ -229,9 +229,9 @@ export async function updateStudent(
   payload: {
     name?: string;
     email?: string;
-    phone?: string;
-    course?: string;
-    city?: string;
+    phone?: string | null;
+    course?: string | null;
+    city?: string | null;
     password?: string;
     isActive?: boolean;
   },

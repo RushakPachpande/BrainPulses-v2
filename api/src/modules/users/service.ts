@@ -34,22 +34,26 @@ export async function listUsers(
   organizationId: string,
   query: z.infer<typeof userListQuerySchema>,
 ) {
+  const and: Prisma.MembershipWhereInput[] = [];
+  if (query.status === 'active') {
+    and.push({ isActive: true, user: { isActive: true } });
+  } else if (query.status === 'inactive') {
+    and.push({ OR: [{ isActive: false }, { user: { isActive: false } }] });
+  }
+  if (query.q) {
+    and.push({
+      user: {
+        OR: [
+          { name: { contains: query.q, mode: 'insensitive' } },
+          { email: { contains: query.q, mode: 'insensitive' } },
+        ],
+      },
+    });
+  }
+
   const where: Prisma.MembershipWhereInput = {
     organizationId,
-    ...(query.status === 'active' ? { isActive: true, user: { isActive: true } } : {}),
-    ...(query.status === 'inactive'
-      ? { OR: [{ isActive: false }, { user: { isActive: false } }] }
-      : {}),
-    ...(query.q
-      ? {
-          user: {
-            OR: [
-              { name: { contains: query.q, mode: 'insensitive' } },
-              { email: { contains: query.q, mode: 'insensitive' } },
-            ],
-          },
-        }
-      : {}),
+    ...(and.length > 0 ? { AND: and } : {}),
     ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
@@ -121,12 +125,15 @@ export async function inviteUser(
   }
 }
 
+const accessRank: Record<string, number> = { none: 0, view: 1, edit: 2, full: 3 };
+
 export async function updateMembership(
   organizationId: string,
   actorUserId: string,
   actorRole: string,
   membershipId: string,
   input: z.infer<typeof updateMembershipSchema>,
+  actorAccess?: { assessmentAccess: string; quizAccess: string },
 ) {
   if (input.role === 'super_admin' && actorRole !== 'super_admin') {
     throw forbidden('Only a super admin can promote to super admin.');
@@ -137,6 +144,30 @@ export async function updateMembership(
     include: { user: true },
   });
   if (!existing) throw notFound('User membership not found.');
+
+  if (actorRole !== 'super_admin') {
+    if (existing.role === 'super_admin') {
+      throw forbidden('Only a super admin can modify a super admin membership.');
+    }
+    if (existing.userId === actorUserId) {
+      throw forbidden('You cannot modify your own membership.');
+    }
+    if (
+      input.assessmentAccess !== undefined &&
+      actorAccess &&
+      (accessRank[input.assessmentAccess] ?? 0) >
+        (accessRank[actorAccess.assessmentAccess] ?? 0)
+    ) {
+      throw forbidden('Cannot grant assessment access above your own level.');
+    }
+    if (
+      input.quizAccess !== undefined &&
+      actorAccess &&
+      (accessRank[input.quizAccess] ?? 0) > (accessRank[actorAccess.quizAccess] ?? 0)
+    ) {
+      throw forbidden('Cannot grant quiz access above your own level.');
+    }
+  }
 
   const membership = await prisma.membership.update({
     where: { id: membershipId },
@@ -167,8 +198,14 @@ export async function deactivateMembership(
   actorUserId: string,
   actorRole: string,
   membershipId: string,
+  actorAccess?: { assessmentAccess: string; quizAccess: string },
 ) {
-  return updateMembership(organizationId, actorUserId, actorRole, membershipId, {
-    isActive: false,
-  });
+  return updateMembership(
+    organizationId,
+    actorUserId,
+    actorRole,
+    membershipId,
+    { isActive: false },
+    actorAccess,
+  );
 }

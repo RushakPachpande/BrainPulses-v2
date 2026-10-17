@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { Response } from 'express';
 import { env } from '../../config/env.js';
-import { unauthorized, forbidden, badRequest } from '../../lib/errors.js';
+import { writeAudit } from '../../lib/audit.js';
+import { unauthorized, forbidden, badRequest, conflict } from '../../lib/errors.js';
 import {
   signAccessToken,
   signOrgSelectToken,
@@ -17,10 +18,19 @@ import {
   rotateRefreshToken,
 } from '../../lib/refresh-tokens.js';
 import {
+  assertOtpSendAllowed,
+  consumeStudentOtp,
   generateOtpDigits,
+  markOtpSend,
   storeStudentOtp,
   verifyStudentOtp,
 } from '../../lib/student-otp.js';
+import {
+  clearStudentSession,
+  getStudentSessionId,
+  storeStudentSession,
+  ttlSecondsFromAccessToken,
+} from '../../lib/student-sessions.js';
 import {
   DEV_FIXED_OTP,
   DEV_FIXED_OTP_PHONE,
@@ -268,7 +278,21 @@ type StudentWithOrg = Student & {
   organization: { id: string; name: string; slug: string };
 };
 
-async function issueStudentSession(student: StudentWithOrg) {
+async function issueStudentSession(
+  student: StudentWithOrg,
+  opts: { replaceSession?: boolean; auditAction?: string } = {},
+) {
+  const existingSid = await getStudentSessionId(student.organizationId, student.id);
+  if (existingSid && !opts.replaceSession) {
+    throw conflict(
+      'Another active session exists for this student. Confirm to revoke it and continue.',
+      { reason: 'SESSION_ACTIVE' },
+    );
+  }
+
+  const replacing = Boolean(existingSid && opts.replaceSession);
+  const sessionId = randomUUID();
+
   await prisma.student.update({
     where: { id: student.id },
     data: { lastLoginAt: new Date() },
@@ -277,7 +301,34 @@ async function issueStudentSession(student: StudentWithOrg) {
   const accessToken = signStudentAccessToken({
     sub: student.id,
     organizationId: student.organizationId,
+    sid: sessionId,
   });
+  await storeStudentSession(
+    student.organizationId,
+    student.id,
+    sessionId,
+    ttlSecondsFromAccessToken(accessToken),
+  );
+
+  if (opts.auditAction) {
+    await writeAudit({
+      organizationId: student.organizationId,
+      actorType: 'student',
+      action: opts.auditAction,
+      targetType: 'student',
+      targetId: student.id,
+      metadata: { replacedSession: replacing },
+    });
+  }
+  if (replacing) {
+    await writeAudit({
+      organizationId: student.organizationId,
+      actorType: 'student',
+      action: 'student.session.replace',
+      targetType: 'student',
+      targetId: student.id,
+    });
+  }
 
   return {
     accessToken,
@@ -293,6 +344,15 @@ async function issueStudentSession(student: StudentWithOrg) {
       slug: student.organization.slug,
     },
   };
+}
+
+export async function studentSignOutSession(actor: {
+  studentId: string;
+  organizationId: string;
+  sessionId: string;
+}) {
+  await clearStudentSession(actor.organizationId, actor.studentId, actor.sessionId);
+  return { ok: true as const };
 }
 
 function orgFilter(organizationSlug?: string) {
@@ -331,6 +391,7 @@ export async function studentSignIn(input: {
   email: string;
   password: string;
   organizationSlug?: string;
+  replaceSession?: boolean;
 }) {
   const students = await findActiveStudents(
     { email: input.email.toLowerCase() },
@@ -346,17 +407,24 @@ export async function studentSignIn(input: {
   const ok = await verifyPassword(input.password, student.passwordHash);
   if (!ok) throw unauthorized('Invalid email or password.');
 
-  return issueStudentSession(student);
+  return issueStudentSession(student, {
+    replaceSession: input.replaceSession,
+    auditAction: 'student.sign_in',
+  });
 }
 
 export async function studentSignInByCode(input: {
   code: string;
   organizationSlug?: string;
+  replaceSession?: boolean;
 }) {
   const code = input.code.trim();
   const students = await findActiveStudents({ code }, input.organizationSlug);
   const student = requireSingleStudent(students, input.organizationSlug, 'Invalid Unique ID.');
-  return issueStudentSession(student);
+  return issueStudentSession(student, {
+    replaceSession: input.replaceSession,
+    auditAction: 'student.sign_in_by_code',
+  });
 }
 
 async function resolveStudentForPhone(input: {
@@ -387,8 +455,12 @@ async function resolveStudentForPhone(input: {
 }
 
 async function issueAndSendOtp(student: StudentWithOrg, phone: string): Promise<string> {
+  await assertOtpSendAllowed(student.organizationId, phone);
+
   const otp =
-    !env.TWILIO_ENABLED && phone === DEV_FIXED_OTP_PHONE
+    env.NODE_ENV !== 'production' &&
+    !env.TWILIO_ENABLED &&
+    phone === DEV_FIXED_OTP_PHONE
       ? DEV_FIXED_OTP
       : generateOtpDigits();
 
@@ -398,7 +470,12 @@ async function issueAndSendOtp(student: StudentWithOrg, phone: string): Promise<
     studentId: student.id,
     otp,
   });
-  await sendSmsOtp(phone, otp);
+  await markOtpSend(student.organizationId, phone);
+
+  // SMS must not delay or alter the generic response; failures stay private.
+  void sendSmsOtp(phone, otp).catch((err: unknown) => {
+    console.warn('[otp] SMS delivery failed', err instanceof Error ? err.message : err);
+  });
   return otp;
 }
 
@@ -415,11 +492,15 @@ export async function studentRequestOtp(input: {
   const student = await resolveStudentForPhone(input);
   if (student) {
     const storedPhone = student.phone ? normalizePhone(student.phone) ?? phone : phone;
-    const otp = await issueAndSendOtp(student, storedPhone);
-    if (env.NODE_ENV === 'test') debugOtp = otp;
-  } else if (!env.TWILIO_ENABLED) {
-    // Dev/local: still print an OTP for whatever number was typed so the console
-    // always shows a code (verify still requires a registered student).
+    try {
+      const otp = await issueAndSendOtp(student, storedPhone);
+      if (env.NODE_ENV === 'test') debugOtp = otp;
+    } catch (err) {
+      // Cooldown / daily limit: still return generic success to avoid enumeration,
+      // except in test where clients need the signal.
+      if (env.NODE_ENV === 'test') throw err;
+    }
+  } else if (env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED) {
     const otp = generateOtpDigits();
     console.info(
       `[otp] TWILIO_ENABLED=false — OTP for ${phone}: ${otp} (no matching student; verify will fail)`,
@@ -446,6 +527,7 @@ export async function studentVerifyOtp(input: {
   mobileNumber: string;
   otp: string;
   organizationSlug?: string;
+  replaceSession?: boolean;
 }) {
   const phone = toE164(input.countryCode, input.mobileNumber);
   if (!phone) throw badRequest('Invalid phone number.');
@@ -454,10 +536,12 @@ export async function studentVerifyOtp(input: {
   if (!student) throw unauthorized('Invalid or expired OTP.');
 
   const storedPhone = student.phone ? normalizePhone(student.phone) ?? phone : phone;
+  // Validate without consuming so SESSION_ACTIVE can retry with replaceSession.
   const result = await verifyStudentOtp({
     organizationId: student.organizationId,
     phone: storedPhone,
     otp: input.otp,
+    consume: false,
   });
 
   if (!result.ok) {
@@ -469,5 +553,10 @@ export async function studentVerifyOtp(input: {
 
   if (result.studentId !== student.id) throw unauthorized('Invalid or expired OTP.');
 
-  return issueStudentSession(student);
+  const session = await issueStudentSession(student, {
+    replaceSession: input.replaceSession,
+    auditAction: 'student.sign_in_otp',
+  });
+  await consumeStudentOtp(student.organizationId, storedPhone);
+  return session;
 }

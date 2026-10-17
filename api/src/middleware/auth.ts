@@ -3,6 +3,7 @@ import type { AccessLevel, ActivityKind, MembershipRole } from '#prisma';
 import { badRequest, unauthorized, forbidden } from '../lib/errors.js';
 import { verifyToken } from '../lib/jwt.js';
 import { tenantStore } from '../lib/prisma.js';
+import { isStudentSessionCurrent } from '../lib/student-sessions.js';
 import type { AuthActor } from '../types/auth-actor.js';
 
 const accessRank: Record<AccessLevel, number> = {
@@ -18,7 +19,7 @@ function bearer(req: Request): string | null {
   return header.slice(7).trim() || null;
 }
 
-export function requireAuth(req: Request, _res: Response, next: NextFunction) {
+export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
   try {
     const token = bearer(req);
     if (!token) throw unauthorized();
@@ -38,10 +39,18 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
     }
 
     if (payload.typ === 'student') {
+      if (!payload.sid) throw unauthorized('Invalid access token.');
+      const active = await isStudentSessionCurrent(
+        payload.organizationId,
+        payload.sub,
+        payload.sid,
+      );
+      if (!active) throw unauthorized('Session expired. Sign in again.');
       req.actor = {
         kind: 'student',
         studentId: payload.sub,
         organizationId: payload.organizationId,
+        sessionId: payload.sid,
       };
       return next();
     }

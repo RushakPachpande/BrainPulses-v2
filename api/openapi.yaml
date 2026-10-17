@@ -603,6 +603,6 @@ components:
       type: object
       properties:
         limit: { type: integer }
-        nextCursor: { type: string, nullable: true }
+        nextCursor: { type: [string, 'null'] }
         hasMore: { type: boolean }
         total: { type: integer }

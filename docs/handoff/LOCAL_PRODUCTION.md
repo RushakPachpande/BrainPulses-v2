@@ -9,7 +9,6 @@ Run Admin, Student Client, and API against Docker Postgres/Redis with seeded dem
 | Admin (Vite) | http://localhost:5173 | `http://<lan-ip>:5173` |
 | Student client (Vite) | http://localhost:5174 | `http://<lan-ip>:5174` |
 | API | http://127.0.0.1:3002 | `http://<lan-ip>:3002` |
-
 | Postgres | 127.0.0.1:5434 | not published for peers |
 | Redis | 127.0.0.1:6381 | not published for peers |
 
@@ -58,13 +57,24 @@ Invoke-RestMethod http://127.0.0.1:3002/health/ready
 
 ## Seed credentials
 
+Admin (Admin UI at http://localhost:5173):
+
 | Role | Email | Password |
 |---|---|---|
 | Super admin | `admin@brainpulses.com` | `Password123!` |
 | View-only admin | `viewer@brainpulses.com` | `Password123!` |
-| Student | `student1@mail.com` | `Student123!` |
-| Student | `student2@mail.com` | `Student123!` |
-| Student | `student3@mail.com` | `Student123!` |
+
+Students (Student client at http://localhost:5174 — Unique ID or Phone OTP):
+
+| Name | Unique ID | Phone (E.164) | National (demo) |
+|---|---|---|---|
+| Priya Patel | `BP-24101` | `+919876510000` | `+91` / `9876510000` |
+| Rohan Mehta | `BP-24102` | `+919876510001` | `+91` / `9876510001` |
+| Sana Khan | `BP-24103` | `+919876510002` | `+91` / `9876510002` |
+
+Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
+
+Email/password (`studentN@mail.com` / `Student123!`) works against the API `POST /api/auth/student/sign-in` only — the student client UI does not expose that path.
 
 Demo organization slug: `demo`.
 
@@ -93,7 +103,7 @@ For SPA preview builds, set `VITE_API_URL=http://localhost:3002` in `admin/.env`
 
 ```powershell
 npm run db:down
-# optional: docker volume prune if you need a clean Postgres volume
+docker volume rm brainpulses-postgres-data
 npm run db:up
 npm run db:migrate
 npm run db:seed

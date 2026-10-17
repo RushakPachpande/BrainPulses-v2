@@ -96,9 +96,26 @@ export function timeRemaining(seconds: number) {
 }
 
 export function answerLabel(answer: unknown): string | null {
-  if (!answer || typeof answer !== 'object') return null;
-  if ('label' in answer && typeof (answer as { label: unknown }).label === 'string') {
-    return (answer as { label: string }).label;
+  if (answer == null) return null;
+  if (typeof answer === 'string') {
+    const trimmed = answer.trim();
+    return trimmed || null;
+  }
+  if (Array.isArray(answer)) {
+    const labels = answer
+      .map((item) => (typeof item === 'string' ? item : answerLabel(item)))
+      .filter((item): item is string => Boolean(item));
+    return labels.length > 0 ? labels.join(', ') : null;
+  }
+  if (typeof answer !== 'object') return null;
+  const obj = answer as Record<string, unknown>;
+  if (typeof obj.label === 'string') return obj.label;
+  if (Array.isArray(obj.labels)) {
+    const labels = obj.labels.filter((item): item is string => typeof item === 'string');
+    return labels.length > 0 ? labels.join(', ') : null;
+  }
+  if (typeof obj.value === 'string' || typeof obj.value === 'number') {
+    return String(obj.value);
   }
   return null;
 }

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireAuth, requireUser } from '../../middleware/auth.js';
+import { requireAuth, requireStudent, requireUser } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
@@ -44,6 +44,12 @@ authRouter.post(
   '/student/verify-otp',
   validate({ body: studentVerifyOtpSchema }),
   controller.studentVerifyOtp,
+);
+authRouter.post(
+  '/student/sign-out',
+  requireAuth,
+  requireStudent,
+  controller.studentSignOut,
 );
 authRouter.post('/refresh', controller.refresh);
 authRouter.post('/sign-out', controller.signOut);

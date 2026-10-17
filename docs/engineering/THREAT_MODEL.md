@@ -38,7 +38,7 @@
 | Actor | Capability |
 |---|---|
 | Anonymous | Health, auth sign-in/refresh, file download with opaque token |
-| Org admin (`view` / `edit` / `full` per assessment|quiz) | Scoped CRUD |
+| Org admin (`view` / `edit` / `full` per assessment or quiz) | Scoped CRUD |
 | `super_admin` | Full org access + audit |
 | Student | Attempts only |
 | Cross-tenant attacker | Stolen/forged token or guessed UUIDs |
@@ -97,7 +97,8 @@ When `NODE_ENV=production`:
 
 - Download token may appear in query strings (Referer/logs); prefer short TTL; header support optional (`x-download-token`).
 - App-level tenancy without RLS: raw SQL / forgotten `withTenantContext` is a footgun.
-- Concurrent refresh race (two parallel rotates) is mitigated by family revocation on reuse, not fully eliminated.
+- Concurrent refresh race (two parallel rotates) is mitigated by atomic GETDEL plus family revocation on reuse.
+- Student Unique ID login is single-factor by product choice. Student codes use the predictable `BP-${24000 + seq}` format. One active Redis session (`sid` in JWT) and a short access-token TTL do not prevent code guessing. A guessed code with `replaceSession: true` can replace the current session and revoke the real student's access during an exam. The auth rate limit slows guessing but does not prevent distributed attempts. Consider non-sequential codes, a replace cooldown, and student notification on replacement.
 
 ## Accepted dependency audit findings (this pass)
 

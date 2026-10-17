@@ -43,7 +43,8 @@ export async function rotateRefreshToken(
   const redis = getRedis();
   const tokenHash = hashToken(rawToken);
   const key = tokenKey(tokenHash);
-  const payload = await redis.get(key);
+  // Atomic consume so only one concurrent rotator receives the payload.
+  const payload = await redis.getdel(key);
 
   if (!payload) {
     // Reuse of a rotated token: revoke the whole family if we still know it.
@@ -55,7 +56,6 @@ export async function rotateRefreshToken(
   }
 
   const session = JSON.parse(payload) as RefreshSession;
-  await redis.del(key);
   await redis.srem(familyKey(session.familyId), tokenHash);
   // Keep a short-lived index so reuse of this hash can revoke the family.
   await redis.set(

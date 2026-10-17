@@ -16,6 +16,7 @@ import {
   resumeAttempt,
   saveAttempt,
   startAttempt,
+  studentSignOut,
   submitAttempt,
 } from '../services/api';
 import type { AttemptQuestion, AttemptState } from '../services/types';
@@ -43,7 +44,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [submitting, setSubmitting] = useState(false);
   const revisionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
+  const pendingAnswersRef = useRef<Record<string, string> | null>(null);
+  const persistRef = useRef<(next: Record<string, string>) => Promise<void>>(async () => {});
   const autoSubmitted = useRef(false);
+  const sessionEndedRef = useRef(false);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -94,7 +98,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
 
   const persist = useCallback(
     async (nextAnswers: Record<string, string>) => {
-      if (!attempt) return;
+      if (!attempt || sessionEndedRef.current) return;
       const responses = Object.entries(nextAnswers).map(([questionVersionId, label]) => ({
         questionVersionId,
         answer: { label },
@@ -108,18 +112,53 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         if (err instanceof ApiError && err.status === 409) {
           setError('Your attempt was updated elsewhere. Reloading…');
           await load();
+          return;
         }
+        if (err instanceof ApiError && err.status === 401) {
+          sessionEndedRef.current = true;
+          if (saveTimer.current) {
+            window.clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+          }
+          pendingAnswersRef.current = null;
+          void studentSignOut();
+          setError('Your session ended. Sign in again to continue.');
+          navigate('/login', { replace: true });
+          return;
+        }
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : 'Could not save your answers. Check your connection and try again.',
+        );
       }
     },
-    [attempt, load],
+    [attempt, load, navigate],
   );
 
+  persistRef.current = persist;
+
   function queueSave(next: Record<string, string>) {
+    if (sessionEndedRef.current) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
+    pendingAnswersRef.current = next;
     saveTimer.current = window.setTimeout(() => {
+      pendingAnswersRef.current = null;
       void persist(next);
     }, 400);
   }
+
+  useEffect(() => {
+    return () => {
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const pending = pendingAnswersRef.current;
+      pendingAnswersRef.current = null;
+      if (pending) void persistRef.current(pending);
+    };
+  }, []);
 
   useEffect(() => {
     if (!attempt || busy) return;
@@ -136,6 +175,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         setConfirm(true);
         return;
       }
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      pendingAnswersRef.current = null;
       setSubmitting(true);
       setConfirm(false);
       try {

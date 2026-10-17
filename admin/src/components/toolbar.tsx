@@ -49,10 +49,11 @@ export function Toolbar({
 
   useEffect(() => {
     if (!onSearchChange) return;
+    if (debouncedInput !== inputValue) return;
     const committedValue = searchValue ?? '';
     if (debouncedInput === committedValue) return;
     onSearchChange(debouncedInput);
-  }, [debouncedInput, onSearchChange, searchValue]);
+  }, [debouncedInput, inputValue, onSearchChange, searchValue]);
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">

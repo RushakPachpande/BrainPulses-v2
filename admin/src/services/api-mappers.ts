@@ -37,13 +37,23 @@ function formatPresentation(value: string): string {
 }
 
 function formatAttemptStatus(value: string): string {
+  const normalized = value.trim().toLowerCase().replaceAll(' ', '_').replaceAll('-', '_');
   const map: Record<string, string> = {
-    not_started: 'Not started',
-    in_progress: 'In progress',
-    submitted: 'Submitted',
-    auto_submitted: 'Auto submitted',
+    not_started: 'Not Started',
+    notstarted: 'Not Started',
+    in_progress: 'In Progress',
+    inprogress: 'In Progress',
+    submitted: 'Completed',
+    auto_submitted: 'Completed',
+    autosubmitted: 'Completed',
   };
-  return map[value] ?? value;
+  return map[normalized] ?? value;
+}
+
+function formatAssignment(value: string): string {
+  if (value === 'Unassigned' || value === 'unassigned') return 'Pending';
+  if (value === 'Assigned' || value === 'assigned') return 'Assigned';
+  return value;
 }
 
 export function mapStudentFromApi(row: {
@@ -179,7 +189,7 @@ export function mapRegistrationFromApi(row: {
     registered: formatAdminDate(row.registered),
     activity: row.activity,
     bank: '—',
-    assignment: row.assignment,
+    assignment: formatAssignment(row.assignment),
     attempt: formatAttemptStatus(row.attempt),
     city: row.city ?? '—',
     course: row.course ?? '—',

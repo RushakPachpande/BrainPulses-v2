@@ -21,6 +21,9 @@ export const createStudentSchema = z
 export const updateStudentSchema = createStudentSchema
   .partial()
   .extend({
+    phone: z.string().trim().max(40).nullable().optional(),
+    course: z.string().trim().max(120).nullable().optional(),
+    city: z.string().trim().max(120).nullable().optional(),
     isActive: z.boolean().optional(),
   })
   .strict();

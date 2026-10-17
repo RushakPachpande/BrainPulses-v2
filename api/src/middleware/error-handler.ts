@@ -2,6 +2,12 @@ import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../lib/errors.js';
 
+function isBodyParserError(
+  err: unknown,
+): err is Error & { type?: string; status?: number; statusCode?: number } {
+  return Boolean(err && typeof err === 'object' && 'type' in err);
+}
+
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
   if (err instanceof AppError) {
     res.status(err.status).json({
@@ -30,6 +36,29 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
       },
     });
     return;
+  }
+
+  if (isBodyParserError(err)) {
+    if (err.type === 'entity.parse.failed') {
+      res.status(400).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Request body could not be parsed as JSON.',
+          requestId: req.requestId,
+        },
+      });
+      return;
+    }
+    if (err.type === 'entity.too.large') {
+      res.status(413).json({
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Request body is too large.',
+          requestId: req.requestId,
+        },
+      });
+      return;
+    }
   }
 
   console.error('[api]', err);

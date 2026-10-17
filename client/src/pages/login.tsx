@@ -1,4 +1,4 @@
-import { ArrowRight, GraduationCap } from 'lucide-react';
+import { ArrowRight, GraduationCap, X } from 'lucide-react';
 import {
   useEffect,
   useId,
@@ -17,10 +17,13 @@ import {
   isValidNationalMobile,
   isValidUniqueId,
 } from '../lib/login-validation';
-import { useAuth } from '../contexts/auth';
+import { SessionActiveError, useAuth } from '../contexts/auth';
 
 type LoginTab = 'code' | 'phone';
 type PhoneStep = 'enter' | 'otp';
+type PendingSession =
+  | { kind: 'code'; code: string }
+  | { kind: 'otp'; countryCode: string; mobileNumber: string; otp: string };
 
 const OTP_LENGTH = 6;
 
@@ -38,7 +41,7 @@ export function LoginPage() {
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
   const [tab, setTab] = useState<LoginTab>('code');
-  const [code, setCode] = useState('BP-24101');
+  const [code, setCode] = useState(import.meta.env.DEV ? 'BP-24101' : '');
   const [countryCode, setCountryCode] = useState('+91');
   const [mobileNumber, setMobileNumber] = useState('');
   const [phoneStep, setPhoneStep] = useState<PhoneStep>('enter');
@@ -47,6 +50,7 @@ export function LoginPage() {
   const [otpInvalid, setOtpInvalid] = useState(false);
   const [busy, setBusy] = useState(false);
   const [info, setInfo] = useState('');
+  const [sessionPrompt, setSessionPrompt] = useState<PendingSession | null>(null);
 
   const [codeTouched, setCodeTouched] = useState(false);
   const [countryTouched, setCountryTouched] = useState(false);
@@ -79,6 +83,20 @@ export function LoginPage() {
     }
   }, [phoneStep]);
 
+  async function completeSignIn(pending: PendingSession, replaceSession: boolean) {
+    if (pending.kind === 'code') {
+      await signInWithCode(pending.code, replaceSession);
+    } else {
+      await verifyPhoneOtp(
+        pending.countryCode,
+        pending.mobileNumber,
+        pending.otp,
+        replaceSession,
+      );
+    }
+    navigate(from, { replace: true });
+  }
+
   async function onCodeSubmit(e: FormEvent) {
     e.preventDefault();
     setCodeAttempted(true);
@@ -86,10 +104,13 @@ export function LoginPage() {
     setError('');
     setBusy(true);
     try {
-      await signInWithCode(code.trim());
-      navigate(from, { replace: true });
+      await completeSignIn({ kind: 'code', code: code.trim() }, false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to sign in.');
+      if (err instanceof SessionActiveError) {
+        setSessionPrompt({ kind: 'code', code: code.trim() });
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Unable to sign in.');
+      }
     } finally {
       setBusy(false);
     }
@@ -120,14 +141,38 @@ export function LoginPage() {
     setError('');
     setOtpInvalid(false);
     setBusy(true);
+    const pending: PendingSession = {
+      kind: 'otp',
+      countryCode: countryCode.trim(),
+      mobileNumber: mobileNumber.replace(/\D/g, ''),
+      otp,
+    };
     try {
-      await verifyPhoneOtp(countryCode.trim(), mobileNumber.replace(/\D/g, ''), otp);
-      navigate(from, { replace: true });
+      await completeSignIn(pending, false);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Unable to verify OTP.');
-      setOtpInvalid(true);
-      setOtpDigits(Array(OTP_LENGTH).fill(''));
-      otpRefs.current[0]?.focus();
+      if (err instanceof SessionActiveError) {
+        setSessionPrompt(pending);
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Unable to verify OTP.');
+        setOtpInvalid(true);
+        setOtpDigits(Array(OTP_LENGTH).fill(''));
+        otpRefs.current[0]?.focus();
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmReplaceSession() {
+    if (!sessionPrompt) return;
+    setBusy(true);
+    setError('');
+    try {
+      await completeSignIn(sessionPrompt, true);
+      setSessionPrompt(null);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Unable to sign in.');
+      setSessionPrompt(null);
     } finally {
       setBusy(false);
     }
@@ -290,9 +335,11 @@ export function LoginPage() {
               <button className="btn primary full" disabled={busy || !codeValid} type="submit">
                 {busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} aria-hidden />
               </button>
-              <div className="demo-note">
-                <span className="dot" /> Demo · Unique ID BP-24101
-              </div>
+              {import.meta.env.DEV && (
+                <div className="demo-note">
+                  <span className="dot" /> Demo · Unique ID BP-24101
+                </div>
+              )}
             </div>
           )}
 
@@ -346,9 +393,11 @@ export function LoginPage() {
               <button className="btn primary full" disabled={busy || !phoneValid} type="submit">
                 {busy ? 'Sending…' : 'Continue'} <ArrowRight size={16} aria-hidden />
               </button>
-              <div className="demo-note">
-                <span className="dot" /> Demo · +91 9876510000 (OTP in API log)
-              </div>
+              {import.meta.env.DEV && (
+                <div className="demo-note">
+                  <span className="dot" /> Demo · +91 9876510000 (OTP in API log)
+                </div>
+              )}
             </div>
           )}
 
@@ -429,6 +478,51 @@ export function LoginPage() {
       <div className="login-footer">
         © 2026 BrainPulses <span>Student portal</span>
       </div>
+
+      {sessionPrompt && (
+        <div className="modal-backdrop" role="presentation">
+          <div
+            className="confirm-modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="session-replace-title"
+            aria-describedby="session-replace-desc"
+          >
+            <button
+              className="modal-close icon-btn"
+              type="button"
+              onClick={() => setSessionPrompt(null)}
+              aria-label="Close"
+              disabled={busy}
+            >
+              <X size={18} />
+            </button>
+            <h2 id="session-replace-title">Active session found</h2>
+            <p id="session-replace-desc">
+              Another device or browser is already signed in with this account. Continuing will
+              revoke that session. Any unsaved answers on the other device will be lost.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn outline"
+                type="button"
+                disabled={busy}
+                onClick={() => setSessionPrompt(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn primary"
+                type="button"
+                disabled={busy}
+                onClick={() => void confirmReplaceSession()}
+              >
+                {busy ? 'Continuing…' : 'Revoke and continue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

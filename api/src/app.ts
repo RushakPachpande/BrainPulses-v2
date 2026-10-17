@@ -32,7 +32,7 @@ export function createApp() {
     throw new Error('Redis must be ready in production for rate limits and refresh tokens.');
   }
 
-  app.set('trust proxy', 1);
+  app.set('trust proxy', env.TRUST_PROXY);
   app.use(requestId);
   app.use(
     helmet({
@@ -76,9 +76,9 @@ export function createApp() {
     },
   };
 
-  function redisStore() {
+  function redisStore(prefix: string) {
     return new RedisStore({
-      prefix: 'rl:bp:',
+      prefix,
       sendCommand: async (...args: string[]) => {
         const [command, ...rest] = args;
         return await (
@@ -102,8 +102,8 @@ export function createApp() {
     ...limiterOptions,
     max: env.RATE_LIMIT_MAX,
     skip: (req) => Boolean(skipInTest?.()) || req.originalUrl.startsWith('/api/auth'),
-    validate: { xForwardedForHeader: false },
-    ...(useRedisStore ? { store: redisStore() } : {}),
+    validate: { xForwardedForHeader: true },
+    ...(useRedisStore ? { store: redisStore('rl:bp:api:') } : {}),
   });
 
   const authLimiter = rateLimit({
@@ -115,8 +115,8 @@ export function createApp() {
       const path = (req.originalUrl.split('?')[0] ?? '').replace(/\/$/, '');
       return path === '/api/auth/refresh' || path === '/api/auth/sign-out';
     },
-    validate: { xForwardedForHeader: false },
-    ...(useRedisStore ? { store: redisStore() } : {}),
+    validate: { xForwardedForHeader: true },
+    ...(useRedisStore ? { store: redisStore('rl:bp:auth:') } : {}),
   });
 
   app.get('/health', (_req, res) => {

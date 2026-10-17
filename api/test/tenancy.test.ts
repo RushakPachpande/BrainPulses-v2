@@ -65,22 +65,25 @@ describe('tenancy and access', () => {
     // Without requireAccess on create, view can create. Assert publish middleware:
     // We add requireAccess in routes for publish. For create we may allow — plan said
     // view-only cannot publish. Test publish after ensuring draft activity owned by org.
-    await prisma.activity.update({
-      where: { id: activity.id },
-      data: { status: 'draft' },
-    });
+    const originalStatus = activity.status;
+    try {
+      await prisma.activity.update({
+        where: { id: activity.id },
+        data: { status: 'draft' },
+      });
 
-    assert.equal(create.status, 403);
+      assert.equal(create.status, 403);
 
-    const publish = await request(app, 'POST', `/api/activities/${activity.id}/publish`, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    assert.equal(publish.status, 403);
-
-    await prisma.activity.update({
-      where: { id: activity.id },
-      data: { status: 'active' },
-    });
+      const publish = await request(app, 'POST', `/api/activities/${activity.id}/publish`, {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      assert.equal(publish.status, 403);
+    } finally {
+      await prisma.activity.update({
+        where: { id: activity.id },
+        data: { status: originalStatus },
+      });
+    }
   });
 
   it('omits answer keys from bank detail', async () => {

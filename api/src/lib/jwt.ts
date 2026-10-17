@@ -16,6 +16,7 @@ export type StudentAccessTokenPayload = {
   typ: 'student';
   sub: string;
   organizationId: string;
+  sid: string;
 };
 
 export type OrgSelectTokenPayload = {

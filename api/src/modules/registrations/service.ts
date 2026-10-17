@@ -1,12 +1,28 @@
 import { stringify } from 'csv-stringify/sync';
-import { Prisma } from '#prisma';
+import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { sanitizeCsvCell } from '../../lib/csv.js';
 import { notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { assertActivityAccess } from '../activities/service.js';
 import type { z } from 'zod';
 import type { registrationListQuerySchema } from './schema.js';
+
+export type RegistrationActor = {
+  userId: string;
+  role: MembershipRole;
+  assessmentAccess: AccessLevel;
+  quizAccess: AccessLevel;
+};
+
+function viewableKinds(actor: RegistrationActor): ActivityKind[] {
+  if (actor.role === 'super_admin') return ['assessment', 'quiz'];
+  const kinds: ActivityKind[] = [];
+  if (actor.assessmentAccess !== 'none') kinds.push('assessment');
+  if (actor.quizAccess !== 'none') kinds.push('quiz');
+  return kinds;
+}
 
 function mapRegistration(r: {
   id: string;
@@ -48,12 +64,24 @@ function mapRegistration(r: {
 
 export async function listRegistrations(
   organizationId: string,
+  actor: RegistrationActor,
   query: z.infer<typeof registrationListQuerySchema>,
 ) {
+  const kinds = viewableKinds(actor);
+  const allowedKinds =
+    query.kind && kinds.includes(query.kind)
+      ? [query.kind]
+      : query.kind
+        ? []
+        : kinds;
+
   const where: Prisma.RegistrationWhereInput = {
     organizationId,
     ...(query.activityId ? { activityId: query.activityId } : {}),
-    ...(query.kind ? { activity: { kind: query.kind } } : {}),
+    activity:
+      allowedKinds.length > 0
+        ? { kind: { in: allowedKinds } }
+        : { id: '00000000-0000-0000-0000-000000000000' },
     ...(query.status !== 'all' ? { status: query.status } : {}),
     ...(query.q
       ? {
@@ -109,13 +137,20 @@ export async function listRegistrations(
 
 export async function assign(
   organizationId: string,
-  actorUserId: string,
+  actor: RegistrationActor,
   activityId: string,
   studentIds: string[],
   idempotencyKey?: string,
 ) {
   const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
   if (!activity) throw notFound('Activity not found.');
+  assertActivityAccess(
+    actor.role,
+    actor.assessmentAccess,
+    actor.quizAccess,
+    activity.kind,
+    'edit',
+  );
 
   if (idempotencyKey) {
     const prior = await prisma.auditEvent.findFirst({
@@ -157,7 +192,7 @@ export async function assign(
   await writeAudit({
     organizationId,
     actorType: 'user',
-    actorUserId,
+    actorUserId: actor.userId,
     action: 'registration.assign',
     targetType: 'activity',
     targetId: activityId,
@@ -169,12 +204,19 @@ export async function assign(
 
 export async function unassign(
   organizationId: string,
-  actorUserId: string,
+  actor: RegistrationActor,
   activityId: string,
   studentIds: string[],
 ) {
   const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
   if (!activity) throw notFound('Activity not found.');
+  assertActivityAccess(
+    actor.role,
+    actor.assessmentAccess,
+    actor.quizAccess,
+    activity.kind,
+    'edit',
+  );
 
   await prisma.registration.updateMany({
     where: { organizationId, activityId, studentId: { in: studentIds } },
@@ -184,7 +226,7 @@ export async function unassign(
   await writeAudit({
     organizationId,
     actorType: 'user',
-    actorUserId,
+    actorUserId: actor.userId,
     action: 'registration.unassign',
     targetType: 'activity',
     targetId: activityId,
@@ -194,9 +236,20 @@ export async function unassign(
   return { ok: true, count: studentIds.length };
 }
 
-export async function exportCsv(organizationId: string, actorUserId: string, activityId: string) {
+export async function exportCsv(
+  organizationId: string,
+  actor: RegistrationActor,
+  activityId: string,
+) {
   const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
   if (!activity) throw notFound('Activity not found.');
+  assertActivityAccess(
+    actor.role,
+    actor.assessmentAccess,
+    actor.quizAccess,
+    activity.kind,
+    'view',
+  );
 
   const rows = await prisma.registration.findMany({
     where: { organizationId, activityId },
@@ -219,7 +272,7 @@ export async function exportCsv(organizationId: string, actorUserId: string, act
   await writeAudit({
     organizationId,
     actorType: 'user',
-    actorUserId,
+    actorUserId: actor.userId,
     action: 'registration.export',
     targetType: 'activity',
     targetId: activityId,

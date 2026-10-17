@@ -5,7 +5,7 @@ import * as service from './service.js';
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    res.json(await service.listResults(actor.organizationId, req.query as never));
+    res.json(await service.listResults(actor.organizationId, actor, req.query as never));
   } catch (err) {
     next(err);
   }
@@ -25,7 +25,7 @@ export async function publish(req: Request, res: Response, next: NextFunction) {
     const actor = userActor(req);
     const data = await service.publishResult(
       actor.organizationId,
-      actor.userId,
+      actor,
       req.params.id as string,
       req.header('idempotency-key') ?? undefined,
     );
@@ -40,7 +40,7 @@ export async function regrade(req: Request, res: Response, next: NextFunction) {
     const actor = userActor(req);
     const data = await service.regradeResult(
       actor.organizationId,
-      actor.userId,
+      actor,
       req.params.id as string,
       req.body,
     );
