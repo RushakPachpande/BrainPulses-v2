@@ -509,8 +509,13 @@ function SidebarMenuButton({
       {...props}
       onClick={(event) => {
         onClick?.(event);
-        const opensMenu = event.currentTarget.getAttribute('aria-haspopup') === 'menu';
-        if (isMobile && !opensMenu) setOpenMobile(false);
+        if (!isMobile) return;
+        // Keep the sheet open for disclosure toggles (parent nav with children)
+        // and popup menus — close only when the click is a real navigation.
+        const target = event.currentTarget;
+        const opensMenu = target.getAttribute('aria-haspopup') === 'menu';
+        const togglesSubnav = target.hasAttribute('aria-expanded');
+        if (!opensMenu && !togglesSubnav) setOpenMobile(false);
       }}
     />
   );

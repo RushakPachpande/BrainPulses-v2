@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { useAuth } from '@/contexts/auth-context';
 
 export function LoginPage() {
@@ -64,7 +65,10 @@ export function LoginPage() {
   const selectingOrg = auth.status === 'select_organization';
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-8">
+    <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-8">
+      <div className="absolute top-4 right-4 z-10 sm:top-6 sm:right-6">
+        <ThemeToggle />
+      </div>
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>{selectingOrg ? 'Choose organization' : 'Sign in'}</CardTitle>

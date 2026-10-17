@@ -85,6 +85,3 @@ ehthumbs.db
 to-do/
 reference*
 graphify-out/
-
-# Frontend-only QA package (ported into admin/ + client/; keep local, do not commit)
-BrainPulses v2.0 - Production Readiness QA Handoff/
