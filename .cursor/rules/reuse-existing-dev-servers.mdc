@@ -1,0 +1,25 @@
+---
+description: Never auto-start the admin dev server; reuse port 5173 if it is already listening
+alwaysApply: true
+---
+
+# Reuse existing dev servers
+
+Do not start `npm run dev` or `npm run dev:admin` on your own.
+
+1. Check whether **5173** is already listening (user terminal or a prior session).
+2. If it is, use `http://localhost:5173`. Do not start a second instance. Do not kill it.
+3. Start the server only when verification needs a live app **and** the port is free.
+
+```powershell
+Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+```
+
+```text
+❌ BAD — npm run dev:admin without checking; then kill the user's server
+✅ GOOD — detect the listener, then open that URL
+```
+
+From the repo root the script is `npm run dev:admin`. Inside `admin/` it is `npm run dev`. Vite will not move off 5173.
+
+Stop only servers you started in this chat. See `close-terminals-after-work`.

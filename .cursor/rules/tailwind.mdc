@@ -1,0 +1,22 @@
+---
+description: Tailwind v4 for admin — tokens in index.css, no tailwind.config, no second palette
+alwaysApply: true
+---
+
+# Tailwind v4
+
+Admin styling is CSS-first. `admin/src/index.css` imports `tailwindcss`, `tw-animate-css`, and `shadcn/tailwind.css`, then defines tokens in `@theme` and `:root` / `.dark`. There is no `tailwind.config`.
+
+```css
+/* ❌ BAD — a second config or a one-off hex on a page */
+/* tailwind.config.js */
+<div className="bg-[#2563eb]" />
+
+/* ✅ GOOD — semantic tokens already in index.css */
+<div className="bg-primary text-primary-foreground" />
+```
+
+- Use utilities for layout, spacing, and type. Prefer tokens: `primary`, `sidebar`, `success`, `warning`, `destructive`, `muted`, chart and kpi colors.
+- Dark mode is the `.dark` class (`@custom-variant dark`).
+- Add a new color in `index.css` (`:root`, `.dark`, and `@theme` when it should be a utility). Do not invent a parallel palette in a component.
+- `@apply` stays in `index.css` base layer, as it does today. Do not build component CSS files to replace utilities.

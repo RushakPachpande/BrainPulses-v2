@@ -1,0 +1,27 @@
+---
+description: Ask before implementing when the admin task is missing goal, scope, or which page to change
+alwaysApply: true
+---
+
+# Clarify before acting
+
+Ask first when the request is missing something that would change the result. This applies in every mode.
+
+Ask when any of these are unclear:
+
+- Goal or what “done” means
+- What is in scope
+- Which approach, when more than one is valid
+- Which page, fixture, or copy to change
+
+```text
+❌ BAD — "improve the dashboard" → rewrite layout and copy
+✅ GOOD — ask whether the change is layout, data, or copy, and which cards
+
+❌ BAD — "add a students filter" → invent filter fields
+✅ GOOD — ask which fields, using the columns already on the students page
+```
+
+Batch related questions in one turn. After answers, confirm briefly, then act.
+
+If the request is already specific, do the work. Do not ask ritual questions.

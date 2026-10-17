@@ -1,0 +1,29 @@
+---
+description: Stop only agent-started processes; free admin Vite port 5173 you bound — never kill a listener that was already up
+alwaysApply: true
+---
+
+# Close terminals and free ports
+
+Before the final reply, stop processes **you** started in this chat. Closing a terminal pane is not enough; child Node processes can keep the port.
+
+| Service | Port |
+|---|---|
+| Admin Vite (`admin/`) | **5173** (`strictPort`) |
+
+Free **5173** only when your process, or an orphan from this chat, still holds it.
+
+```powershell
+# Only when this chat bound 5173
+Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue |
+  Select-Object -ExpandProperty OwningProcess -Unique |
+  ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+```
+
+```text
+❌ BAD — kill whatever is on 5173 because the turn ended
+✅ GOOD — leave the user's already-running dev:admin listener alone
+```
+
+- Prefer one-shot checks (`npm run typecheck`, `npm run lint`, `npm run build` in `admin/`) over a dev server you start.
+- Leave a process running only if the user asks.

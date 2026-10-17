@@ -1,0 +1,24 @@
+---
+description: Admin UI uses shadcn components and lucide-react icons only
+globs: admin/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# shadcn-only UI
+
+`admin/` builds controls from shadcn in `@/components/ui` (style `radix-nova`). Icons come from `lucide-react`. Tailwind utilities are for layout and spacing.
+
+```tsx
+// ❌ BAD — second library, or a custom button
+import { Button } from "@mui/material";
+<button className="rounded bg-blue-500 px-4">Save</button>
+
+// ✅ GOOD
+import { Button } from "@/components/ui/button";
+<Button type="submit">Save</Button>
+```
+
+- Do not add MUI, Chakra, Ant Design, Bootstrap, or Headless UI.
+- Do not hand-roll buttons, inputs, selects, dialogs, tables, badges, switches, or tabs.
+- Radix belongs only inside generated files in `components/ui`.
+- App chrome (`layouts/`, page sections, `components/` outside `ui/`) stays outside those primitives.

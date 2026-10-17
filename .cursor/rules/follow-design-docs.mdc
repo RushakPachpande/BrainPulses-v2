@@ -1,0 +1,26 @@
+---
+description: Follow the BrainPulses design docs for admin UI changes
+globs: admin/**/*.{tsx,css}
+alwaysApply: false
+---
+
+# Follow the design docs
+
+Before changing admin UI, read `docs/design/DESIGN.md` and `docs/COLOR_PALETTE.md`. Implement that version. `.stitch/DESIGN.md` is the same system for Stitch, not a second palette.
+
+Tokens live in the last `:root` and `.dark` blocks of `admin/src/index.css`. Use semantic utilities. If a color must change, update those blocks and both docs together. Do not add another theme block.
+
+```tsx
+// ❌ BAD — one-off hex, custom control height, tinted metric card
+<div className="h-8 rounded-2xl bg-[#2463eb]" />
+
+// ✅ GOOD — tokens and sizes from the design docs
+<Button type="button">Save</Button>
+<Card className="bg-card text-card-foreground" />
+```
+
+- Controls from `@/components/ui`. Icons from `lucide-react`.
+- 44px controls, 12px cards, 8px buttons, 1px borders.
+- One primary action. Flat cards. No gradients, glass, or rainbow KPI fills.
+- Status through `StatusPill`: attempt Completed is `ok`; activity and question-bank Completed is `pr`.
+- List, settings, and dashboard stacks match the recipes in `docs/design/DESIGN.md`.

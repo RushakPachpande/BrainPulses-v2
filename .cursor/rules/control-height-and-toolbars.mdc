@@ -1,0 +1,22 @@
+---
+description: Single-line admin controls stay 44px; toolbars wrap with actions on the trailing edge
+alwaysApply: true
+---
+
+# Control height and toolbars
+
+`--control-h` is **44px** in `admin/src/index.css`. These selectors already set `height` and `min-height` to that token:
+
+- `[data-slot='button']` (not icon sizes, not `link`)
+- `[data-slot='input']`, `[data-slot='select-trigger']`, `[data-slot='input-group']`
+
+Do not give a new single-line button, input, or select its own height. Icon buttons inside the workspace stay square at `--control-h`. Textareas and link buttons are the exceptions.
+
+```css
+/* ❌ BAD */
+button { height: 32px; }
+
+/* ✅ GOOD — leave the data-slot rules in index.css in place */
+```
+
+Toolbars use `Toolbar` in `admin/src/components/toolbar.tsx`: a wrapping row, search and filters in flow, actions with `sm:ml-auto`. Below `sm`, search, each filter, and the action group are full width. Do not push actions with a flex spacer; it collapses on wrap.

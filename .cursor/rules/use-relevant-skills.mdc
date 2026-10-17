@@ -1,0 +1,25 @@
+---
+description: Use project skills under .agents/skills first; match the admin design system; skip API and SEO skills until those apps exist
+alwaysApply: true
+---
+
+# Use relevant skills
+
+Read every matching `SKILL.md` before implementing. Do not wait for `/skill` when the match is obvious.
+
+1. **Project** — `.agents/skills/` (this repo has no `.cursor/skills/`).
+2. **Global** — `~/.cursor/skills/`, `~/.agents/skills/`, `~/.cursor/skills-cursor/` only for gaps the project skill does not cover.
+
+Project skills here: `accessibility`, `frontend-design`, `vite`, `bash-defensive-patterns`, `nodejs-backend-patterns`, `nodejs-best-practices`, `seo`.
+
+```text
+❌ BAD — restyle admin from frontend-design, or run a Prisma/Node skill when there is no API
+✅ GOOD — new admin page: frontend-design + accessibility, using existing tokens and shadcn
+```
+
+- For admin UI, follow `admin/src/index.css` and `@/components/ui`. Do not invent a new visual direction from `frontend-design`.
+- Use `vite` for `admin/vite.config.ts` and the dev server. Use `accessibility` for pages and controls.
+- Skip `nodejs-*` and `seo` until the user adds an API or a public site.
+- Shell on this machine is PowerShell. Do not follow bash-only steps from `bash-defensive-patterns` when PowerShell is the shell.
+
+If no skill matches, or the user says to skip skills, proceed without one.

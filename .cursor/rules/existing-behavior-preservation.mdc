@@ -1,0 +1,20 @@
+---
+description: Change only what was asked; leave unrelated admin behavior alone
+alwaysApply: true
+---
+
+# Existing behavior preservation
+
+The admin app is working. Success is the requested change plus everything else unchanged.
+
+Do not change, unless the task asks: routing, fixtures, page copy, loading and empty states, layout, or shared component behavior. Do not rename nearby symbols, restyle a page, or rewrite a working component to “clean it up.”
+
+```text
+❌ BAD — the task adds a button, and the edit also renames helpers and restyles the page
+✅ GOOD — add the button and the wiring it needs
+```
+
+- Inspect the component and its call sites before editing. Extend it; do not replace it.
+- If two readings would change behavior that was not requested, ask.
+- Report unrelated bugs; do not fix them in the same change.
+- After a code change, run `npm run typecheck`, `npm run lint`, and `npm run format:check` in `admin/` when the edit can affect them. Fix regressions you caused.

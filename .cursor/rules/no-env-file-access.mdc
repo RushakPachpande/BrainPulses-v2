@@ -1,0 +1,17 @@
+---
+description: Never read or write real env files; templates are .env.example or .env.*.example with placeholders only
+alwaysApply: true
+---
+
+# Environment file access ban
+
+Do not open, read, write, edit, delete, search, or print real environment files.
+
+Forbidden: `.env`, `.env.local`, `.env.development`, `.env.production`, `.env.test`, and any `.env.*` that is not an example. That includes Read, Write, Grep, Glob, and shell (`Get-Content`, `type`, redirects). If a diff or commit includes one, warn the user and do not inspect it.
+
+```text
+❌ BAD — read .env to see which keys exist
+✅ GOOD — read .env.example or .env.*.example, or ask the user
+```
+
+This app has no env templates yet. When one is needed, add `.env.example` or `.env.*.example` (both are allowed by `.gitignore`) with placeholder values only. Do not put real secrets in those files.
