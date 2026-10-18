@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>BrainPulses · Design System Preview</title>
+    <link rel="icon" type="image/svg+xml" href="../../public/brand.svg" />
+    <link rel="stylesheet" href="../../src/styles/tokens.css" />
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; background: var(--background); color: var(--foreground); font: 16px/1.55 var(--font-body); }
+      h1, h2, h3 { font-family: var(--font-heading); letter-spacing: -.028em; line-height: 1.25; }
+      h1 { font-size: clamp(26px, 3vw, 39px); margin: 10px 0; }
+      h2 { margin: 0 0 6px; font-size: 18px; }
+      p { margin: 0; }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, input:focus-visible { outline: 3px solid var(--ring); outline-offset: 2px; }
+      .shell { max-width: 1200px; margin: auto; padding: 24px clamp(16px, 3vw, 36px) 70px; }
+      .top { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; border-bottom: 1px solid var(--border); }
+      .brand { display: flex; gap: 12px; align-items: center; font-family: var(--font-heading); font-weight: 800; font-size: 18px; }
+      .brand img { width: 42px; height: 42px; border-radius: 10px; }
+      .top small { color: var(--muted-foreground); }
+      .theme { margin-left: auto; }
+      .primary, .secondary { height: 44px; min-width: 44px; padding: 0 18px; border-radius: var(--radius-control); font-weight: 650; border: 1px solid transparent; }
+      .primary { background: var(--primary); color: var(--primary-foreground); }
+      .primary:hover { background: var(--primary-hover); }
+      .secondary { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--border); }
+      .lead { margin: 30px 0; max-width: 800px; }
+      .lead p { color: var(--muted-foreground); }
+      .eyebrow { letter-spacing: .13em; text-transform: uppercase; color: var(--primary); font-weight: 800; font-size: 12px; }
+      .row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin: 16px 0; }
+      .card { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 22px; box-shadow: var(--shadow); }
+      .desc { color: var(--muted-foreground); font-size: 14px; margin-bottom: 18px; }
+      .palette { display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); gap: 10px; }
+      .tone { min-width: 0; }
+      .swatch { height: 65px; border-radius: 8px; border: 1px solid var(--border); }
+      .tone b { font-size: 12px; display: block; margin-top: 6px; }
+      .tone code { color: var(--muted-foreground); font-size: 10px; overflow-wrap: anywhere; }
+      .tag { display: inline-flex; border-radius: 999px; padding: 4px 11px; font-weight: 750; font-size: 12px; gap: 6px; }
+      .tag.ok { color: var(--ok-fg); background: var(--ok-bg); }
+      .tag.warn { color: var(--wn-fg); background: var(--wn-bg); }
+      .tag.error { color: var(--er-fg); background: var(--er-bg); }
+      .tag.draft { color: var(--gy-fg); background: var(--gy-bg); }
+      .tags, .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+      .field { display: grid; margin-top: 18px; gap: 6px; font-weight: 700; font-size: 14px; }
+      .field input { width: 100%; height: 44px; border-radius: var(--radius-input); background: var(--card); color: var(--foreground); border: 1px solid var(--input); padding: 0 12px; }
+      .specimen { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--border); }
+      .option { margin: 9px 0; display: flex; align-items: flex-start; gap: 12px; width: 100%; padding: 14px; background: var(--card); color: var(--foreground); border: 1px solid var(--border); border-radius: 9px; text-align: left; }
+      .option[aria-pressed=true] { border-color: var(--primary); background: var(--accent); color: var(--accent-foreground); }
+      .letter { font-size: 12px; display: inline-grid; flex: 0 0 26px; height: 26px; place-items: center; border: 1px solid var(--border); border-radius: 7px; font-weight: 750; }
+      .option[aria-pressed=true] .letter { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+      .rule { border-left: 3px solid var(--primary); padding-left: 14px; margin-top: 14px; font-size: 14px; color: var(--muted-foreground); }
+      .metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; margin-top: 20px; }
+      .metric { background: var(--muted); padding: 15px; border-radius: 9px; }
+      .metric strong { display: block; font: 750 25px var(--font-heading); }
+      .metric small { color: var(--muted-foreground); font-size: 12px; }
+      .footer { margin-top: 24px; color: var(--muted-foreground); font-size: 13px; }
+      @media (max-width: 760px) { .row { grid-template-columns: 1fr; } .palette { grid-template-columns: repeat(5,minmax(0,1fr)); } .top small { display: none; } }
+      @media (max-width: 400px) { .palette { grid-template-columns: repeat(3,minmax(0,1fr)); } .card { padding: 16px; } }
+      @media (prefers-reduced-motion: no-preference) { .option, .primary, .secondary { transition: background .16s ease, border-color .16s ease; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="top">
+        <div class="brand"><img src="../../public/brand.svg" alt="" /> BrainPulses</div>
+        <small>Client design system · app-local</small>
+        <button class="secondary theme" id="theme" type="button" aria-label="Toggle light and dark theme">Dark mode</button>
+      </header>
+      <section class="lead">
+        <span class="eyebrow">Visual language · v1.0</span>
+        <h1>Better assessments begin with clarity.</h1>
+        <p>A living, dependency-free preview of the BrainPulses palette, typography, interface controls and quiz interaction. The API remains the source of truth; this page is only a design specimen.</p>
+      </section>
+      <div class="row">
+        <section class="card">
+          <h2>Brand scale</h2><p class="desc">Royal Violet #45058F is extracted from your supplied logo. Supporting tones are UI shades.</p>
+          <div class="palette" id="brand-palette"></div>
+        </section>
+        <section class="card">
+          <h2>Semantic surfaces</h2><p class="desc">Tokens follow light/dark mode without modifying individual pages.</p>
+          <div class="palette" id="semantic-palette"></div>
+        </section>
+      </div>
+      <div class="row">
+        <section class="card">
+          <h2>Typography & components</h2>
+          <p class="desc">Plus Jakarta Sans titles; Source Sans 3 body. Calm controls, 44px touch targets.</p>
+          <div class="buttons"><button class="primary" type="button" id="sample-action">Primary action</button><button class="secondary" type="button">Secondary</button></div>
+          <div class="specimen"><div class="tags"><span class="tag ok">● Completed</span><span class="tag warn">● Pending</span><span class="tag error">● Failed</span><span class="tag draft">● Draft</span></div></div>
+          <label class="field">Assessment title <input value="Critical thinking fundamentals" aria-label="Sample assessment title" /></label>
+        </section>
+        <section class="card">
+          <h2>Question state</h2><p class="desc">Obvious selected state, keyboard focus, and readable response controls.</p>
+          <h3 style="font-size:16px">Where should scoring and authorization rules live?</h3>
+          <div id="options" role="group" aria-label="Choose one option">
+            <button class="option" type="button" aria-pressed="true"><span class="letter">A</span>Within the central API</button>
+            <button class="option" type="button" aria-pressed="false"><span class="letter">B</span>Duplicated in every browser client</button>
+            <button class="option" type="button" aria-pressed="false"><span class="letter">C</span>Only in the admin UI</button>
+          </div>
+          <p class="rule">Preview only. No answer or submission is sent to a server.</p>
+        </section>
+      </div>
+      <section class="card">
+        <h2>Data presentation</h2><p class="desc">Flat, border-defined metrics; color supports meaning rather than competing with content.</p>
+        <div class="metrics"><div class="metric"><strong>24</strong><small>Quiz modules</small></div><div class="metric"><strong>86%</strong><small>Illustrative completion</small></div><div class="metric"><strong>04</strong><small>Review states</small></div></div>
+      </section>
+      <p class="footer">Read <code>README.md</code> and <code>FIGMA_HANDOFF.md</code> for specs. This standalone preview requires no node_modules.</p>
+    </main>
+    <script>
+      const brand = [50,100,200,300,400,500,600,700,800,900].map(i => [`${i}`, `brand-${i}`]);
+      const semantic = [['Background','background'],['Card','card'],['Primary','primary'],['Accent','accent'],['Success','success'],['Warning','warning'],['Error','destructive'],['Border','border'],['Muted','muted'],['Focus','ring']];
+      function draw(id, items) {
+        const el = document.getElementById(id);
+        for (const [label, token] of items) {
+          const item = document.createElement('div'); item.className = 'tone';
+          const swatch = document.createElement('div'); swatch.className = 'swatch'; swatch.style.backgroundColor = `var(--${token})`;
+          const name = document.createElement('b'); name.textContent = label;
+          const code = document.createElement('code'); code.textContent = `--${token}`;
+          item.append(swatch, name, code); el.append(item);
+        }
+      }
+      draw('brand-palette',brand);draw('semantic-palette',semantic);
+      const theme = document.getElementById('theme');
+      theme.addEventListener('click',()=>{
+        const isDark = document.documentElement.classList.toggle('dark');
+        theme.textContent = isDark ? 'Light mode' : 'Dark mode';
+        theme.setAttribute('aria-label', theme.textContent);
+      });
+      document.querySelectorAll('.option').forEach(option=>option.addEventListener('click',()=>{
+        document.querySelectorAll('.option').forEach(other=>other.setAttribute('aria-pressed',String(other === option)));
+      }));
+      document.getElementById('sample-action').addEventListener('click', () => {
+        document.getElementById('sample-action').textContent = 'Preview only';
+      });
+    </script>
+  </body>
+</html>

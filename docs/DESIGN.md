@@ -1,3 +1,5 @@
+> **Current authoritative tokens:** `admin/src/styles/tokens.css` and `client/src/styles/tokens.css` are application-local and imported after each app stylesheet. This document retains existing component and layout guidance. Each app has its own `docs/design-system/README.md` for brand usage.
+
 # DESIGN.md --- Quiz & Assessment Platform
 
 > **Purpose:** This document is the source of truth for AI coding agents

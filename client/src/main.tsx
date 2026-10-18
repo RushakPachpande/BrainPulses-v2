@@ -4,6 +4,7 @@ import App from './App';
 import AppErrorBoundary from './AppErrorBoundary';
 import { applyClientTheme, readClientDark } from './hooks/use-client-theme';
 import './styles.css';
+import './styles/tokens.css';
 
 applyClientTheme(readClientDark());
 

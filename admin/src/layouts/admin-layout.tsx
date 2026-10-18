@@ -90,6 +90,7 @@ const nav: NavGroupItem[] = [
       { to: '/settings/access', label: 'User & Access', end: true },
       { to: '/settings/notifications', label: 'Notifications', end: true },
       { to: '/settings/system', label: 'System', end: true },
+      { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },
 ];

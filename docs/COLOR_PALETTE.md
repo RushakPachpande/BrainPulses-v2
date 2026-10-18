@@ -1,5 +1,7 @@
 # BrainPulses — Brand and UI Color Palette
 
+> **Authoritative app-local sources:** [`admin/src/styles/tokens.css`](../admin/src/styles/tokens.css) and [`client/src/styles/tokens.css`](../client/src/styles/tokens.css) are loaded after their respective stylesheets. Each app generates its own `docs/design-system/tokens.json`. The historical values below describe the earlier Admin tokens; for the current Light/Dark palette consult the app-local CSS and design-system README.
+
 **Purpose:** Color reference for the BrainPulses admin app. These are the tokens that win in `admin/src/index.css` (the last `:root` and `.dark` blocks). Earlier blocks in that file are obsolete.
 
 **Brand primary (light):** `#45058F` · RGB `69, 5, 143` · HSL `268°, 93%, 29%`
@@ -114,4 +116,4 @@ Cards rest on `--shadow-sm`. Primary buttons pick up that shadow on hover. The s
 
 ## 8. Keeping this file true
 
-When a color changes, edit the last `:root` and `.dark` blocks in `admin/src/index.css`, then update this file and [`design/DESIGN.md`](design/DESIGN.md) in the same change. Do not add a new theme block under the existing ones.
+When a color changes, update the relevant app `src/styles/tokens.css`, run `npm run design:tokens` within that app, and review light/dark screens. For deliberate cross-app consistency, make the same change in the other app. Do not add duplicate theme blocks to existing stylesheets.

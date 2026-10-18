@@ -60,6 +60,9 @@ const NotificationSettingsPage = lazy(() =>
     default: m.NotificationSettingsPage,
   })),
 );
+const DesignSystemPage = lazy(() =>
+  import('@/pages/design-system').then((m) => ({ default: m.DesignSystemPage })),
+);
 const SystemSettingsPage = lazy(() =>
   import('@/pages/settings-system').then((m) => ({ default: m.SystemSettingsPage })),
 );
@@ -186,6 +189,7 @@ export function AppRoutes() {
             </Route>
             <Route path="settings/notifications" element={<NotificationSettingsPage />} />
             <Route path="settings/system" element={<SystemSettingsPage />} />
+            <Route path="settings/design-system" element={<DesignSystemPage />} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Route>
         </Route>

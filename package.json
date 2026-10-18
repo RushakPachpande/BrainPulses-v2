@@ -7,70 +7,57 @@
     "node": ">=22"
   },
   "scripts": {
+    "cleaninstall": "npm ci --prefix api && npm ci --prefix admin && npm ci --prefix client",
+    "install": "npm install --prefix api && npm install --prefix admin && npm install --prefix client",
     "dev:api": "npm run dev --prefix api",
     "dev:admin": "npm run dev --prefix admin",
     "dev:client": "npm run dev --prefix client",
-
     "build": "npm run build:api && npm run build:admin && npm run build:client",
     "build:api": "npm run build --prefix api",
     "build:admin": "npm run build --prefix admin",
     "build:client": "npm run build --prefix client",
     "build:single:admin": "npm run build:single --prefix admin",
-
     "start:api": "npm run start --prefix api",
     "start:admin": "npm run start --prefix admin",
     "start:client": "npm run preview --prefix client",
-
     "lint": "npm run lint:api && npm run lint:admin && npm run lint:client",
     "lint:api": "npm run lint --prefix api",
     "lint:admin": "npm run lint --prefix admin",
     "lint:client": "npm run lint --prefix client",
-
     "lint:check:admin": "npm run lint:check --prefix admin",
-
     "lint:fix:admin": "npm run lint:fix --prefix admin",
     "lint:fix:client": "npm run lint:fix --prefix client",
-
     "typecheck": "npm run typecheck:api && npm run typecheck:admin && npm run typecheck:client",
     "typecheck:api": "npm run typecheck --prefix api",
     "typecheck:admin": "npm run typecheck --prefix admin",
     "typecheck:client": "npm run typecheck --prefix client",
-
     "typecheck:check:admin": "npm run typecheck:check --prefix admin",
     "typecheck:check:client": "npm run typecheck:check --prefix client",
-
     "format": "npm run format:api && npm run format:admin && npm run format:client",
     "format:api": "npm run format --prefix api",
     "format:admin": "npm run format --prefix admin",
     "format:client": "npm run format --prefix client",
-
     "format:check": "npm run format:check:api && npm run format:check:admin && npm run format:check:client",
     "format:check:api": "npm run format:check --prefix api",
     "format:check:admin": "npm run format:check --prefix admin",
     "format:check:client": "npm run format:check --prefix client",
-
     "format:fix": "npm run format:fix:api && npm run format:fix:admin && npm run format:fix:client",
     "format:fix:api": "npm run format:fix --prefix api",
     "format:fix:admin": "npm run format:fix --prefix admin",
     "format:fix:client": "npm run format:fix --prefix client",
-
     "test": "npm run test:api && npm run test:admin",
     "test:api": "npm run test --prefix api",
     "test:admin": "npm run test --prefix admin",
-
     "check": "npm run check:api && npm run check:admin && npm run test:admin && npm run check:client",
     "check:api": "npm run check --prefix api && npm run test:api",
     "check:admin": "npm run check --prefix admin",
     "check:client": "npm run check --prefix client",
-
     "check:fix:admin": "npm run check:fix --prefix admin",
     "check:fix:client": "npm run check:fix --prefix client",
-
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "npm run prisma:migrate --prefix api",
     "db:seed": "npm run prisma:seed --prefix api",
-
     "tailwindcss:upgrade": "npm run tailwindcss:upgrade --prefix admin && npm run tailwindcss:upgrade --prefix client",
     "tailwindcss:upgrade:admin": "npm run tailwindcss:upgrade --prefix admin",
     "tailwindcss:upgrade:client": "npm run tailwindcss:upgrade --prefix client"

@@ -22,7 +22,8 @@
     "check": "npm run typecheck && npm run lint && npm run format:check",
     "check:fix": "npm run typecheck && npm run lint:fix && npm run format",
     "verify": "npm run check && npm run build",
-    "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade"
+    "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade",
+    "design:tokens": "node scripts/export-design-tokens.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

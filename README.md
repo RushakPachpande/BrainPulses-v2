@@ -98,3 +98,23 @@ Package-level scripts (`lint`, `typecheck`, `format`, `test`) live under each ap
 ## Scope
 
 This stack is for **local / UAT** work with synthetic seed data. Admin and student flows talk to the live API when fixtures are off. Cloud hosting, production identity provider, MFA, and full ops hardening are still open gates—see the handoff docs.
+
+## BrainPulses design system (independent frontends)
+
+The supplied BrainPulses SVG remains the master logo at `assets/brainpulses.svg`. **Admin** and **Client** each own a copy of their runtime CSS tokens and DateTimePicker. No frontend imports a root `design-system/` directory or the other frontend. The API remains the source of truth for application data.
+
+| Application | Design tokens | Component files | Handoff & standalone preview |
+|---|---|---|---|
+| Admin | [`admin/src/styles/tokens.css`](admin/src/styles/tokens.css) | `admin/src/components/date-time-picker.*` | [`admin/docs/design-system/`](admin/docs/design-system/) |
+| Client | [`client/src/styles/tokens.css`](client/src/styles/tokens.css) | `client/src/components/date-time-picker.*` | [`client/docs/design-system/`](client/docs/design-system/) |
+
+Admin still has its interactive **Settings → Design System** route (`/settings/design-system`). Both apps keep their current light/dark theme behavior and the shared design intent, but their token/component files are now maintained independently. You can regenerate a design-token JSON export for either app using `npm run design:tokens --prefix admin` or `npm run design:tokens --prefix client`.
+
+At the repository root the convenience installation commands still work:
+
+```bash
+npm run cleaninstall # npm ci --prefix api, admin, client (sequentially)
+npm run install      # npm install --prefix api, admin, client (sequentially)
+```
+
+For independent startup, run `npm ci && npm run dev` in the chosen app directory. See [`docs/design/INDEPENDENT_APPS_MIGRATION.md`](docs/design/INDEPENDENT_APPS_MIGRATION.md) for details. Keep `node_modules`, generated builds, and secrets out of source archives.

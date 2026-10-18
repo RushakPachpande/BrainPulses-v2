@@ -93,6 +93,11 @@ export const pageMeta: Record<string, PageMeta> = {
     crumb: 'BrainPulses / Settings / Notification',
     title: 'Notification Settings',
   },
+  '/settings/design-system': {
+    crumb: 'BrainPulses / Settings / Design System',
+    title: 'Design System',
+    description: 'The BrainPulses brand, shared design tokens, and interactive UI patterns.',
+  },
   '/settings/system': {
     crumb: 'BrainPulses / Settings / System Settings',
     title: 'System Settings',

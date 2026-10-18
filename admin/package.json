@@ -24,7 +24,8 @@
     "check:fix": "npm run typecheck && npm run lint:fix && npm run format",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade"
+    "tailwindcss:upgrade": "npx --yes @tailwindcss/upgrade",
+    "design:tokens": "node scripts/export-design-tokens.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

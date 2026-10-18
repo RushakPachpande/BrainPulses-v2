@@ -1,3 +1,5 @@
+> **Current authoritative tokens:** `admin/src/styles/tokens.css` and `client/src/styles/tokens.css` are application-local and imported after each app stylesheet. This document retains existing component and layout guidance. Each app has its own `docs/design-system/README.md` for brand usage.
+
 # BrainPulses UI/UX Design System
 
 **Normative:** every new or modified admin screen follows this unless an exception is approved. This is the design contract for developers and AI agents.

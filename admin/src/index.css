@@ -673,7 +673,7 @@ body {
 }
 
 /* --------------------------------------------------------------------------
-   BrainPulses Design System v2 — canonical theme tokens and interaction layer
+   BrainPulses historical theme tokens and interaction layer (overridden by src/styles/tokens.css)
    Brand: #45058F. Keep components semantic; do not hard-code theme colors.
    -------------------------------------------------------------------------- */
 :root {
