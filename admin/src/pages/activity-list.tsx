@@ -13,6 +13,7 @@ import {
   RotateCcwIcon,
 } from 'lucide-react';
 import { DateRangeFilter } from '@/components/date-range-filter';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { SortHeader } from '@/components/sort-header';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
@@ -48,10 +49,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { canEditKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import { getActivities, type ActivityKind } from '@/services';
 import type { Activity } from '@/services/types';
+
+const EMPTY_ACTIVITIES: Activity[] = [];
 
 type SortKey =
   'name' | 'status' | 'registered' | 'assigned' | 'banks' | 'attempts' | 'start' | 'end';
@@ -93,6 +98,9 @@ function attemptPercent(activity: Activity) {
 }
 
 export function ActivityListPage({ kind }: { kind: ActivityKind }) {
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canEdit = canEditKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'quizzes' : 'assessments';
   const nounSingular = isQuiz ? 'quiz' : 'assessment';
@@ -122,7 +130,8 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
         { key: 'end', label: 'End Date' },
       ];
 
-  const { data: activities = [] } = useAsyncService(() => getActivities(kind), [kind]);
+  const { data, loading } = useAsyncService(() => getActivities(kind), [kind]);
+  const activities = data ?? EMPTY_ACTIVITIES;
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
@@ -266,16 +275,36 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {canEdit ? (
+          <PageHeaderActions>
+            <Button type="button" asChild className="w-full sm:w-auto">
+              <Link to={createHref}>
+                <PlusIcon data-icon="inline-start" />
+                Create {isQuiz ? 'Quiz' : 'Assessment'}
+              </Link>
+            </Button>
+          </PageHeaderActions>
+        ) : null}
+        <ListPageSkeleton columns={isQuiz ? 7 : 8} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <PageHeaderActions>
-        <Button type="button" asChild className="w-full sm:w-auto">
-          <Link to={createHref}>
-            <PlusIcon data-icon="inline-start" />
-            Create {isQuiz ? 'Quiz' : 'Assessment'}
-          </Link>
-        </Button>
-      </PageHeaderActions>
+      {canEdit ? (
+        <PageHeaderActions>
+          <Button type="button" asChild className="w-full sm:w-auto">
+            <Link to={createHref}>
+              <PlusIcon data-icon="inline-start" />
+              Create {isQuiz ? 'Quiz' : 'Assessment'}
+            </Link>
+          </Button>
+        </PageHeaderActions>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
@@ -404,7 +433,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          {canEdit ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

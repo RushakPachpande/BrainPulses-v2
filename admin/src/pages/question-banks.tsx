@@ -14,6 +14,7 @@ import {
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { SortHeader } from '@/components/sort-header';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
@@ -45,11 +46,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { canEditKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import { getQuestionBanks, type ActivityKind } from '@/services';
 import { presentationTypes, questionTypes } from '@/services/fixtures';
 import type { QuestionBank as Bank } from '@/services/types';
+
+const EMPTY_BANKS: Bank[] = [];
 
 type SortKey =
   'name' | 'description' | 'questions' | 'types' | 'presentation' | 'updated' | 'usedIn' | 'status';
@@ -82,6 +87,9 @@ function TypeChips({ value }: { value: string }) {
 }
 
 export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canEdit = canEditKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const usedNoun = isQuiz ? 'quizzes' : 'assessments';
   const note = isQuiz
@@ -112,7 +120,8 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
         { key: 'status', label: 'Status' },
       ];
 
-  const { data: banks = [] } = useAsyncService(() => getQuestionBanks(kind), [kind]);
+  const { data, loading } = useAsyncService(() => getQuestionBanks(kind), [kind]);
+  const banks = data ?? EMPTY_BANKS;
   const [search, setSearch] = useState('');
   const [type, setType] = useState('All');
   const [status, setStatus] = useState('All');
@@ -260,20 +269,49 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
     });
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {canEdit ? (
+          <PageHeaderActions>
+            <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+              <UploadIcon data-icon="inline-start" />
+              Bulk Upload
+            </Button>
+            <Button asChild className="w-full sm:w-auto">
+              <Link to={isQuiz ? '/quizzes/banks/new' : '/assessments/banks/new'}>
+                <PlusIcon data-icon="inline-start" />
+                Create Question Bank
+              </Link>
+            </Button>
+          </PageHeaderActions>
+        ) : null}
+        <Alert>
+          <InfoIcon />
+          <AlertTitle className="sr-only">Note</AlertTitle>
+          <AlertDescription>{note}</AlertDescription>
+        </Alert>
+        <ListPageSkeleton columns={7} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <PageHeaderActions>
-        <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-          <UploadIcon data-icon="inline-start" />
-          Bulk Upload
-        </Button>
-        <Button asChild className="w-full sm:w-auto">
-          <Link to={isQuiz ? '/quizzes/banks/new' : '/assessments/banks/new'}>
-            <PlusIcon data-icon="inline-start" />
-            Create Question Bank
-          </Link>
-        </Button>
-      </PageHeaderActions>
+      {canEdit ? (
+        <PageHeaderActions>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+            <UploadIcon data-icon="inline-start" />
+            Bulk Upload
+          </Button>
+          <Button asChild className="w-full sm:w-auto">
+            <Link to={isQuiz ? '/quizzes/banks/new' : '/assessments/banks/new'}>
+              <PlusIcon data-icon="inline-start" />
+              Create Question Bank
+            </Link>
+          </Button>
+        </PageHeaderActions>
+      ) : null}
 
       <Alert>
         <InfoIcon />
@@ -410,7 +448,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          {canEdit ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

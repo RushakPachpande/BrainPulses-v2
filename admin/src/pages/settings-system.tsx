@@ -11,11 +11,14 @@ import {
   SaveIcon,
   ShieldCheckIcon,
 } from 'lucide-react';
+import { SettingsListSkeleton } from '@/components/loading-skeletons';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { useAuth } from '@/contexts/auth-context';
+import { canManageUsersOrSettings } from '@/lib/access';
 import { getAuditLogs, getSettingsGroup, patchSettingsGroup } from '@/services';
 
 const initialSecurity = [true, true, true, true, true];
@@ -34,7 +37,11 @@ const settingLabels = [
 ];
 
 export function SystemSettingsPage() {
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canManage = canManageUsersOrSettings(membership);
   const [logs, setLogs] = useState<readonly (readonly [string, string, string])[]>([]);
+  const [logsLoading, setLogsLoading] = useState(true);
   const [security, setSecurity] = useState(initialSecurity);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -42,7 +49,8 @@ export function SystemSettingsPage() {
   useEffect(() => {
     void getAuditLogs()
       .then(setLogs)
-      .catch(() => setLogs([]));
+      .catch(() => setLogs([]))
+      .finally(() => setLogsLoading(false));
     void getSettingsGroup('system')
       .then(({ values }) => {
         setSecurity([
@@ -58,6 +66,7 @@ export function SystemSettingsPage() {
       });
   }, []);
   function toggle(index: number, next: boolean) {
+    if (!canManage) return;
     setSecurity((current) => current.map((value, i) => (i === index ? next : value)));
     setSaved(false);
   }
@@ -137,6 +146,7 @@ export function SystemSettingsPage() {
                   <Switch
                     checked={security[index]}
                     onCheckedChange={(next) => toggle(index, next)}
+                    disabled={!canManage}
                     aria-label={item.label}
                   />
                 </div>
@@ -168,6 +178,7 @@ export function SystemSettingsPage() {
                 <Switch
                   checked={security[4]}
                   onCheckedChange={(next) => toggle(4, next)}
+                  disabled={!canManage}
                   aria-label="Daily automated backups"
                 />
               </div>
@@ -219,22 +230,26 @@ export function SystemSettingsPage() {
               <CardDescription>Latest administrative events.</CardDescription>
             </CardHeader>
             <CardContent className="px-5 py-2">
-              <ol className="flex flex-col">
-                {logs.map(([id, text, time], index) => (
-                  <li key={id} className="relative flex gap-3 py-3">
-                    <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-                      <ActivityIcon className="size-3.5" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm leading-5">{text}</p>
-                      <time className="mt-1 block text-xs text-muted-foreground">{time}</time>
-                    </div>
-                    {index < logs.length - 1 ? (
-                      <span className="absolute bottom-0 left-[13px] top-10 w-px bg-border" />
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
+              {logsLoading ? (
+                <SettingsListSkeleton rows={4} />
+              ) : (
+                <ol className="flex flex-col">
+                  {logs.map(([id, text, time], index) => (
+                    <li key={id} className="relative flex gap-3 py-3">
+                      <span className="mt-1 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
+                        <ActivityIcon className="size-3.5" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm leading-5">{text}</p>
+                        <time className="mt-1 block text-xs text-muted-foreground">{time}</time>
+                      </div>
+                      {index < logs.length - 1 ? (
+                        <span className="absolute bottom-0 left-[13px] top-10 w-px bg-border" />
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -245,34 +260,38 @@ export function SystemSettingsPage() {
             <span className="inline-flex items-center gap-2 text-emerald-600">
               <CheckCircle2Icon className="size-4" /> System security settings saved to the server.
             </span>
-          ) : (
+          ) : canManage ? (
             'Save to persist these security preferences for the organization.'
+          ) : (
+            'View only — system settings cannot be changed.'
           )}
         </p>
-        <Button
-          type="button"
-          disabled={saving}
-          onClick={() => {
-            setSaving(true);
-            void patchSettingsGroup('system', {
-              requireTwoFactor: security[0],
-              passwordExpiry: security[1],
-              sessionTimeout: security[2],
-              limitFailedLogins: security[3],
-              dailyBackups: security[4],
-            })
-              .then(() => {
-                setSaved(true);
-                toast.success('System settings saved.');
+        {canManage ? (
+          <Button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setSaving(true);
+              void patchSettingsGroup('system', {
+                requireTwoFactor: security[0],
+                passwordExpiry: security[1],
+                sessionTimeout: security[2],
+                limitFailedLogins: security[3],
+                dailyBackups: security[4],
               })
-              .catch((err) => {
-                toast.error(err instanceof ApiError ? err.message : 'Could not save settings.');
-              })
-              .finally(() => setSaving(false));
-          }}
-        >
-          <SaveIcon data-icon="inline-start" /> Save system settings
-        </Button>
+                .then(() => {
+                  setSaved(true);
+                  toast.success('System settings saved.');
+                })
+                .catch((err) => {
+                  toast.error(err instanceof ApiError ? err.message : 'Could not save settings.');
+                })
+                .finally(() => setSaving(false));
+            }}
+          >
+            <SaveIcon data-icon="inline-start" /> Save system settings
+          </Button>
+        ) : null}
       </div>
     </div>
   );

@@ -38,10 +38,7 @@ export function generateOtpDigits(): string {
   return String(randomInt(0, 1_000_000)).padStart(6, '0');
 }
 
-export async function assertOtpSendAllowed(
-  organizationId: string,
-  phone: string,
-): Promise<void> {
+export async function assertOtpSendAllowed(organizationId: string, phone: string): Promise<void> {
   const redis = getRedis();
   const cool = await redis.ttl(cooldownKey(organizationId, phone));
   if (cool > 0) {
@@ -94,10 +91,7 @@ export async function storeStudentOtp(input: {
   }
 }
 
-export async function consumeStudentOtp(
-  organizationId: string,
-  phone: string,
-): Promise<boolean> {
+export async function consumeStudentOtp(organizationId: string, phone: string): Promise<boolean> {
   const redis = getRedis();
   const key = otpKey(organizationId, phone);
   const aKey = attemptsKey(organizationId, phone);
@@ -115,7 +109,9 @@ export async function verifyStudentOtp(input: {
   otp: string;
   /** When false, validate without consuming (for session-conflict checks). Default true. */
   consume?: boolean;
-}): Promise<{ ok: true; studentId: string } | { ok: false; reason: 'missing' | 'invalid' | 'exhausted' }> {
+}): Promise<
+  { ok: true; studentId: string } | { ok: false; reason: 'missing' | 'invalid' | 'exhausted' }
+> {
   const redis = getRedis();
   const key = otpKey(input.organizationId, input.phone);
   const aKey = attemptsKey(input.organizationId, input.phone);
@@ -146,8 +142,7 @@ export async function verifyStudentOtp(input: {
 
   const expected = Buffer.from(record.hash, 'utf8');
   const actual = Buffer.from(hashOtp(input.otp), 'utf8');
-  const match =
-    expected.length === actual.length && timingSafeEqual(expected, actual);
+  const match = expected.length === actual.length && timingSafeEqual(expected, actual);
 
   if (!match) {
     if (attempts >= MAX_ATTEMPTS) {

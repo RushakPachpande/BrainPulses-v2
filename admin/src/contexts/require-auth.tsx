@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
+import { AuthLoadingSkeleton } from '@/components/loading-skeletons';
 import { useAuth } from '@/contexts/auth-context';
 
 export function RequireAuth() {
@@ -6,11 +7,7 @@ export function RequireAuth() {
   const location = useLocation();
 
   if (auth.status === 'loading') {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
-        Loading…
-      </div>
-    );
+    return <AuthLoadingSkeleton />;
   }
 
   if (auth.status !== 'authenticated') {

@@ -1,4 +1,5 @@
-const canUseStorage = () => typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
+const canUseStorage = () =>
+  typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
 export function readStorage(key: string): string | null {
   try {
@@ -30,13 +31,27 @@ export function readJson<T>(key: string, fallback: T, validate: (value: unknown)
 }
 
 export function readSessionStorage(key: string): string | null {
-  try { return typeof window !== 'undefined' ? window.sessionStorage.getItem(key) : null; } catch { return null; }
+  try {
+    return typeof window !== 'undefined' ? window.sessionStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
 }
 
 export function writeSessionStorage(key: string, value: string): boolean {
-  try { if (typeof window === 'undefined') return false; window.sessionStorage.setItem(key, value); return true; } catch { return false; }
+  try {
+    if (typeof window === 'undefined') return false;
+    window.sessionStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function removeSessionStorage(key: string): void {
-  try { if (typeof window !== 'undefined') window.sessionStorage.removeItem(key); } catch { /* Storage can be disabled by browser policy. */ }
+  try {
+    if (typeof window !== 'undefined') window.sessionStorage.removeItem(key);
+  } catch {
+    /* Storage can be disabled by browser policy. */
+  }
 }

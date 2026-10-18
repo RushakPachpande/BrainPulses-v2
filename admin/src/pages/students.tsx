@@ -9,6 +9,7 @@ import {
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { SortHeader } from '@/components/sort-header';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
@@ -38,9 +39,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { canMutateOrg } from '@/lib/access';
 import { getStudents, type Student } from '@/services';
 import { studentCities, studentCourses } from '@/services/fixtures';
+
+const EMPTY_STUDENTS: Student[] = [];
 
 type SortKey =
   'code' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
@@ -63,23 +68,12 @@ function compareStudents(a: Student, b: Student, key: SortKey) {
   return String(left).localeCompare(String(right), undefined, { numeric: true });
 }
 
-const studentsHeaderActions = (
-  <>
-    <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-      <UploadIcon data-icon="inline-start" />
-      Upload Students
-    </Button>
-    <Button asChild className="w-full sm:w-auto">
-      <Link to="/students/new">
-        <PlusIcon data-icon="inline-start" />
-        Add Student
-      </Link>
-    </Button>
-  </>
-);
-
 export function StudentsPage() {
-  const { data: students = [] } = useAsyncService(() => getStudents(), []);
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canMutate = canMutateOrg(membership);
+  const { data, loading } = useAsyncService(() => getStudents(), []);
+  const students = data ?? EMPTY_STUDENTS;
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [course, setCourse] = useState('All');
@@ -197,9 +191,44 @@ export function StudentsPage() {
     });
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {canMutate ? (
+          <PageHeaderActions>
+            <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+              <UploadIcon data-icon="inline-start" />
+              Upload Students
+            </Button>
+            <Button asChild className="w-full sm:w-auto">
+              <Link to="/students/new">
+                <PlusIcon data-icon="inline-start" />
+                Add Student
+              </Link>
+            </Button>
+          </PageHeaderActions>
+        ) : null}
+        <ListPageSkeleton columns={8} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <PageHeaderActions>{studentsHeaderActions}</PageHeaderActions>
+      {canMutate ? (
+        <PageHeaderActions>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+            <UploadIcon data-icon="inline-start" />
+            Upload Students
+          </Button>
+          <Button asChild className="w-full sm:w-auto">
+            <Link to="/students/new">
+              <PlusIcon data-icon="inline-start" />
+              Add Student
+            </Link>
+          </Button>
+        </PageHeaderActions>
+      ) : null}
 
       <Toolbar
         filters={filters}
@@ -291,23 +320,25 @@ export function StudentsPage() {
                     </TableCell>
                     <TableCell>{student.lastLogin}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${student.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link to={`/students/${student.id}/edit`}>Edit</Link>
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {canMutate ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              aria-label={`Actions for ${student.name}`}
+                            >
+                              <MoreVerticalIcon />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem asChild>
+                              <Link to={`/students/${student.id}/edit`}>Edit</Link>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))

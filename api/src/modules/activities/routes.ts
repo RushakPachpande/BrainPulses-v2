@@ -3,6 +3,7 @@ import {
   requireAuth,
   requireUser,
   requireKindAccess,
+  requireOrgAccess,
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -24,7 +25,12 @@ activitiesRouter.get(
   validate({ query: activityListQuerySchema }),
   controller.list,
 );
-activitiesRouter.get('/:id', validate({ params: idParamSchema }), controller.get);
+activitiesRouter.get(
+  '/:id',
+  requireOrgAccess('view'),
+  validate({ params: idParamSchema }),
+  controller.get,
+);
 activitiesRouter.post(
   '/',
   requireKindAccess('edit', 'body'),
@@ -33,8 +39,19 @@ activitiesRouter.post(
 );
 activitiesRouter.patch(
   '/:id',
+  requireOrgAccess('edit'),
   validate({ params: idParamSchema, body: updateActivitySchema }),
   controller.update,
 );
-activitiesRouter.post('/:id/publish', validate({ params: idParamSchema }), controller.publish);
-activitiesRouter.post('/:id/archive', validate({ params: idParamSchema }), controller.archive);
+activitiesRouter.post(
+  '/:id/publish',
+  requireOrgAccess('full'),
+  validate({ params: idParamSchema }),
+  controller.publish,
+);
+activitiesRouter.post(
+  '/:id/archive',
+  requireOrgAccess('full'),
+  validate({ params: idParamSchema }),
+  controller.archive,
+);

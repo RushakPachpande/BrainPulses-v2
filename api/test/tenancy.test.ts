@@ -51,10 +51,6 @@ describe('tenancy and access', () => {
     });
     assert.ok(activity);
 
-    // Force draft then try publish as viewer — route has no requireAccess yet on publish.
-    // Enforce via service path: patch then publish with view token should still work
-    // unless we add requireAccess. Add explicit forbidden check by requiring full access
-    // in a dedicated middleware test: create activity with view token.
     const create = await request(app, 'POST', '/api/activities', {
       headers: { authorization: `Bearer ${token}` },
       body: {
@@ -62,9 +58,6 @@ describe('tenancy and access', () => {
         name: 'Should Fail',
       },
     });
-    // Without requireAccess on create, view can create. Assert publish middleware:
-    // We add requireAccess in routes for publish. For create we may allow — plan said
-    // view-only cannot publish. Test publish after ensuring draft activity owned by org.
     const originalStatus = activity.status;
     try {
       await prisma.activity.update({

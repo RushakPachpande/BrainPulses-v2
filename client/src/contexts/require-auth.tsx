@@ -1,18 +1,13 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
-import { useAuth } from './auth';
+import { AuthSessionSkeleton } from '../components/skeletons';
+import { useAuth } from './auth-context';
 
 export function RequireAuth() {
   const { ready, student } = useAuth();
   const location = useLocation();
 
   if (!ready) {
-    return (
-      <div className="login-page">
-        <div className="login-card" style={{ margin: 'auto' }}>
-          Loading session…
-        </div>
-      </div>
-    );
+    return <AuthSessionSkeleton />;
   }
 
   if (!student) {

@@ -54,8 +54,8 @@ export function HelpPage() {
           </div>
           <h2>Need a hand?</h2>
           <p>
-            If you run into a problem during an attempt, note the activity and question number before
-            asking your coordinator for help.
+            If you run into a problem during an attempt, note the activity and question number
+            before asking your coordinator for help.
           </p>
           <div className="help-note">
             <ShieldCheck size={16} />

@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { ApiError } from '@/lib/api-client';
 import { useAsyncService } from '@/hooks/use-async-service';
 import { Button } from '@/components/ui/button';
@@ -16,13 +17,23 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { assignRegistrations, getActivities, getStudents, type ActivityKind } from '@/services';
+import type { Activity, Student } from '@/services/types';
+
+const EMPTY_ACTIVITIES: Activity[] = [];
+const EMPTY_STUDENTS: Student[] = [];
 
 export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
   const isQuiz = kind === 'quiz';
   const listPath = isQuiz ? '/quizzes/registrations' : '/assessments/registrations';
-  const { data: activities = [] } = useAsyncService(() => getActivities(kind), [kind]);
-  const { data: students = [] } = useAsyncService(() => getStudents(), []);
+  const { data: activitiesData, loading: activitiesLoading } = useAsyncService(
+    () => getActivities(kind),
+    [kind],
+  );
+  const { data: studentsData, loading: studentsLoading } = useAsyncService(() => getStudents(), []);
+  const activities = activitiesData ?? EMPTY_ACTIVITIES;
+  const students = studentsData ?? EMPTY_STUDENTS;
+  const loading = activitiesLoading || studentsLoading;
   const [activityId, setActivityId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
@@ -61,6 +72,26 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex min-w-0 flex-col gap-4">
+        <div>
+          <Button asChild variant="ghost" className="-ml-3 mb-1">
+            <Link to={listPath}>
+              <ArrowLeftIcon data-icon="inline-start" /> Back to registrations
+            </Link>
+          </Button>
+          <h2 className="text-xl font-semibold tracking-tight">Assign Students</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Assign students to a {isQuiz ? 'quiz' : 'assessment'} so they can attempt it in the
+            student portal.
+          </p>
+        </div>
+        <FormPageSkeleton fields={4} />
+      </div>
+    );
   }
 
   return (

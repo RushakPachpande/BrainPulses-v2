@@ -2,24 +2,34 @@ import { Link } from 'react-router';
 import { PlusIcon, UploadIcon } from 'lucide-react';
 import { BarChartCard } from '@/components/bar-chart-card';
 import { KpiGrid } from '@/components/kpi-grid';
+import { DashboardSkeleton } from '@/components/loading-skeletons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/auth-context';
 import { useAsyncService } from '@/hooks/use-async-service';
+import { canEditKind, canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
 import { getDashboard } from '@/services';
 
 export function DashboardPage() {
-  const { data } = useAsyncService(() => getDashboard(), []);
-  const dataView = data ?? {
-    kpis: [] as const,
-    charts: [],
-    activity: [] as const,
-  };
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const { data, loading } = useAsyncService(() => getDashboard(), []);
+
+  const showAssessment = canEditKind(membership, 'assessment');
+  const showQuiz = canEditKind(membership, 'quiz');
+  const showStudents = canMutateOrg(membership);
+  const showUsers = canManageUsersOrSettings(membership);
+  const hasQuickActions = showAssessment || showQuiz || showStudents || showUsers;
+
+  if (loading || !data) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="flex flex-col gap-4">
-      <KpiGrid items={dataView.kpis} />
+      <KpiGrid items={data.kpis} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        {dataView.charts.map((chart) => (
+        {data.charts.map((chart) => (
           <BarChartCard key={chart.title} {...chart} />
         ))}
       </div>
@@ -30,7 +40,7 @@ export function DashboardPage() {
           </CardHeader>
           <CardContent>
             <ul className="flex flex-col gap-3">
-              {dataView.activity.map(([id, text, time]) => (
+              {data.activity.map(([id, text, time]) => (
                 <li
                   key={id}
                   className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
@@ -42,39 +52,49 @@ export function DashboardPage() {
             </ul>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick actions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-              <Button asChild>
-                <Link to="/assessments/new">
-                  <PlusIcon data-icon="inline-start" />
-                  Create Assessment
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/quizzes/new">
-                  <PlusIcon data-icon="inline-start" />
-                  Create Quiz
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/students">
-                  <UploadIcon data-icon="inline-start" />
-                  Upload Students
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/users">
-                  <PlusIcon data-icon="inline-start" />
-                  Add User
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {hasQuickActions ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick actions</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                {showAssessment ? (
+                  <Button asChild>
+                    <Link to="/assessments/new">
+                      <PlusIcon data-icon="inline-start" />
+                      Create Assessment
+                    </Link>
+                  </Button>
+                ) : null}
+                {showQuiz ? (
+                  <Button asChild variant="outline">
+                    <Link to="/quizzes/new">
+                      <PlusIcon data-icon="inline-start" />
+                      Create Quiz
+                    </Link>
+                  </Button>
+                ) : null}
+                {showStudents ? (
+                  <Button asChild variant="outline">
+                    <Link to="/students">
+                      <UploadIcon data-icon="inline-start" />
+                      Upload Students
+                    </Link>
+                  </Button>
+                ) : null}
+                {showUsers ? (
+                  <Button asChild variant="outline">
+                    <Link to="/users">
+                      <PlusIcon data-icon="inline-start" />
+                      Add User
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
+            </CardContent>
+          </Card>
+        ) : null}
       </div>
     </div>
   );

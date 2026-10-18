@@ -45,7 +45,10 @@ export const studentResendOtpSchema = refinePhoneParts(phonePartsObject);
 
 export const studentVerifyOtpSchema = refinePhoneParts(
   phonePartsObject.extend({
-    otp: z.string().trim().regex(/^\d{6}$/),
+    otp: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/),
     replaceSession: z.boolean().optional(),
   }),
 );

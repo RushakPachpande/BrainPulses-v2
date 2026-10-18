@@ -51,6 +51,38 @@ describe('security hardening', () => {
     assert.equal(settings.status, 403);
   });
 
+  it('blocks view-only from activity and bank mutations while allowing reads', async () => {
+    const app = await getTestApp();
+    const token = await accessTokenFor('viewer@brainpulses.com', 'demo');
+    const headers = { authorization: `Bearer ${token}` };
+
+    const activities = await request(app, 'GET', '/api/activities?kind=assessment&limit=10', {
+      headers,
+    });
+    assert.equal(activities.status, 200);
+
+    const activity = await prisma.activity.findFirst({ where: { code: 'ASM-26001' } });
+    assert.ok(activity);
+    const patchActivity = await request(app, 'PATCH', `/api/activities/${activity.id}`, {
+      headers,
+      body: { name: 'Viewer Cannot Rename' },
+    });
+    assert.equal(patchActivity.status, 403);
+
+    const banks = await request(app, 'GET', '/api/banks?kind=assessment&limit=10', {
+      headers,
+    });
+    assert.equal(banks.status, 200);
+
+    const bank = await prisma.questionBank.findFirst({ where: { code: 'QB-26001' } });
+    assert.ok(bank);
+    const patchBank = await request(app, 'PATCH', `/api/banks/${bank.id}`, {
+      headers,
+      body: { name: 'Viewer Cannot Rename Bank' },
+    });
+    assert.equal(patchBank.status, 403);
+  });
+
   it('rejects unknown body fields (strict Zod)', async () => {
     const app = await getTestApp();
     const token = await accessTokenFor('admin@brainpulses.com', 'demo');

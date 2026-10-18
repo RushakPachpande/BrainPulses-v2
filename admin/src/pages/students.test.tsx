@@ -4,6 +4,23 @@ import { MemoryRouter } from 'react-router';
 import { PageHeaderProvider } from '@/contexts/page-header';
 import { StudentsPage } from './students';
 
+vi.mock('@/contexts/auth-context', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: { id: 'u1', email: 'viewer@brainpulses.com', name: 'Viewer' },
+    organization: { id: 'o1', name: 'Demo', slug: 'demo' },
+    membership: {
+      id: 'm1',
+      role: 'admin',
+      assessmentAccess: 'view',
+      quizAccess: 'view',
+    },
+    signIn: vi.fn(),
+    selectOrganization: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}));
+
 vi.mock('@/services', async () => {
   const actual = await vi.importActual<typeof import('@/services')>('@/services');
   return {

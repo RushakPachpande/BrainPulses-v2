@@ -129,7 +129,8 @@ export function filterCountryDialCodes(query: string, limit = 12): CountryDialCo
   const digits = q.replace(/[^\d+]/g, '');
   const matched = COUNTRY_DIAL_CODES.filter((row) => {
     const codeMatch = digits
-      ? row.code.toLowerCase().startsWith(digits) || row.code.replace('+', '').startsWith(digits.replace('+', ''))
+      ? row.code.toLowerCase().startsWith(digits) ||
+        row.code.replace('+', '').startsWith(digits.replace('+', ''))
       : false;
     const nameMatch = row.name.toLowerCase().includes(q) || row.iso.toLowerCase().startsWith(q);
     return codeMatch || nameMatch;

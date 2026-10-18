@@ -1,12 +1,4 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, getAccessToken, isSessionActiveConflict } from '../lib/api-client';
 import {
   getMe,
@@ -17,33 +9,9 @@ import {
   studentVerifyOtp,
 } from '../services/api';
 import type { StudentProfile } from '../services/types';
+import { AuthContext, SessionActiveError } from './auth-context';
 
 const DEFAULT_ORG_SLUG = 'demo';
-
-export class SessionActiveError extends Error {
-  constructor() {
-    super('SESSION_ACTIVE');
-    this.name = 'SessionActiveError';
-  }
-}
-
-type AuthState = {
-  ready: boolean;
-  student: StudentProfile | null;
-  signInWithCode: (code: string, replaceSession?: boolean) => Promise<void>;
-  requestPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
-  resendPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
-  verifyPhoneOtp: (
-    countryCode: string,
-    mobileNumber: string,
-    otp: string,
-    replaceSession?: boolean,
-  ) => Promise<void>;
-  signOut: () => void;
-  refreshProfile: () => Promise<void>;
-};
-
-const AuthContext = createContext<AuthState | null>(null);
 
 async function profileFromAuth(data: {
   student: { id: string; code: string; name: string; email: string };
@@ -115,12 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const verifyPhoneOtp = useCallback(
-    async (
-      countryCode: string,
-      mobileNumber: string,
-      otp: string,
-      replaceSession?: boolean,
-    ) => {
+    async (countryCode: string, mobileNumber: string, otp: string, replaceSession?: boolean) => {
       try {
         const data = await studentVerifyOtp(
           countryCode,
@@ -166,10 +129,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
 }

@@ -1,36 +1,28 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Clock3,
-  Flag,
-  LogOut,
-  ShieldCheck,
-  X,
-} from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
-import { ApiError } from "../lib/api-client";
-import { timeRemaining } from "../components/ui-bits";
+import { ArrowLeft, ArrowRight, Check, Clock3, Flag, LogOut, ShieldCheck, X } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import { ExamShellSkeleton } from '../components/skeletons';
+import { ApiError } from '../lib/api-client';
+import { timeRemaining } from '../lib/format';
 import {
   resumeAttempt,
   saveAttempt,
   startAttempt,
   studentSignOut,
   submitAttempt,
-} from "../services/api";
-import type { AttemptQuestion, AttemptState } from "../services/types";
+} from '../services/api';
+import type { AttemptQuestion, AttemptState } from '../services/types';
 
 function selectedLabel(answer: unknown): string | null {
-  if (answer && typeof answer === "object" && "label" in answer) {
+  if (answer && typeof answer === 'object' && 'label' in answer) {
     const label = (answer as { label: unknown }).label;
-    return typeof label === "string" ? label : null;
+    return typeof label === 'string' ? label : null;
   }
   return null;
 }
 
-export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
-  const { id = "" } = useParams();
+export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
+  const { id = '' } = useParams();
   const navigate = useNavigate();
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
@@ -39,24 +31,22 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
   const [marked, setMarked] = useState<number[]>([]);
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [busy, setBusy] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const revisionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const pendingAnswersRef = useRef<Record<string, string> | null>(null);
-  const persistRef = useRef<(next: Record<string, string>) => Promise<void>>(
-    async () => {},
-  );
+  const persistRef = useRef<(next: Record<string, string>) => Promise<void>>(async () => {});
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const autoSubmitted = useRef(false);
   const sessionEndedRef = useRef(false);
 
   const load = useCallback(async () => {
     setBusy(true);
-    setError("");
+    setError('');
     try {
-      if (mode === "start") {
+      if (mode === 'start') {
         const data = await startAttempt(id);
         setAttempt(data.attempt);
         setQuestions(data.questions);
@@ -64,9 +54,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
         setAnswers({});
         const remaining = Math.max(
           0,
-          Math.ceil(
-            (new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000,
-          ),
+          Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
         );
         setSeconds(remaining);
       } else {
@@ -86,16 +74,12 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
         setAnswers(mapped);
         const remaining = Math.max(
           0,
-          Math.ceil(
-            (new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000,
-          ),
+          Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
         );
         setSeconds(remaining);
       }
     } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Unable to open attempt.",
-      );
+      setError(err instanceof ApiError ? err.message : 'Unable to open attempt.');
     } finally {
       setBusy(false);
     }
@@ -108,24 +92,18 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
   const persist = useCallback(
     async (nextAnswers: Record<string, string>) => {
       if (!attempt || sessionEndedRef.current) return;
-      const responses = Object.entries(nextAnswers).map(
-        ([questionVersionId, label]) => ({
-          questionVersionId,
-          answer: { label },
-        }),
-      );
+      const responses = Object.entries(nextAnswers).map(([questionVersionId, label]) => ({
+        questionVersionId,
+        answer: { label },
+      }));
       if (responses.length === 0) return;
       try {
-        const saved = await saveAttempt(
-          attempt.id,
-          revisionRef.current,
-          responses,
-        );
+        const saved = await saveAttempt(attempt.id, revisionRef.current, responses);
         revisionRef.current = saved.revision;
         setAttempt(saved.attempt);
       } catch (err) {
         if (err instanceof ApiError && err.status === 409) {
-          setError("Your attempt was updated elsewhere. Reloading…");
+          setError('Your attempt was updated elsewhere. Reloading…');
           await load();
           return;
         }
@@ -137,14 +115,14 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
           }
           pendingAnswersRef.current = null;
           void studentSignOut();
-          setError("Your session ended. Sign in again to continue.");
-          navigate("/login", { replace: true });
+          setError('Your session ended. Sign in again to continue.');
+          navigate('/login', { replace: true });
           return;
         }
         setError(
           err instanceof ApiError
             ? err.message
-            : "Could not save your answers. Check your connection and try again.",
+            : 'Could not save your answers. Check your connection and try again.',
         );
       }
     },
@@ -213,7 +191,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
         const data = await submitAttempt(attempt.id, key);
         navigate(`/results/${data.result.id}`, { replace: true });
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Submit failed.");
+        setError(err instanceof ApiError ? err.message : 'Submit failed.');
         setSubmitting(false);
       }
     },
@@ -229,14 +207,8 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
   const q = questions[qIndex];
 
-  if (busy) {
-    return (
-      <div className="exam-page">
-        <div className="page-stack" style={{ padding: 24 }}>
-          Loading attempt…
-        </div>
-      </div>
-    );
+  if (busy && !attempt) {
+    return <ExamShellSkeleton />;
   }
 
   if (error && !attempt) {
@@ -244,11 +216,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
       <div className="exam-page">
         <div className="page-stack" style={{ padding: 24 }}>
           <div className="error-text">{error}</div>
-          <button
-            className="btn outline"
-            type="button"
-            onClick={() => navigate("/dashboard")}
-          >
+          <button className="btn outline" type="button" onClick={() => navigate('/dashboard')}>
             Back to dashboard
           </button>
         </div>
@@ -261,11 +229,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
   return (
     <div className="exam-page">
       <header className="exam-topbar">
-        <button
-          className="exam-brand"
-          type="button"
-          onClick={() => setConfirm(true)}
-        >
+        <button className="exam-brand" type="button" onClick={() => setConfirm(true)}>
           <img src="/brand.svg" alt="" />
           BrainPulses
         </button>
@@ -273,18 +237,14 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
           <span>Attempt</span>
           <b>In progress</b>
         </div>
-        <div className={`exam-timer ${seconds < 300 ? "timer-warning" : ""}`}>
+        <div className={`exam-timer ${seconds < 300 ? 'timer-warning' : ''}`}>
           <Clock3 size={17} />
           <div>
             <span>Time remaining</span>
             <b>{timeRemaining(seconds)}</b>
           </div>
         </div>
-        <button
-          className="btn outline exit-btn"
-          type="button"
-          onClick={() => setConfirm(true)}
-        >
+        <button className="btn outline exit-btn" type="button" onClick={() => setConfirm(true)}>
           <LogOut size={15} /> Exit
         </button>
       </header>
@@ -292,7 +252,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
         <div style={{ width: `${((qIndex + 1) / questions.length) * 100}%` }} />
       </div>
       {error && (
-        <div className="error-text" style={{ padding: "8px 16px" }}>
+        <div className="error-text" style={{ padding: '8px 16px' }}>
           {error}
         </div>
       )}
@@ -300,34 +260,26 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
         <section className="question-column">
           <div className="question-topline">
             <span>
-              QUESTION {String(qIndex + 1).padStart(2, "0")}{" "}
-              <span className="question-total">
-                / {String(questions.length).padStart(2, "0")}
-              </span>
+              QUESTION {String(qIndex + 1).padStart(2, '0')}{' '}
+              <span className="question-total">/ {String(questions.length).padStart(2, '0')}</span>
             </span>
             <button
-              className={`mark-btn ${marked.includes(qIndex) ? "marked" : ""}`}
+              className={`mark-btn ${marked.includes(qIndex) ? 'marked' : ''}`}
               type="button"
               onClick={() =>
                 setMarked((p) =>
-                  p.includes(qIndex)
-                    ? p.filter((i) => i !== qIndex)
-                    : [...p, qIndex],
+                  p.includes(qIndex) ? p.filter((i) => i !== qIndex) : [...p, qIndex],
                 )
               }
             >
               <Flag size={15} />
-              {marked.includes(qIndex)
-                ? "Marked for review"
-                : "Mark for review"}
+              {marked.includes(qIndex) ? 'Marked for review' : 'Mark for review'}
             </button>
           </div>
           <div className="question-card">
             <div className="question-context">ASSESSMENT QUESTION</div>
             <h1>{q.stem}</h1>
-            <p className="question-instruction">
-              Choose one answer from the options below.
-            </p>
+            <p className="question-instruction">Choose one answer from the options below.</p>
             <div className="option-list">
               {q.options.map((op) => {
                 const chosen = answers[q.questionVersionId] === op.label;
@@ -335,7 +287,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
                   <button
                     key={op.id}
                     type="button"
-                    className={`answer-option ${chosen ? "chosen" : ""}`}
+                    className={`answer-option ${chosen ? 'chosen' : ''}`}
                     onClick={() => {
                       const next = {
                         ...answers,
@@ -366,11 +318,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
               {answeredCount} of {questions.length} answered
             </div>
             {qIndex < questions.length - 1 ? (
-              <button
-                className="btn primary"
-                type="button"
-                onClick={() => setQIndex(qIndex + 1)}
-              >
+              <button className="btn primary" type="button" onClick={() => setQIndex(qIndex + 1)}>
                 Next question <ArrowRight size={15} />
               </button>
             ) : (
@@ -414,7 +362,7 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
               <button
                 key={question.questionVersionId}
                 type="button"
-                className={`question-number ${qIndex === i ? "current" : ""} ${answers[question.questionVersionId] ? "answered" : ""} ${marked.includes(i) ? "marked" : ""}`}
+                className={`question-number ${qIndex === i ? 'current' : ''} ${answers[question.questionVersionId] ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''}`}
                 onClick={() => setQIndex(i)}
                 aria-label={`Go to question ${i + 1}`}
               >
@@ -466,19 +414,14 @@ export function AttemptPage({ mode }: { mode: "resume" | "start" }) {
             </button>
             <h2>Submit your attempt?</h2>
             <p>
-              You have answered{" "}
+              You have answered{' '}
               <b>
                 {answeredCount} of {questions.length}
-              </b>{" "}
-              questions. {questions.length - answeredCount} questions are still
-              unanswered.
+              </b>{' '}
+              questions. {questions.length - answeredCount} questions are still unanswered.
             </p>
             <div className="modal-actions">
-              <button
-                className="btn outline"
-                type="button"
-                onClick={() => setConfirm(false)}
-              >
+              <button className="btn outline" type="button" onClick={() => setConfirm(false)}>
                 Review answers
               </button>
               <button

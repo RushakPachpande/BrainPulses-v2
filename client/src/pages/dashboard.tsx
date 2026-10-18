@@ -9,43 +9,39 @@ import {
   GraduationCap,
   Target,
   Trophy,
-} from "lucide-react";
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
-import { useAuth } from "../contexts/auth";
-import {
-  formatDateLabel,
-  formatDuration,
-  formatKind,
-  KindIcon,
-  Metric,
-  Status,
-} from "../components/ui-bits";
-import { listActivities, listResults } from "../services/api";
-import type { StudentActivity, StudentResultSummary } from "../services/types";
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { useAuth } from '../contexts/auth-context';
+import { GoalPanelSkeleton, MetricsSkeleton } from '../components/skeletons';
+import { KindIcon, Metric, Status } from '../components/ui-bits';
+import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
+import { listActivities, listResults } from '../services/api';
+import type { StudentActivity, StudentResultSummary } from '../services/types';
 
 export function DashboardPage() {
   const { student } = useAuth();
   const navigate = useNavigate();
   const [items, setItems] = useState<StudentActivity[]>([]);
   const [results, setResults] = useState<StudentResultSummary[]>([]);
-  const [error, setError] = useState("");
-  const name = student?.name?.split(" ")[0] ?? "there";
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const name = student?.name?.split(' ')[0] ?? 'there';
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
-        const [acts, res] = await Promise.all([
-          listActivities("all"),
-          listResults("all"),
-        ]);
+        const [acts, res] = await Promise.all([listActivities('all'), listResults('all')]);
         if (!cancelled) {
           setItems(acts);
           setResults(res);
         }
       } catch {
-        if (!cancelled) setError("Unable to load your dashboard.");
+        if (!cancelled) setError('Unable to load your dashboard.');
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -53,20 +49,13 @@ export function DashboardPage() {
     };
   }, []);
 
-  const available = items
-    .filter((x) => x.attemptState !== "submitted")
-    .slice(0, 3);
+  const available = items.filter((x) => x.attemptState !== 'submitted').slice(0, 3);
   const scored = results.filter((a) => a.percent != null);
   const average =
     scored.length > 0
-      ? Math.round(
-          scored.reduce((n, a) => n + (a.percent as number), 0) / scored.length,
-        )
+      ? Math.round(scored.reduce((n, a) => n + (a.percent as number), 0) / scored.length)
       : null;
-  const minutes = results.reduce(
-    (total, a) => total + (a.durationMinutes ?? 0),
-    0,
-  );
+  const minutes = results.reduce((total, a) => total + (a.durationMinutes ?? 0), 0);
 
   function begin(item: StudentActivity) {
     if (item.openAttemptId) navigate(`/attempt/${item.openAttemptId}`);
@@ -80,10 +69,7 @@ export function DashboardPage() {
         <div className="welcome-content">
           <div className="eyebrow light">✦ YOUR LEARNING SPACE</div>
           <h1>Good to see you, {name}.</h1>
-          <p>
-            Small steps add up. Here’s what’s happening with your learning
-            today.
-          </p>
+          <p>Small steps add up. Here’s what’s happening with your learning today.</p>
           <div className="welcome-meta">
             <span>
               <CalendarDays size={15} />
@@ -115,43 +101,44 @@ export function DashboardPage() {
           <h2>Your progress</h2>
           <p>A quick snapshot of your recent activity.</p>
         </div>
-        <button
-          className="text-btn"
-          type="button"
-          onClick={() => navigate("/results")}
-        >
+        <button className="text-btn" type="button" onClick={() => navigate('/results')}>
           View results <ArrowRight size={15} />
         </button>
       </div>
 
-      <div className="metrics-grid">
-        <Metric
-          icon={BookOpen}
-          label="Activities completed"
-          value={String(results.length).padStart(2, "0")}
-          detail="Submitted attempts"
-        />
-        <Metric
-          icon={Trophy}
-          label="Average score"
-          value={average === null ? "—" : `${average}%`}
-          detail="Across submitted attempts"
-        />
-        <Metric
-          icon={Clock3}
-          label="Time invested"
-          value={`${minutes}m`}
-          detail="Across submitted attempts"
-        />
-        <Metric
-          icon={Target}
-          label="Available to attempt"
-          value={String(
-            items.filter((x) => x.attemptState !== "submitted").length,
-          ).padStart(2, "0")}
-          detail="Quizzes and assessments"
-        />
-      </div>
+      {loading ? (
+        <MetricsSkeleton count={4} />
+      ) : (
+        <div className="metrics-grid">
+          <Metric
+            icon={BookOpen}
+            label="Activities completed"
+            value={String(results.length).padStart(2, '0')}
+            detail="Submitted attempts"
+          />
+          <Metric
+            icon={Trophy}
+            label="Average score"
+            value={average === null ? '—' : `${average}%`}
+            detail="Across submitted attempts"
+          />
+          <Metric
+            icon={Clock3}
+            label="Time invested"
+            value={`${minutes}m`}
+            detail="Across submitted attempts"
+          />
+          <Metric
+            icon={Target}
+            label="Available to attempt"
+            value={String(items.filter((x) => x.attemptState !== 'submitted').length).padStart(
+              2,
+              '0',
+            )}
+            detail="Quizzes and assessments"
+          />
+        </div>
+      )}
 
       <div className="dashboard-grid">
         <section className="panel activity-panel">
@@ -160,30 +147,35 @@ export function DashboardPage() {
               <h2>Pick up where you left off</h2>
               <p>Activities ready when you are.</p>
             </div>
-            <button
-              className="text-btn"
-              type="button"
-              onClick={() => navigate("/quizzes")}
-            >
+            <button className="text-btn" type="button" onClick={() => navigate('/quizzes')}>
               View all <ArrowRight size={15} />
             </button>
           </div>
-          <div className="activity-list">
-            {available.length === 0 ? (
-              <div className="empty-state">
+          <div className="activity-list" aria-busy={loading || undefined}>
+            {loading ? (
+              <div aria-live="polite">
+                <span className="sr-only">Loading activities</span>
+                {[0, 1, 2].map((i) => (
+                  <div className="skeleton-row" key={i} aria-hidden>
+                    <span className="skeleton-line w-md" />
+                    <span className="skeleton-line w-full" />
+                    <span className="skeleton-line w-sm" />
+                  </div>
+                ))}
+              </div>
+            ) : available.length === 0 ? (
+              <div className="empty-state" role="status">
+                <div className="empty-icon">
+                  <BookOpen size={22} />
+                </div>
                 <b>Nothing waiting right now</b>
-                <span>
-                  Check back when your coordinator assigns a new activity.
-                </span>
+                <span>Check back when your coordinator assigns a new activity.</span>
               </div>
             ) : (
               available.map((x, i) => (
-                <div
-                  key={x.activityId}
-                  className={`activity-row ${i === 0 ? "featured" : ""}`}
-                >
+                <div key={x.activityId} className={`activity-row ${i === 0 ? 'featured' : ''}`}>
                   <div
-                    className={`activity-type-icon ${x.kind === "assessment" ? "assessment" : ""}`}
+                    className={`activity-type-icon ${x.kind === 'assessment' ? 'assessment' : ''}`}
                   >
                     <KindIcon kind={x.kind} />
                   </div>
@@ -192,11 +184,11 @@ export function DashboardPage() {
                       <b>{x.name}</b>
                       <Status
                         value={
-                          x.attemptState === "in_progress"
-                            ? "In progress"
-                            : x.attemptState === "submitted"
-                              ? "Completed"
-                              : "Available"
+                          x.attemptState === 'in_progress'
+                            ? 'In progress'
+                            : x.attemptState === 'submitted'
+                              ? 'Completed'
+                              : 'Available'
                         }
                       />
                     </div>
@@ -217,8 +209,7 @@ export function DashboardPage() {
                     type="button"
                     onClick={() => begin(x)}
                   >
-                    {x.attemptState === "in_progress" ? "Resume" : "Start"}{" "}
-                    <ArrowRight size={14} />
+                    {x.attemptState === 'in_progress' ? 'Resume' : 'Start'} <ArrowRight size={14} />
                   </button>
                 </div>
               ))
@@ -236,20 +227,24 @@ export function DashboardPage() {
               <Target size={18} />
             </span>
           </div>
-          <div className="goal-progress">
-            <div className="goal-number">
-              <strong>{Math.min(results.length, 5)}</strong>
-              <span>/ 5 activities</span>
+          {loading ? (
+            <GoalPanelSkeleton />
+          ) : (
+            <div className="goal-progress">
+              <div className="goal-number">
+                <strong>{Math.min(results.length, 5)}</strong>
+                <span>/ 5 activities</span>
+              </div>
+              <div className="progress-track">
+                <div
+                  style={{
+                    width: `${Math.min((results.length / 5) * 100, 100)}%`,
+                  }}
+                />
+              </div>
+              <p>Complete a short activity to keep your momentum going.</p>
             </div>
-            <div className="progress-track">
-              <div
-                style={{
-                  width: `${Math.min((results.length / 5) * 100, 100)}%`,
-                }}
-              />
-            </div>
-            <p>Complete a short activity to keep your momentum going.</p>
-          </div>
+          )}
           <div className="goal-tip">
             <div className="tip-icon">
               <Activity size={17} />
@@ -259,11 +254,7 @@ export function DashboardPage() {
               <span>Try a short quiz today to keep your momentum.</span>
             </div>
           </div>
-          <button
-            className="btn secondary full"
-            type="button"
-            onClick={() => navigate("/quizzes")}
-          >
+          <button className="btn secondary full" type="button" onClick={() => navigate('/quizzes')}>
             Explore quizzes <ArrowRight size={16} />
           </button>
         </section>
@@ -275,28 +266,28 @@ export function DashboardPage() {
             <h2>Recent results</h2>
             <p>Your latest completed attempts.</p>
           </div>
-          <button
-            className="text-btn"
-            type="button"
-            onClick={() => navigate("/results")}
-          >
+          <button className="text-btn" type="button" onClick={() => navigate('/results')}>
             All results <ArrowRight size={15} />
           </button>
         </div>
-        {results.length === 0 ? (
-          <div className="empty-state">
+        {loading ? (
+          <div aria-busy="true" aria-live="polite">
+            <span className="sr-only">Loading recent results</span>
+            {[0, 1].map((i) => (
+              <div className="skeleton-row" key={i} aria-hidden>
+                <span className="skeleton-line w-md" />
+                <span className="skeleton-line w-sm" />
+              </div>
+            ))}
+          </div>
+        ) : results.length === 0 ? (
+          <div className="empty-state" role="status">
             <div className="empty-icon">
               <Trophy size={22} />
             </div>
             <b>Your results will show up here</b>
-            <span>
-              Complete a quiz or assessment to start tracking your progress.
-            </span>
-            <button
-              className="btn outline"
-              type="button"
-              onClick={() => navigate("/quizzes")}
-            >
+            <span>Complete a quiz or assessment to start tracking your progress.</span>
+            <button className="btn outline" type="button" onClick={() => navigate('/quizzes')}>
               Browse activities
             </button>
           </div>
@@ -319,8 +310,8 @@ export function DashboardPage() {
                   </span>
                 </div>
                 <div className="score-block">
-                  <b>{a.percent == null ? "—" : `${Math.round(a.percent)}%`}</b>
-                  <span>{a.percent == null ? "Pending" : "Score"}</span>
+                  <b>{a.percent == null ? '—' : `${Math.round(a.percent)}%`}</b>
+                  <span>{a.percent == null ? 'Pending' : 'Score'}</span>
                 </div>
                 <ArrowRight size={16} />
               </button>

@@ -3,6 +3,23 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { DashboardPage } from './dashboard';
 
+vi.mock('@/contexts/auth-context', () => ({
+  useAuth: () => ({
+    status: 'authenticated',
+    user: { id: 'u1', email: 'admin@brainpulses.com', name: 'Admin' },
+    organization: { id: 'o1', name: 'Demo', slug: 'demo' },
+    membership: {
+      id: 'm1',
+      role: 'super_admin',
+      assessmentAccess: 'full',
+      quizAccess: 'full',
+    },
+    signIn: vi.fn(),
+    selectOrganization: vi.fn(),
+    signOut: vi.fn(),
+  }),
+}));
+
 vi.mock('@/services', async () => {
   const actual = await vi.importActual<typeof import('@/services')>('@/services');
   return {

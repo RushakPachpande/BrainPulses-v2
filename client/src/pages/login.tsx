@@ -10,14 +10,11 @@ import {
 } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { CountryCodeInput } from '../components/country-code-input';
+import { AuthSessionSkeleton } from '../components/skeletons';
 import { ThemeToggle } from '../components/theme-toggle';
 import { ApiError } from '../lib/api-client';
-import {
-  isKnownDialCode,
-  isValidNationalMobile,
-  isValidUniqueId,
-} from '../lib/login-validation';
-import { SessionActiveError, useAuth } from '../contexts/auth';
+import { isKnownDialCode, isValidNationalMobile, isValidUniqueId } from '../lib/login-validation';
+import { SessionActiveError, useAuth } from '../contexts/auth-context';
 
 type LoginTab = 'code' | 'phone';
 type PhoneStep = 'enter' | 'otp';
@@ -28,14 +25,8 @@ type PendingSession =
 const OTP_LENGTH = 6;
 
 export function LoginPage() {
-  const {
-    student,
-    ready,
-    signInWithCode,
-    requestPhoneOtp,
-    resendPhoneOtp,
-    verifyPhoneOtp,
-  } = useAuth();
+  const { student, ready, signInWithCode, requestPhoneOtp, resendPhoneOtp, verifyPhoneOtp } =
+    useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
@@ -43,7 +34,7 @@ export function LoginPage() {
   const [tab, setTab] = useState<LoginTab>('code');
   const [code, setCode] = useState(import.meta.env.DEV ? 'BP-24101' : '');
   const [countryCode, setCountryCode] = useState('+91');
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [mobileNumber, setMobileNumber] = useState(import.meta.env.DEV ? '9876510000' : '');
   const [phoneStep, setPhoneStep] = useState<PhoneStep>('enter');
   const [otpDigits, setOtpDigits] = useState<string[]>(() => Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
@@ -69,8 +60,7 @@ export function LoginPage() {
   const phoneValid = dialValid && mobileValid;
 
   // Non-empty invalid values show red immediately; empty waits for blur / submit.
-  const showCodeInvalid =
-    !codeValid && (code.trim() !== '' || codeTouched || codeAttempted);
+  const showCodeInvalid = !codeValid && (code.trim() !== '' || codeTouched || codeAttempted);
   const showDialInvalid =
     !dialValid && (countryCode.trim() !== '' || countryTouched || phoneAttempted);
   const showMobileInvalid =
@@ -87,12 +77,7 @@ export function LoginPage() {
     if (pending.kind === 'code') {
       await signInWithCode(pending.code, replaceSession);
     } else {
-      await verifyPhoneOtp(
-        pending.countryCode,
-        pending.mobileNumber,
-        pending.otp,
-        replaceSession,
-      );
+      await verifyPhoneOtp(pending.countryCode, pending.mobileNumber, pending.otp, replaceSession);
     }
     navigate(from, { replace: true });
   }
@@ -256,6 +241,7 @@ export function LoginPage() {
     }
   }
 
+  if (!ready) return <AuthSessionSkeleton />;
   if (ready && student) return <Navigate to={from} replace />;
 
   return (
@@ -271,7 +257,13 @@ export function LoginPage() {
       <div className="login-center page-enter">
         <form
           className="login-card"
-          onSubmit={tab === 'code' ? onCodeSubmit : phoneStep === 'enter' ? onPhoneSubmit : (e) => e.preventDefault()}
+          onSubmit={
+            tab === 'code'
+              ? onCodeSubmit
+              : phoneStep === 'enter'
+                ? onPhoneSubmit
+                : (e) => e.preventDefault()
+          }
           noValidate
         >
           <div className="login-card-mark">
@@ -466,7 +458,12 @@ export function LoginPage() {
                 >
                   Change number
                 </button>
-                <button type="button" className="text-btn" disabled={busy} onClick={() => void onResend()}>
+                <button
+                  type="button"
+                  className="text-btn"
+                  disabled={busy}
+                  onClick={() => void onResend()}
+                >
                   Resend OTP
                 </button>
               </div>

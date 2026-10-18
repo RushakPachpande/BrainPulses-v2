@@ -5,12 +5,7 @@ export class ApiError extends Error {
   readonly code: string;
   readonly fields?: Record<string, string>;
 
-  constructor(
-    status: number,
-    code: string,
-    message: string,
-    fields?: Record<string, string>,
-  ) {
+  constructor(status: number, code: string, message: string, fields?: Record<string, string>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
@@ -60,11 +55,7 @@ async function parseApiError(res: Response): Promise<ApiError> {
 }
 
 export function isSessionActiveConflict(err: unknown): boolean {
-  return (
-    err instanceof ApiError &&
-    err.status === 409 &&
-    err.fields?.reason === 'SESSION_ACTIVE'
-  );
+  return err instanceof ApiError && err.status === 409 && err.fields?.reason === 'SESSION_ACTIVE';
 }
 
 async function request(

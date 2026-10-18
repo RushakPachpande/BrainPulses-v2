@@ -97,6 +97,21 @@ npm run start:client
 
 For SPA preview builds, set `VITE_API_URL=http://localhost:3002` in `admin/.env` and `client/.env` (dev mode uses the Vite proxy instead).
 
+## View-only admin vs Postgres readonly
+
+- **App membership** `viewer@brainpulses.com` has `assessmentAccess` / `quizAccess` = `view`. The admin UI hides create/edit/invite/settings save actions; the API returns **403** on mutations. Do not use this account to test write flows.
+- **Postgres** app owner remains `brainpulses` (API `DATABASE_URL`). Optional BI role `brainpulses_readonly` is SELECT-only on schema `public` — see [`docs/ops/postgres-readonly-role.sql`](../ops/postgres-readonly-role.sql).
+
+```powershell
+# Apply once (idempotent) after db:up
+Get-Content docs/ops/postgres-readonly-role.sql | docker exec -i brainpulses-postgres psql -U brainpulses -d brainpulses
+
+# Validate (SELECT ok; INSERT / CREATE fail)
+docker exec brainpulses-postgres psql -U brainpulses_readonly -d brainpulses -c "SELECT COUNT(*) FROM students;"
+```
+
+Local reporting URL (never for the API): `postgresql://brainpulses_readonly:brainpulses_ro@127.0.0.1:5434/brainpulses`
+
 ## Reset data
 
 ```powershell
@@ -105,6 +120,7 @@ docker volume rm brainpulses-postgres-data
 npm run db:up
 npm run db:migrate
 npm run db:seed
+Get-Content docs/ops/postgres-readonly-role.sql | docker exec -i brainpulses-postgres psql -U brainpulses -d brainpulses
 ```
 
 ## Verify gates

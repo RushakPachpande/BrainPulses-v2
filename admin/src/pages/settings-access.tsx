@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
 import { KeyRoundIcon, ShieldCheckIcon, UsersIcon } from 'lucide-react';
+import { SettingsListSkeleton } from '@/components/loading-skeletons';
 import { StatusBadge } from '@/components/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -24,15 +25,23 @@ import {
 export function AccessSettingsPage() {
   const [people, setPeople] = useState<AccessUser[]>([]);
   const [permissions, setPermissions] = useState<Awaited<ReturnType<typeof getPermissions>>>([]);
+  const [loading, setLoading] = useState(true);
   const [changed, setChanged] = useState(false);
 
   useEffect(() => {
-    void getAccessUsers()
-      .then(setPeople)
-      .catch(() => setPeople([]));
-    void getPermissions()
-      .then(setPermissions)
-      .catch(() => setPermissions([]));
+    let cancelled = false;
+    void Promise.all([
+      getAccessUsers().catch(() => [] as AccessUser[]),
+      getPermissions().catch(() => [] as Awaited<ReturnType<typeof getPermissions>>),
+    ]).then(([nextPeople, nextPermissions]) => {
+      if (cancelled) return;
+      setPeople(nextPeople);
+      setPermissions(nextPermissions);
+      setLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function toggle(index: number, key: 'assessment' | 'quiz' | 'enabled') {
@@ -79,51 +88,55 @@ export function AccessSettingsPage() {
             </div>
           </CardHeader>
           <CardContent className="px-5 py-2 sm:px-6">
-            {people.map((user, index) => (
-              <div key={user.email}>
-                {index > 0 ? <Separator /> : null}
-                <div className="flex min-w-0 flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                      {user.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join('')}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-medium">{user.name}</p>
-                        <StatusBadge value={user.role} />
-                        {!user.enabled ? <StatusBadge value="Disabled" /> : null}
+            {loading ? (
+              <SettingsListSkeleton rows={4} />
+            ) : (
+              people.map((user, index) => (
+                <div key={user.email}>
+                  {index > 0 ? <Separator /> : null}
+                  <div className="flex min-w-0 flex-col gap-4 py-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                        {user.name
+                          .split(' ')
+                          .map((n) => n[0])
+                          .slice(0, 2)
+                          .join('')}
                       </div>
-                      <p className="mt-1 truncate text-sm text-muted-foreground">{user.email}</p>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-medium">{user.name}</p>
+                          <StatusBadge value={user.role} />
+                          {!user.enabled ? <StatusBadge value="Disabled" /> : null}
+                        </div>
+                        <p className="mt-1 truncate text-sm text-muted-foreground">{user.email}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:min-w-[330px]">
-                    {(['assessment', 'quiz', 'enabled'] as const).map((key) => (
-                      <label
-                        key={key}
-                        className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
-                      >
-                        <span>
-                          {key === 'assessment'
-                            ? 'Assessments'
-                            : key === 'quiz'
-                              ? 'Quizzes'
-                              : 'Enabled'}
-                        </span>
-                        <Switch
-                          checked={user[key]}
-                          onCheckedChange={() => toggle(index, key)}
-                          aria-label={`${user.name} ${key}`}
-                        />
-                      </label>
-                    ))}
+                    <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:min-w-[330px]">
+                      {(['assessment', 'quiz', 'enabled'] as const).map((key) => (
+                        <label
+                          key={key}
+                          className="flex items-center justify-between gap-2 text-xs text-muted-foreground"
+                        >
+                          <span>
+                            {key === 'assessment'
+                              ? 'Assessments'
+                              : key === 'quiz'
+                                ? 'Quizzes'
+                                : 'Enabled'}
+                          </span>
+                          <Switch
+                            checked={user[key]}
+                            onCheckedChange={() => toggle(index, key)}
+                            aria-label={`${user.name} ${key}`}
+                          />
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
         <div className="flex flex-col gap-4">
@@ -195,17 +208,25 @@ export function AccessSettingsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {permissions.map((item) => (
-                  <TableRow key={item.name}>
-                    <TableCell className="pl-5 font-medium">{item.name}</TableCell>
-                    <TableCell>
-                      <StatusBadge value={item.superAdmin} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge value={item.admin} />
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="pl-5">
+                      <SettingsListSkeleton rows={5} />
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  permissions.map((item) => (
+                    <TableRow key={item.name}>
+                      <TableCell className="pl-5 font-medium">{item.name}</TableCell>
+                      <TableCell>
+                        <StatusBadge value={item.superAdmin} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge value={item.admin} />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

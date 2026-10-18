@@ -14,16 +14,30 @@ import {
   parseFixtureDate,
   type DateRangeValue,
 } from '@/lib/date-range';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { useAsyncService } from '@/hooks/use-async-service';
 import { getReportSummary, getResults, type ActivityKind } from '@/services';
+import type { ReportSummaryRow, ResultRow } from '@/services/types';
+
+const EMPTY_RESULTS: ResultRow[] = [];
+const EMPTY_SUMMARY: ReportSummaryRow[] = [];
 
 export function ReportsPage({ kind }: { kind: ActivityKind }) {
   const label = kind === 'quiz' ? 'Quiz' : 'Assessment';
   const current = kind === 'quiz' ? 'Weekly GK Quiz' : 'JEE Mock Series 2026';
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
 
-  const { data: allResults = [] } = useAsyncService(() => getResults(kind), [kind]);
-  const { data: summary = [] } = useAsyncService(() => getReportSummary(kind), [kind]);
+  const { data: resultsData, loading: resultsLoading } = useAsyncService(
+    () => getResults(kind),
+    [kind],
+  );
+  const { data: summaryData, loading: summaryLoading } = useAsyncService(
+    () => getReportSummary(kind),
+    [kind],
+  );
+  const allResults = resultsData ?? EMPTY_RESULTS;
+  const summary = summaryData ?? EMPTY_SUMMARY;
+  const loading = resultsLoading || summaryLoading;
 
   const columns = [
     'Student',
@@ -58,6 +72,27 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
       View result
     </Button>,
   ]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Toolbar
+          filters={[`${label}: ${current}`, 'Student', 'Status']}
+          dateRange={<DateRangeFilter value={dateRange} onApply={setDateRange} />}
+          actions={
+            <>
+              <Button type="button">Generate Report</Button>
+              <Button type="button" variant="outline">
+                <DownloadIcon data-icon="inline-start" />
+                Export
+              </Button>
+            </>
+          }
+        />
+        <ListPageSkeleton columns={8} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

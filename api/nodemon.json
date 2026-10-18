@@ -9,7 +9,7 @@
     "test/**",
     "**/*.test.ts"
   ],
-  "exec": "tsx src/index.ts",
+  "exec": "tsx --conditions=development src/index.ts",
   "delay": "500",
   "signal": "SIGTERM",
   "env": {

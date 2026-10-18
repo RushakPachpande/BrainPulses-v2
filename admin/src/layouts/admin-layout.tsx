@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { canManageUsersOrSettings } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -243,6 +244,17 @@ export function AdminLayout() {
     .join('')
     .slice(0, 2)
     .toUpperCase();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const showAccessSettings = canManageUsersOrSettings(membership);
+  const navItems = nav.map((item) => {
+    if (item.to !== '/settings' || !item.children) return item;
+    return {
+      ...item,
+      children: item.children.filter(
+        (child) => showAccessSettings || child.to !== '/settings/access',
+      ),
+    };
+  });
 
   useEffect(() => {
     document.title = `${meta.title} · BrainPulses Admin`;
@@ -290,7 +302,7 @@ export function AdminLayout() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
-                {nav.map((item) => (
+                {navItems.map((item) => (
                   <NavItem key={item.to} item={item} pathname={pathname} />
                 ))}
               </SidebarMenu>

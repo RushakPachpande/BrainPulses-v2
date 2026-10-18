@@ -39,12 +39,7 @@ authRouter.post(
   validate({ body: studentVerifyOtpSchema }),
   controller.studentVerifyOtp,
 );
-authRouter.post(
-  '/student/sign-out',
-  requireAuth,
-  requireStudent,
-  controller.studentSignOut,
-);
+authRouter.post('/student/sign-out', requireAuth, requireStudent, controller.studentSignOut);
 authRouter.post('/refresh', controller.refresh);
 authRouter.post('/sign-out', controller.signOut);
 authRouter.get('/session', requireAuth, requireUser, controller.session);

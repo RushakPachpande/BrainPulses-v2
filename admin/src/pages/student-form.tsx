@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -79,7 +80,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' }) {
   }
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Loading student…</div>;
+    return <FormPageSkeleton fields={6} />;
   }
 
   return (

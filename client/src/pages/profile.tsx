@@ -1,7 +1,7 @@
 import { ShieldCheck } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { ApiError } from '../lib/api-client';
-import { useAuth } from '../contexts/auth';
+import { useAuth } from '../contexts/auth-context';
 import { Heading, Status } from '../components/ui-bits';
 import { patchMe } from '../services/api';
 
@@ -78,11 +78,7 @@ export function ProfilePage() {
               <input value="Student" disabled />
             </label>
             <div className="form-actions">
-              <button
-                className="btn outline"
-                type="button"
-                onClick={() => setName(student.name)}
-              >
+              <button className="btn outline" type="button" onClick={() => setName(student.name)}>
                 Reset
               </button>
               <button className="btn primary" type="submit" disabled={busy}>

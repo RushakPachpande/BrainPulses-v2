@@ -12,21 +12,33 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
-import {
-  formatDateLabel,
-  formatDuration,
-  formatKind,
-  Heading,
-  KindIcon,
-  Status,
-} from '../components/ui-bits';
+import { LibraryStatsSkeleton } from '../components/skeletons';
+import { Heading, KindIcon, Status } from '../components/ui-bits';
+import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { useDebouncedValue } from '../hooks/use-debounced-value';
 import { listActivities } from '../services/api';
 import type { ActivityKind, StudentActivity } from '../services/types';
 
+function LibraryGridSkeleton() {
+  return (
+    <div className="library-grid-skeleton" aria-hidden>
+      {[0, 1, 2, 3].map((i) => (
+        <div className="skeleton-card" key={i}>
+          <span className="skeleton-line w-sm" />
+          <span className="skeleton-line w-md" />
+          <span className="skeleton-line w-full" />
+          <span className="skeleton-line w-lg" />
+          <span className="skeleton-line h-btn" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LibraryPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<StudentActivity[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   // Clear empties the filter immediately; typing still waits 300ms.
@@ -37,12 +49,19 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
 
   useEffect(() => {
     let cancelled = false;
+    setLoading(true);
+    setError('');
     (async () => {
       try {
         const rows = await listActivities(kind);
         if (!cancelled) setItems(rows);
       } catch {
-        if (!cancelled) setError('Unable to load activities.');
+        if (!cancelled) {
+          setError('Unable to load activities.');
+          setItems([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -68,6 +87,10 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
     if (item.openAttemptId) navigate(`/attempt/${item.openAttemptId}`);
     else navigate(`/attempt/start/${item.activityId}`);
   }
+
+  const availableCount = items.filter((x) => x.attemptState !== 'submitted').length;
+  const completedCount = items.filter((x) => x.attemptState === 'submitted').length;
+  const filtersActive = Boolean(search) || view !== 'All';
 
   return (
     <div className="page-stack">
@@ -96,28 +119,40 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
               : 'Review the instructions before you begin a timed assessment.'}
           </span>
         </div>
-        <div className="summary-stats">
-          <div>
-            <b>{items.length}</b>
-            <span>{isQuiz ? 'quizzes' : 'assessments'}</span>
+        {loading ? (
+          <LibraryStatsSkeleton />
+        ) : (
+          <div className="summary-stats">
+            <div>
+              <b>{items.length}</b>
+              <span>{isQuiz ? 'quizzes' : 'assessments'}</span>
+            </div>
+            <div>
+              <b>{availableCount}</b>
+              <span>available</span>
+            </div>
           </div>
-          <div>
-            <b>{items.filter((x) => x.attemptState !== 'submitted').length}</b>
-            <span>available</span>
-          </div>
-        </div>
+        )}
       </div>
       <div className="library-toolbar">
         <div className="segmented">
           {['All', 'Available', 'Completed'].map((v) => (
-            <button key={v} type="button" className={view === v ? 'selected' : ''} onClick={() => setView(v)}>
+            <button
+              key={v}
+              type="button"
+              className={view === v ? 'selected' : ''}
+              onClick={() => setView(v)}
+              disabled={loading}
+            >
               {v}
               <span>
-                {v === 'All'
-                  ? items.length
-                  : v === 'Available'
-                    ? items.filter((x) => x.attemptState !== 'submitted').length
-                    : items.filter((x) => x.attemptState === 'submitted').length}
+                {loading
+                  ? '—'
+                  : v === 'All'
+                    ? items.length
+                    : v === 'Available'
+                      ? availableCount
+                      : completedCount}
               </span>
             </button>
           ))}
@@ -130,6 +165,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
               placeholder="Search activities"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
+              disabled={loading}
             />
             {searchInput && (
               <button aria-label="Clear search" type="button" onClick={() => setSearchInput('')}>
@@ -139,8 +175,13 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
           </label>
         </div>
       </div>
-      <div className="library-grid">
-        {filtered.length ? (
+      <div className="library-grid" aria-busy={loading || undefined} aria-live="polite">
+        {loading ? (
+          <>
+            <span className="sr-only">Loading activities</span>
+            <LibraryGridSkeleton />
+          </>
+        ) : filtered.length ? (
           filtered.map((x) => (
             <article className="activity-card" key={x.activityId}>
               <div className="activity-card-top">
@@ -191,26 +232,48 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
             </article>
           ))
         ) : (
-          <div className="panel empty-results">
-            <Search size={24} />
-            <b>No activities found</b>
-            <span>Try changing your search or filters.</span>
-            <button
-              className="btn outline"
-              type="button"
-              onClick={() => {
-                setSearchInput('');
-                setView('All');
-              }}
-            >
-              Clear filters
-            </button>
+          <div className="panel empty-results" role="status">
+            {items.length === 0 ? (
+              <>
+                <div className="empty-icon">
+                  {isQuiz ? <BookOpen size={22} /> : <Target size={22} />}
+                </div>
+                <b>{isQuiz ? 'No quizzes yet' : 'No assessments yet'}</b>
+                <span>
+                  {isQuiz
+                    ? 'When your coordinator assigns a quiz, it will appear here.'
+                    : 'When your coordinator assigns an assessment, it will appear here.'}
+                </span>
+              </>
+            ) : (
+              <>
+                <div className="empty-icon">
+                  <Search size={22} />
+                </div>
+                <b>No activities found</b>
+                <span>Try changing your search or filters.</span>
+                {filtersActive && (
+                  <button
+                    className="btn outline"
+                    type="button"
+                    onClick={() => {
+                      setSearchInput('');
+                      setView('All');
+                    }}
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
       <div className="library-footnote">
         <ShieldCheck size={16} />
-        <span>Attempts are saved on the server. You can resume an in-progress attempt after a refresh.</span>
+        <span>
+          Attempts are saved on the server. You can resume an in-progress attempt after a refresh.
+        </span>
       </div>
     </div>
   );

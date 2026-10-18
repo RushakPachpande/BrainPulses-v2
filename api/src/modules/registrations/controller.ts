@@ -5,9 +5,7 @@ import * as service from './service.js';
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    res.json(
-      await service.listRegistrations(actor.organizationId, actor, req.query as never),
-    );
+    res.json(await service.listRegistrations(actor.organizationId, actor, req.query as never));
   } catch (err) {
     next(err);
   }

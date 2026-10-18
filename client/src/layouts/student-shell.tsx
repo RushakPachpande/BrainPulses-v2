@@ -4,6 +4,7 @@ import {
   CalendarDays,
   CircleHelp,
   Home,
+  LogOut,
   Menu,
   Target,
   Trophy,
@@ -13,8 +14,8 @@ import {
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { ThemeToggle } from '../components/theme-toggle';
-import { useAuth } from '../contexts/auth';
-import { formatDateLabel } from '../components/ui-bits';
+import { useAuth } from '../contexts/auth-context';
+import { formatDateLabel } from '../lib/format';
 
 const nav = [
   { label: 'Overview', path: '/dashboard', icon: Home },
@@ -52,7 +53,11 @@ export function StudentShell({ title, children }: { title: string; children?: Re
         <div className="brand-row">
           <img src="/brand.svg" alt="" />
           <span>BrainPulses</span>
-          <button className="icon-btn close-nav" onClick={() => setMobile(false)} aria-label="Close menu">
+          <button
+            className="icon-btn close-nav"
+            onClick={() => setMobile(false)}
+            aria-label="Close menu"
+          >
             <X size={18} />
           </button>
         </div>
@@ -75,7 +80,10 @@ export function StudentShell({ title, children }: { title: string; children?: Re
           })}
         </nav>
         <div className="sidebar-bottom">
-          <NavLink to="/profile" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+          <NavLink
+            to="/profile"
+            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+          >
             <UserRound size={18} />
             <span>My profile</span>
           </NavLink>
@@ -84,29 +92,44 @@ export function StudentShell({ title, children }: { title: string; children?: Re
             <span>Help centre</span>
           </NavLink>
           <div className="student-mini">
-            <div className="avatar">{initials}</div>
+            <div className="avatar" aria-hidden>
+              {initials}
+            </div>
             <div className="student-mini-info">
               <b>{name}</b>
               <span>{student?.organization.name ?? 'Student account'}</span>
             </div>
+            <div className="student-mini-actions">
+              <ThemeToggle />
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Sign out"
+                title="Sign out"
+                onClick={() => {
+                  signOut();
+                  navigate('/login', { replace: true });
+                }}
+              >
+                <LogOut size={18} aria-hidden />
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            className="nav-item"
-            onClick={() => {
-              signOut();
-              navigate('/login', { replace: true });
-            }}
-          >
-            Sign out
-          </button>
         </div>
       </aside>
       {mobile && (
-        <button className="nav-scrim" onClick={() => setMobile(false)} aria-label="Close navigation" />
+        <button
+          className="nav-scrim"
+          onClick={() => setMobile(false)}
+          aria-label="Close navigation"
+        />
       )}
       <header className="topbar">
-        <button className="icon-btn mobile-menu" onClick={() => setMobile(true)} aria-label="Open menu">
+        <button
+          className="icon-btn mobile-menu"
+          onClick={() => setMobile(true)}
+          aria-label="Open menu"
+        >
           <Menu size={20} />
         </button>
         <div className="topbar-title">
@@ -127,14 +150,6 @@ export function StudentShell({ title, children }: { title: string; children?: Re
             onClick={() => setToast('You are all caught up.')}
           >
             <Bell size={18} />
-          </button>
-          <button
-            className="top-avatar"
-            onClick={() => navigate('/profile')}
-            aria-label="Open profile"
-            type="button"
-          >
-            {initials}
           </button>
         </div>
       </header>

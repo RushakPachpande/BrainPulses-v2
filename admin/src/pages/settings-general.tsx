@@ -29,6 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAuth } from '@/contexts/auth-context';
+import { canManageUsersOrSettings } from '@/lib/access';
 import { getSettingsGroup, patchSettingsGroup } from '@/services';
 
 const initialSettings = {
@@ -82,6 +84,9 @@ function SettingField({
 }
 
 export function GeneralSettingsPage() {
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canManage = canManageUsersOrSettings(membership);
   const [settings, setSettings] = useState(initialSettings);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -119,6 +124,7 @@ export function GeneralSettingsPage() {
   }
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canManage) return;
     setSaving(true);
     try {
       await patchSettingsGroup('general', {
@@ -378,12 +384,18 @@ export function GeneralSettingsPage() {
           )}
         </div>
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={reset}>
-            <XIcon data-icon="inline-start" /> Reset
-          </Button>
-          <Button type="submit" disabled={saving}>
-            <SaveIcon data-icon="inline-start" /> Save changes
-          </Button>
+          {canManage ? (
+            <>
+              <Button type="button" variant="outline" onClick={reset}>
+                <XIcon data-icon="inline-start" /> Reset
+              </Button>
+              <Button type="submit" disabled={saving}>
+                <SaveIcon data-icon="inline-start" /> Save changes
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">View only — settings cannot be changed.</p>
+          )}
         </div>
       </div>
     </form>

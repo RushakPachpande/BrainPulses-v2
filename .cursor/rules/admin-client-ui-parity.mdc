@@ -1,0 +1,36 @@
+---
+description: Keep admin and student client UI/UX on one design system unless a change is scoped to one app
+alwaysApply: true
+---
+
+# Admin ↔ client UI parity
+
+`admin/` and `client/` share one BrainPulses design system. Tokens, control look/behavior, spacing, typography, motion, and UX patterns must stay aligned unless the user **explicitly** scopes the work to one frontend (e.g. “admin only”, “client only”).
+
+Canonical sources: [`docs/design/DESIGN.md`](docs/design/DESIGN.md), [`docs/COLOR_PALETTE.md`](docs/COLOR_PALETTE.md), and the shipped admin chrome in `admin/src/components/ui` + list pages. Admin is the reference implementation; the student client must match it visually and interaction-wise, not invent a parallel kit.
+
+## Default when changing UI/UX
+
+1. **Assume both apps** — a new or changed control, layout recipe, focus ring, height, radius, status color, empty/loading pattern, or filter chrome applies to **both** unless told otherwise.
+2. **Same control, same pattern** — buttons, inputs, selects, dialogs, tables, badges, tabs, toolbars, and menus must match admin (shadcn/`data-slot` behavior, 44px `--control-h`, focus ring, labels like `Status: All`). Do not leave a native `<select>` or one-off dropdown in client when admin uses Radix Select.
+3. **Same tokens** — semantic colors (`primary`, `input`, `ring`, `popover`, `muted`, status, etc.) stay equivalent across `admin/src/index.css` and `client/src/styles.css`. Do not diverge palettes or invent hex on a page.
+4. **Same UX** — loading skeletons, empty states, disabled states, and responsive breakpoints should feel identical for the same job (filter, search, submit, navigate).
+
+```tsx
+// ❌ BAD — client-only native select while admin uses SelectTrigger
+<select aria-label="Filter results">…</select>
+
+// ✅ GOOD — same Select API/look as admin on both apps
+<SelectTrigger aria-label="Type">Type: {value}</SelectTrigger>
+```
+
+## Exceptions
+
+- User names one app only → change that app; do not silently restyle the other.
+- Role-specific chrome (admin sidebar vs student shell) may differ in **structure**, but shared controls and tokens still match.
+- Product copy and routes may differ; visual language must not.
+
+## Before finishing a UI change
+
+- If you touched a control or token in one app, check whether the other already has the same job and update it (or note the gap if out of scope).
+- Prefer porting or mirroring `admin/src/components/ui/*` over hand-rolling a second design in `client/`.

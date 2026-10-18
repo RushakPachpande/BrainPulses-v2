@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { useAsyncService } from '@/hooks/use-async-service';
 import {
   ChevronLeftIcon,
@@ -39,8 +40,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { canManageUsersOrSettings } from '@/lib/access';
 import { getUsers, type AdminUser as User } from '@/services';
+
+const EMPTY_USERS: User[] = [];
 
 type SortKey =
   'name' | 'email' | 'role' | 'assessmentAccess' | 'quizAccess' | 'status' | 'lastLogin';
@@ -59,23 +64,12 @@ function compareUsers(a: User, b: User, key: SortKey) {
   return String(a[key]).localeCompare(String(b[key]), undefined, { numeric: true });
 }
 
-const usersHeaderActions = (
-  <>
-    <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-      <UploadIcon data-icon="inline-start" />
-      Upload Users
-    </Button>
-    <Button asChild className="w-full sm:w-auto">
-      <Link to="/users/new">
-        <PlusIcon data-icon="inline-start" />
-        Add User
-      </Link>
-    </Button>
-  </>
-);
-
 export function UsersPage() {
-  const { data: users = [] } = useAsyncService(() => getUsers(), []);
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canManage = canManageUsersOrSettings(membership);
+  const { data, loading } = useAsyncService(() => getUsers(), []);
+  const users = data ?? EMPTY_USERS;
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('All');
   const [status, setStatus] = useState('All');
@@ -177,9 +171,44 @@ export function UsersPage() {
     });
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {canManage ? (
+          <PageHeaderActions>
+            <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+              <UploadIcon data-icon="inline-start" />
+              Upload Users
+            </Button>
+            <Button asChild className="w-full sm:w-auto">
+              <Link to="/users/new">
+                <PlusIcon data-icon="inline-start" />
+                Add User
+              </Link>
+            </Button>
+          </PageHeaderActions>
+        ) : null}
+        <ListPageSkeleton columns={6} kpiCount={0} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <PageHeaderActions>{usersHeaderActions}</PageHeaderActions>
+      {canManage ? (
+        <PageHeaderActions>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+            <UploadIcon data-icon="inline-start" />
+            Upload Users
+          </Button>
+          <Button asChild className="w-full sm:w-auto">
+            <Link to="/users/new">
+              <PlusIcon data-icon="inline-start" />
+              Add User
+            </Link>
+          </Button>
+        </PageHeaderActions>
+      ) : null}
 
       <Toolbar
         filters={filters}
@@ -285,7 +314,7 @@ export function UsersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          {canManage ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

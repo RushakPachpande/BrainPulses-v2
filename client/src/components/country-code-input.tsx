@@ -68,7 +68,10 @@ export function CountryCodeInput({
   }
 
   return (
-    <div className={`country-code-field${invalid ? ' country-code-field-invalid' : ''}`} ref={rootRef}>
+    <div
+      className={`country-code-field${invalid ? ' country-code-field-invalid' : ''}`}
+      ref={rootRef}
+    >
       <input
         id={id}
         type="text"
@@ -76,7 +79,9 @@ export function CountryCodeInput({
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={open && suggestions[activeIndex] ? `${listId}-opt-${activeIndex}` : undefined}
+        aria-activedescendant={
+          open && suggestions[activeIndex] ? `${listId}-opt-${activeIndex}` : undefined
+        }
         aria-invalid={invalid || undefined}
         className={invalid ? 'input-invalid' : undefined}
         value={value}

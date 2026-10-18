@@ -13,6 +13,7 @@ import {
   UserIcon,
   UsersIcon,
 } from 'lucide-react';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { SortHeader } from '@/components/sort-header';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
@@ -42,11 +43,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { canEditKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import { getRegistrations, type ActivityKind } from '@/services';
 import { assessmentNames, quizNames, studentCities, studentCourses } from '@/services/fixtures';
 import type { RegistrationRow as Registration } from '@/services/types';
+
+const EMPTY_ROWS: Registration[] = [];
 
 type SortKey =
   'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'bank' | 'assignment' | 'attempt';
@@ -56,6 +61,9 @@ function compareRows(a: Registration, b: Registration, key: SortKey) {
 }
 
 export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canEdit = canEditKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
   const attemptLabel = isQuiz ? 'Attempt Status' : 'Student Status';
@@ -74,7 +82,8 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'attempt', label: attemptLabel },
   ];
 
-  const { data: rows = [] } = useAsyncService(() => getRegistrations(kind), [kind]);
+  const { data, loading } = useAsyncService(() => getRegistrations(kind), [kind]);
+  const rows = data ?? EMPTY_ROWS;
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState('All');
   const [city, setCity] = useState('All');
@@ -259,6 +268,28 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     });
   }
 
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeaderActions>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+            <DownloadIcon data-icon="inline-start" />
+            Download Filtered Data
+          </Button>
+          {canEdit ? (
+            <Button asChild className="w-full sm:w-auto">
+              <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
+                <PlusIcon data-icon="inline-start" />
+                Add Registration
+              </Link>
+            </Button>
+          ) : null}
+        </PageHeaderActions>
+        <ListPageSkeleton columns={8} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
@@ -266,12 +297,14 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
           <DownloadIcon data-icon="inline-start" />
           Download Filtered Data
         </Button>
-        <Button asChild className="w-full sm:w-auto">
-          <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
-            <PlusIcon data-icon="inline-start" />
-            Add Registration
-          </Link>
-        </Button>
+        {canEdit ? (
+          <Button asChild className="w-full sm:w-auto">
+            <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
+              <PlusIcon data-icon="inline-start" />
+              Add Registration
+            </Link>
+          </Button>
+        ) : null}
       </PageHeaderActions>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -407,7 +440,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
+                          {canEdit ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

@@ -31,11 +31,7 @@ import {
   storeStudentSession,
   ttlSecondsFromAccessToken,
 } from '../../lib/student-sessions.js';
-import {
-  DEV_FIXED_OTP,
-  DEV_FIXED_OTP_PHONE,
-  sendSmsOtp,
-} from '../../lib/twilio.js';
+import { DEV_FIXED_OTP, DEV_FIXED_OTP_PHONE, sendSmsOtp } from '../../lib/twilio.js';
 import type { Student } from '#prisma';
 
 const REFRESH_COOKIE = 'bp_refresh';
@@ -432,9 +428,7 @@ async function issueAndSendOtp(student: StudentWithOrg, phone: string): Promise<
   await assertOtpSendAllowed(student.organizationId, phone);
 
   const otp =
-    env.NODE_ENV !== 'production' &&
-    !env.TWILIO_ENABLED &&
-    phone === DEV_FIXED_OTP_PHONE
+    env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED && phone === DEV_FIXED_OTP_PHONE
       ? DEV_FIXED_OTP
       : generateOtpDigits();
 
@@ -465,7 +459,7 @@ export async function studentRequestOtp(input: {
   let debugOtp: string | undefined;
   const student = await resolveStudentForPhone(input);
   if (student) {
-    const storedPhone = student.phone ? normalizePhone(student.phone) ?? phone : phone;
+    const storedPhone = student.phone ? (normalizePhone(student.phone) ?? phone) : phone;
     try {
       const otp = await issueAndSendOtp(student, storedPhone);
       if (env.NODE_ENV === 'test') debugOtp = otp;
@@ -475,10 +469,9 @@ export async function studentRequestOtp(input: {
       if (env.NODE_ENV === 'test') throw err;
     }
   } else if (env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED) {
-    const otp = generateOtpDigits();
-    console.info(
-      `[otp] TWILIO_ENABLED=false — OTP for ${phone}: ${otp} (no matching student; verify will fail)`,
-    );
+    // Do not invent digits here — a logged code looks real but was never stored,
+    // so verify always fails with "Invalid or expired OTP".
+    console.info(`[otp] TWILIO_ENABLED=false — no matching student for ${phone}; OTP not issued`);
   }
 
   return {
@@ -509,7 +502,7 @@ export async function studentVerifyOtp(input: {
   const student = await resolveStudentForPhone(input);
   if (!student) throw unauthorized('Invalid or expired OTP.');
 
-  const storedPhone = student.phone ? normalizePhone(student.phone) ?? phone : phone;
+  const storedPhone = student.phone ? (normalizePhone(student.phone) ?? phone) : phone;
   // Validate without consuming so SESSION_ACTIVE can retry with replaceSession.
   const result = await verifyStudentOtp({
     organizationId: student.organizationId,

@@ -1,16 +1,23 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
+import { SettingsListSkeleton } from '@/components/loading-skeletons';
 import { ApiError } from '@/lib/api-client';
 import { BellRingIcon, CheckCircle2Icon, MailIcon, SaveIcon, SmartphoneIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { useAuth } from '@/contexts/auth-context';
+import { canManageUsersOrSettings } from '@/lib/access';
 import { getNotifications, saveNotificationPreferences } from '@/services';
 
 export function NotificationSettingsPage() {
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canManage = canManageUsersOrSettings(membership);
   const [notifications, setNotifications] = useState<
     { title: string; hint: string; enabled: boolean }[]
   >([]);
+  const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -19,9 +26,11 @@ export function NotificationSettingsPage() {
       .then((rows) =>
         setNotifications(rows.map(([title, hint, enabled]) => ({ title, hint, enabled }))),
       )
-      .catch(() => setNotifications([]));
+      .catch(() => setNotifications([]))
+      .finally(() => setLoading(false));
   }, []);
   function toggle(index: number) {
+    if (!canManage) return;
     setNotifications((current) =>
       current.map((item, i) => (i === index ? { ...item, enabled: !item.enabled } : item)),
     );
@@ -44,46 +53,51 @@ export function NotificationSettingsPage() {
           </div>
         </CardHeader>
         <CardContent className="px-5 py-2 sm:px-6">
-          {notifications.map((item, index) => (
-            <div
-              key={item.title}
-              className="flex flex-col gap-3 border-b border-border/70 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                  {index === 4 || index === 5 ? (
-                    <MailIcon className="size-4" />
-                  ) : (
-                    <BellRingIcon className="size-4" />
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{item.title}</p>
-                  <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
-                    {item.hint}
-                  </p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
-                      <MailIcon className="size-3" /> Email
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
-                      <SmartphoneIcon className="size-3" /> In-app
-                    </span>
+          {loading ? (
+            <SettingsListSkeleton rows={6} />
+          ) : (
+            notifications.map((item, index) => (
+              <div
+                key={item.title}
+                className="flex flex-col gap-3 border-b border-border/70 py-4 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    {index === 4 || index === 5 ? (
+                      <MailIcon className="size-4" />
+                    ) : (
+                      <BellRingIcon className="size-4" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.title}</p>
+                    <p className="mt-1 max-w-2xl text-sm leading-5 text-muted-foreground">
+                      {item.hint}
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+                        <MailIcon className="size-3" /> Email
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground">
+                        <SmartphoneIcon className="size-3" /> In-app
+                      </span>
+                    </div>
                   </div>
                 </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <span className="text-xs text-muted-foreground">
+                    {item.enabled ? 'Enabled' : 'Disabled'}
+                  </span>
+                  <Switch
+                    checked={item.enabled}
+                    onCheckedChange={() => toggle(index)}
+                    disabled={!canManage}
+                    aria-label={`${item.title} notifications`}
+                  />
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-3 sm:justify-end">
-                <span className="text-xs text-muted-foreground">
-                  {item.enabled ? 'Enabled' : 'Disabled'}
-                </span>
-                <Switch
-                  checked={item.enabled}
-                  onCheckedChange={() => toggle(index)}
-                  aria-label={`${item.title} notifications`}
-                />
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
       <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">
@@ -94,28 +108,34 @@ export function NotificationSettingsPage() {
             </span>
           ) : (
             <span className="text-muted-foreground">
-              Notification preferences are stored in organization settings.
+              {canManage
+                ? 'Notification preferences are stored in organization settings.'
+                : 'View only — preferences cannot be changed.'}
             </span>
           )}
         </div>
-        <Button
-          type="button"
-          disabled={saving}
-          onClick={() => {
-            setSaving(true);
-            void saveNotificationPreferences(notifications)
-              .then(() => {
-                setSaved(true);
-                toast.success('Notification preferences saved.');
-              })
-              .catch((err) => {
-                toast.error(err instanceof ApiError ? err.message : 'Could not save preferences.');
-              })
-              .finally(() => setSaving(false));
-          }}
-        >
-          <SaveIcon data-icon="inline-start" /> Save preferences
-        </Button>
+        {canManage ? (
+          <Button
+            type="button"
+            disabled={saving}
+            onClick={() => {
+              setSaving(true);
+              void saveNotificationPreferences(notifications)
+                .then(() => {
+                  setSaved(true);
+                  toast.success('Notification preferences saved.');
+                })
+                .catch((err) => {
+                  toast.error(
+                    err instanceof ApiError ? err.message : 'Could not save preferences.',
+                  );
+                })
+                .finally(() => setSaving(false));
+            }}
+          >
+            <SaveIcon data-icon="inline-start" /> Save preferences
+          </Button>
+        ) : null}
       </div>
     </div>
   );
