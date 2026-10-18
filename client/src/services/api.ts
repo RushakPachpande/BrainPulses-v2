@@ -21,24 +21,6 @@ type StudentAuthPayload = {
   organization: { id: string; name: string; slug: string };
 };
 
-/** Archived email/password login — kept for restore; not used by live UI. */
-export async function studentSignIn(
-  email: string,
-  password: string,
-  organizationSlug?: string,
-) {
-  const data = await apiPostData<StudentAuthPayload>(
-    "/api/auth/student/sign-in",
-    {
-      email,
-      password,
-      ...(organizationSlug ? { organizationSlug } : {}),
-    },
-  );
-  setAccessToken(data.accessToken);
-  return data;
-}
-
 export async function studentSignInByCode(
   code: string,
   organizationSlug?: string,

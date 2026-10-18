@@ -13,7 +13,6 @@ export const createStudentSchema = z
     phone: z.string().trim().max(40).optional(),
     course: z.string().trim().max(120).optional(),
     city: z.string().trim().max(120).optional(),
-    password: z.string().min(8).max(128).optional(),
     code: z.string().trim().min(1).max(40).optional(),
   })
   .strict();

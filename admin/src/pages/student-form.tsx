@@ -17,7 +17,6 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const [phone, setPhone] = useState('');
   const [course, setCourse] = useState('');
   const [city, setCity] = useState('');
-  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(mode === 'edit');
   const [saving, setSaving] = useState(false);
@@ -58,7 +57,6 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' }) {
           phone: phone.trim() || undefined,
           course: course.trim() || undefined,
           city: city.trim() || undefined,
-          password: password || undefined,
           code: code.trim() || undefined,
         });
         toast.success('Student created.');
@@ -69,7 +67,6 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' }) {
           phone: phone.trim() || null,
           course: course.trim() || null,
           city: city.trim() || null,
-          ...(password ? { password } : {}),
         });
         toast.success('Student updated.');
       }
@@ -161,19 +158,6 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' }) {
               <Field>
                 <FieldLabel htmlFor="student-city">City</FieldLabel>
                 <Input id="student-city" value={city} onChange={(e) => setCity(e.target.value)} />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="student-password">
-                  {mode === 'create' ? 'Password (optional)' : 'New password (optional)'}
-                </FieldLabel>
-                <Input
-                  id="student-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={8}
-                  autoComplete="new-password"
-                />
               </Field>
               <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
                 <Button type="button" variant="outline" onClick={() => void navigate('/students')}>

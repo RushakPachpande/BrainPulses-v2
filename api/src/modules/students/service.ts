@@ -4,7 +4,6 @@ import { invalidateDashboard } from '../../lib/cache.js';
 import { nextHumanCode } from '../../lib/codes.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
-import { hashPassword } from '../../lib/password.js';
 import { normalizePhone } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
@@ -98,7 +97,6 @@ export async function createStudent(
         phone: input.phone ? normalizePhone(input.phone) : input.phone,
         course: input.course,
         city: input.city,
-        passwordHash: input.password ? await hashPassword(input.password) : null,
       },
       include: { _count: { select: { registrations: true } } },
     });
@@ -142,9 +140,6 @@ export async function updateStudent(
         ...(input.city !== undefined ? { city: input.city } : {}),
         ...(input.code !== undefined ? { code: input.code } : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-        ...(input.password !== undefined
-          ? { passwordHash: await hashPassword(input.password) }
-          : {}),
       },
       include: { _count: { select: { registrations: true } } },
     });

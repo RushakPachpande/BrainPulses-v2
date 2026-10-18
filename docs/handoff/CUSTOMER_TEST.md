@@ -17,7 +17,7 @@ Prerequisites: follow [`LOCAL_PRODUCTION.md`](LOCAL_PRODUCTION.md) until all thr
 
 ## 2. Admin mutations (persistence)
 
-1. **Students → Add Student** — create a student with email + password; confirm they appear after save
+1. **Students → Add Student** — create a student with name + email (Unique ID optional); confirm they appear after save
 2. **Users → Add User** — invite an admin; confirm they appear on Users
 3. **Assessments → Question Banks → Create** — create a bank with a starter MCQ; confirm list refresh
 4. **Assessments → Create Assessment** — create + optionally publish; confirm it appears on the list

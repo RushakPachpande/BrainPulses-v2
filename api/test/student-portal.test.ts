@@ -3,12 +3,11 @@ import { describe, it } from 'node:test';
 import { prisma } from '../src/lib/prisma.js';
 import { getTestApp, request } from './helpers.js';
 
-async function studentToken(email = 'student1@mail.com') {
+async function studentToken(code = 'BP-24101') {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in', {
+  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
     body: {
-      email,
-      password: 'Student123!',
+      code,
       organizationSlug: 'demo',
       replaceSession: true,
     },
@@ -42,8 +41,8 @@ describe('student portal', () => {
 
   it('does not allow a student to read another student result', async () => {
     const app = await getTestApp();
-    const token1 = await studentToken('student1@mail.com');
-    const token2 = await studentToken('student2@mail.com');
+    const token1 = await studentToken('BP-24101');
+    const token2 = await studentToken('BP-24102');
 
     const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26002' } });
     assert.ok(activity);

@@ -67,8 +67,6 @@ Full local UAT notes: [`docs/handoff/LOCAL_PRODUCTION.md`](docs/handoff/LOCAL_PR
 | Student (Unique ID) | `BP-24101` on http://localhost:5174/login                                             |
 | Student (Phone OTP) | `+91` / `9876510000` — when `TWILIO_ENABLED=false`, OTP is printed in the API console |
 
-Email/password student sign-in remains on the API (`POST /api/auth/student/sign-in`, e.g. `student1@mail.com` / `Student123!`) but is not shown in the client UI.
-
 Demo organization slug: `demo`. Seed also creates quizzes and an assessment assigned to the demo students.
 
 ## Useful scripts (root)

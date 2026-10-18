@@ -56,7 +56,7 @@ describe('auth', () => {
   it('signs in student by Unique ID', async () => {
     const app = await getTestApp();
     const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
-      body: { code: 'BP-24101', organizationSlug: 'demo' },
+      body: { code: 'BP-24101', organizationSlug: 'demo', replaceSession: true },
     });
     assert.equal(res.status, 200);
     const body = res.body as {
@@ -126,7 +126,7 @@ describe('auth', () => {
     assert.ok(requested.data.debugOtp);
 
     const verifyRes = await request(app, 'POST', '/api/auth/student/verify-otp', {
-      body: { ...phoneBody, otp: requested.data.debugOtp },
+      body: { ...phoneBody, otp: requested.data.debugOtp, replaceSession: true },
     });
     assert.equal(verifyRes.status, 200);
     const verified = verifyRes.body as {

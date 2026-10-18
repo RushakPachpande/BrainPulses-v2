@@ -9,6 +9,8 @@
 # RedisInsight: 127.0.0.1:5540
 # CloudBeaver:  127.0.0.1:8977
 
+name: brainpulses
+
 services:
   db:
     image: postgres:18
@@ -23,7 +25,7 @@ services:
     ports:
       - "127.0.0.1:5434:5432"
     volumes:
-      - brainpulses_postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql
     shm_size: 256mb
     healthcheck:
       test:
@@ -48,7 +50,7 @@ services:
     ports:
       - "127.0.0.1:6381:6379"
     volumes:
-      - brainpulses_redis_data:/data
+      - redis_data:/data
     command:
       [
         "redis-server",
@@ -83,7 +85,7 @@ services:
     ports:
       - "127.0.0.1:5540:5540"
     volumes:
-      - brainpulses_redisinsight_data:/data
+      - redisinsight_data:/data
     depends_on:
       redis:
         condition: service_healthy
@@ -106,7 +108,7 @@ services:
       CB_ADMIN_PASSWORD: ${CLOUDBEAVER_ADMIN_PASSWORD:-cbadmin}
       CB_SERVER_URL: ${CLOUDBEAVER_SERVER_URL:-http://127.0.0.1:8977/}
     volumes:
-      - brainpulses_cloudbeaver_data:/opt/cloudbeaver/workspace
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
     depends_on:
       db:
         condition: service_healthy
@@ -117,11 +119,11 @@ services:
         max-file: "5"
 
 volumes:
-  brainpulses_postgres_data:
+  postgres_data:
     name: brainpulses-postgres-data
-  brainpulses_redis_data:
+  redis_data:
     name: brainpulses-redis-data
-  brainpulses_redisinsight_data:
+  redisinsight_data:
     name: brainpulses-redisinsight-data
-  brainpulses_cloudbeaver_data:
+  cloudbeaver_data:
     name: brainpulses-cloudbeaver-data

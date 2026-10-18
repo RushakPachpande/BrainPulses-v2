@@ -8,7 +8,6 @@ import {
   studentRequestOtpSchema,
   studentResendOtpSchema,
   studentSignInByCodeSchema,
-  studentSignInSchema,
   studentVerifyOtpSchema,
 } from './schema.js';
 
@@ -19,11 +18,6 @@ authRouter.post(
   '/select-organization',
   validate({ body: selectOrganizationSchema }),
   controller.selectOrganization,
-);
-authRouter.post(
-  '/student/sign-in',
-  validate({ body: studentSignInSchema }),
-  controller.studentSignIn,
 );
 authRouter.post(
   '/student/sign-in-by-code',

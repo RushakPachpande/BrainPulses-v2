@@ -387,32 +387,6 @@ function requireSingleStudent(
   return students[0]!;
 }
 
-export async function studentSignIn(input: {
-  email: string;
-  password: string;
-  organizationSlug?: string;
-  replaceSession?: boolean;
-}) {
-  const students = await findActiveStudents(
-    { email: input.email.toLowerCase() },
-    input.organizationSlug,
-  );
-
-  const student = requireSingleStudent(
-    students,
-    input.organizationSlug,
-    'Invalid email or password.',
-  );
-  if (!student.passwordHash) throw unauthorized('Student login is not enabled.');
-  const ok = await verifyPassword(input.password, student.passwordHash);
-  if (!ok) throw unauthorized('Invalid email or password.');
-
-  return issueStudentSession(student, {
-    replaceSession: input.replaceSession,
-    auditAction: 'student.sign_in',
-  });
-}
-
 export async function studentSignInByCode(input: {
   code: string;
   organizationSlug?: string;

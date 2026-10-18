@@ -58,15 +58,6 @@ export async function session(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function studentSignIn(req: Request, res: Response, next: NextFunction) {
-  try {
-    const result = await authService.studentSignIn(req.body);
-    res.json({ data: result });
-  } catch (err) {
-    next(err);
-  }
-}
-
 export async function studentSignInByCode(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await authService.studentSignInByCode(req.body);

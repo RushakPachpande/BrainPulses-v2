@@ -307,7 +307,6 @@ async function main() {
     },
   });
 
-  const studentPw = await bcrypt.hash('Student123!', 12);
   const students = [];
   for (let i = 0; i < 3; i++) {
     const student = await prisma.student.upsert({
@@ -315,7 +314,6 @@ async function main() {
         organizationId_code: { organizationId: org.id, code: `BP-${24101 + i}` },
       },
       update: {
-        passwordHash: studentPw,
         isActive: true,
         phone: `+9198765${10000 + i}`,
       },
@@ -327,7 +325,6 @@ async function main() {
         phone: `+9198765${10000 + i}`,
         course: ['JEE', 'Aptitude', 'Scholarship'][i],
         city: ['Pune', 'Mumbai', 'Delhi'][i],
-        passwordHash: studentPw,
       },
     });
     students.push(student);
@@ -389,20 +386,19 @@ async function main() {
     where: {
       organizationId_code: { organizationId: orgB.id, code: 'BP-99001' },
     },
-    update: { passwordHash: studentPw },
+    update: { isActive: true },
     create: {
       organizationId: orgB.id,
       code: 'BP-99001',
       name: 'Other Student',
       email: 'other.student@mail.com',
-      passwordHash: studentPw,
     },
   });
 
   console.log('Seed complete.');
   console.log('  admin@brainpulses.com / Password123!');
   console.log('  viewer@brainpulses.com / Password123! (view-only)');
-  console.log('  student1@mail.com / Student123!');
+  console.log('  Student Unique ID: BP-24101 (phone +91 / 9876510000)');
   console.log('  Activities: ASM-26001, QZ-26001, QZ-26002 (assigned to demo students)');
 }
 

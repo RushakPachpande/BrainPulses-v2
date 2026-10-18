@@ -74,8 +74,6 @@ Students (Student client at http://localhost:5174 — Unique ID or Phone OTP):
 
 Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
 
-Email/password (`studentN@mail.com` / `Student123!`) works against the API `POST /api/auth/student/sign-in` only — the student client UI does not expose that path.
-
 Demo organization slug: `demo`.
 
 Seeded activities (assigned to demo students):

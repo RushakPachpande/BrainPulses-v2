@@ -11,13 +11,6 @@ export const selectOrganizationSchema = z.object({
   organizationId: z.string().uuid(),
 });
 
-export const studentSignInSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-  organizationSlug: z.string().min(1).optional(),
-  replaceSession: z.boolean().optional(),
-});
-
 export const studentSignInByCodeSchema = z.object({
   code: z
     .string()

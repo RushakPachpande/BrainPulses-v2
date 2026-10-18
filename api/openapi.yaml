@@ -67,12 +67,6 @@ paths:
       responses:
         '200':
           description: Session
-  /api/auth/student/sign-in:
-    post:
-      summary: Student sign-in with email and password
-      responses:
-        '200':
-          description: Student access token
   /api/auth/student/sign-in-by-code:
     post:
       summary: Student sign-in with Unique ID (Student.code)

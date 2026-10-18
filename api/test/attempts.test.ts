@@ -5,10 +5,9 @@ import { getTestApp, request } from './helpers.js';
 
 async function studentToken() {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in', {
+  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
     body: {
-      email: 'student1@mail.com',
-      password: 'Student123!',
+      code: 'BP-24101',
       organizationSlug: 'demo',
       replaceSession: true,
     },

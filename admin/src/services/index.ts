@@ -217,7 +217,6 @@ export async function createStudent(payload: {
   phone?: string;
   course?: string;
   city?: string;
-  password?: string;
   code?: string;
 }) {
   if (useFixtures) return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
@@ -232,7 +231,6 @@ export async function updateStudent(
     phone?: string | null;
     course?: string | null;
     city?: string | null;
-    password?: string;
     isActive?: boolean;
   },
 ) {
