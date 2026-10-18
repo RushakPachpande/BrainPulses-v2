@@ -197,21 +197,34 @@ export function mapRegistrationFromApi(row: {
 }
 
 export function mapResultFromApi(row: {
+  id: string;
   student: string;
   activity: string;
   attemptId: string;
   percent: number;
+  score?: number;
+  maxScore?: number;
   submitted: string | Date;
   status: string;
+  releaseStatus?: string;
+  activityKind?: string;
+  studentCode?: string;
 }): ResultRow {
   const score = Math.round(row.percent);
   return {
+    id: row.id,
     student: row.student,
     activity: row.activity,
     attempt: '#1',
     score,
     submitted: formatAdminDateTime(row.submitted),
     status: row.status,
+    releaseStatus: row.releaseStatus,
+    maxScore: row.maxScore,
+    percent: score,
+    activityKind: row.activityKind,
+    studentCode: row.studentCode,
+    attemptId: row.attemptId,
   };
 }
 

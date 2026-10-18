@@ -127,6 +127,7 @@ export function fixturesGetRegistrations(kind: ActivityKind) {
 export function fixturesGetResults(kind: ActivityKind) {
   const names = kind === 'quiz' ? quizNames : assessmentNames;
   return resultScores.map((score, i) => ({
+    id: `fixture-result-${kind}-${i}`,
     student: personName(i),
     activity: names[i % 6],
     attempt: '#1',

@@ -447,8 +447,28 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          {canEdit ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
+                          <DropdownMenuItem asChild>
+                            <Link
+                              to={
+                                isQuiz ? `/quizzes/banks/${row.id}` : `/assessments/banks/${row.id}`
+                              }
+                            >
+                              View
+                            </Link>
+                          </DropdownMenuItem>
+                          {canEdit ? (
+                            <DropdownMenuItem asChild>
+                              <Link
+                                to={
+                                  isQuiz
+                                    ? `/quizzes/banks/${row.id}/edit`
+                                    : `/assessments/banks/${row.id}/edit`
+                                }
+                              >
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

@@ -58,9 +58,14 @@ export function DashboardPage() {
   const minutes = results.reduce((total, a) => total + (a.durationMinutes ?? 0), 0);
 
   function begin(item: StudentActivity) {
-    if (item.openAttemptId) navigate(`/attempt/${item.openAttemptId}`);
-    else navigate(`/attempt/start/${item.activityId}`);
+    const base = item.kind === 'quiz' ? '/quizzes' : '/assessments';
+    navigate(`${base}/${item.activityId}`);
   }
+
+  const browsePath =
+    available.some((a) => a.kind === 'assessment') && !available.some((a) => a.kind === 'quiz')
+      ? '/assessments'
+      : '/quizzes';
 
   return (
     <div className="page-stack">
@@ -147,7 +152,7 @@ export function DashboardPage() {
               <h2>Pick up where you left off</h2>
               <p>Activities ready when you are.</p>
             </div>
-            <button className="text-btn" type="button" onClick={() => navigate('/quizzes')}>
+            <button className="text-btn" type="button" onClick={() => navigate(browsePath)}>
               View all <ArrowRight size={15} />
             </button>
           </div>
@@ -287,7 +292,7 @@ export function DashboardPage() {
             </div>
             <b>Your results will show up here</b>
             <span>Complete a quiz or assessment to start tracking your progress.</span>
-            <button className="btn outline" type="button" onClick={() => navigate('/quizzes')}>
+            <button className="btn outline" type="button" onClick={() => navigate(browsePath)}>
               Browse activities
             </button>
           </div>

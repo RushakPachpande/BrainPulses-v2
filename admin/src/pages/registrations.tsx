@@ -439,8 +439,30 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          {canEdit ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
+                          <DropdownMenuItem asChild>
+                            <Link
+                              to={
+                                isQuiz
+                                  ? `/quizzes/registrations/${row.registrationId}`
+                                  : `/assessments/registrations/${row.registrationId}`
+                              }
+                            >
+                              View
+                            </Link>
+                          </DropdownMenuItem>
+                          {canEdit ? (
+                            <DropdownMenuItem asChild>
+                              <Link
+                                to={
+                                  isQuiz
+                                    ? `/quizzes/registrations/${row.registrationId}/edit`
+                                    : `/assessments/registrations/${row.registrationId}/edit`
+                                }
+                              >
+                                Edit
+                              </Link>
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

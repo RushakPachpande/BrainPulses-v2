@@ -41,6 +41,32 @@ export type Activity = {
   endTime: string;
 };
 
+export type ActivityRegistrationField = {
+  key: string;
+  label: string;
+  type: 'text' | 'email' | 'phone' | 'select';
+  required: boolean;
+  options?: string[];
+};
+
+export type ActivitySettings = {
+  registrationForm?: { fields: ActivityRegistrationField[] };
+  assignmentRules?: { mode: 'manual' | 'all_active_students'; notes?: string };
+};
+
+export type ActivityDetail = Activity & {
+  code: string;
+  kind: ActivityKind;
+  statusKey: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  durationMinutes: number | null;
+  passingPercent: number | null;
+  presentation: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+  bankIds: string[];
+  settings: ActivitySettings | null;
+};
+
 export type QuestionBank = {
   id: string;
   name: string;
@@ -71,12 +97,23 @@ export type RegistrationRow = {
 };
 
 export type ResultRow = {
+  id: string;
   student: string;
   activity: string;
   attempt: string;
   score: number;
   submitted: string;
   status: string;
+  releaseStatus?: string;
+  maxScore?: number;
+  percent?: number;
+  activityKind?: string;
+  studentCode?: string;
+  attemptId?: string;
+};
+
+export type ResultDetail = ResultRow & {
+  revisions?: { id: string; score: number; maxScore: number; percent: number }[];
 };
 
 export type AccessUser = {

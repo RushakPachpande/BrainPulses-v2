@@ -262,6 +262,7 @@ model Activity {
   durationMinutes Int?            @map("duration_minutes")
   passingPercent Decimal?         @map("passing_percent") @db.Decimal(5, 2)
   presentation   PresentationMode @default(one_at_a_time)
+  settings       Json?            @db.JsonB
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 

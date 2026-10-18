@@ -80,7 +80,7 @@ export function ResultsPage() {
         description="Review your completed attempts and see how your confidence is growing."
         action={
           <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
-            <BookOpen size={16} /> Find an activity
+            <BookOpen size={16} /> Find a quiz
           </button>
         }
       />
@@ -159,9 +159,18 @@ export function ResultsPage() {
                 Once you submit a quiz or assessment, your score and attempt details will appear
                 here.
               </span>
-              <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
-                Start a quiz <ArrowRight size={15} />
-              </button>
+              <div className="empty-actions">
+                <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+                  Start a quiz <ArrowRight size={15} />
+                </button>
+                <button
+                  className="btn outline"
+                  type="button"
+                  onClick={() => navigate('/assessments')}
+                >
+                  Browse assessments
+                </button>
+              </div>
             </>
           ) : (
             <>
@@ -314,7 +323,11 @@ export function ResultDetailPage() {
               {attempt.review.length} questions
             </span>
           </div>
-          <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => navigate(attempt.kind === 'assessment' ? '/assessments' : '/quizzes')}
+          >
             Continue learning <ArrowRight size={15} />
           </button>
         </div>
@@ -353,6 +366,7 @@ export function ResultDetailPage() {
                   </span>
                 </div>
               )}
+              {q.explanation ? <p className="review-explanation-text">{q.explanation}</p> : null}
             </div>
           );
         })}

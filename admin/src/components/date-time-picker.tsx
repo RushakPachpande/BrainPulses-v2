@@ -82,28 +82,33 @@ export function DateTimePicker({
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        className="w-[calc(7*var(--cell-size)+1rem)] max-w-[calc(100vw-1.5rem)] gap-0 overflow-hidden p-0 [--cell-size:--spacing(7)]"
+        className={cn(
+          'w-[calc(7*var(--cell-size)+1.5rem)] max-w-[calc(100vw-1.5rem)] touch-manipulation gap-0 overflow-hidden p-0',
+          /* 44px cells on phones; slightly roomier from tablet up without changing the layout. */
+          '[--cell-size:var(--control-h)] md:[--cell-size:--spacing(12)]',
+        )}
       >
         <Calendar
           mode="single"
           selected={value}
           onSelect={setDatePart}
           defaultMonth={value}
-          className="w-full bg-transparent p-2"
+          className="w-full bg-transparent p-2.5 [--cell-size:var(--control-h)] md:p-3 md:[--cell-size:--spacing(12)]"
           classNames={{
             root: 'w-full',
             months: 'relative w-full',
-            month: 'w-full',
+            /* Keep caption→weekday gap; absolute nav sits in the caption row. */
+            month: 'flex w-full flex-col gap-3 md:gap-4',
             month_grid: 'w-full',
             weekdays: 'flex w-full',
-            week: 'mt-2 flex w-full',
+            week: 'mt-1.5 flex w-full md:mt-2',
           }}
         />
-        <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2 border-t border-border p-2.5">
+        <div className="grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-end gap-2.5 border-t border-border p-2.5 md:gap-3 md:p-3">
           <div className="flex min-w-0 flex-col gap-1">
             <Label className="text-xs font-normal text-muted-foreground">Hour</Label>
             <Select value={String(hours)} onValueChange={(v) => setTimePart(Number(v), minutes)}>
-              <SelectTrigger size="sm" className="w-full" aria-label="Hour">
+              <SelectTrigger className="w-full" aria-label="Hour">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -123,7 +128,7 @@ export function DateTimePicker({
               value={String(minutes - (minutes % 5))}
               onValueChange={(v) => setTimePart(hours, Number(v))}
             >
-              <SelectTrigger size="sm" className="w-full" aria-label="Minute">
+              <SelectTrigger className="w-full" aria-label="Minute">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -137,7 +142,7 @@ export function DateTimePicker({
               </SelectContent>
             </Select>
           </div>
-          <Button type="button" size="sm" className="shrink-0" onClick={() => setOpen(false)}>
+          <Button type="button" className="shrink-0" onClick={() => setOpen(false)}>
             Done
           </Button>
         </div>

@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'rea
 import { AuthProvider } from './contexts/auth';
 import { RequireAuth } from './contexts/require-auth';
 import { StudentShell } from './layouts/student-shell';
+import { ActivityDetailPage } from './pages/activity-detail';
 import { AttemptPage } from './pages/attempt';
 import { DashboardPage } from './pages/dashboard';
 import { HelpPage } from './pages/help';
@@ -11,7 +12,9 @@ import { ProfilePage } from './pages/profile';
 import { ResultDetailPage, ResultsPage } from './pages/results';
 
 function titleForPath(pathname: string) {
+  if (pathname.startsWith('/quizzes/')) return 'Quiz details';
   if (pathname.startsWith('/quizzes')) return 'My quizzes';
+  if (pathname.startsWith('/assessments/')) return 'Assessment details';
   if (pathname.startsWith('/assessments')) return 'Assessments';
   if (pathname.startsWith('/results')) return 'My results';
   if (pathname.startsWith('/profile')) return 'My profile';
@@ -41,7 +44,12 @@ export default function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/quizzes" element={<LibraryPage kind="quiz" />} />
+              <Route path="/quizzes/:activityId" element={<ActivityDetailPage kind="quiz" />} />
               <Route path="/assessments" element={<LibraryPage kind="assessment" />} />
+              <Route
+                path="/assessments/:activityId"
+                element={<ActivityDetailPage kind="assessment" />}
+              />
               <Route path="/results" element={<ResultsPage />} />
               <Route path="/results/:id" element={<ResultDetailPage />} />
               <Route path="/profile" element={<ProfilePage />} />

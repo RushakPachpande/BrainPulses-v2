@@ -60,7 +60,7 @@ export function ModuleNav({ pathname }: { pathname: string }) {
 
   return (
     <nav aria-label={`${module.label} navigation`} className="w-fit max-w-full min-w-0">
-      <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm scrollbar-none [&::-webkit-scrollbar]:hidden">
         {module.links.map((link) => {
           const Icon = link.icon;
           return (

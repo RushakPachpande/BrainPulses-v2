@@ -105,6 +105,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const noun = isQuiz ? 'quizzes' : 'assessments';
   const nounSingular = isQuiz ? 'quiz' : 'assessment';
   const nameLabel = isQuiz ? 'Quiz Name' : 'Assessment Name';
+  const listPath = isQuiz ? '/quizzes' : '/assessments';
   const createHref = isQuiz ? '/quizzes/new' : '/assessments/new';
   const metrics = isQuiz ? quizMetrics : assessmentMetrics;
 
@@ -432,8 +433,14 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          {canEdit ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
+                          <DropdownMenuItem asChild>
+                            <Link to={`${listPath}/${item.id}`}>View</Link>
+                          </DropdownMenuItem>
+                          {canEdit ? (
+                            <DropdownMenuItem asChild>
+                              <Link to={`${listPath}/${item.id}/edit`}>Edit</Link>
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

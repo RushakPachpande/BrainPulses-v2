@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { DownloadIcon } from 'lucide-react';
 import { BarChartCard } from '@/components/bar-chart-card';
 import { DataTable } from '@/components/data-table';
@@ -24,6 +25,7 @@ const EMPTY_SUMMARY: ReportSummaryRow[] = [];
 
 export function ReportsPage({ kind }: { kind: ActivityKind }) {
   const label = kind === 'quiz' ? 'Quiz' : 'Assessment';
+  const reportsBase = kind === 'quiz' ? '/quizzes/reports' : '/assessments/reports';
   const current = kind === 'quiz' ? 'Weekly GK Quiz' : 'JEE Mock Series 2026';
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
 
@@ -68,8 +70,8 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
     </span>,
     <StatusBadge key="status" value={row.status} />,
     row.submitted,
-    <Button key="view" type="button" variant="link">
-      View result
+    <Button key="view" asChild variant="link">
+      <Link to={`${reportsBase}/${row.id}`}>View result</Link>
     </Button>,
   ]);
 

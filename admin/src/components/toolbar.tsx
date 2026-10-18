@@ -57,7 +57,7 @@ export function Toolbar({
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-      <InputGroup className="w-full min-w-0 sm:min-w-[12rem] sm:flex-1 sm:basis-64">
+      <InputGroup className="w-full min-w-0 sm:min-w-48 sm:flex-1 sm:basis-64">
         <InputGroupAddon align="inline-start">
           <SearchIcon />
         </InputGroupAddon>

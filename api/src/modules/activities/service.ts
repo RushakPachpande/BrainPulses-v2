@@ -45,6 +45,7 @@ function mapActivity(a: {
   durationMinutes: number | null;
   passingPercent: Prisma.Decimal | null;
   presentation: string;
+  settings?: Prisma.JsonValue | null;
   _count?: { registrations: number; activityBanks: number; attempts: number };
   registrations?: { status: string }[];
 }) {
@@ -63,6 +64,7 @@ function mapActivity(a: {
     durationMinutes: a.durationMinutes,
     passingPercent: a.passingPercent ? Number(a.passingPercent) : null,
     presentation: a.presentation,
+    settings: a.settings ?? null,
     registered,
     assigned,
     banks: a._count?.activityBanks ?? 0,
@@ -134,6 +136,11 @@ export async function getActivity(
   return {
     ...mapActivity(activity),
     bankIds: activity.activityBanks.map((ab) => ab.bankId),
+    banksDetail: activity.activityBanks.map((ab) => ({
+      id: ab.bank.id,
+      name: ab.bank.name,
+      code: ab.bank.code,
+    })),
   };
 }
 
@@ -181,6 +188,7 @@ export async function createActivity(
         durationMinutes: input.durationMinutes,
         passingPercent: input.passingPercent,
         presentation: input.presentation,
+        settings: input.settings ?? undefined,
         activityBanks: {
           create: input.bankIds.map((bankId) => ({
             organizationId,
@@ -256,6 +264,7 @@ export async function updateActivity(
         ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
         ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
         ...(input.code !== undefined ? { code: input.code } : {}),
+        ...(input.settings !== undefined ? { settings: input.settings } : {}),
       },
       include: {
         _count: { select: { registrations: true, activityBanks: true, attempts: true } },

@@ -24,6 +24,12 @@ usersRouter.get(
   validate({ query: userListQuerySchema }),
   controller.list,
 );
+usersRouter.get(
+  '/:id',
+  requireOrgAccess('view'),
+  validate({ params: idParamSchema }),
+  controller.get,
+);
 usersRouter.post(
   '/invite',
   requireOrgAccess('full'),

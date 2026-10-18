@@ -80,12 +80,13 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
   }, [items, search, view]);
 
   function begin(item: StudentActivity) {
-    if (item.attemptState === 'submitted' && item.latestResultId) {
-      navigate(`/results/${item.latestResultId}`);
+    if (item.attemptState === 'submitted') {
+      if (item.latestResultId) navigate(`/results/${item.latestResultId}`);
+      else navigate('/results');
       return;
     }
-    if (item.openAttemptId) navigate(`/attempt/${item.openAttemptId}`);
-    else navigate(`/attempt/start/${item.activityId}`);
+    const base = kind === 'quiz' ? '/quizzes' : '/assessments';
+    navigate(`${base}/${item.activityId}`);
   }
 
   const availableCount = items.filter((x) => x.attemptState !== 'submitted').length;
@@ -224,8 +225,8 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
                   {x.attemptState === 'submitted'
                     ? 'View results'
                     : x.attemptState === 'in_progress'
-                      ? 'Resume'
-                      : 'Start activity'}{' '}
+                      ? 'Continue'
+                      : 'View details'}{' '}
                   <ArrowRight size={15} />
                 </button>
               </div>

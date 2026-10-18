@@ -69,6 +69,15 @@ export async function listUsers(
   return listEnvelope(items.map(mapMembership), page);
 }
 
+export async function getMembership(organizationId: string, membershipId: string) {
+  const membership = await prisma.membership.findFirst({
+    where: { organizationId, id: membershipId },
+    include: { user: true },
+  });
+  if (!membership) throw notFound('User membership not found.');
+  return mapMembership(membership);
+}
+
 export async function inviteUser(
   organizationId: string,
   actorUserId: string,

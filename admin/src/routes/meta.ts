@@ -104,5 +104,42 @@ export function resolvePageMeta(pathname: string): PageMeta {
   if (/^\/students\/[^/]+\/edit$/.test(pathname)) {
     return { crumb: 'BrainPulses / Students / Edit Student', title: 'Edit Student' };
   }
+  if (/^\/students\/[^/]+$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Students / View Student', title: 'View Student' };
+  }
+  if (/^\/users\/[^/]+\/edit$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Users / Edit User', title: 'Edit User' };
+  }
+  if (/^\/users\/[^/]+$/.test(pathname) && pathname !== '/users/new') {
+    return { crumb: 'BrainPulses / Users / View User', title: 'View User' };
+  }
+  const activityEdit = pathname.match(/^\/(assessments|quizzes)\/([^/]+)\/edit$/);
+  if (activityEdit && !['banks', 'registrations', 'reports', 'new'].includes(activityEdit[2]!)) {
+    const kind = activityEdit[1] === 'quizzes' ? 'Quiz' : 'Assessment';
+    return {
+      crumb: `BrainPulses / ${kind} / Edit`,
+      title: `Edit ${kind}`,
+    };
+  }
+  const activityView = pathname.match(/^\/(assessments|quizzes)\/([^/]+)$/);
+  if (activityView && !['banks', 'registrations', 'reports', 'new'].includes(activityView[2]!)) {
+    const kind = activityView[1] === 'quizzes' ? 'Quiz' : 'Assessment';
+    return { crumb: `BrainPulses / ${kind} / View`, title: `View ${kind}` };
+  }
+  if (/^\/(assessments|quizzes)\/banks\/[^/]+\/edit$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Question Banks / Edit', title: 'Edit Question Bank' };
+  }
+  if (/^\/(assessments|quizzes)\/banks\/[^/]+$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Question Banks / View', title: 'View Question Bank' };
+  }
+  if (/^\/(assessments|quizzes)\/registrations\/[^/]+\/edit$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Registrations / Edit', title: 'Edit Registration' };
+  }
+  if (/^\/(assessments|quizzes)\/registrations\/[^/]+$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Registrations / View', title: 'View Registration' };
+  }
+  if (/^\/(assessments|quizzes)\/reports\/[^/]+$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Reports / Result', title: 'View Result' };
+  }
   return pageMeta['/dashboard']!;
 }

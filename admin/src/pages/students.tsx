@@ -320,25 +320,28 @@ export function StudentsPage() {
                     </TableCell>
                     <TableCell>{student.lastLogin}</TableCell>
                     <TableCell>
-                      {canMutate ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              aria-label={`Actions for ${student.name}`}
-                            >
-                              <MoreVerticalIcon />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Actions for ${student.name}`}
+                          >
+                            <MoreVerticalIcon />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link to={`/students/${student.id}`}>View</Link>
+                          </DropdownMenuItem>
+                          {canMutate ? (
                             <DropdownMenuItem asChild>
                               <Link to={`/students/${student.id}/edit`}>Edit</Link>
                             </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      ) : null}
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))

@@ -10,6 +10,12 @@ import type {
   studentResultsQuerySchema,
 } from './schema.js';
 
+function explanationFromAnswerKey(answerKey: Prisma.JsonValue): string | null {
+  if (!answerKey || typeof answerKey !== 'object' || Array.isArray(answerKey)) return null;
+  const value = (answerKey as Record<string, unknown>).explanation;
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
 export async function getMe(organizationId: string, studentId: string) {
   const student = await prisma.student.findFirst({
     where: { organizationId, id: studentId, isActive: true },
@@ -261,7 +267,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
       yourAnswer: response.answer,
       correct: includeKeys ? (earned === null ? null : earned > 0) : null,
       correctLabels,
-      explanation: null,
+      explanation: includeKeys ? explanationFromAnswerKey(version.answerKey) : null,
     };
   });
 

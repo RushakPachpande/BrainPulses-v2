@@ -313,8 +313,14 @@ export function UsersPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          {canManage ? <DropdownMenuItem>Edit</DropdownMenuItem> : null}
+                          <DropdownMenuItem asChild>
+                            <Link to={`/users/${user.id}`}>View</Link>
+                          </DropdownMenuItem>
+                          {canManage && user.id ? (
+                            <DropdownMenuItem asChild>
+                              <Link to={`/users/${user.id}/edit`}>Edit</Link>
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

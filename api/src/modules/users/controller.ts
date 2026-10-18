@@ -11,6 +11,17 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function get(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    res.json({
+      data: await service.getMembership(actor.organizationId, req.params.id as string),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function invite(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
