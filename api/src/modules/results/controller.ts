@@ -14,7 +14,9 @@ export async function list(req: Request, res: Response, next: NextFunction) {
 export async function get(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    res.json({ data: await service.getResult(actor.organizationId, req.params.id as string) });
+    res.json({
+      data: await service.getResult(actor.organizationId, actor, req.params.id as string),
+    });
   } catch (err) {
     next(err);
   }

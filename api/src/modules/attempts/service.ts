@@ -55,6 +55,26 @@ function mapAttempt(a: {
   };
 }
 
+/** Student-facing result: withhold scores until published. */
+function mapStudentResult(r: {
+  id: string;
+  score: Prisma.Decimal | number;
+  maxScore: Prisma.Decimal | number;
+  percent: Prisma.Decimal | number;
+  passed: boolean | null;
+  releaseStatus: string;
+}) {
+  const published = r.releaseStatus === 'published';
+  return {
+    id: r.id,
+    score: published ? toNumber(r.score) : null,
+    maxScore: published ? toNumber(r.maxScore) : null,
+    percent: published ? toNumber(r.percent) : null,
+    passed: published ? r.passed : null,
+    releaseStatus: r.releaseStatus,
+  };
+}
+
 export async function startAttempt(organizationId: string, studentId: string, activityId: string) {
   const activity = await prisma.activity.findFirst({
     where: { organizationId, id: activityId },
@@ -306,7 +326,7 @@ async function submitAttemptInternal(
   if (existingByKey?.result) {
     return {
       attempt: mapAttempt(existingByKey),
-      result: existingByKey.result,
+      result: mapStudentResult(existingByKey.result),
     };
   }
 
@@ -325,12 +345,12 @@ async function submitAttemptInternal(
     attempt.submitIdempotencyKey === opts.idempotencyKey &&
     attempt.result
   ) {
-    return { attempt: mapAttempt(attempt), result: attempt.result };
+    return { attempt: mapAttempt(attempt), result: mapStudentResult(attempt.result) };
   }
 
   if (attempt.status !== 'in_progress' && attempt.result) {
     if (attempt.submitIdempotencyKey === opts.idempotencyKey) {
-      return { attempt: mapAttempt(attempt), result: attempt.result };
+      return { attempt: mapAttempt(attempt), result: mapStudentResult(attempt.result) };
     }
     throw conflict('Attempt already submitted.');
   }
@@ -417,7 +437,7 @@ async function submitAttemptInternal(
   });
   await invalidateDashboard(organizationId);
 
-  return { attempt: mapAttempt(updated), result };
+  return { attempt: mapAttempt(updated), result: mapStudentResult(result) };
 }
 
 export async function submitAttempt(

@@ -5,8 +5,11 @@ import { prisma } from '../../lib/prisma.js';
 const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
   general: {
     orgDisplayName: 'BrainPulses',
+    organizationName: 'BrainPulses Learning Pvt. Ltd.',
     timezone: 'Asia/Kolkata',
     locale: 'en-IN',
+    dateFormat: 'DD MMM YYYY',
+    timeFormat: '12-hour',
   },
   access: {
     allowStudentSelfRegister: false,
@@ -23,6 +26,10 @@ const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
   system: {
     maintenanceMode: false,
     requireTwoFactor: false,
+    passwordExpiry: true,
+    sessionTimeout: true,
+    limitFailedLogins: true,
+    dailyBackups: true,
     supportEmail: 'support@brainpulses.example',
   },
 };

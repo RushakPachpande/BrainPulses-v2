@@ -3,7 +3,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
 import { nextHumanCode } from '../../lib/codes.js';
 import { conflict, notFound } from '../../lib/errors.js';
-import { buildPage, listEnvelope } from '../../lib/pagination.js';
+import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { hashPassword } from '../../lib/password.js';
 import { normalizePhone } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
@@ -56,17 +56,16 @@ export async function listStudents(
           ],
         }
       : {}),
-    ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
-  const sort = query.sort === 'name' ? 'name' : query.sort === 'code' ? 'code' : 'createdAt';
+  const sort =
+    query.sort === 'name' ? 'name' : query.sort === 'code' ? 'code' : ('createdAt' as const);
   const [total, rows] = await Promise.all([
-    prisma.student.count({ where: { ...where, id: undefined } }),
+    prisma.student.count({ where }),
     prisma.student.findMany({
       where,
       include: { _count: { select: { registrations: true } } },
-      orderBy: { [sort]: query.order },
-      take: query.limit + 1,
+      ...prismaCursorArgs(query, sort),
     }),
   ]);
 

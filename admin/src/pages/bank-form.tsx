@@ -23,23 +23,29 @@ export function BankFormPage({ kind }: { kind: ActivityKind }) {
   const [optD, setOptD] = useState('Option D');
   const [correct, setCorrect] = useState<'A' | 'B' | 'C' | 'D'>('B');
   const [saving, setSaving] = useState(false);
+  const [createdBankId, setCreatedBankId] = useState<string | null>(null);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     try {
-      const bank = await createQuestionBank({
-        kind,
-        name: name.trim(),
-        description: description.trim() || undefined,
-      });
+      let bankId = createdBankId;
+      if (!bankId) {
+        const bank = await createQuestionBank({
+          kind,
+          name: name.trim(),
+          description: description.trim() || undefined,
+        });
+        bankId = bank.id;
+        setCreatedBankId(bank.id);
+      }
       const options = [
         { label: 'A', body: optA, isCorrect: correct === 'A' },
         { label: 'B', body: optB, isCorrect: correct === 'B' },
         { label: 'C', body: optC, isCorrect: correct === 'C' },
         { label: 'D', body: optD, isCorrect: correct === 'D' },
       ];
-      await addBankQuestion(bank.id, {
+      await addBankQuestion(bankId, {
         type: 'single_mcq',
         stem: stem.trim(),
         options,

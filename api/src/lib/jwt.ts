@@ -55,7 +55,7 @@ export function signStudentAccessToken(payload: Omit<StudentAccessTokenPayload, 
     env.JWT_SECRET,
     {
       ...signOptions(),
-      expiresIn: env.JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+      expiresIn: env.STUDENT_JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     },
   );
 }

@@ -1,6 +1,6 @@
 import { Prisma } from '#prisma';
 import { notFound } from '../../lib/errors.js';
-import { buildPage, listEnvelope } from '../../lib/pagination.js';
+import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
@@ -70,11 +70,10 @@ export async function listMyActivities(
           }
         : {}),
     },
-    ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
   const [total, rows] = await Promise.all([
-    prisma.registration.count({ where: { ...where, id: undefined } }),
+    prisma.registration.count({ where }),
     prisma.registration.findMany({
       where,
       include: {
@@ -98,8 +97,7 @@ export async function listMyActivities(
           },
         },
       },
-      orderBy: { createdAt: query.order },
-      take: query.limit + 1,
+      ...prismaCursorArgs(query),
     }),
   ]);
 
@@ -158,47 +156,48 @@ export async function listMyResults(
     organizationId,
     studentId,
     ...(Object.keys(activityFilter).length > 0 ? { activity: activityFilter } : {}),
-    ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
   const [total, rows] = await Promise.all([
-    prisma.result.count({ where: { ...where, id: undefined } }),
+    prisma.result.count({ where }),
     prisma.result.findMany({
       where,
       include: {
         activity: { select: { id: true, name: true, kind: true, code: true } },
         attempt: { select: { id: true, startedAt: true, submittedAt: true, status: true } },
       },
-      orderBy: { createdAt: query.order },
-      take: query.limit + 1,
+      ...prismaCursorArgs(query),
     }),
   ]);
 
   const { items, page } = buildPage(rows, query.limit, total);
   return listEnvelope(
-    items.map((r) => ({
-      id: r.id,
-      activityId: r.activity.id,
-      activityCode: r.activity.code,
-      title: r.activity.name,
-      kind: r.activity.kind,
-      attemptId: r.attempt.id,
-      score: toNumber(r.score),
-      maxScore: toNumber(r.maxScore),
-      percent: toNumber(r.percent),
-      passed: r.passed,
-      releaseStatus: r.releaseStatus,
-      submittedAt: r.attempt.submittedAt ?? r.createdAt,
-      durationMinutes:
-        r.attempt.startedAt && r.attempt.submittedAt
-          ? Math.max(
-              1,
-              Math.round(
-                (r.attempt.submittedAt.getTime() - r.attempt.startedAt.getTime()) / 60_000,
-              ),
-            )
-          : null,
-    })),
+    items.map((r) => {
+      const published = r.releaseStatus === 'published';
+      return {
+        id: r.id,
+        activityId: r.activity.id,
+        activityCode: r.activity.code,
+        title: r.activity.name,
+        kind: r.activity.kind,
+        attemptId: r.attempt.id,
+        score: published ? toNumber(r.score) : null,
+        maxScore: published ? toNumber(r.maxScore) : null,
+        percent: published ? toNumber(r.percent) : null,
+        passed: published ? r.passed : null,
+        releaseStatus: r.releaseStatus,
+        submittedAt: r.attempt.submittedAt ?? r.createdAt,
+        durationMinutes:
+          r.attempt.startedAt && r.attempt.submittedAt
+            ? Math.max(
+                1,
+                Math.round(
+                  (r.attempt.submittedAt.getTime() - r.attempt.startedAt.getTime()) / 60_000,
+                ),
+              )
+            : null,
+      };
+    }),
     page,
   );
 }
@@ -272,10 +271,10 @@ export async function getMyResult(organizationId: string, studentId: string, res
     kind: result.activity.kind,
     activityId: result.activity.id,
     attemptId: result.attempt.id,
-    score: toNumber(result.score),
-    maxScore: toNumber(result.maxScore),
-    percent: toNumber(result.percent),
-    passed: result.passed,
+    score: includeKeys ? toNumber(result.score) : null,
+    maxScore: includeKeys ? toNumber(result.maxScore) : null,
+    percent: includeKeys ? toNumber(result.percent) : null,
+    passed: includeKeys ? result.passed : null,
     releaseStatus: result.releaseStatus,
     submittedAt: result.attempt.submittedAt ?? result.createdAt,
     review,

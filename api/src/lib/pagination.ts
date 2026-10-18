@@ -34,3 +34,20 @@ export function buildPage<T extends { id: string }>(
     page: { limit, nextCursor, hasMore, total },
   };
 }
+
+type CursorOrderField = 'createdAt' | 'updatedAt' | 'name' | 'code';
+
+/** Prisma cursor pagination: order by field + id, skip the cursor row. */
+export function prismaCursorArgs(
+  query: Pick<ListQuery, 'limit' | 'cursor' | 'order'>,
+  orderField: CursorOrderField = 'createdAt',
+) {
+  return {
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    orderBy: [{ [orderField]: query.order }, { id: query.order }] as [
+      Record<string, 'asc' | 'desc'>,
+      { id: 'asc' | 'desc' },
+    ],
+  };
+}

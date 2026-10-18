@@ -4,13 +4,13 @@ Run Admin, Student Client, and API against Docker Postgres/Redis with seeded dem
 
 ## Ports
 
-| Service | Loopback | LAN (same Wi‑Fi / Ethernet) |
-|---|---|---|
-| Admin (Vite) | http://localhost:5173 | `http://<lan-ip>:5173` |
-| Student client (Vite) | http://localhost:5174 | `http://<lan-ip>:5174` |
-| API | http://127.0.0.1:3002 | `http://<lan-ip>:3002` |
-| Postgres | 127.0.0.1:5434 | not published for peers |
-| Redis | 127.0.0.1:6381 | not published for peers |
+| Service               | Loopback              | LAN (same Wi‑Fi / Ethernet) |
+| --------------------- | --------------------- | --------------------------- |
+| Admin (Vite)          | http://localhost:5173 | `http://<lan-ip>:5173`      |
+| Student client (Vite) | http://localhost:5174 | `http://<lan-ip>:5174`      |
+| API                   | http://127.0.0.1:3002 | `http://<lan-ip>:3002`      |
+| Postgres              | 127.0.0.1:5434        | not published for peers     |
+| Redis                 | 127.0.0.1:6381        | not published for peers     |
 
 Admin, client, and API listen on `0.0.0.0` in development. Prefer the Vite Network URLs for peers; `/api` is proxied to the API on the host. Outside production, the API also accepts CORS from RFC1918 origins (in addition to `CORS_ORIGIN`). If peers cannot connect, allow inbound TCP 5173 / 5174 / 3002 in Windows Firewall.
 
@@ -20,17 +20,17 @@ Requirements: Node.js **22+**, Docker Desktop, npm 10+.
 
 ```powershell
 # From repo root
-Copy-Item api\.env.dev.example api\.env.dev   # if missing
-Copy-Item admin\.env.example admin\.env       # if missing
-Copy-Item client\.env.example client\.env     # optional for preview builds
+if (-not (Test-Path api\.env.dev)) { Copy-Item api\.env.dev.example api\.env.dev }
+if (-not (Test-Path admin\.env)) { Copy-Item admin\.env.example admin\.env }
+if (-not (Test-Path client\.env)) { Copy-Item client\.env.example client\.env }
 
+npm ci --prefix api
 npm run db:up
 npm run db:migrate
 npm run db:seed
 
-cd admin; npm ci; cd ..
-cd client; npm ci; cd ..
-cd api; npm ci; cd ..
+npm ci --prefix admin
+npm ci --prefix client
 ```
 
 Confirm `admin/.env` has `VITE_USE_FIXTURES=false` and `api/.env.dev` includes:
@@ -59,18 +59,18 @@ Invoke-RestMethod http://127.0.0.1:3002/health/ready
 
 Admin (Admin UI at http://localhost:5173):
 
-| Role | Email | Password |
-|---|---|---|
-| Super admin | `admin@brainpulses.com` | `Password123!` |
+| Role            | Email                    | Password       |
+| --------------- | ------------------------ | -------------- |
+| Super admin     | `admin@brainpulses.com`  | `Password123!` |
 | View-only admin | `viewer@brainpulses.com` | `Password123!` |
 
 Students (Student client at http://localhost:5174 — Unique ID or Phone OTP):
 
-| Name | Unique ID | Phone (E.164) | National (demo) |
-|---|---|---|---|
+| Name        | Unique ID  | Phone (E.164)   | National (demo)      |
+| ----------- | ---------- | --------------- | -------------------- |
 | Priya Patel | `BP-24101` | `+919876510000` | `+91` / `9876510000` |
 | Rohan Mehta | `BP-24102` | `+919876510001` | `+91` / `9876510001` |
-| Sana Khan | `BP-24103` | `+919876510002` | `+91` / `9876510002` |
+| Sana Khan   | `BP-24103` | `+919876510002` | `+91` / `9876510002` |
 
 Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
 

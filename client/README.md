@@ -14,6 +14,11 @@ npm run preview
 
 ## Auth
 
-`POST /api/auth/student/sign-in` then Bearer access token (sessionStorage). Protected routes require a signed-in student.
+`LoginPage` supports:
+
+- **Unique ID** — `POST /api/auth/student/sign-in-by-code`
+- **Phone OTP** — `POST /api/auth/student/request-otp`, `resend-otp`, and `verify-otp`
+
+A successful sign-in stores a Bearer access token in `sessionStorage`. Protected routes require a signed-in student. A second concurrent login prompts to revoke the other session (`replaceSession`).
 
 See [`docs/handoff/LOCAL_PRODUCTION.md`](../docs/handoff/LOCAL_PRODUCTION.md) for the full local stack.

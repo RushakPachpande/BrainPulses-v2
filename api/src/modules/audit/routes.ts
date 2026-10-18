@@ -9,7 +9,12 @@ import {
   withTenantContext,
 } from '../../middleware/auth.js';
 import { notFound } from '../../lib/errors.js';
-import { buildPage, listEnvelope, listQuerySchema } from '../../lib/pagination.js';
+import {
+  buildPage,
+  listEnvelope,
+  listQuerySchema,
+  prismaCursorArgs,
+} from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { validate } from '../../middleware/validate.js';
 
@@ -31,20 +36,13 @@ auditRouter.get(
       const where = {
         organizationId: actor.organizationId,
         ...(query.action ? { action: query.action } : {}),
-        ...(query.cursor ? { id: { lt: query.cursor } } : {}),
       };
       const [total, rows] = await Promise.all([
-        prisma.auditEvent.count({
-          where: {
-            organizationId: actor.organizationId,
-            ...(query.action ? { action: query.action } : {}),
-          },
-        }),
+        prisma.auditEvent.count({ where }),
         prisma.auditEvent.findMany({
           where,
           include: { actorUser: { select: { name: true, email: true } } },
-          orderBy: { createdAt: 'desc' },
-          take: query.limit + 1,
+          ...prismaCursorArgs({ ...query, order: 'desc' }),
         }),
       ]);
       const { items, page } = buildPage(rows, query.limit, total);

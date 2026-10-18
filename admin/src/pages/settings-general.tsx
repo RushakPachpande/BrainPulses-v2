@@ -40,6 +40,29 @@ const initialSettings = {
   language: 'English',
 };
 
+const LOCALE_TO_LANGUAGE: Record<string, string> = {
+  'en-IN': 'English',
+  en: 'English',
+  'hi-IN': 'Hindi',
+  hi: 'Hindi',
+  'mr-IN': 'Marathi',
+  mr: 'Marathi',
+};
+
+const LANGUAGE_TO_LOCALE: Record<string, string> = {
+  English: 'en-IN',
+  Hindi: 'hi-IN',
+  Marathi: 'mr-IN',
+};
+
+function localeToLanguage(locale: string, fallback: string) {
+  return LOCALE_TO_LANGUAGE[locale] ?? LOCALE_TO_LANGUAGE[locale.split('-')[0] ?? ''] ?? fallback;
+}
+
+function languageToLocale(language: string) {
+  return LANGUAGE_TO_LOCALE[language] ?? language;
+}
+
 function SettingField({
   label,
   hint,
@@ -69,10 +92,11 @@ export function GeneralSettingsPage() {
         setSettings((current) => ({
           ...current,
           platformName: String(values.orgDisplayName ?? current.platformName),
+          organization: String(values.organizationName ?? current.organization),
           timezone: String(values.timezone ?? current.timezone),
-          language: String(values.locale ?? current.language).startsWith('en')
-            ? 'English'
-            : current.language,
+          dateFormat: String(values.dateFormat ?? current.dateFormat),
+          timeFormat: String(values.timeFormat ?? current.timeFormat),
+          language: localeToLanguage(String(values.locale ?? ''), current.language),
         }));
       })
       .catch(() => {
@@ -99,8 +123,11 @@ export function GeneralSettingsPage() {
     try {
       await patchSettingsGroup('general', {
         orgDisplayName: settings.platformName,
+        organizationName: settings.organization,
         timezone: settings.timezone,
-        locale: settings.language === 'English' ? 'en-IN' : settings.language,
+        dateFormat: settings.dateFormat,
+        timeFormat: settings.timeFormat,
+        locale: languageToLocale(settings.language),
       });
       setSaved(true);
       toast.success('General settings saved.');

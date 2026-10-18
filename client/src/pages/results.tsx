@@ -7,32 +7,35 @@ import {
   Clock3,
   FileText,
   Trophy,
-} from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+} from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router";
 import {
   answerLabel,
   formatDateLabel,
   formatKind,
   Heading,
-} from '../components/ui-bits';
-import { getResult, listResults } from '../services/api';
-import type { StudentResultDetail, StudentResultSummary } from '../services/types';
+} from "../components/ui-bits";
+import { getResult, listResults } from "../services/api";
+import type {
+  StudentResultDetail,
+  StudentResultSummary,
+} from "../services/types";
 
 export function ResultsPage() {
   const navigate = useNavigate();
   const [attempts, setAttempts] = useState<StudentResultSummary[]>([]);
-  const [filter, setFilter] = useState('All');
-  const [error, setError] = useState('');
+  const [filter, setFilter] = useState("All");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await listResults('all');
+        const rows = await listResults("all");
         if (!cancelled) setAttempts(rows);
       } catch {
-        if (!cancelled) setError('Unable to load results.');
+        if (!cancelled) setError("Unable to load results.");
       }
     })();
     return () => {
@@ -44,16 +47,23 @@ export function ResultsPage() {
     () =>
       attempts.filter(
         (a) =>
-          filter === 'All' ||
-          (filter === 'Quiz' && a.kind === 'quiz') ||
-          (filter === 'Assessment' && a.kind === 'assessment'),
+          filter === "All" ||
+          (filter === "Quiz" && a.kind === "quiz") ||
+          (filter === "Assessment" && a.kind === "assessment"),
       ),
     [attempts, filter],
   );
 
+  const scored = attempts.filter((a) => a.percent != null);
   const average =
-    attempts.length > 0
-      ? Math.round(attempts.reduce((s, a) => s + a.percent, 0) / attempts.length)
+    scored.length > 0
+      ? Math.round(
+          scored.reduce((s, a) => s + (a.percent as number), 0) / scored.length,
+        )
+      : null;
+  const best =
+    scored.length > 0
+      ? Math.max(...scored.map((a) => Math.round(a.percent as number)))
       : null;
 
   return (
@@ -63,7 +73,11 @@ export function ResultsPage() {
         title="My results"
         description="Review your completed attempts and see how your confidence is growing."
         action={
-          <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => navigate("/quizzes")}
+          >
             <BookOpen size={16} /> Find an activity
           </button>
         }
@@ -76,13 +90,11 @@ export function ResultsPage() {
         </div>
         <div>
           <span>Average score</span>
-          <b>{average === null ? '—' : `${average}%`}</b>
+          <b>{average === null ? "—" : `${average}%`}</b>
         </div>
         <div>
           <span>Best score</span>
-          <b>
-            {attempts.length ? `${Math.max(...attempts.map((a) => Math.round(a.percent)))}%` : '—'}
-          </b>
+          <b>{best === null ? "—" : `${best}%`}</b>
         </div>
       </div>
       <div className="results-toolbar">
@@ -90,7 +102,11 @@ export function ResultsPage() {
           <h2>Attempt history</h2>
           <p>Your most recent submissions appear first.</p>
         </div>
-        <select aria-label="Filter results" value={filter} onChange={(e) => setFilter(e.target.value)}>
+        <select
+          aria-label="Filter results"
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+        >
           <option>All</option>
           <option>Quiz</option>
           <option>Assessment</option>
@@ -102,8 +118,15 @@ export function ResultsPage() {
             <Trophy size={22} />
           </div>
           <b>No results yet</b>
-          <span>Once you submit a quiz or assessment, your score and attempt details will appear here.</span>
-          <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+          <span>
+            Once you submit a quiz or assessment, your score and attempt details
+            will appear here.
+          </span>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => navigate("/quizzes")}
+          >
             Start a quiz <ArrowRight size={15} />
           </button>
         </div>
@@ -130,14 +153,21 @@ export function ResultsPage() {
                 <span>
                   <b>{a.title}</b>
                   <small>
-                    {a.maxScore} points · {a.durationMinutes ?? '—'} min
+                    {a.maxScore != null ? `${a.maxScore} points · ` : ""}
+                    {a.durationMinutes ?? "—"} min
                   </small>
                 </span>
               </div>
               <span className="table-type">{formatKind(a.kind)}</span>
               <span>{formatDateLabel(a.submittedAt)}</span>
-              <span className={`table-score ${a.percent >= 60 ? 'good' : 'low'}`}>
-                {Math.round(a.percent)}%
+              <span
+                className={`table-score ${
+                  a.percent == null ? "" : a.percent >= 60 ? "good" : "low"
+                }`}
+              >
+                {a.percent == null
+                  ? "Pending release"
+                  : `${Math.round(a.percent)}%`}
               </span>
               <ArrowRight size={16} />
             </button>
@@ -149,10 +179,10 @@ export function ResultsPage() {
 }
 
 export function ResultDetailPage() {
-  const { id = '' } = useParams();
+  const { id = "" } = useParams();
   const navigate = useNavigate();
   const [attempt, setAttempt] = useState<StudentResultDetail | null>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -162,7 +192,7 @@ export function ResultDetailPage() {
         const data = await getResult(id);
         if (!cancelled) setAttempt(data);
       } catch {
-        if (!cancelled) setError('Result not found.');
+        if (!cancelled) setError("Result not found.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -177,13 +207,23 @@ export function ResultDetailPage() {
   if (!attempt) {
     return (
       <div className="page-stack">
-        <button className="text-btn" type="button" onClick={() => navigate('/results')}>
+        <button
+          className="text-btn"
+          type="button"
+          onClick={() => navigate("/results")}
+        >
           <ArrowLeft size={15} /> Back to results
         </button>
         <div className="panel empty-state">
           <b>Result not found</b>
-          <span>{error || 'This result is not available for your account.'}</span>
-          <button className="btn primary" type="button" onClick={() => navigate('/results')}>
+          <span>
+            {error || "This result is not available for your account."}
+          </span>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => navigate("/results")}
+          >
             Go to results
           </button>
         </div>
@@ -191,33 +231,53 @@ export function ResultDetailPage() {
     );
   }
 
-  const percent = Math.round(attempt.percent);
+  const pending =
+    attempt.releaseStatus !== "published" || attempt.percent == null;
+  const percent = pending ? null : Math.round(attempt.percent as number);
 
   return (
     <div className="page-stack">
-      <button className="back-link" type="button" onClick={() => navigate('/results')}>
+      <button
+        className="back-link"
+        type="button"
+        onClick={() => navigate("/results")}
+      >
         <ArrowLeft size={15} /> Back to results
       </button>
-      <Heading eyebrow="ATTEMPT SUMMARY" title="Your result" description={attempt.title} />
+      <Heading
+        eyebrow="ATTEMPT SUMMARY"
+        title="Your result"
+        description={attempt.title}
+      />
       <div className="result-hero panel">
-        <div className={`result-ring ${percent >= 60 ? 'passed' : 'needs-work'}`}>
+        <div
+          className={`result-ring ${pending ? "needs-work" : percent! >= 60 ? "passed" : "needs-work"}`}
+        >
           <div>
-            <strong>{percent}%</strong>
-            <span>Score</span>
+            <strong>{pending ? "—" : `${percent}%`}</strong>
+            <span>{pending ? "Pending" : "Score"}</span>
           </div>
         </div>
         <div className="result-hero-copy">
           <span className="result-label">
             <CheckCircle2 size={15} />
-            {percent >= 60 ? 'Good progress' : 'Keep practising'}
+            {pending
+              ? "Pending release"
+              : percent! >= 60
+                ? "Good progress"
+                : "Keep practising"}
           </span>
           <h2>
-            {percent >= 60
-              ? 'You’re building strong momentum.'
-              : 'Every attempt is a chance to improve.'}
+            {pending
+              ? "Your score is waiting for release."
+              : percent! >= 60
+                ? "You’re building strong momentum."
+                : "Every attempt is a chance to improve."}
           </h2>
           <p>
-            You scored {attempt.score} of {attempt.maxScore} points on this {formatKind(attempt.kind).toLowerCase()}.
+            {pending
+              ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Scores appear when your instructor publishes results.`
+              : `You scored ${attempt.score} of ${attempt.maxScore} points on this ${formatKind(attempt.kind).toLowerCase()}.`}
           </p>
           <div className="result-hero-meta">
             <span>
@@ -233,7 +293,11 @@ export function ResultDetailPage() {
               {attempt.review.length} questions
             </span>
           </div>
-          <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+          <button
+            className="btn primary"
+            type="button"
+            onClick={() => navigate("/quizzes")}
+          >
             Continue learning <ArrowRight size={15} />
           </button>
         </div>
@@ -253,13 +317,20 @@ export function ResultDetailPage() {
               <div className="review-question-top">
                 <span>Question {i + 1}</span>
                 <span
-                  className={`review-state ${q.correct ? 'review-right' : 'review-wrong'}`}
+                  className={`review-state ${q.correct ? "review-right" : "review-wrong"}`}
                 >
-                  {q.correct === true ? 'Correct' : yours ? 'Review needed' : 'Not answered'}
+                  {q.correct === true
+                    ? "Correct"
+                    : yours
+                      ? "Review needed"
+                      : "Not answered"}
                 </span>
               </div>
               <b>{q.stem}</b>
-              <p>Your answer: {yours ? `${yours}. ${yourBody ?? ''}` : 'Not answered'}</p>
+              <p>
+                Your answer:{" "}
+                {yours ? `${yours}. ${yourBody ?? ""}` : "Not answered"}
+              </p>
               {q.correctLabels.length > 0 && (
                 <div className="review-explanation">
                   <CheckCircle2 size={16} />
@@ -267,10 +338,12 @@ export function ResultDetailPage() {
                     <b>Correct answer</b>
                     {q.correctLabels
                       .map((label) => {
-                        const body = q.options.find((o) => o.label === label)?.body;
+                        const body = q.options.find(
+                          (o) => o.label === label,
+                        )?.body;
                         return body ? `${label}. ${body}` : label;
                       })
-                      .join(', ')}
+                      .join(", ")}
                   </span>
                 </div>
               )}

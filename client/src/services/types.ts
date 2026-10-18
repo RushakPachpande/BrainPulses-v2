@@ -1,4 +1,4 @@
-export type ActivityKind = 'assessment' | 'quiz';
+export type ActivityKind = "assessment" | "quiz";
 
 export type StudentActivity = {
   registrationId: string;
@@ -12,7 +12,7 @@ export type StudentActivity = {
   startsAt: string | null;
   endsAt: string | null;
   questionCount: number;
-  attemptState: 'not_started' | 'in_progress' | 'submitted';
+  attemptState: "not_started" | "in_progress" | "submitted";
   openAttemptId: string | null;
   latestResultId: string | null;
   latestPercent: number | null;
@@ -25,9 +25,9 @@ export type StudentResultSummary = {
   title: string;
   kind: ActivityKind;
   attemptId: string;
-  score: number;
-  maxScore: number;
-  percent: number;
+  score: number | null;
+  maxScore: number | null;
+  percent: number | null;
   passed: boolean | null;
   releaseStatus: string;
   submittedAt: string;
@@ -40,9 +40,9 @@ export type StudentResultDetail = {
   kind: ActivityKind;
   activityId: string;
   attemptId: string;
-  score: number;
-  maxScore: number;
-  percent: number;
+  score: number | null;
+  maxScore: number | null;
+  percent: number | null;
   passed: boolean | null;
   releaseStatus: string;
   submittedAt: string;

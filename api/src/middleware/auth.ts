@@ -3,7 +3,7 @@ import type { AccessLevel, ActivityKind, MembershipRole } from '#prisma';
 import { badRequest, unauthorized, forbidden } from '../lib/errors.js';
 import { verifyToken } from '../lib/jwt.js';
 import { tenantStore } from '../lib/prisma.js';
-import { isStudentSessionCurrent } from '../lib/student-sessions.js';
+import { isStudentSessionCurrent, touchStudentSession } from '../lib/student-sessions.js';
 import type { AuthActor } from '../types/auth-actor.js';
 
 const accessRank: Record<AccessLevel, number> = {
@@ -46,6 +46,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
         payload.sid,
       );
       if (!active) throw unauthorized('Session expired. Sign in again.');
+      await touchStudentSession(payload.organizationId, payload.sub, payload.sid);
       req.actor = {
         kind: 'student',
         studentId: payload.sub,

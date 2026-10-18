@@ -5,7 +5,7 @@ import {
   apiPostData,
   getAccessToken,
   setAccessToken,
-} from '../lib/api-client';
+} from "../lib/api-client";
 import type {
   AttemptQuestion,
   AttemptState,
@@ -13,7 +13,7 @@ import type {
   StudentProfile,
   StudentResultDetail,
   StudentResultSummary,
-} from './types';
+} from "./types";
 
 type StudentAuthPayload = {
   accessToken: string;
@@ -22,12 +22,19 @@ type StudentAuthPayload = {
 };
 
 /** Archived email/password login — kept for restore; not used by live UI. */
-export async function studentSignIn(email: string, password: string, organizationSlug?: string) {
-  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/sign-in', {
-    email,
-    password,
-    ...(organizationSlug ? { organizationSlug } : {}),
-  });
+export async function studentSignIn(
+  email: string,
+  password: string,
+  organizationSlug?: string,
+) {
+  const data = await apiPostData<StudentAuthPayload>(
+    "/api/auth/student/sign-in",
+    {
+      email,
+      password,
+      ...(organizationSlug ? { organizationSlug } : {}),
+    },
+  );
   setAccessToken(data.accessToken);
   return data;
 }
@@ -37,11 +44,14 @@ export async function studentSignInByCode(
   organizationSlug?: string,
   replaceSession?: boolean,
 ) {
-  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/sign-in-by-code', {
-    code,
-    ...(organizationSlug ? { organizationSlug } : {}),
-    ...(replaceSession ? { replaceSession: true } : {}),
-  });
+  const data = await apiPostData<StudentAuthPayload>(
+    "/api/auth/student/sign-in-by-code",
+    {
+      code,
+      ...(organizationSlug ? { organizationSlug } : {}),
+      ...(replaceSession ? { replaceSession: true } : {}),
+    },
+  );
   setAccessToken(data.accessToken);
   return data;
 }
@@ -51,11 +61,14 @@ export async function studentRequestOtp(
   mobileNumber: string,
   organizationSlug?: string,
 ) {
-  return apiPostData<{ ok: boolean; message: string }>('/api/auth/student/request-otp', {
-    countryCode,
-    mobileNumber,
-    ...(organizationSlug ? { organizationSlug } : {}),
-  });
+  return apiPostData<{ ok: boolean; message: string }>(
+    "/api/auth/student/request-otp",
+    {
+      countryCode,
+      mobileNumber,
+      ...(organizationSlug ? { organizationSlug } : {}),
+    },
+  );
 }
 
 export async function studentResendOtp(
@@ -63,11 +76,14 @@ export async function studentResendOtp(
   mobileNumber: string,
   organizationSlug?: string,
 ) {
-  return apiPostData<{ ok: boolean; message: string }>('/api/auth/student/resend-otp', {
-    countryCode,
-    mobileNumber,
-    ...(organizationSlug ? { organizationSlug } : {}),
-  });
+  return apiPostData<{ ok: boolean; message: string }>(
+    "/api/auth/student/resend-otp",
+    {
+      countryCode,
+      mobileNumber,
+      ...(organizationSlug ? { organizationSlug } : {}),
+    },
+  );
 }
 
 export async function studentVerifyOtp(
@@ -77,13 +93,16 @@ export async function studentVerifyOtp(
   organizationSlug?: string,
   replaceSession?: boolean,
 ) {
-  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/verify-otp', {
-    countryCode,
-    mobileNumber,
-    otp,
-    ...(organizationSlug ? { organizationSlug } : {}),
-    ...(replaceSession ? { replaceSession: true } : {}),
-  });
+  const data = await apiPostData<StudentAuthPayload>(
+    "/api/auth/student/verify-otp",
+    {
+      countryCode,
+      mobileNumber,
+      otp,
+      ...(organizationSlug ? { organizationSlug } : {}),
+      ...(replaceSession ? { replaceSession: true } : {}),
+    },
+  );
   setAccessToken(data.accessToken);
   return data;
 }
@@ -92,7 +111,7 @@ export async function studentSignOut() {
   const token = getAccessToken();
   if (token) {
     try {
-      await apiPostData<{ ok: boolean }>('/api/auth/student/sign-out', {});
+      await apiPostData<{ ok: boolean }>("/api/auth/student/sign-out", {});
     } catch {
       /* best-effort; clear local token anyway */
     }
@@ -101,24 +120,24 @@ export async function studentSignOut() {
 }
 
 export function getMe() {
-  return apiGetData<StudentProfile>('/api/student/me');
+  return apiGetData<StudentProfile>("/api/student/me");
 }
 
 export function patchMe(name: string) {
-  return apiPatchData<StudentProfile>('/api/student/me', { name });
+  return apiPatchData<StudentProfile>("/api/student/me", { name });
 }
 
-export function listActivities(kind?: 'assessment' | 'quiz' | 'all') {
-  return apiGetList<StudentActivity>('/api/student/activities', {
+export function listActivities(kind?: "assessment" | "quiz" | "all") {
+  return apiGetList<StudentActivity>("/api/student/activities", {
     limit: 100,
-    kind: kind ?? 'all',
+    kind: kind ?? "all",
   });
 }
 
-export function listResults(kind?: 'assessment' | 'quiz' | 'all') {
-  return apiGetList<StudentResultSummary>('/api/student/results', {
+export function listResults(kind?: "assessment" | "quiz" | "all") {
+  return apiGetList<StudentResultSummary>("/api/student/results", {
     limit: 100,
-    kind: kind ?? 'all',
+    kind: kind ?? "all",
   });
 }
 
@@ -130,7 +149,7 @@ export function startAttempt(activityId: string) {
   return apiPostData<{
     attempt: AttemptState;
     questions: AttemptQuestion[];
-  }>('/api/attempts/start', { activityId });
+  }>("/api/attempts/start", { activityId });
 }
 
 export function resumeAttempt(attemptId: string) {
@@ -159,6 +178,6 @@ export function submitAttempt(attemptId: string, idempotencyKey: string) {
     attempt: AttemptState;
     result: { id: string; score: unknown; percent: unknown; maxScore: unknown };
   }>(`/api/attempts/${attemptId}/submit`, undefined, {
-    'idempotency-key': idempotencyKey,
+    "idempotency-key": idempotencyKey,
   });
 }

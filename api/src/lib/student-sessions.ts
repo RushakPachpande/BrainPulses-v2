@@ -8,23 +8,27 @@ function sessionKey(organizationId: string, studentId: string) {
 }
 
 /**
- * Fallback parser for JWT_ACCESS_EXPIRES_IN when a token cannot be decoded.
+ * Fallback parser for duration env values when a token cannot be decoded.
  * Supports unit-less seconds and compact forms (15m, 1h, 2d, 30s).
  */
-export function accessTokenTtlSeconds(): number {
-  const raw = env.JWT_ACCESS_EXPIRES_IN.trim();
+export function parseDurationSeconds(rawValue: string, fallback = 900): number {
+  const raw = rawValue.trim();
   if (/^\d+$/.test(raw)) {
     const n = Number(raw);
-    return n > 0 ? n : 900;
+    return n > 0 ? n : fallback;
   }
   const match = raw.match(/^(\d+)\s*([smhd])$/i);
-  if (!match) return 900;
+  if (!match) return fallback;
   const n = Number(match[1]);
   const unit = match[2]!.toLowerCase();
   if (unit === 's') return n;
   if (unit === 'm') return n * 60;
   if (unit === 'h') return n * 3600;
   return n * 86_400;
+}
+
+export function studentSessionTtlSeconds(): number {
+  return parseDurationSeconds(env.STUDENT_JWT_ACCESS_EXPIRES_IN, 14_400);
 }
 
 /** Prefer the signed token's `exp` so Redis TTL matches jsonwebtoken's lifetime. */
@@ -34,7 +38,7 @@ export function ttlSecondsFromAccessToken(accessToken: string): number {
     const ttl = decoded.exp - Math.floor(Date.now() / 1000);
     if (ttl > 0) return ttl;
   }
-  return accessTokenTtlSeconds();
+  return studentSessionTtlSeconds();
 }
 
 export async function getStudentSessionId(
@@ -57,7 +61,7 @@ export async function storeStudentSession(
   sessionId: string,
   ttlSeconds: number,
 ): Promise<void> {
-  const ttl = ttlSeconds > 0 ? ttlSeconds : accessTokenTtlSeconds();
+  const ttl = ttlSeconds > 0 ? ttlSeconds : studentSessionTtlSeconds();
   await getRedis().set(
     sessionKey(organizationId, studentId),
     JSON.stringify({ sessionId }),
@@ -76,7 +80,7 @@ export async function replaceStudentSession(
     organizationId,
     studentId,
     sessionId,
-    ttlSeconds ?? accessTokenTtlSeconds(),
+    ttlSeconds ?? studentSessionTtlSeconds(),
   );
   return sessionId;
 }
@@ -88,6 +92,18 @@ export async function isStudentSessionCurrent(
 ): Promise<boolean> {
   const current = await getStudentSessionId(organizationId, studentId);
   return current !== null && current === sessionId;
+}
+
+/** Extend Redis session TTL on authenticated student requests. */
+export async function touchStudentSession(
+  organizationId: string,
+  studentId: string,
+  sessionId: string,
+): Promise<void> {
+  const key = sessionKey(organizationId, studentId);
+  const current = await getStudentSessionId(organizationId, studentId);
+  if (current !== sessionId) return;
+  await getRedis().expire(key, studentSessionTtlSeconds());
 }
 
 export async function clearStudentSession(

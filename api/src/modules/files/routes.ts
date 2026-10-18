@@ -13,6 +13,21 @@ import * as service from './service.js';
 
 export const filesRouter = Router();
 
+/** ASCII fallback + RFC 5987 UTF-8 filename* for non-Latin-1 / control chars. */
+function contentDispositionAttachment(originalName: string): string {
+  const cleaned = originalName.replace(/[\r\n\0]/g, '').trim() || 'download';
+  const ascii = cleaned
+    .replace(/[^\x20-\x7E]/g, '_')
+    .replace(/["\\]/g, '_')
+    .slice(0, 180);
+  const fallback = ascii.length > 0 ? ascii : 'download';
+  const encoded = encodeURIComponent(cleaned).replace(
+    /['()]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 const initiateSchema = z
   .object({
     originalName: z.string().min(1).max(255),
@@ -30,10 +45,7 @@ filesRouter.get('/download', async (req: Request, res: Response, next: NextFunct
     const token = String(req.query.token ?? req.header('x-download-token') ?? '');
     const { file, buffer } = await service.downloadWithToken(token);
     res.setHeader('Content-Type', file.mimeType);
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="${file.originalName.replace(/"/g, '')}"`,
-    );
+    res.setHeader('Content-Disposition', contentDispositionAttachment(file.originalName));
     res.send(buffer);
   } catch (err) {
     next(err);

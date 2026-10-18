@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "imports": {
-    "#prisma": "./src/generated/prisma/client.ts"
+    "#prisma": {
+      "development": "./src/generated/prisma/client.ts",
+      "default": "./dist/generated/prisma/client.js"
+    }
   },
   "scripts": {
     "dev": "nodemon",
@@ -15,12 +18,12 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run lint && npm run format:check",
-    "test": "node --import tsx --import ./test/setup.ts --test --test-concurrency=1 --test-force-exit test/**/*.test.ts",
+    "test": "node --conditions=development --import tsx --import ./test/setup.ts --test --test-concurrency=1 --test-force-exit test/**/*.test.ts",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
-    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed": "node --conditions=development --import tsx prisma/seed.ts",
     "db:reset": "prisma migrate reset --force"
   },
   "engines": {

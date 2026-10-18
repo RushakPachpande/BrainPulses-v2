@@ -45,10 +45,13 @@ export function SystemSettingsPage() {
       .catch(() => setLogs([]));
     void getSettingsGroup('system')
       .then(({ values }) => {
-        const requireTwoFactor = Boolean(values.requireTwoFactor);
-        setSecurity((current) =>
-          current.map((value, index) => (index === 0 ? requireTwoFactor : value)),
-        );
+        setSecurity([
+          Boolean(values.requireTwoFactor ?? true),
+          Boolean(values.passwordExpiry ?? true),
+          Boolean(values.sessionTimeout ?? true),
+          Boolean(values.limitFailedLogins ?? true),
+          Boolean(values.dailyBackups ?? true),
+        ]);
       })
       .catch(() => {
         /* keep defaults */
@@ -240,10 +243,10 @@ export function SystemSettingsPage() {
         <p className="text-sm text-muted-foreground" aria-live="polite">
           {saved ? (
             <span className="inline-flex items-center gap-2 text-emerald-600">
-              <CheckCircle2Icon className="size-4" /> Settings staged in this prototype.
+              <CheckCircle2Icon className="size-4" /> System security settings saved to the server.
             </span>
           ) : (
-            'Changes are a UI preview and do not update server security policies.'
+            'Save to persist these security preferences for the organization.'
           )}
         </p>
         <Button
@@ -251,7 +254,13 @@ export function SystemSettingsPage() {
           disabled={saving}
           onClick={() => {
             setSaving(true);
-            void patchSettingsGroup('system', { requireTwoFactor: security[0] })
+            void patchSettingsGroup('system', {
+              requireTwoFactor: security[0],
+              passwordExpiry: security[1],
+              sessionTimeout: security[2],
+              limitFailedLogins: security[3],
+              dailyBackups: security[4],
+            })
               .then(() => {
                 setSaved(true);
                 toast.success('System settings saved.');

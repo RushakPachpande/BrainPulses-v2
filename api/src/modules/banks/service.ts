@@ -3,7 +3,7 @@ import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from
 import { writeAudit } from '../../lib/audit.js';
 import { nextHumanCode } from '../../lib/codes.js';
 import { conflict, forbidden, notFound, unprocessable } from '../../lib/errors.js';
-import { buildPage, listEnvelope } from '../../lib/pagination.js';
+import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
 import type {
@@ -112,19 +112,17 @@ export async function listBanks(
           ],
         }
       : {}),
-    ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
   const [total, rows] = await Promise.all([
-    prisma.questionBank.count({ where: { ...where, id: undefined } }),
+    prisma.questionBank.count({ where }),
     prisma.questionBank.findMany({
       where,
       include: {
         _count: { select: { questions: true, activityBanks: true } },
         questions: { select: { type: true }, take: 20 },
       },
-      orderBy: { updatedAt: query.order },
-      take: query.limit + 1,
+      ...prismaCursorArgs(query, 'updatedAt'),
     }),
   ]);
 

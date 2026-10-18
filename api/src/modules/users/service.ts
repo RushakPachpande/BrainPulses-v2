@@ -1,7 +1,7 @@
 import { Prisma } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { conflict, forbidden, notFound } from '../../lib/errors.js';
-import { buildPage, listEnvelope } from '../../lib/pagination.js';
+import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { hashPassword } from '../../lib/password.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
@@ -54,16 +54,14 @@ export async function listUsers(
   const where: Prisma.MembershipWhereInput = {
     organizationId,
     ...(and.length > 0 ? { AND: and } : {}),
-    ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
   const [total, rows] = await Promise.all([
-    prisma.membership.count({ where: { ...where, id: undefined } }),
+    prisma.membership.count({ where }),
     prisma.membership.findMany({
       where,
       include: { user: true },
-      orderBy: { createdAt: query.order },
-      take: query.limit + 1,
+      ...prismaCursorArgs(query),
     }),
   ]);
 
@@ -155,8 +153,7 @@ export async function updateMembership(
     if (
       input.assessmentAccess !== undefined &&
       actorAccess &&
-      (accessRank[input.assessmentAccess] ?? 0) >
-        (accessRank[actorAccess.assessmentAccess] ?? 0)
+      (accessRank[input.assessmentAccess] ?? 0) > (accessRank[actorAccess.assessmentAccess] ?? 0)
     ) {
       throw forbidden('Cannot grant assessment access above your own level.');
     }

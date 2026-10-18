@@ -15,6 +15,8 @@ const envSchema = z
     JWT_ISSUER: z.string().min(1).default('brainpulses-api'),
     JWT_AUDIENCE: z.string().min(1).default('brainpulses-admin'),
     JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+    /** Student access token lifetime; long enough for typical timed activities. */
+    STUDENT_JWT_ACCESS_EXPIRES_IN: z.string().default('4h'),
     JWT_ORG_SELECT_EXPIRES_IN: z.string().default('5m'),
     REFRESH_TOKEN_TTL_SECONDS: z.coerce.number().default(604_800),
     CORS_ORIGIN: z.string().default('http://localhost:5173'),

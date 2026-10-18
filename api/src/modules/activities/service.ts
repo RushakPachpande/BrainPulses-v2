@@ -3,7 +3,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
 import { nextHumanCode } from '../../lib/codes.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
-import { buildPage, listEnvelope } from '../../lib/pagination.js';
+import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
 import type {
@@ -86,19 +86,17 @@ export async function listActivities(
           ],
         }
       : {}),
-    ...(query.cursor ? { id: { lt: query.cursor } } : {}),
   };
 
   const [total, rows] = await Promise.all([
-    prisma.activity.count({ where: { ...where, id: undefined } }),
+    prisma.activity.count({ where }),
     prisma.activity.findMany({
       where,
       include: {
         _count: { select: { registrations: true, activityBanks: true, attempts: true } },
         registrations: { select: { status: true } },
       },
-      orderBy: { createdAt: query.order },
-      take: query.limit + 1,
+      ...prismaCursorArgs(query),
     }),
   ]);
 
@@ -139,6 +137,22 @@ export async function getActivity(
   };
 }
 
+async function assertOrgBanksForKind(
+  organizationId: string,
+  kind: ActivityKind,
+  bankIds: string[],
+) {
+  if (bankIds.length === 0) return;
+  const unique = [...new Set(bankIds)];
+  const banks = await prisma.questionBank.findMany({
+    where: { organizationId, kind, id: { in: unique } },
+    select: { id: true },
+  });
+  if (banks.length !== unique.length) {
+    throw badRequest('One or more question banks are invalid for this organization and kind.');
+  }
+}
+
 export async function createActivity(
   organizationId: string,
   actorUserId: string,
@@ -150,6 +164,7 @@ export async function createActivity(
   input: z.infer<typeof createActivitySchema>,
 ) {
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, input.kind, 'edit');
+  await assertOrgBanksForKind(organizationId, input.kind, input.bankIds);
   const prefix = input.kind === 'assessment' ? 'ASM' : 'QUZ';
   const code = input.code ?? (await nextHumanCode(organizationId, prefix, 'activity'));
 
@@ -213,34 +228,40 @@ export async function updateActivity(
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, existing.kind, 'edit');
 
   if (input.bankIds) {
-    await prisma.activityBank.deleteMany({ where: { organizationId, activityId: id } });
-    if (input.bankIds.length > 0) {
-      await prisma.activityBank.createMany({
-        data: input.bankIds.map((bankId) => ({
-          organizationId,
-          activityId: id,
-          bankId,
-        })),
-      });
-    }
+    await assertOrgBanksForKind(organizationId, existing.kind, input.bankIds);
   }
 
-  const activity = await prisma.activity.update({
-    where: { id },
-    data: {
-      ...(input.name !== undefined ? { name: input.name } : {}),
-      ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
-      ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
-      ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
-      ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
-      ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
-      ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
-      ...(input.code !== undefined ? { code: input.code } : {}),
-    },
-    include: {
-      _count: { select: { registrations: true, activityBanks: true, attempts: true } },
-      registrations: { select: { status: true } },
-    },
+  const activity = await prisma.$transaction(async (tx) => {
+    if (input.bankIds) {
+      await tx.activityBank.deleteMany({ where: { organizationId, activityId: id } });
+      if (input.bankIds.length > 0) {
+        await tx.activityBank.createMany({
+          data: input.bankIds.map((bankId) => ({
+            organizationId,
+            activityId: id,
+            bankId,
+          })),
+        });
+      }
+    }
+
+    return tx.activity.update({
+      where: { id },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
+        ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
+        ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
+        ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
+        ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
+        ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
+        ...(input.code !== undefined ? { code: input.code } : {}),
+      },
+      include: {
+        _count: { select: { registrations: true, activityBanks: true, attempts: true } },
+        registrations: { select: { status: true } },
+      },
+    });
   });
 
   await writeAudit({
