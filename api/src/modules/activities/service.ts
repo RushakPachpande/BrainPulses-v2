@@ -744,6 +744,7 @@ export async function createRoundQuestion(
         questionVersionId: version.id,
         label: o.label,
         body: o.body,
+        imageUrl: o.imageUrl ?? null,
         sortOrder: i,
         isCorrect: o.isCorrect,
       })),

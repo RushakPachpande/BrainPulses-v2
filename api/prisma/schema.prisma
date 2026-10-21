@@ -34,11 +34,15 @@ enum FlowStatus {
 enum QuestionType {
   single_mcq
   multiple_mcq
+  true_false
   numeric
   short_text
+  long_text
   passage
   match
   image_mcq
+  image_selection
+  comprehension_mcq
 }
 
 enum PresentationMode {
@@ -261,6 +265,7 @@ model QuestionOption {
   questionVersionId String  @map("question_version_id") @db.Uuid
   label             String
   body              String
+  imageUrl          String? @map("image_url")
   sortOrder         Int     @map("sort_order")
   isCorrect         Boolean @default(false) @map("is_correct")
 

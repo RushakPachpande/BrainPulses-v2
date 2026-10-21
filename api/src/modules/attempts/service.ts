@@ -6,7 +6,13 @@ import { prisma } from '../../lib/prisma.js';
 import { parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
 import { scoreObjective, toNumber } from './scoring.js';
 
-type OptionRow = { id: string; label: string; body: string; sortOrder: number };
+type OptionRow = {
+  id: string;
+  label: string;
+  body: string;
+  sortOrder: number;
+  imageUrl?: string | null;
+};
 type OptionOrders = Record<string, string[]>;
 
 async function autoSubmitIfExpired(attempt: {
@@ -80,7 +86,7 @@ async function presentQuestions(
     include: {
       options: {
         orderBy: { sortOrder: 'asc' },
-        select: { id: true, label: true, body: true, sortOrder: true },
+        select: { id: true, label: true, body: true, sortOrder: true, imageUrl: true },
       },
     },
   });
@@ -95,12 +101,26 @@ async function presentQuestions(
         const optById = new Map(options.map((o) => [o.id, o]));
         options = order.map((oid) => optById.get(oid)).filter((o): o is OptionRow => Boolean(o));
       }
+      const key =
+        v.answerKey && typeof v.answerKey === 'object' && !Array.isArray(v.answerKey)
+          ? (v.answerKey as Record<string, unknown>)
+          : {};
+      const passageText = typeof key.passageText === 'string' ? key.passageText : undefined;
+      const stemImageUrl = typeof key.stemImageUrl === 'string' ? key.stemImageUrl : undefined;
       return {
         questionVersionId: v.id,
         type: v.type,
         stem: v.stem,
         points: toNumber(v.points),
-        options,
+        options: options.map((o) => ({
+          id: o.id,
+          label: o.label,
+          body: o.body,
+          sortOrder: o.sortOrder,
+          ...(o.imageUrl ? { imageUrl: o.imageUrl } : {}),
+        })),
+        ...(passageText ? { passageText } : {}),
+        ...(stemImageUrl ? { stemImageUrl } : {}),
       };
     });
 }
@@ -666,9 +686,10 @@ async function submitAttemptInternal(
     const version = byId.get(response.questionVersionId);
     if (!version) continue;
     const pts = toNumber(version.points);
-    maxScore += pts;
     const earned = scoreObjective(version.type, version.answerKey, response.answer, pts);
-    if (earned !== null) score += earned;
+    if (earned === null) continue;
+    maxScore += pts;
+    score += earned;
   }
 
   const percent = maxScore > 0 ? (score / maxScore) * 100 : 0;

@@ -523,28 +523,58 @@ export async function updateQuestionBank(
   return apiPatchData(`/api/banks/${id}`, payload);
 }
 
-export async function getQuestionBank(id: string): Promise<
-  QuestionBank & {
-    items?: {
-      id: string;
-      type: string;
-      stem: string;
-      points: number;
-    }[];
-  }
-> {
+export type BankQuestionOption = {
+  id?: string;
+  label: string;
+  body: string;
+  sortOrder?: number;
+  isCorrect: boolean;
+  imageUrl?: string | null;
+};
+
+export type BankQuestionItem = {
+  id: string;
+  code: string;
+  type: string;
+  stem: string;
+  points: number;
+  isActive?: boolean;
+  version?: number;
+  correctLabels?: string[];
+  options: BankQuestionOption[];
+  passageText?: string;
+  stemImageUrl?: string;
+  referenceValue?: unknown;
+  numericTolerance?: number;
+};
+
+export async function getQuestionBank(
+  id: string,
+): Promise<QuestionBank & { items: BankQuestionItem[] }> {
   if (useFixtures) {
     const rows = [...(await getQuestionBanks('assessment')), ...(await getQuestionBanks('quiz'))];
     const found = rows.find((b) => b.id === id);
     if (!found) throw new Error('Question bank not found');
     return { ...found, items: [] };
   }
-  const row = await apiGetData<
-    ApiBankRow & {
-      items?: { id: string; type: string; stem: string; points: number }[];
-    }
-  >(`/api/banks/${id}`);
-  return { ...mapBankFromApi(row), items: row.items ?? [] };
+  const row = await apiGetData<ApiBankRow & { items?: BankQuestionItem[] }>(`/api/banks/${id}`);
+  return {
+    ...mapBankFromApi(row),
+    items: (row.items ?? []).map((item) => ({
+      ...item,
+      code: item.code ?? '',
+      options: (item.options ?? []).map((o) => ({
+        ...o,
+        isCorrect: Boolean(o.isCorrect),
+        imageUrl: o.imageUrl ?? null,
+      })),
+      correctLabels: item.correctLabels ?? [],
+      passageText: item.passageText,
+      stemImageUrl: item.stemImageUrl,
+      referenceValue: item.referenceValue,
+      numericTolerance: item.numericTolerance,
+    })),
+  };
 }
 
 export async function addBankQuestion(
@@ -553,12 +583,38 @@ export async function addBankQuestion(
     type: string;
     stem: string;
     points?: number;
-    options?: { label: string; body: string; isCorrect: boolean }[];
+    options?: {
+      label: string;
+      body: string;
+      isCorrect: boolean;
+      imageUrl?: string | null;
+    }[];
     answerKey?: Record<string, unknown>;
   },
 ) {
   if (useFixtures) return { id: crypto.randomUUID() };
   return apiPostData(`/api/banks/${bankId}/questions`, payload);
+}
+
+export async function updateBankQuestion(
+  bankId: string,
+  questionId: string,
+  payload: {
+    type?: string;
+    stem?: string;
+    points?: number;
+    options?: {
+      label: string;
+      body: string;
+      isCorrect: boolean;
+      imageUrl?: string | null;
+    }[];
+    answerKey?: Record<string, unknown>;
+    isActive?: boolean;
+  },
+) {
+  if (useFixtures) return { id: questionId, ...payload };
+  return apiPatchData(`/api/banks/${bankId}/questions/${questionId}`, payload);
 }
 
 export async function assignRegistrations(activityId: string, studentIds: string[]) {

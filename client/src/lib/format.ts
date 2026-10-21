@@ -46,5 +46,9 @@ export function answerLabel(answer: unknown): string | null {
   if (typeof obj.value === 'string' || typeof obj.value === 'number') {
     return String(obj.value);
   }
+  if (typeof obj.text === 'string') {
+    const trimmed = obj.text.trim();
+    return trimmed || null;
+  }
   return null;
 }

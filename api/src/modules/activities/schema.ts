@@ -126,11 +126,15 @@ export const createRoundQuestionSchema = z
     type: z.enum([
       'single_mcq',
       'multiple_mcq',
+      'true_false',
       'numeric',
       'short_text',
+      'long_text',
       'passage',
       'match',
       'image_mcq',
+      'image_selection',
+      'comprehension_mcq',
     ]),
     stem: z.string().trim().min(1).max(5000),
     points: z.number().positive().max(1000).default(1),
@@ -141,6 +145,7 @@ export const createRoundQuestionSchema = z
             label: z.string().trim().min(1).max(8),
             body: z.string().trim().min(1).max(1000),
             isCorrect: z.boolean().default(false),
+            imageUrl: z.string().trim().max(2000).optional().nullable(),
           })
           .strict(),
       )

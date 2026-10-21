@@ -79,7 +79,7 @@ describe('tenancy and access', () => {
     }
   });
 
-  it('omits answer keys from bank detail', async () => {
+  it('exposes option correctness on admin bank detail without raw answerKey', async () => {
     const app = await getTestApp();
     const token = await accessTokenFor('admin@brainpulses.com', 'demo');
     const bank = await prisma.questionBank.findFirst({ where: { code: 'QB-26001' } });
@@ -91,7 +91,13 @@ describe('tenancy and access', () => {
     assert.equal(res.status, 200);
     const body = JSON.stringify(res.body);
     assert.equal(body.includes('answerKey'), false);
-    assert.equal(body.includes('isCorrect'), false);
+    assert.equal(body.includes('isCorrect'), true);
     assert.equal(body.includes('Newton'), true);
+    const data = res.body as {
+      data: { items: { options: { isCorrect: boolean }[]; correctLabels: string[] }[] };
+    };
+    assert.ok(data.data.items.length > 0);
+    assert.ok(data.data.items[0]!.options.some((o) => o.isCorrect));
+    assert.ok(data.data.items[0]!.correctLabels.length > 0);
   });
 });

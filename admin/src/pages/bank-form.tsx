@@ -1,21 +1,53 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon, MoreVerticalIcon, PlusIcon, SaveIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   addBankQuestion,
   createQuestionBank,
   getQuestionBank,
+  updateBankQuestion,
   updateQuestionBank,
   type ActivityKind,
+  type BankQuestionItem,
 } from '@/services';
+import {
+  draftFromItem,
+  draftToPayload,
+  emptyDraft,
+  validateDraft,
+  type QuestionDraft,
+} from './bank-question-draft';
+import { BankQuestionDialog } from './bank-question-form';
+import { bankQuestionTypeLabel } from './bank-question-types';
+
+type DialogMode =
+  | null
+  | { kind: 'add' }
+  | { kind: 'edit'; questionId: string }
+  | { kind: 'view'; questionId: string };
 
 export function BankFormPage({
   kind,
@@ -29,32 +61,32 @@ export function BankFormPage({
   const isQuiz = kind === 'quiz';
   const base = isQuiz ? '/quizzes/banks' : '/assessments/banks';
   const readOnly = mode === 'view';
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [stem, setStem] = useState('Sample question stem?');
-  const [optA, setOptA] = useState('Option A');
-  const [optB, setOptB] = useState('Option B');
-  const [optC, setOptC] = useState('Option C');
-  const [optD, setOptD] = useState('Option D');
-  const [correct, setCorrect] = useState<'A' | 'B' | 'C' | 'D'>('B');
-  const [questions, setQuestions] = useState<{ id: string; stem: string; type: string }[]>([]);
-  const [saving, setSaving] = useState(false);
+  const [questions, setQuestions] = useState<BankQuestionItem[]>([]);
+  const [search, setSearch] = useState('');
+  const [savingMeta, setSavingMeta] = useState(false);
+  const [savingQuestion, setSavingQuestion] = useState(false);
   const [loading, setLoading] = useState(mode !== 'create');
-  const [createdBankId, setCreatedBankId] = useState<string | null>(
-    mode === 'create' ? null : bankId,
-  );
+  const [dialog, setDialog] = useState<DialogMode>(null);
+  const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());
+
+  async function reloadBank(id: string) {
+    const bank = await getQuestionBank(id);
+    setName(bank.name);
+    setDescription(bank.description);
+    setQuestions(bank.items);
+    return bank;
+  }
 
   useEffect(() => {
     if (mode === 'create') return;
     let cancelled = false;
     (async () => {
       try {
-        const bank = await getQuestionBank(bankId);
+        await reloadBank(bankId);
         if (cancelled) return;
-        setName(bank.name);
-        setDescription(bank.description);
-        setCreatedBankId(bank.id);
-        setQuestions((bank.items ?? []).map((q) => ({ id: q.id, stem: q.stem, type: q.type })));
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : 'Could not load question bank.');
         void navigate(base);
@@ -67,49 +99,108 @@ export function BankFormPage({
     };
   }, [bankId, base, mode, navigate]);
 
-  async function onSubmit(event: FormEvent) {
+  const filteredQuestions = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return questions;
+    return questions.filter(
+      (item) =>
+        item.stem.toLowerCase().includes(q) ||
+        item.code.toLowerCase().includes(q) ||
+        item.type.toLowerCase().includes(q),
+    );
+  }, [questions, search]);
+
+  function closeDialog() {
+    setDialog(null);
+    setDraft(emptyDraft());
+  }
+
+  function openAdd() {
+    setDraft(emptyDraft('single_mcq'));
+    setDialog({ kind: 'add' });
+  }
+
+  function openEdit(item: BankQuestionItem) {
+    setDraft(draftFromItem(item));
+    setDialog({ kind: 'edit', questionId: item.id });
+  }
+
+  function openView(item: BankQuestionItem) {
+    setDraft(draftFromItem(item));
+    setDialog({ kind: 'view', questionId: item.id });
+  }
+
+  async function onSaveMeta(event: FormEvent) {
     event.preventDefault();
     if (readOnly) return;
-    setSaving(true);
+    const trimmed = name.trim();
+    if (!trimmed) {
+      toast.error('Name is required.');
+      return;
+    }
+    setSavingMeta(true);
     try {
-      if (mode === 'edit' && createdBankId) {
-        await updateQuestionBank(createdBankId, {
-          name: name.trim(),
+      if (mode === 'edit' && bankId) {
+        await updateQuestionBank(bankId, {
+          name: trimmed,
           description: description.trim() || undefined,
         });
         toast.success('Question bank updated.');
-        void navigate(base);
         return;
       }
 
-      let id = createdBankId;
-      if (!id) {
-        const bank = await createQuestionBank({
-          kind,
-          name: name.trim(),
-          description: description.trim() || undefined,
-        });
-        id = bank.id;
-        setCreatedBankId(bank.id);
-      }
-      const options = [
-        { label: 'A', body: optA, isCorrect: correct === 'A' },
-        { label: 'B', body: optB, isCorrect: correct === 'B' },
-        { label: 'C', body: optC, isCorrect: correct === 'C' },
-        { label: 'D', body: optD, isCorrect: correct === 'D' },
-      ];
-      await addBankQuestion(id, {
-        type: 'single_mcq',
-        stem: stem.trim(),
-        options,
-        answerKey: { correctLabels: [correct] },
+      const bank = await createQuestionBank({
+        kind,
+        name: trimmed,
+        description: description.trim() || undefined,
       });
-      toast.success('Question bank created with a starter question.');
-      void navigate(base);
+      toast.success('Question bank created.');
+      void navigate(`${base}/${bank.id}/edit`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save question bank.');
     } finally {
-      setSaving(false);
+      setSavingMeta(false);
+    }
+  }
+
+  async function onSaveQuestion() {
+    if (readOnly || !bankId || !dialog || dialog.kind === 'view') return;
+    const error = validateDraft(draft);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    const payload = draftToPayload(draft);
+    setSavingQuestion(true);
+    try {
+      if (dialog.kind === 'add') {
+        await addBankQuestion(bankId, payload);
+        toast.success('Question added.');
+      } else {
+        await updateBankQuestion(bankId, dialog.questionId, payload);
+        toast.success('Question updated.');
+      }
+      await reloadBank(bankId);
+      closeDialog();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not save question.');
+    } finally {
+      setSavingQuestion(false);
+    }
+  }
+
+  async function onDeactivate(item: BankQuestionItem) {
+    if (readOnly || !bankId) return;
+    setSavingQuestion(true);
+    try {
+      await updateBankQuestion(bankId, item.id, { isActive: false });
+      toast.success('Question deactivated.');
+      if (dialog && 'questionId' in dialog && dialog.questionId === item.id) closeDialog();
+      await reloadBank(bankId);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not deactivate question.');
+    } finally {
+      setSavingQuestion(false);
     }
   }
 
@@ -134,8 +225,8 @@ export function BankFormPage({
           <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === 'create'
-              ? 'Creates a bank and one starter MCQ so the bank can be attached to activities.'
-              : 'Question bank details and items.'}
+              ? 'Save bank details, then add questions on the edit page.'
+              : 'Bank details and questions for this reusable bank.'}
           </p>
         </div>
         {mode === 'view' ? (
@@ -144,13 +235,14 @@ export function BankFormPage({
           </Button>
         ) : null}
       </div>
+
       <Card>
         <CardHeader className="border-b border-border/70">
           <CardTitle>Bank details</CardTitle>
           <CardDescription>{isQuiz ? 'Quiz' : 'Assessment'} question bank</CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={onSubmit}>
+          <form onSubmit={(e) => void onSaveMeta(e)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="bank-name">
@@ -173,71 +265,14 @@ export function BankFormPage({
                   disabled={readOnly}
                 />
               </Field>
-
-              {mode !== 'create' && questions.length > 0 ? (
-                <div className="rounded-lg border border-border p-3">
-                  <p className="mb-2 text-sm font-medium">Questions ({questions.length})</p>
-                  <ul className="space-y-2 text-sm text-muted-foreground">
-                    {questions.map((q) => (
-                      <li key={q.id}>
-                        <span className="text-foreground">{q.stem}</span> · {q.type}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-
-              {mode === 'create' ? (
-                <>
-                  <Field>
-                    <FieldLabel htmlFor="stem">Starter question stem</FieldLabel>
-                    <Input
-                      id="stem"
-                      value={stem}
-                      onChange={(e) => setStem(e.target.value)}
-                      required
-                    />
-                  </Field>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <Field>
-                      <FieldLabel>Option A</FieldLabel>
-                      <Input value={optA} onChange={(e) => setOptA(e.target.value)} required />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Option B</FieldLabel>
-                      <Input value={optB} onChange={(e) => setOptB(e.target.value)} required />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Option C</FieldLabel>
-                      <Input value={optC} onChange={(e) => setOptC(e.target.value)} required />
-                    </Field>
-                    <Field>
-                      <FieldLabel>Option D</FieldLabel>
-                      <Input value={optD} onChange={(e) => setOptD(e.target.value)} required />
-                    </Field>
-                  </div>
-                  <Field>
-                    <FieldLabel htmlFor="correct">Correct option</FieldLabel>
-                    <Input
-                      id="correct"
-                      value={correct}
-                      onChange={(e) =>
-                        setCorrect((e.target.value.toUpperCase() as 'A' | 'B' | 'C' | 'D') || 'A')
-                      }
-                      maxLength={1}
-                    />
-                  </Field>
-                </>
-              ) : null}
-
               {!readOnly ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
                   <Button type="button" variant="outline" onClick={() => void navigate(base)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={saving}>
+                  <Button type="submit" disabled={savingMeta}>
                     <SaveIcon data-icon="inline-start" />
-                    {saving ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create bank'}
+                    {savingMeta ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create bank'}
                   </Button>
                 </div>
               ) : null}
@@ -245,6 +280,131 @@ export function BankFormPage({
           </form>
         </CardContent>
       </Card>
+
+      {mode !== 'create' ? (
+        <Card>
+          <CardHeader className="border-b border-border/70">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>Questions</CardTitle>
+                <CardDescription>
+                  {questions.length} question{questions.length === 1 ? '' : 's'}
+                </CardDescription>
+              </div>
+              {!readOnly ? (
+                <Button type="button" variant="outline" onClick={openAdd}>
+                  <PlusIcon data-icon="inline-start" />
+                  Add question
+                </Button>
+              ) : null}
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 pt-5">
+            {questions.length > 8 ? (
+              <Toolbar
+                filters={[]}
+                searchPlaceholder="Search stem or code"
+                searchValue={search}
+                onSearchChange={setSearch}
+              />
+            ) : null}
+
+            {questions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No questions yet.
+                {!readOnly ? ' Use Add question to create the first item.' : null}
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Stem</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Points</TableHead>
+                      <TableHead className="w-12">
+                        <span className="sr-only">Actions</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredQuestions.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-muted-foreground">
+                          No questions match this search.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredQuestions.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="whitespace-nowrap font-medium">
+                            {item.code || '—'}
+                          </TableCell>
+                          <TableCell className="max-w-md">
+                            <span className="line-clamp-2 font-medium">{item.stem}</span>
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {bankQuestionTypeLabel(item.type)}
+                          </TableCell>
+                          <TableCell>{item.points}</TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label={`Actions for ${item.code || item.stem}`}
+                                >
+                                  <MoreVerticalIcon />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {readOnly ? (
+                                  <DropdownMenuItem onClick={() => openView(item)}>
+                                    View
+                                  </DropdownMenuItem>
+                                ) : (
+                                  <>
+                                    <DropdownMenuItem onClick={() => openEdit(item)}>
+                                      Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      variant="destructive"
+                                      onClick={() => void onDeactivate(item)}
+                                    >
+                                      Deactivate
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {dialog ? (
+        <BankQuestionDialog
+          open
+          mode={dialog.kind}
+          draft={draft}
+          saving={savingQuestion}
+          onOpenChange={(open) => {
+            if (!open) closeDialog();
+          }}
+          onDraftChange={setDraft}
+          onSave={() => void onSaveQuestion()}
+        />
+      ) : null}
     </div>
   );
 }

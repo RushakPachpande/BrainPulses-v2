@@ -38,6 +38,7 @@ export const pageMeta: Record<string, PageMeta> = {
   '/assessments/banks/new': {
     crumb: 'BrainPulses / Assessment / Question Banks / Create',
     title: 'Create Question Bank',
+    description: 'Save bank details, then add single-MCQ questions on the edit page.',
   },
   '/assessments/new': {
     crumb: 'BrainPulses / Assessment / Create Assessment',
@@ -71,6 +72,7 @@ export const pageMeta: Record<string, PageMeta> = {
   '/quizzes/banks/new': {
     crumb: 'BrainPulses / Quiz / Question Banks / Create',
     title: 'Create Question Bank',
+    description: 'Save bank details, then add single-MCQ questions on the edit page.',
   },
   '/quizzes/new': { crumb: 'BrainPulses / Quiz / Create Quiz', title: 'Create Quiz' },
   '/quizzes/registrations': {

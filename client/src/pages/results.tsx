@@ -370,7 +370,21 @@ export function ResultDetailPage() {
           </div>
           {attempt.review.map((q, i) => {
             const yours = answerLabel(q.yourAnswer);
-            const yourBody = q.options.find((o) => o.label === yours)?.body;
+            const multiYours =
+              yours?.includes(',')
+                ? yours.split(',').map((s) => s.trim())
+                : yours
+                  ? [yours]
+                  : [];
+            const yourDisplay =
+              multiYours.length > 0
+                ? multiYours
+                    .map((label) => {
+                      const body = q.options.find((o) => o.label === label)?.body;
+                      return body ? `${label}. ${body}` : label;
+                    })
+                    .join('; ')
+                : null;
             return (
               <div className="review-question" key={q.questionVersionId}>
                 <div className="review-question-top">
@@ -380,7 +394,7 @@ export function ResultDetailPage() {
                   </span>
                 </div>
                 <b>{q.stem}</b>
-                <p>Your answer: {yours ? `${yours}. ${yourBody ?? ''}` : 'Not answered'}</p>
+                <p>Your answer: {yourDisplay ?? 'Not answered'}</p>
                 {q.correctLabels.length > 0 && (
                   <div className="review-explanation">
                     <CheckCircle2 size={16} />

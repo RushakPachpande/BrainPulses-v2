@@ -80,7 +80,15 @@ export type AttemptQuestion = {
   type: string;
   stem: string;
   points: number;
-  options: { id: string; label: string; body: string; sortOrder: number }[];
+  options: {
+    id: string;
+    label: string;
+    body: string;
+    sortOrder: number;
+    imageUrl?: string;
+  }[];
+  passageText?: string;
+  stemImageUrl?: string;
 };
 
 export type AttemptState = {

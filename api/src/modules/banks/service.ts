@@ -64,8 +64,24 @@ function mapBank(b: {
   };
 }
 
-/** Public question shape — never includes answerKey or isCorrect. */
-function mapQuestionPublic(q: {
+type VersionOption = {
+  id: string;
+  label: string;
+  body: string;
+  sortOrder: number;
+  isCorrect?: boolean;
+  imageUrl?: string | null;
+};
+
+function answerKeyRecord(value: Prisma.JsonValue | undefined): Record<string, unknown> {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+  return {};
+}
+
+/** Admin bank detail — includes isCorrect / correctLabels; never raw answerKey. */
+function mapQuestionAdmin(q: {
   id: string;
   code: string;
   type: string;
@@ -75,10 +91,28 @@ function mapQuestionPublic(q: {
   versions: {
     id: string;
     version: number;
-    options: { id: string; label: string; body: string; sortOrder: number }[];
+    answerKey?: Prisma.JsonValue;
+    options: VersionOption[];
   }[];
 }) {
   const latest = q.versions[0];
+  const key = answerKeyRecord(latest?.answerKey);
+  const options = (latest?.options ?? []).map((o) => ({
+    id: o.id,
+    label: o.label,
+    body: o.body,
+    sortOrder: o.sortOrder,
+    isCorrect: Boolean(o.isCorrect),
+    imageUrl: o.imageUrl ?? null,
+  }));
+  const fromKey = Array.isArray(key.correctLabels)
+    ? key.correctLabels.filter((x): x is string => typeof x === 'string')
+    : [];
+  const correctLabels =
+    fromKey.length > 0 ? fromKey : options.filter((o) => o.isCorrect).map((o) => o.label);
+  const passageText = typeof key.passageText === 'string' ? key.passageText : undefined;
+  const stemImageUrl = typeof key.stemImageUrl === 'string' ? key.stemImageUrl : undefined;
+  const referenceValue = key.value;
   return {
     id: q.id,
     code: q.code,
@@ -87,12 +121,14 @@ function mapQuestionPublic(q: {
     points: Number(q.points),
     isActive: q.isActive,
     version: latest?.version ?? 1,
-    options: (latest?.options ?? []).map((o) => ({
-      id: o.id,
-      label: o.label,
-      body: o.body,
-      sortOrder: o.sortOrder,
-    })),
+    correctLabels,
+    options,
+    ...(passageText !== undefined ? { passageText } : {}),
+    ...(stemImageUrl !== undefined ? { stemImageUrl } : {}),
+    ...(referenceValue !== undefined ? { referenceValue } : {}),
+    ...(typeof key.numericTolerance === 'number'
+      ? { numericTolerance: key.numericTolerance }
+      : {}),
   };
 }
 
@@ -152,7 +188,7 @@ export async function getBank(organizationId: string, id: string, actor?: Access
   if (actor) assertBankAccess(actor, bank.kind, 'view');
   return {
     ...mapBank(bank),
-    items: bank.questions.map(mapQuestionPublic),
+    items: bank.questions.map(mapQuestionAdmin),
   };
 }
 
@@ -240,7 +276,12 @@ async function createQuestionVersion(
     type: z.infer<typeof createQuestionSchema>['type'];
     stem: string;
     points: number;
-    options: { label: string; body: string; isCorrect: boolean }[];
+    options: {
+      label: string;
+      body: string;
+      isCorrect: boolean;
+      imageUrl?: string | null;
+    }[];
     answerKey: Record<string, unknown>;
   },
   version: number,
@@ -271,6 +312,7 @@ async function createQuestionVersion(
         questionVersionId: created.id,
         label: o.label,
         body: o.body,
+        imageUrl: o.imageUrl ?? null,
         sortOrder: i,
         isCorrect: o.isCorrect,
       })),
@@ -319,17 +361,20 @@ export async function createQuestion(
     targetId: question.id,
   });
 
-  return mapQuestionPublic({
+  return mapQuestionAdmin({
     ...question,
     versions: [
       {
         id: version.id,
         version: version.version,
+        answerKey: version.answerKey,
         options: version.options.map((o) => ({
           id: o.id,
           label: o.label,
           body: o.body,
           sortOrder: o.sortOrder,
+          isCorrect: o.isCorrect,
+          imageUrl: o.imageUrl,
         })),
       },
     ],
@@ -360,67 +405,133 @@ export async function updateQuestion(
   });
   if (!question) throw notFound('Question not found.');
 
+  const contentTouched =
+    input.type !== undefined ||
+    input.stem !== undefined ||
+    input.points !== undefined ||
+    input.options !== undefined ||
+    input.answerKey !== undefined;
+
+  if (!contentTouched && input.isActive === undefined) {
+    return mapQuestionAdmin({
+      ...question,
+      versions: question.versions.map((v) => ({
+        id: v.id,
+        version: v.version,
+        answerKey: v.answerKey,
+        options: v.options,
+      })),
+    });
+  }
+
   const latest = question.versions[0];
-  const nextVersion = (latest?.version ?? 0) + 1;
+  let liveIsActive = question.isActive;
+  let liveType = question.type;
+  let liveStem = question.stem;
+  let livePoints = Number(question.points);
+  let versionForMap = latest
+    ? {
+        id: latest.id,
+        version: latest.version,
+        answerKey: latest.answerKey,
+        options: latest.options,
+      }
+    : null;
 
-  const type = input.type ?? question.type;
-  const stem = input.stem ?? question.stem;
-  const points = input.points ?? Number(question.points);
-  const options =
-    input.options ??
-    latest?.options.map((o) => ({
-      label: o.label,
-      body: o.body,
-      isCorrect: o.isCorrect,
-    })) ??
-    [];
-  const answerKey =
-    input.answerKey ??
-    (latest?.answerKey && typeof latest.answerKey === 'object'
-      ? (latest.answerKey as Record<string, unknown>)
-      : {});
+  if (contentTouched) {
+    const nextVersion = (latest?.version ?? 0) + 1;
+    liveType = input.type ?? question.type;
+    liveStem = input.stem ?? question.stem;
+    livePoints = input.points ?? Number(question.points);
+    const options =
+      input.options ??
+      latest?.options.map((o) => ({
+        label: o.label,
+        body: o.body,
+        isCorrect: o.isCorrect,
+        imageUrl: o.imageUrl,
+      })) ??
+      [];
+    const answerKey =
+      input.answerKey ??
+      (latest?.answerKey && typeof latest.answerKey === 'object'
+        ? (latest.answerKey as Record<string, unknown>)
+        : {});
 
-  await prisma.question.update({
-    where: { id: questionId },
-    data: { type, stem, points },
-  });
+    await prisma.question.update({
+      where: { id: questionId },
+      data: {
+        type: liveType,
+        stem: liveStem,
+        points: livePoints,
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      },
+    });
+    if (input.isActive !== undefined) liveIsActive = input.isActive;
 
-  const version = await createQuestionVersion(
-    organizationId,
-    questionId,
-    { type, stem, points, options, answerKey },
-    nextVersion,
-  );
+    const version = await createQuestionVersion(
+      organizationId,
+      questionId,
+      { type: liveType, stem: liveStem, points: livePoints, options, answerKey },
+      nextVersion,
+    );
+    versionForMap = {
+      id: version.id,
+      version: version.version,
+      answerKey: version.answerKey,
+      options: version.options,
+    };
 
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'question.update',
-    targetType: 'question',
-    targetId: questionId,
-    metadata: { version: nextVersion },
-  });
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId,
+      action: 'question.update',
+      targetType: 'question',
+      targetId: questionId,
+      metadata: { version: nextVersion },
+    });
+  } else if (input.isActive !== undefined) {
+    await prisma.question.update({
+      where: { id: questionId },
+      data: { isActive: input.isActive },
+    });
+    liveIsActive = input.isActive;
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId,
+      action: 'question.update',
+      targetType: 'question',
+      targetId: questionId,
+      metadata: { isActive: input.isActive },
+    });
+  }
 
-  return mapQuestionPublic({
+  return mapQuestionAdmin({
     id: questionId,
     code: question.code,
-    type,
-    stem,
-    points: new Prisma.Decimal(points),
-    isActive: question.isActive,
-    versions: [
-      {
-        id: version.id,
-        version: version.version,
-        options: version.options.map((o) => ({
-          id: o.id,
-          label: o.label,
-          body: o.body,
-          sortOrder: o.sortOrder,
-        })),
-      },
-    ],
+    type: liveType,
+    stem: liveStem,
+    points: new Prisma.Decimal(livePoints),
+    isActive: liveIsActive,
+    versions: versionForMap
+      ? [
+          {
+            id: versionForMap.id,
+            version: versionForMap.version,
+            answerKey: versionForMap.answerKey,
+            options: versionForMap.options.map((o) => ({
+              id: o.id,
+              label: o.label,
+              body: o.body,
+              sortOrder: o.sortOrder,
+              isCorrect: o.isCorrect,
+              imageUrl: o.imageUrl,
+            })),
+          },
+        ]
+      : [],
   });
 }
 
@@ -475,17 +586,20 @@ export async function importQuestions(
       continue;
     }
 
-    const type = (
-      [
-        'single_mcq',
-        'multiple_mcq',
-        'numeric',
-        'short_text',
-        'passage',
-        'match',
-        'image_mcq',
-      ] as const
-    ).includes(typeRaw as 'single_mcq')
+    const knownTypes = new Set([
+      'single_mcq',
+      'multiple_mcq',
+      'true_false',
+      'numeric',
+      'short_text',
+      'long_text',
+      'passage',
+      'match',
+      'image_mcq',
+      'image_selection',
+      'comprehension_mcq',
+    ]);
+    const type = knownTypes.has(typeRaw)
       ? (typeRaw as z.infer<typeof createQuestionSchema>['type'])
       : 'single_mcq';
 

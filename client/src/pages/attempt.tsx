@@ -3,6 +3,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExamShellSkeleton } from '../components/skeletons';
 import { ApiError } from '../lib/api-client';
+import {
+  answerFromResponse,
+  instructionForType,
+  isAnswered,
+  isMultiSelectType,
+  isSingleSelectType,
+  type AnswerMap,
+  type AttemptAnswerValue,
+} from '../lib/attempt-answers';
 import { timeRemaining } from '../lib/format';
 import {
   resumeAttempt,
@@ -13,14 +22,6 @@ import {
 } from '../services/api';
 import type { AttemptQuestion, AttemptState } from '../services/types';
 
-function selectedLabel(answer: unknown): string | null {
-  if (answer && typeof answer === 'object' && 'label' in answer) {
-    const label = (answer as { label: unknown }).label;
-    return typeof label === 'string' ? label : null;
-  }
-  return null;
-}
-
 export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const { id = '' } = useParams();
   const [searchParams] = useSearchParams();
@@ -29,7 +30,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<AnswerMap>({});
   const [marked, setMarked] = useState<number[]>([]);
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
@@ -39,8 +40,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [submitting, setSubmitting] = useState(false);
   const revisionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
-  const pendingAnswersRef = useRef<Record<string, string> | null>(null);
-  const persistRef = useRef<(next: Record<string, string>) => Promise<void>>(async () => {});
+  const pendingAnswersRef = useRef<AnswerMap | null>(null);
+  const persistRef = useRef<(next: AnswerMap) => Promise<void>>(async () => {});
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const autoSubmitted = useRef(false);
   const sessionEndedRef = useRef(false);
@@ -73,10 +74,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         setAttempt(data.attempt);
         setQuestions(data.questions);
         revisionRef.current = data.attempt.revision;
-        const mapped: Record<string, string> = {};
+        const mapped: AnswerMap = {};
         for (const r of data.attempt.responses) {
-          const label = selectedLabel(r.answer);
-          if (label) mapped[r.questionVersionId] = label;
+          const parsed = answerFromResponse(r.answer);
+          if (parsed) mapped[r.questionVersionId] = parsed;
         }
         setAnswers(mapped);
         const remaining = Math.max(
@@ -132,11 +133,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }, [proctorWarn]);
 
   const persist = useCallback(
-    async (nextAnswers: Record<string, string>) => {
+    async (nextAnswers: AnswerMap) => {
       if (!attempt || sessionEndedRef.current) return;
-      const responses = Object.entries(nextAnswers).map(([questionVersionId, label]) => ({
+      const responses = Object.entries(nextAnswers).map(([questionVersionId, answer]) => ({
         questionVersionId,
-        answer: { label },
+        answer,
       }));
       if (responses.length === 0) return;
       try {
@@ -173,14 +174,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
 
   persistRef.current = persist;
 
-  function enqueueSave(next: Record<string, string>) {
+  function enqueueSave(next: AnswerMap) {
     saveChainRef.current = saveChainRef.current
       .catch(() => undefined)
       .then(() => persistRef.current(next));
     return saveChainRef.current;
   }
 
-  function queueSave(next: Record<string, string>) {
+  function queueSave(next: AnswerMap) {
     if (sessionEndedRef.current) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     pendingAnswersRef.current = next;
@@ -250,7 +251,16 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     void doSubmit(true);
   }, [attempt, busy, doSubmit, seconds]);
 
-  const answeredCount = useMemo(() => Object.keys(answers).length, [answers]);
+  function setAnswer(questionVersionId: string, answer: AttemptAnswerValue) {
+    const next = { ...answers, [questionVersionId]: answer };
+    setAnswers(next);
+    queueSave(next);
+  }
+
+  const answeredCount = useMemo(
+    () => Object.values(answers).filter((a) => isAnswered(a)).length,
+    [answers],
+  );
   const q = questions[qIndex];
 
   if (busy && !attempt) {
@@ -271,6 +281,13 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }
 
   if (!attempt || !q) return null;
+
+  const current = answers[q.questionVersionId];
+  const singleChosen = current && 'label' in current ? current.label : null;
+  const multiChosen = current && 'labels' in current ? new Set(current.labels) : new Set<string>();
+  const numericValue =
+    current && 'value' in current && Number.isFinite(current.value) ? String(current.value) : '';
+  const textValue = current && 'text' in current ? current.text : '';
 
   return (
     <div className="exam-page">
@@ -329,32 +346,139 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           </div>
           <div className="question-card">
             <div className="question-context">ASSESSMENT QUESTION</div>
+            {q.passageText ? (
+              <div
+                className="question-passage"
+                style={{
+                  marginBottom: 16,
+                  padding: 12,
+                  borderRadius: 12,
+                  border: '1px solid var(--border, #e5e7eb)',
+                  whiteSpace: 'pre-wrap',
+                  maxHeight: 220,
+                  overflow: 'auto',
+                }}
+              >
+                {q.passageText}
+              </div>
+            ) : null}
+            {q.stemImageUrl ? (
+              <img
+                src={q.stemImageUrl}
+                alt=""
+                style={{
+                  display: 'block',
+                  maxWidth: '100%',
+                  maxHeight: 220,
+                  marginBottom: 12,
+                  borderRadius: 12,
+                  objectFit: 'contain',
+                }}
+              />
+            ) : null}
             <h1>{q.stem}</h1>
-            <p className="question-instruction">Choose one answer from the options below.</p>
-            <div className="option-list">
-              {q.options.map((op) => {
-                const chosen = answers[q.questionVersionId] === op.label;
-                return (
-                  <button
-                    key={op.id}
-                    type="button"
-                    className={`answer-option ${chosen ? 'chosen' : ''}`}
-                    onClick={() => {
-                      const next = {
-                        ...answers,
-                        [q.questionVersionId]: op.label,
-                      };
-                      setAnswers(next);
-                      queueSave(next);
+            <p className="question-instruction">{instructionForType(q.type)}</p>
+
+            {isSingleSelectType(q.type) || isMultiSelectType(q.type) ? (
+              <div className="option-list">
+                {q.options.map((op) => {
+                  const chosen = isMultiSelectType(q.type)
+                    ? multiChosen.has(op.label)
+                    : singleChosen === op.label;
+                  return (
+                    <button
+                      key={op.id}
+                      type="button"
+                      className={`answer-option ${chosen ? 'chosen' : ''}`}
+                      onClick={() => {
+                        if (isMultiSelectType(q.type)) {
+                          const next = new Set(multiChosen);
+                          if (next.has(op.label)) next.delete(op.label);
+                          else next.add(op.label);
+                          setAnswer(q.questionVersionId, { labels: [...next] });
+                        } else {
+                          setAnswer(q.questionVersionId, { label: op.label });
+                        }
+                      }}
+                    >
+                      <span className="option-letter">{op.label}</span>
+                      <span
+                        style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}
+                      >
+                        {op.imageUrl ? (
+                          <img
+                            src={op.imageUrl}
+                            alt=""
+                            style={{
+                              maxWidth: '100%',
+                              maxHeight: 140,
+                              borderRadius: 8,
+                              objectFit: 'contain',
+                            }}
+                          />
+                        ) : null}
+                        <span>{op.body}</span>
+                      </span>
+                      {chosen && <Check size={17} className="option-check" />}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+
+            {q.type === 'numeric' ? (
+              <div className="option-list">
+                <label className="answer-option" style={{ cursor: 'default' }}>
+                  <span className="option-letter">#</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={numericValue}
+                    aria-label="Numeric answer"
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      border: 'none',
+                      background: 'transparent',
+                      font: 'inherit',
+                      outline: 'none',
                     }}
-                  >
-                    <span className="option-letter">{op.label}</span>
-                    <span>{op.body}</span>
-                    {chosen && <Check size={17} className="option-check" />}
-                  </button>
-                );
-              })}
-            </div>
+                    onChange={(e) => {
+                      const raw = e.target.value;
+                      if (raw.trim() === '') {
+                        const next = { ...answers };
+                        delete next[q.questionVersionId];
+                        setAnswers(next);
+                        queueSave(next);
+                        return;
+                      }
+                      const num = Number(raw);
+                      if (!Number.isNaN(num)) setAnswer(q.questionVersionId, { value: num });
+                    }}
+                  />
+                </label>
+              </div>
+            ) : null}
+
+            {q.type === 'short_text' || q.type === 'long_text' ? (
+              <div className="option-list">
+                <textarea
+                  aria-label="Text answer"
+                  rows={q.type === 'long_text' ? 6 : 3}
+                  value={textValue}
+                  style={{
+                    width: '100%',
+                    minHeight: q.type === 'long_text' ? 140 : 88,
+                    resize: 'vertical',
+                    borderRadius: 12,
+                    border: '1px solid var(--border, #e5e7eb)',
+                    padding: 12,
+                    font: 'inherit',
+                  }}
+                  onChange={(e) => setAnswer(q.questionVersionId, { text: e.target.value })}
+                />
+              </div>
+            ) : null}
           </div>
           <div className="question-footer">
             <button
@@ -413,7 +537,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               <button
                 key={question.questionVersionId}
                 type="button"
-                className={`question-number ${qIndex === i ? 'current' : ''} ${answers[question.questionVersionId] ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''}`}
+                className={`question-number ${qIndex === i ? 'current' : ''} ${isAnswered(answers[question.questionVersionId]) ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''}`}
                 onClick={() => setQIndex(i)}
                 aria-label={`Go to question ${i + 1}`}
               >

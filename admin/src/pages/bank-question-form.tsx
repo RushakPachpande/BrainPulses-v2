@@ -1,0 +1,398 @@
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import type { BankQuestionItem } from '@/services';
+import {
+  emptyDraft,
+  emptyOptions,
+  trueFalseOptions,
+  type OptionDraft,
+  type QuestionDraft,
+} from './bank-question-draft';
+import {
+  BANK_QUESTION_TYPES,
+  bankQuestionTypeLabel,
+  type BankAuthorType,
+} from './bank-question-types';
+
+function OptionRows({
+  options,
+  multi,
+  showImageUrl,
+  readOnly,
+  onChange,
+}: {
+  options: OptionDraft[];
+  multi: boolean;
+  showImageUrl: boolean;
+  readOnly: boolean;
+  onChange: (next: OptionDraft[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {options.map((opt, oi) => (
+        <div key={opt.label} className="flex flex-col gap-2 rounded-lg border border-border p-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {readOnly ? (
+              <span className="text-sm font-medium">
+                {opt.label}
+                {opt.isCorrect ? (
+                  <span className="ml-2 text-xs font-medium text-success">Correct</span>
+                ) : null}
+              </span>
+            ) : (
+              <label className="flex shrink-0 items-center gap-2 text-sm">
+                <Checkbox
+                  checked={opt.isCorrect}
+                  onCheckedChange={(value) => {
+                    const checked = value === true;
+                    onChange(
+                      options.map((o, i) => {
+                        if (multi) {
+                          return i === oi ? { ...o, isCorrect: checked } : o;
+                        }
+                        return { ...o, isCorrect: i === oi ? checked : false };
+                      }),
+                    );
+                  }}
+                  aria-label={`Mark option ${opt.label} as correct`}
+                />
+                {opt.label}
+              </label>
+            )}
+            <Input
+              value={opt.body}
+              placeholder={`Option ${opt.label}`}
+              disabled={readOnly}
+              onChange={(e) => {
+                const value = e.target.value;
+                onChange(options.map((o, i) => (i === oi ? { ...o, body: value } : o)));
+              }}
+            />
+          </div>
+          {showImageUrl ? (
+            <Input
+              value={opt.imageUrl}
+              placeholder="Image URL"
+              disabled={readOnly}
+              onChange={(e) => {
+                const value = e.target.value;
+                onChange(options.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)));
+              }}
+            />
+          ) : null}
+          {showImageUrl && opt.imageUrl ? (
+            <img
+              src={opt.imageUrl}
+              alt=""
+              className="max-h-32 max-w-full rounded-md border border-border object-contain"
+            />
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function BankQuestionDialog({
+  open,
+  mode,
+  draft,
+  saving,
+  onOpenChange,
+  onDraftChange,
+  onSave,
+}: {
+  open: boolean;
+  mode: 'add' | 'edit' | 'view';
+  draft: QuestionDraft;
+  saving: boolean;
+  onOpenChange: (open: boolean) => void;
+  onDraftChange: (draft: QuestionDraft) => void;
+  onSave: () => void;
+}) {
+  const readOnly = mode === 'view';
+  const title =
+    mode === 'add' ? 'Add question' : mode === 'edit' ? 'Edit question' : 'View question';
+
+  function setType(type: BankAuthorType) {
+    const next = emptyDraft(type);
+    onDraftChange({
+      ...next,
+      stem: draft.stem,
+      points: draft.points,
+      stemImageUrl: draft.stemImageUrl,
+      passageText: type === 'comprehension_mcq' ? draft.passageText : '',
+    });
+  }
+
+  const showOptions =
+    draft.type === 'single_mcq' ||
+    draft.type === 'multiple_mcq' ||
+    draft.type === 'true_false' ||
+    draft.type === 'image_mcq' ||
+    draft.type === 'image_selection' ||
+    draft.type === 'comprehension_mcq';
+
+  const multi = draft.type === 'multiple_mcq' || draft.type === 'image_selection';
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-2xl" showCloseButton>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>
+            {readOnly
+              ? bankQuestionTypeLabel(draft.type)
+              : 'Choose a type, then fill in the stem and answers.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-4">
+          <Field>
+            <FieldLabel htmlFor="bank-q-type">Type</FieldLabel>
+            {readOnly ? (
+              <Input id="bank-q-type" value={bankQuestionTypeLabel(draft.type)} disabled />
+            ) : (
+              <Select value={draft.type} onValueChange={(v) => setType(v as BankAuthorType)}>
+                <SelectTrigger id="bank-q-type" className="w-full" aria-label="Question type">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BANK_QUESTION_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </Field>
+
+          {draft.type === 'comprehension_mcq' ? (
+            <Field>
+              <FieldLabel htmlFor="bank-q-passage">
+                Passage <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Textarea
+                id="bank-q-passage"
+                value={draft.passageText}
+                disabled={readOnly}
+                rows={5}
+                onChange={(e) => onDraftChange({ ...draft, passageText: e.target.value })}
+              />
+            </Field>
+          ) : null}
+
+          <Field>
+            <FieldLabel htmlFor="bank-q-stem">
+              Stem <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Textarea
+              id="bank-q-stem"
+              value={draft.stem}
+              disabled={readOnly}
+              rows={3}
+              onChange={(e) => onDraftChange({ ...draft, stem: e.target.value })}
+            />
+          </Field>
+
+          {(draft.type === 'image_mcq' || draft.type === 'image_selection') && (
+            <Field>
+              <FieldLabel htmlFor="bank-q-stem-image">Stem image URL (optional)</FieldLabel>
+              <Input
+                id="bank-q-stem-image"
+                value={draft.stemImageUrl}
+                disabled={readOnly}
+                placeholder="https://…"
+                onChange={(e) => onDraftChange({ ...draft, stemImageUrl: e.target.value })}
+              />
+              {draft.stemImageUrl ? (
+                <img
+                  src={draft.stemImageUrl}
+                  alt=""
+                  className="mt-2 max-h-40 max-w-full rounded-md border border-border object-contain"
+                />
+              ) : null}
+            </Field>
+          )}
+
+          <Field className="max-w-40">
+            <FieldLabel htmlFor="bank-q-points">Points</FieldLabel>
+            <Input
+              id="bank-q-points"
+              type="number"
+              min={1}
+              step={1}
+              value={draft.points}
+              disabled={readOnly}
+              onChange={(e) =>
+                onDraftChange({ ...draft, points: Math.max(1, Number(e.target.value) || 1) })
+              }
+            />
+          </Field>
+
+          {draft.type === 'numeric' ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="bank-q-num">
+                  Correct value <span className="text-destructive">*</span>
+                </FieldLabel>
+                <Input
+                  id="bank-q-num"
+                  type="number"
+                  value={draft.referenceValue}
+                  disabled={readOnly}
+                  onChange={(e) => onDraftChange({ ...draft, referenceValue: e.target.value })}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="bank-q-tol">Tolerance</FieldLabel>
+                <Input
+                  id="bank-q-tol"
+                  type="number"
+                  min={0}
+                  step="any"
+                  value={draft.numericTolerance}
+                  disabled={readOnly}
+                  onChange={(e) => onDraftChange({ ...draft, numericTolerance: e.target.value })}
+                />
+              </Field>
+            </div>
+          ) : null}
+
+          {draft.type === 'short_text' || draft.type === 'long_text' ? (
+            <Field>
+              <FieldLabel htmlFor="bank-q-ref">
+                Reference answer {draft.type === 'short_text' ? '(optional)' : '(optional)'}
+              </FieldLabel>
+              {draft.type === 'long_text' ? (
+                <Textarea
+                  id="bank-q-ref"
+                  value={draft.referenceValue}
+                  disabled={readOnly}
+                  rows={4}
+                  onChange={(e) => onDraftChange({ ...draft, referenceValue: e.target.value })}
+                />
+              ) : (
+                <Input
+                  id="bank-q-ref"
+                  value={draft.referenceValue}
+                  disabled={readOnly}
+                  onChange={(e) => onDraftChange({ ...draft, referenceValue: e.target.value })}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">
+                When set, answers are scored by case-insensitive exact match. When empty, the
+                question is excluded from the auto score.
+              </p>
+            </Field>
+          ) : null}
+
+          {showOptions ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">Options</p>
+              <OptionRows
+                options={draft.options}
+                multi={multi}
+                showImageUrl={draft.type === 'image_selection'}
+                readOnly={readOnly}
+                onChange={(options) => onDraftChange({ ...draft, options })}
+              />
+              {!readOnly && draft.type !== 'true_false' && draft.options.length < 6 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const nextLabel =
+                      ['A', 'B', 'C', 'D', 'E', 'F'][draft.options.length] ??
+                      String(draft.options.length + 1);
+                    onDraftChange({
+                      ...draft,
+                      options: [
+                        ...draft.options,
+                        { label: nextLabel, body: '', isCorrect: false, imageUrl: '' },
+                      ],
+                    });
+                  }}
+                >
+                  Add option
+                </Button>
+              ) : null}
+              {!readOnly && draft.type === 'true_false' ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="self-start"
+                  onClick={() => onDraftChange({ ...draft, options: trueFalseOptions() })}
+                >
+                  Reset True / False
+                </Button>
+              ) : null}
+              {!readOnly &&
+              (draft.type === 'single_mcq' || draft.type === 'image_mcq') &&
+              draft.options.length === 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onDraftChange({ ...draft, options: emptyOptions(4) })}
+                >
+                  Add options
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            {readOnly ? 'Close' : 'Cancel'}
+          </Button>
+          {!readOnly ? (
+            <Button type="button" disabled={saving} onClick={onSave}>
+              {saving ? 'Saving…' : 'Save question'}
+            </Button>
+          ) : null}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }) {
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <p className="font-medium">{item.stem}</p>
+      {item.passageText ? (
+        <p className="whitespace-pre-wrap text-muted-foreground">{item.passageText}</p>
+      ) : null}
+      <ul className="space-y-1">
+        {(item.options ?? []).map((o) => (
+          <li key={o.label}>
+            <span className="font-medium">{o.label}.</span> {o.body}
+            {o.isCorrect ? (
+              <span className="ml-2 text-xs font-medium text-success">Correct</span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
