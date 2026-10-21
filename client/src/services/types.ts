@@ -26,6 +26,9 @@ export type StudentActivity = {
   endsAt: string | null;
   questionCount: number;
   attemptState: 'not_started' | 'in_progress' | 'submitted';
+  /** False when status is not active or outside the start/end window. */
+  canAttempt?: boolean;
+  attemptBlockedReason?: string | null;
   openAttemptId: string | null;
   latestResultId: string | null;
   latestPercent: number | null;

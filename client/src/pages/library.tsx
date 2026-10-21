@@ -73,7 +73,10 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
     return items.filter((x) => {
       const hay = `${x.name} ${x.subtitle ?? ''}`.toLowerCase();
       if (search && !hay.includes(search.toLowerCase())) return false;
-      if (view === 'Available' && x.attemptState === 'submitted') return false;
+      if (view === 'Available') {
+        if (x.attemptState === 'submitted') return false;
+        if (x.canAttempt === false && !x.openAttemptId) return false;
+      }
       if (view === 'Completed' && x.attemptState !== 'submitted') return false;
       return true;
     });
@@ -89,7 +92,10 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
     navigate(`${base}/${item.activityId}`);
   }
 
-  const availableCount = items.filter((x) => x.attemptState !== 'submitted').length;
+  const availableCount = items.filter(
+    (x) =>
+      x.attemptState !== 'submitted' && (x.canAttempt !== false || Boolean(x.openAttemptId)),
+  ).length;
   const completedCount = items.filter((x) => x.attemptState === 'submitted').length;
   const filtersActive = Boolean(search) || view !== 'All';
 
@@ -195,7 +201,9 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
                       ? 'Completed'
                       : x.attemptState === 'in_progress'
                         ? 'In progress'
-                        : 'Available'
+                        : x.canAttempt === false
+                          ? 'Closed'
+                          : 'Available'
                   }
                 />
               </div>

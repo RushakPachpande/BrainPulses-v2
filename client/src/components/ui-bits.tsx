@@ -31,7 +31,9 @@ export function Status({ value }: { value: string }) {
       ? 'success'
       : value === 'In progress'
         ? 'brand'
-        : 'warning';
+        : value === 'Closed' || value === 'Locked'
+          ? 'neutral'
+          : 'warning';
   return (
     <span className={`status status-${tone}`}>
       <i />

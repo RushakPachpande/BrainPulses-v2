@@ -127,6 +127,7 @@ export async function listMyActivities(
   ]);
 
   const { items, page } = buildPage(rows, query.limit, total);
+  const now = new Date();
   return listEnvelope(
     items.map((row) => {
       const activity = row.activity;
@@ -167,6 +168,22 @@ export async function listMyActivities(
         }
       }
 
+      // Mirrors startAttempt guards so the client does not offer Start → 403.
+      let canAttempt = activity.status === 'active';
+      let attemptBlockedReason: string | null = null;
+      if (activity.status !== 'active') {
+        attemptBlockedReason =
+          activity.status === 'completed'
+            ? 'This activity is closed.'
+            : 'Activity is not open for attempts.';
+      } else if (activity.startsAt && activity.startsAt > now) {
+        canAttempt = false;
+        attemptBlockedReason = 'Activity has not started yet.';
+      } else if (activity.endsAt && activity.endsAt < now) {
+        canAttempt = false;
+        attemptBlockedReason = 'Activity window has ended.';
+      }
+
       const rounds = isAssessment
         ? activity.rounds.map((round, index) => {
             const roundAttempts = attempts.filter((a) => a.roundId === round.id);
@@ -179,6 +196,8 @@ export async function listMyActivities(
               state = 'completed';
             } else if (open) {
               state = 'in_progress';
+            } else if (!canAttempt) {
+              state = 'locked';
             } else if (index === 0) {
               state = 'available';
             } else {
@@ -241,6 +260,8 @@ export async function listMyActivities(
         endsAt: activity.endsAt,
         questionCount,
         attemptState,
+        canAttempt,
+        attemptBlockedReason,
         openAttemptId: openAttempt?.id ?? null,
         latestResultId: latestCompleted?.result?.id ?? null,
         latestPercent: latestCompleted?.result ? toNumber(latestCompleted.result.percent) : null,
