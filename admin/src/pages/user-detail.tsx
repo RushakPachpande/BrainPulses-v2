@@ -67,9 +67,21 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (readOnly) return;
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+    if (!trimmedName) {
+      toast.error('Name is required.');
+      return;
+    }
+    if (!trimmedEmail) {
+      toast.error('Email is required.');
+      return;
+    }
     setSaving(true);
     try {
       await updateMembershipAccess(userId, {
+        name: trimmedName,
+        email: trimmedEmail,
         assessmentAccess,
         quizAccess,
         isActive: status === 'Active',
@@ -129,12 +141,25 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
           <form onSubmit={onSubmit}>
             <FieldGroup>
               <Field>
-                <FieldLabel>Name</FieldLabel>
-                <Input value={name} disabled />
+                <FieldLabel htmlFor="user-name">Name</FieldLabel>
+                <Input
+                  id="user-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  disabled={readOnly}
+                  autoComplete="name"
+                />
               </Field>
               <Field>
-                <FieldLabel>Email</FieldLabel>
-                <Input value={email} disabled />
+                <FieldLabel htmlFor="user-email">Email</FieldLabel>
+                <Input
+                  id="user-email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={readOnly}
+                  autoComplete="email"
+                />
               </Field>
               <Field>
                 <FieldLabel>Assessment access</FieldLabel>

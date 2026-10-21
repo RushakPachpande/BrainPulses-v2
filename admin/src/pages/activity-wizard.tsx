@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, PlusIcon, TrashIcon } from 'lucide-react';
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, PlusIcon, TrashIcon } from 'lucide-react';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -26,6 +27,8 @@ import {
   archiveActivity,
   assignRegistrations,
   createActivity,
+  createRoundQuestion,
+  deleteRoundQuestion,
   getActivity,
   getQuestionBanks,
   getStudents,
@@ -33,17 +36,38 @@ import {
   updateActivity,
   type ActivityKind,
   type ActivityRegistrationField,
+  type ActivityRoundLocalQuestion,
   type ActivitySettings,
+  type QuizActivitySettings,
 } from '@/services';
 
-const steps = [
-  'Basic Details',
-  'Registration Form',
-  'Select Question Banks',
-  'Assignment Rules',
-  'Behaviour Settings',
-  'Review & Publish',
-] as const;
+const defaultQuizSettings = (): QuizActivitySettings => ({
+  shuffleQuestions: true,
+  shuffleOptions: true,
+  scoreVisibleToStudent: false,
+  answersVisibleToStudent: false,
+  dailyLeaderboardVisible: true,
+  overallLeaderboardVisible: true,
+  dailyGroupLeaderboardVisible: true,
+  overallGroupLeaderboardVisible: true,
+  countsForGroupLeaderboard: true,
+  leaderboardReleasedAt: null,
+});
+
+type RoundDraft = {
+  key: string;
+  id?: string;
+  name: string;
+  bankIds: string[];
+  localQuestions: ActivityRoundLocalQuestion[];
+};
+
+const emptyRound = (index: number): RoundDraft => ({
+  key: `round_${Math.random().toString(36).slice(2, 9)}`,
+  name: `Round ${index + 1}`,
+  bankIds: [],
+  localQuestions: [],
+});
 
 type WizardMode = 'create' | 'edit' | 'view';
 
@@ -66,6 +90,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const noun = isQuiz ? 'Quiz' : 'Assessment';
   const listPath = isQuiz ? '/quizzes' : '/assessments';
   const readOnly = mode === 'view';
+  const steps = useMemo(
+    () =>
+      [
+        'Basic Details',
+        'Registration Form',
+        isQuiz ? 'Select Question Banks' : 'Define Rounds',
+        'Assignment Rules',
+        'Behaviour Settings',
+        'Review & Publish',
+      ] as const,
+    [isQuiz],
+  );
 
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(mode !== 'create');
@@ -87,6 +123,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
   const [regFields, setRegFields] = useState<FieldDraft[]>([]);
   const [bankIds, setBankIds] = useState<string[]>([]);
+  const [rounds, setRounds] = useState<RoundDraft[]>(() => [emptyRound(0)]);
+  const [addingQuestionFor, setAddingQuestionFor] = useState<string | null>(null);
+  const [newQuestionStem, setNewQuestionStem] = useState('');
+  const [newQuestionOptions, setNewQuestionOptions] = useState([
+    { label: 'A', body: '', isCorrect: true },
+    { label: 'B', body: '', isCorrect: false },
+  ]);
   const [banks, setBanks] = useState<{ id: string; name: string; questions: number }[]>([]);
   const [assignMode, setAssignMode] = useState<'manual' | 'all_active_students'>('manual');
   const [assignNotes, setAssignNotes] = useState('');
@@ -95,6 +138,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [presentation, setPresentation] = useState<'one_at_a_time' | 'all_on_page' | 'timed_card'>(
     'one_at_a_time',
   );
+  const [quizSettings, setQuizSettings] = useState<QuizActivitySettings>(defaultQuizSettings);
+  const [leaderboardReleaseLocal, setLeaderboardReleaseLocal] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -128,6 +173,24 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         if (activity.startsAt) setStartDate(new Date(activity.startsAt));
         if (activity.endsAt) setEndDate(new Date(activity.endsAt));
         setBankIds(activity.bankIds);
+        if (activity.rounds && activity.rounds.length > 0) {
+          setRounds(
+            activity.rounds.map((r) => ({
+              key: r.id,
+              id: r.id,
+              name: r.name,
+              bankIds: r.bankIds,
+              localQuestions: r.localQuestions ?? [],
+            })),
+          );
+        } else if (activity.kind === 'assessment') {
+          setRounds([
+            {
+              ...emptyRound(0),
+              bankIds: activity.bankIds,
+            },
+          ]);
+        }
         setDurationMinutes(String(activity.durationMinutes ?? 60));
         setPassingPercent(String(activity.passingPercent ?? 40));
         setPresentation(activity.presentation);
@@ -135,6 +198,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         setRegFields(settings?.registrationForm?.fields ?? []);
         setAssignMode(settings?.assignmentRules?.mode ?? 'manual');
         setAssignNotes(settings?.assignmentRules?.notes ?? '');
+        if (activity.kind === 'quiz') {
+          const q = { ...defaultQuizSettings(), ...settings?.quiz };
+          setQuizSettings(q);
+          setLeaderboardReleaseLocal(
+            q.leaderboardReleasedAt
+              ? new Date(q.leaderboardReleasedAt).toISOString().slice(0, 16)
+              : '',
+          );
+        }
       } catch (err) {
         toast.error(
           err instanceof ApiError ? err.message : `Could not load ${noun.toLowerCase()}.`,
@@ -164,14 +236,50 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         mode: assignMode,
         notes: assignNotes.trim() || undefined,
       },
+      ...(isQuiz
+        ? {
+            quiz: {
+              ...quizSettings,
+              leaderboardReleasedAt: leaderboardReleaseLocal
+                ? new Date(leaderboardReleaseLocal).toISOString()
+                : null,
+            },
+          }
+        : {}),
     };
-  }, [assignMode, assignNotes, regFields]);
+  }, [assignMode, assignNotes, isQuiz, leaderboardReleaseLocal, quizSettings, regFields]);
+
+  async function syncRoundsFromServer(id: string): Promise<RoundDraft[]> {
+    const activity = await getActivity(id);
+    if (activity.rounds && activity.rounds.length > 0) {
+      const next = activity.rounds.map((r) => ({
+        key: r.id,
+        id: r.id,
+        name: r.name,
+        bankIds: r.bankIds,
+        localQuestions: r.localQuestions ?? [],
+      }));
+      setRounds(next);
+      return next;
+    }
+    return [];
+  }
 
   async function persist(opts?: { publish?: boolean; archive?: boolean; stay?: boolean }) {
     if (readOnly) return activityId;
     if (!name.trim()) {
       toast.error('Name is required.');
       setStep(0);
+      return null;
+    }
+    if (!isQuiz && rounds.length === 0) {
+      toast.error('Add at least one round.');
+      setStep(2);
+      return null;
+    }
+    if (!isQuiz && rounds.some((r) => !r.name.trim())) {
+      toast.error('Each round needs a name.');
+      setStep(2);
       return null;
     }
     setSaving(true);
@@ -186,7 +294,16 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : undefined,
         passingPercent: Number.isFinite(passing) ? passing : undefined,
         presentation,
-        bankIds,
+        ...(isQuiz
+          ? { bankIds }
+          : {
+              rounds: rounds.map((r, i) => ({
+                ...(r.id ? { id: r.id } : {}),
+                name: r.name.trim(),
+                sortOrder: i,
+                bankIds: r.bankIds,
+              })),
+            }),
         settings: settingsPayload,
         ...(code.trim() ? { code: code.trim() } : {}),
       };
@@ -199,6 +316,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         if (created.code) setCode(created.code);
       } else {
         await updateActivity(id, payload);
+      }
+
+      if (!isQuiz) {
+        await syncRoundsFromServer(id);
       }
 
       if (assignMode === 'all_active_students') {
@@ -228,6 +349,79 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : `Could not save ${noun.toLowerCase()}.`);
       return null;
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddRoundQuestion(roundKey: string) {
+    if (readOnly) return;
+    const stem = newQuestionStem.trim();
+    if (!stem) {
+      toast.error('Question stem is required.');
+      return;
+    }
+    const filled = newQuestionOptions.filter((o) => o.body.trim());
+    if (filled.length < 2) {
+      toast.error('Add at least two options.');
+      return;
+    }
+    if (!filled.some((o) => o.isCorrect)) {
+      toast.error('Mark one correct option.');
+      return;
+    }
+
+    const draftIndex = rounds.findIndex((r) => r.key === roundKey);
+    const id = (await persist({ stay: true })) ?? null;
+    if (!id) return;
+
+    const synced = await syncRoundsFromServer(id);
+    const roundId =
+      synced[draftIndex]?.id ??
+      synced.find((r) => r.key === roundKey || r.name === rounds[draftIndex]?.name)?.id;
+    if (!roundId) {
+      toast.error('Save the round before adding questions.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await createRoundQuestion(id, roundId, {
+        type: 'single_mcq',
+        stem,
+        points: 1,
+        options: filled.map((o) => ({
+          label: o.label,
+          body: o.body.trim(),
+          isCorrect: o.isCorrect,
+        })),
+      });
+      await syncRoundsFromServer(id);
+      setAddingQuestionFor(null);
+      setNewQuestionStem('');
+      setNewQuestionOptions([
+        { label: 'A', body: '', isCorrect: true },
+        { label: 'B', body: '', isCorrect: false },
+      ]);
+      toast.success('Question added to round.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not add question.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteRoundQuestion(roundKey: string, questionId: string) {
+    if (readOnly || !activityId) return;
+    const round = rounds.find((r) => r.key === roundKey);
+    if (!round?.id) return;
+    setSaving(true);
+    try {
+      await deleteRoundQuestion(activityId, round.id, questionId);
+      await syncRoundsFromServer(activityId);
+      toast.success('Question removed.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not remove question.');
     } finally {
       setSaving(false);
     }
@@ -458,7 +652,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </div>
           ) : null}
 
-          {step === 2 ? (
+          {step === 2 && isQuiz ? (
             <div className="flex flex-col gap-3">
               <p className="text-sm text-muted-foreground">
                 Select one or more question banks for this {noun.toLowerCase()}.
@@ -499,6 +693,255 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   );
                 })
               )}
+            </div>
+          ) : null}
+
+          {step === 2 && !isQuiz ? (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-muted-foreground">
+                Define ordered rounds. Link reusable question banks and optionally add questions
+                manually to each round. Students take rounds in order.
+              </p>
+              {rounds.map((round, index) => (
+                <Card key={round.key} className="border-border shadow-none">
+                  <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <FieldLabel htmlFor={`round-name-${round.key}`}>
+                        Round {index + 1} name
+                      </FieldLabel>
+                      <Input
+                        id={`round-name-${round.key}`}
+                        value={round.name}
+                        disabled={readOnly}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setRounds((prev) =>
+                            prev.map((r) => (r.key === round.key ? { ...r, name: value } : r)),
+                          );
+                        }}
+                      />
+                    </div>
+                    {!readOnly ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={index === 0}
+                          aria-label="Move round up"
+                          onClick={() => {
+                            setRounds((prev) => {
+                              if (index === 0) return prev;
+                              const next = [...prev];
+                              const tmp = next[index - 1]!;
+                              next[index - 1] = next[index]!;
+                              next[index] = tmp;
+                              return next;
+                            });
+                          }}
+                        >
+                          <ArrowUpIcon />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={index === rounds.length - 1}
+                          aria-label="Move round down"
+                          onClick={() => {
+                            setRounds((prev) => {
+                              if (index >= prev.length - 1) return prev;
+                              const next = [...prev];
+                              const tmp = next[index + 1]!;
+                              next[index + 1] = next[index]!;
+                              next[index] = tmp;
+                              return next;
+                            });
+                          }}
+                        >
+                          <ArrowDownIcon />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          disabled={rounds.length <= 1}
+                          aria-label="Remove round"
+                          onClick={() =>
+                            setRounds((prev) => prev.filter((r) => r.key !== round.key))
+                          }
+                        >
+                          <TrashIcon />
+                        </Button>
+                      </div>
+                    ) : null}
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-4">
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm font-medium">Linked question banks</p>
+                      {banks.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No banks yet.{' '}
+                          <Link className="underline" to={`${listPath}/banks/new`}>
+                            Create a bank
+                          </Link>
+                        </p>
+                      ) : (
+                        banks.map((bank) => {
+                          const checked = round.bankIds.includes(bank.id);
+                          return (
+                            <label
+                              key={bank.id}
+                              className="flex min-h-(--control-h) items-center gap-3 rounded-lg border border-border px-3"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={readOnly}
+                                onCheckedChange={(value) => {
+                                  setRounds((prev) =>
+                                    prev.map((r) => {
+                                      if (r.key !== round.key) return r;
+                                      const bankIdsNext =
+                                        value === true
+                                          ? [...r.bankIds, bank.id]
+                                          : r.bankIds.filter((id) => id !== bank.id);
+                                      return { ...r, bankIds: bankIdsNext };
+                                    }),
+                                  );
+                                }}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="font-medium">{bank.name}</span>
+                                <span className="ml-2 text-sm text-muted-foreground">
+                                  {bank.questions} questions
+                                </span>
+                              </span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <p className="text-sm font-medium">Manual questions</p>
+                      {round.localQuestions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">None yet.</p>
+                      ) : (
+                        <ul className="space-y-2">
+                          {round.localQuestions.map((q) => (
+                            <li
+                              key={q.id}
+                              className="flex items-start justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                            >
+                              <span className="min-w-0 flex-1 text-sm">{q.stem}</span>
+                              {!readOnly ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  aria-label="Delete question"
+                                  onClick={() => void handleDeleteRoundQuestion(round.key, q.id)}
+                                >
+                                  <TrashIcon />
+                                </Button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {!readOnly && addingQuestionFor === round.key ? (
+                        <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                          <Field>
+                            <FieldLabel htmlFor={`q-stem-${round.key}`}>Stem</FieldLabel>
+                            <Textarea
+                              id={`q-stem-${round.key}`}
+                              value={newQuestionStem}
+                              onChange={(e) => setNewQuestionStem(e.target.value)}
+                            />
+                          </Field>
+                          {newQuestionOptions.map((opt, oi) => (
+                            <div
+                              key={opt.label}
+                              className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                            >
+                              <label className="flex items-center gap-2 text-sm">
+                                <Checkbox
+                                  checked={opt.isCorrect}
+                                  onCheckedChange={(value) => {
+                                    setNewQuestionOptions((prev) =>
+                                      prev.map((o, i) => ({
+                                        ...o,
+                                        isCorrect: i === oi ? value === true : false,
+                                      })),
+                                    );
+                                  }}
+                                />
+                                {opt.label}
+                              </label>
+                              <Input
+                                value={opt.body}
+                                placeholder={`Option ${opt.label}`}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setNewQuestionOptions((prev) =>
+                                    prev.map((o, i) => (i === oi ? { ...o, body: value } : o)),
+                                  );
+                                }}
+                              />
+                            </div>
+                          ))}
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => void handleAddRoundQuestion(round.key)}
+                            >
+                              Save question
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => setAddingQuestionFor(null)}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : null}
+
+                      {!readOnly && addingQuestionFor !== round.key ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            setAddingQuestionFor(round.key);
+                            setNewQuestionStem('');
+                            setNewQuestionOptions([
+                              { label: 'A', body: '', isCorrect: true },
+                              { label: 'B', body: '', isCorrect: false },
+                            ]);
+                          }}
+                        >
+                          <PlusIcon data-icon="inline-start" />
+                          Add question
+                        </Button>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {!readOnly ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setRounds((prev) => [...prev, emptyRound(prev.length)])}
+                >
+                  <PlusIcon data-icon="inline-start" />
+                  Add round
+                </Button>
+              ) : null}
             </div>
           ) : null}
 
@@ -583,6 +1026,52 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   </SelectContent>
                 </Select>
               </Field>
+              {isQuiz ? (
+                <div className="flex flex-col gap-4 border-t border-border pt-4">
+                  <p className="text-sm font-medium">Quiz behaviour</p>
+                  {(
+                    [
+                      ['shuffleQuestions', 'Shuffle questions'],
+                      ['shuffleOptions', 'Shuffle options'],
+                      ['scoreVisibleToStudent', 'Show scores to students (when published)'],
+                      ['answersVisibleToStudent', 'Show answers to students (when published)'],
+                      ['dailyLeaderboardVisible', 'Daily individual leaderboard'],
+                      ['overallLeaderboardVisible', 'Overall individual leaderboard'],
+                      ['dailyGroupLeaderboardVisible', 'Daily group leaderboard'],
+                      ['overallGroupLeaderboardVisible', 'Overall group leaderboard'],
+                      ['countsForGroupLeaderboard', 'Count toward group leaderboards'],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <div
+                      key={key}
+                      className="flex min-h-(--control-h) items-center justify-between gap-3"
+                    >
+                      <FieldLabel htmlFor={`quiz-${key}`}>{label}</FieldLabel>
+                      <Switch
+                        id={`quiz-${key}`}
+                        checked={quizSettings[key]}
+                        disabled={readOnly}
+                        onCheckedChange={(checked) =>
+                          setQuizSettings((prev) => ({ ...prev, [key]: checked }))
+                        }
+                      />
+                    </div>
+                  ))}
+                  <Field>
+                    <FieldLabel htmlFor="lb-release">Leaderboard release (optional)</FieldLabel>
+                    <Input
+                      id="lb-release"
+                      type="datetime-local"
+                      value={leaderboardReleaseLocal}
+                      disabled={readOnly}
+                      onChange={(e) => setLeaderboardReleaseLocal(e.target.value)}
+                    />
+                    <FieldDescription>
+                      Students see boards only at/after this time when set.
+                    </FieldDescription>
+                  </Field>
+                </div>
+              ) : null}
             </FieldGroup>
           ) : null}
 
@@ -594,15 +1083,30 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               <p>
                 <span className="text-muted-foreground">Code:</span> {code || 'Auto'}
               </p>
-              <p>
-                <span className="text-muted-foreground">Banks:</span>{' '}
-                {bankIds.length === 0
-                  ? 'None'
-                  : banks
-                      .filter((b) => bankIds.includes(b.id))
-                      .map((b) => b.name)
-                      .join(', ')}
-              </p>
+              {isQuiz ? (
+                <p>
+                  <span className="text-muted-foreground">Banks:</span>{' '}
+                  {bankIds.length === 0
+                    ? 'None'
+                    : banks
+                        .filter((b) => bankIds.includes(b.id))
+                        .map((b) => b.name)
+                        .join(', ')}
+                </p>
+              ) : (
+                <div>
+                  <p className="text-muted-foreground">Rounds:</p>
+                  <ul className="mt-1 list-inside list-disc space-y-1">
+                    {rounds.map((r, i) => (
+                      <li key={r.key}>
+                        {r.name || `Round ${i + 1}`} — {r.bankIds.length} bank
+                        {r.bankIds.length === 1 ? '' : 's'}, {r.localQuestions.length} manual
+                        question{r.localQuestions.length === 1 ? '' : 's'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <p>
                 <span className="text-muted-foreground">Assignment:</span>{' '}
                 {assignMode === 'manual' ? 'Manual' : 'All active students'}

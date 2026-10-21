@@ -72,15 +72,18 @@ Students (Student client at http://localhost:5174 — Unique ID or Phone OTP):
 | Rohan Mehta | `BP-24102` | `+919876510001` | `+91` / `9876510001` |
 | Sana Khan   | `BP-24103` | `+919876510002` | `+91` / `9876510002` |
 
-Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
+Plus ~9 more Northstar Prep students (`BP-24104` …) with cohorts Alpha / Beta / Gamma. Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
 
-Demo organization slug: `demo`.
+Demo organization slug: `demo` (display name **Northstar Prep**).
 
-Seeded activities (assigned to demo students):
+Seeded activities (wired with banks, registrations, and sample results):
 
-- Assessment `ASM-26001` — JEE Mock Series 2026 (5 questions)
-- Quiz `QZ-26001` — Weekly General Knowledge (5 questions)
-- Quiz `QZ-26002` — Maths Sprint #12 (5 questions)
+- Assessment `ASM-26001` — Northstar JEE Mock (2 rounds: Physics + Chemistry)
+- Quiz `QZ-26001` — Weekly General Knowledge (active; leaderboard history seeded)
+- Quiz `QZ-26002` — Maths Sprint #12 (completed window)
+- Draft `QZ-DRAFT` and archived `ASM-ARCHIVE` for list/filter variety
+
+Primary student `BP-24101` has no attempts so they can start quizzes/assessments fresh.
 
 ## Production-like preview (built assets)
 

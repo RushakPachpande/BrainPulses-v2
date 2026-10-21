@@ -203,7 +203,10 @@ export function ResultsPage() {
                   <FileText size={17} />
                 </span>
                 <span>
-                  <b>{a.title}</b>
+                  <b>
+                    {a.title}
+                    {a.roundName ? ` · ${a.roundName}` : ''}
+                  </b>
                   <small>
                     {a.maxScore != null ? `${a.maxScore} points · ` : ''}
                     {a.durationMinutes ?? '—'} min
@@ -274,7 +277,9 @@ export function ResultDetailPage() {
     );
   }
 
-  const pending = attempt.releaseStatus !== 'published' || attempt.percent == null;
+  const scoreHidden = attempt.percent == null;
+  const unpublished = attempt.releaseStatus !== 'published';
+  const pending = unpublished || scoreHidden;
   const percent = pending ? null : Math.round(attempt.percent as number);
 
   return (
@@ -295,19 +300,29 @@ export function ResultDetailPage() {
         <div className="result-hero-copy">
           <span className="result-label">
             <CheckCircle2 size={15} />
-            {pending ? 'Pending release' : percent! >= 60 ? 'Good progress' : 'Keep practising'}
+            {unpublished
+              ? 'Pending release'
+              : scoreHidden
+                ? 'Score withheld'
+                : percent! >= 60
+                  ? 'Good progress'
+                  : 'Keep practising'}
           </span>
           <h2>
-            {pending
+            {unpublished
               ? 'Your score is waiting for release.'
-              : percent! >= 60
-                ? 'You’re building strong momentum.'
-                : 'Every attempt is a chance to improve.'}
+              : scoreHidden
+                ? 'Your score is not visible yet.'
+                : percent! >= 60
+                  ? 'You’re building strong momentum.'
+                  : 'Every attempt is a chance to improve.'}
           </h2>
           <p>
-            {pending
+            {unpublished
               ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Scores appear when your instructor publishes results.`
-              : `You scored ${attempt.score} of ${attempt.maxScore} points on this ${formatKind(attempt.kind).toLowerCase()}.`}
+              : scoreHidden
+                ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Your instructor has not made scores visible to students yet.`
+                : `You scored ${attempt.score} of ${attempt.maxScore} points on this ${formatKind(attempt.kind).toLowerCase()}.`}
           </p>
           <div className="result-hero-meta">
             <span>
@@ -332,45 +347,60 @@ export function ResultDetailPage() {
           </button>
         </div>
       </div>
-      <section className="panel review-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Answer review</h2>
-            <p>Review each question and your selected answer.</p>
+      {attempt.answersVisible === false || attempt.review.length === 0 ? (
+        <section className="panel review-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Answer review</h2>
+              <p>
+                {pending
+                  ? 'Detailed answers appear when your instructor releases results.'
+                  : 'Answer review is not available for this quiz yet.'}
+              </p>
+            </div>
           </div>
-        </div>
-        {attempt.review.map((q, i) => {
-          const yours = answerLabel(q.yourAnswer);
-          const yourBody = q.options.find((o) => o.label === yours)?.body;
-          return (
-            <div className="review-question" key={q.questionVersionId}>
-              <div className="review-question-top">
-                <span>Question {i + 1}</span>
-                <span className={`review-state ${q.correct ? 'review-right' : 'review-wrong'}`}>
-                  {q.correct === true ? 'Correct' : yours ? 'Review needed' : 'Not answered'}
-                </span>
-              </div>
-              <b>{q.stem}</b>
-              <p>Your answer: {yours ? `${yours}. ${yourBody ?? ''}` : 'Not answered'}</p>
-              {q.correctLabels.length > 0 && (
-                <div className="review-explanation">
-                  <CheckCircle2 size={16} />
-                  <span>
-                    <b>Correct answer</b>
-                    {q.correctLabels
-                      .map((label) => {
-                        const body = q.options.find((o) => o.label === label)?.body;
-                        return body ? `${label}. ${body}` : label;
-                      })
-                      .join(', ')}
+        </section>
+      ) : (
+        <section className="panel review-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Answer review</h2>
+              <p>Review each question and your selected answer.</p>
+            </div>
+          </div>
+          {attempt.review.map((q, i) => {
+            const yours = answerLabel(q.yourAnswer);
+            const yourBody = q.options.find((o) => o.label === yours)?.body;
+            return (
+              <div className="review-question" key={q.questionVersionId}>
+                <div className="review-question-top">
+                  <span>Question {i + 1}</span>
+                  <span className={`review-state ${q.correct ? 'review-right' : 'review-wrong'}`}>
+                    {q.correct === true ? 'Correct' : yours ? 'Review needed' : 'Not answered'}
                   </span>
                 </div>
-              )}
-              {q.explanation ? <p className="review-explanation-text">{q.explanation}</p> : null}
-            </div>
-          );
-        })}
-      </section>
+                <b>{q.stem}</b>
+                <p>Your answer: {yours ? `${yours}. ${yourBody ?? ''}` : 'Not answered'}</p>
+                {q.correctLabels.length > 0 && (
+                  <div className="review-explanation">
+                    <CheckCircle2 size={16} />
+                    <span>
+                      <b>Correct answer</b>
+                      {q.correctLabels
+                        .map((label) => {
+                          const body = q.options.find((o) => o.label === label)?.body;
+                          return body ? `${label}. ${body}` : label;
+                        })
+                        .join(', ')}
+                    </span>
+                  </div>
+                )}
+                {q.explanation ? <p className="review-explanation-text">{q.explanation}</p> : null}
+              </div>
+            );
+          })}
+        </section>
+      )}
     </div>
   );
 }

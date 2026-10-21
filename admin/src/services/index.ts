@@ -1,4 +1,4 @@
-import { apiGetData, apiGetList, apiPatchData, apiPostData } from '@/lib/api-client';
+import { apiGetData, apiGetList, apiPatchData, apiPostData, apiRequest } from '@/lib/api-client';
 import {
   buildReportSummaryFromResults,
   mapAccessUserFromApi,
@@ -32,6 +32,7 @@ import type {
   AccessUser,
   ActivityDetail,
   ActivityKind,
+  ActivityRoundLocalQuestion,
   ActivitySettings,
   AdminUser,
   AuditLogRow,
@@ -47,8 +48,11 @@ import type {
 export type {
   ActivityKind,
   ActivityDetail,
+  ActivityRoundDetail,
+  ActivityRoundLocalQuestion,
   ActivityRegistrationField,
   ActivitySettings,
+  QuizActivitySettings,
   Student,
   AdminUser,
   AccessUser,
@@ -174,6 +178,14 @@ export async function getReportSummary(kind: ActivityKind): Promise<ReportSummar
   return [...buildReportSummaryFromResults(results)];
 }
 
+export type ActivityRoundWrite = {
+  id?: string;
+  name: string;
+  sortOrder: number;
+  durationMinutes?: number | null;
+  bankIds: string[];
+};
+
 type ActivityWritePayload = {
   kind?: ActivityKind;
   name?: string;
@@ -184,6 +196,7 @@ type ActivityWritePayload = {
   passingPercent?: number | null;
   presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
   bankIds?: string[];
+  rounds?: ActivityRoundWrite[];
   code?: string;
   settings?: ActivitySettings;
 };
@@ -218,6 +231,7 @@ function mapActivityDetail(
     settings?: ActivitySettings | null;
     startsAt?: string | Date | null;
     endsAt?: string | Date | null;
+    rounds?: ActivityDetail['rounds'];
   },
 ): ActivityDetail {
   const base = mapActivityFromApi(row, 0);
@@ -233,6 +247,7 @@ function mapActivityDetail(
     presentation: (row.presentation as ActivityDetail['presentation']) ?? 'one_at_a_time',
     bankIds: row.bankIds ?? [],
     settings: row.settings ?? null,
+    rounds: row.rounds,
   };
 }
 
@@ -263,10 +278,67 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
       presentation: 'one_at_a_time',
       bankIds: [],
       settings: null,
+      rounds: [
+        {
+          id: 'fixture-round-1',
+          name: 'Round 1',
+          sortOrder: 0,
+          durationMinutes: 60,
+          bankIds: [],
+          banksDetail: [],
+          localBankId: null,
+          localQuestionCount: 0,
+          localQuestions: [],
+        },
+      ],
     };
   }
   const row = await apiGetData<Parameters<typeof mapActivityDetail>[0]>(`/api/activities/${id}`);
   return mapActivityDetail(row);
+}
+
+export type RoundQuestionWrite = {
+  type:
+    'single_mcq' | 'multiple_mcq' | 'numeric' | 'short_text' | 'passage' | 'match' | 'image_mcq';
+  stem: string;
+  points?: number;
+  code?: string;
+  options?: { label: string; body: string; isCorrect: boolean }[];
+  answerKey?: Record<string, unknown>;
+};
+
+export async function createRoundQuestion(
+  activityId: string,
+  roundId: string,
+  payload: RoundQuestionWrite,
+) {
+  if (useFixtures) {
+    return {
+      id: crypto.randomUUID(),
+      code: 'Q-LOCAL',
+      type: payload.type,
+      stem: payload.stem,
+      points: payload.points ?? 1,
+      isActive: true,
+      options: (payload.options ?? []).map((o, i) => ({
+        id: crypto.randomUUID(),
+        label: o.label,
+        body: o.body,
+        sortOrder: i,
+      })),
+    };
+  }
+  return apiPostData<ActivityRoundLocalQuestion>(
+    `/api/activities/${activityId}/rounds/${roundId}/questions`,
+    payload,
+  );
+}
+
+export async function deleteRoundQuestion(activityId: string, roundId: string, questionId: string) {
+  if (useFixtures) return;
+  await apiRequest(`/api/activities/${activityId}/rounds/${roundId}/questions/${questionId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function updateActivity(id: string, payload: ActivityWritePayload) {
@@ -299,6 +371,8 @@ export async function saveNotificationPreferences(
 export async function updateMembershipAccess(
   membershipId: string,
   patch: {
+    name?: string;
+    email?: string;
     assessmentAccess?: 'full' | 'edit' | 'view' | 'none';
     quizAccess?: 'full' | 'edit' | 'view' | 'none';
     isActive?: boolean;
@@ -325,6 +399,7 @@ export async function createStudent(payload: {
   phone?: string;
   course?: string;
   city?: string;
+  cohort?: string;
   code?: string;
 }) {
   if (useFixtures) return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
@@ -339,11 +414,56 @@ export async function updateStudent(
     phone?: string | null;
     course?: string | null;
     city?: string | null;
+    cohort?: string | null;
     isActive?: boolean;
   },
 ) {
   if (useFixtures) return { id, ...payload };
   return apiPatchData(`/api/students/${id}`, payload);
+}
+
+export async function disqualifyAttempt(attemptId: string, note?: string) {
+  if (useFixtures) return { id: attemptId };
+  return apiPostData(`/api/admin/attempts/${attemptId}/disqualify`, { note });
+}
+
+export async function requalifyAttempt(attemptId: string) {
+  if (useFixtures) return { id: attemptId };
+  return apiPostData(`/api/admin/attempts/${attemptId}/requalify`);
+}
+
+export async function grantReattempt(
+  activityId: string,
+  payload: { studentId: string; mode: 'continue' | 'restart'; note?: string },
+) {
+  if (useFixtures) return { id: crypto.randomUUID(), ...payload };
+  return apiPostData(`/api/activities/${activityId}/reattempts`, payload);
+}
+
+export async function getActivityLeaderboard(
+  activityId: string,
+  query: { scope?: 'daily' | 'overall'; kind?: 'individual' | 'group' } = {},
+) {
+  if (useFixtures) {
+    return {
+      activityId,
+      activityName: 'Fixture Quiz',
+      scope: query.scope ?? 'overall',
+      kind: query.kind ?? 'individual',
+      entries: [],
+    };
+  }
+  const qs = new URLSearchParams();
+  if (query.scope) qs.set('scope', query.scope);
+  if (query.kind) qs.set('kind', query.kind);
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiGetData<{
+    activityId: string;
+    activityName: string;
+    scope: string;
+    kind: string;
+    entries: Record<string, unknown>[];
+  }>(`/api/leaderboards/activities/${activityId}${suffix}`);
 }
 
 export async function deactivateStudent(id: string) {

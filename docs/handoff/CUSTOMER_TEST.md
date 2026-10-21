@@ -7,12 +7,12 @@ Prerequisites: follow [`LOCAL_PRODUCTION.md`](LOCAL_PRODUCTION.md) until all thr
 ## 1. Admin sign-in and lists
 
 1. Open http://localhost:5173/login
-2. Sign in as `admin@brainpulses.com` / `Password123!`
+2. Sign in as `admin@brainpulses.com` / `Password123!` (org **Northstar Prep**)
 3. Confirm dashboard KPIs load (not empty fixture zeros unless the DB is empty)
-4. Open **Students** — seeded students appear (`BP-24101` …)
-5. Open **Assessments** and **Quizzes** — seeded activities appear
-6. Open **Question Banks** — Physics + GK banks appear
-7. Open **Registrations** for assessments/quizzes — assigned students appear
+4. Open **Students** — ~12 seeded students appear (`BP-24101` …) with cohorts
+5. Open **Assessments** and **Quizzes** — mock assessment, weekly GK, maths sprint, draft/archived rows
+6. Open **Question Banks** — Physics, Chemistry, GK, Quant banks appear
+7. Open **Registrations** / **Reports** / **Leaderboard** — assigned students and seeded results appear
 8. Sign out and confirm `/dashboard` redirects to login
 
 ## 2. Admin mutations (persistence)

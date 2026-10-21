@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Check, Clock3, Flag, LogOut, ShieldCheck, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExamShellSkeleton } from '../components/skeletons';
 import { ApiError } from '../lib/api-client';
 import { timeRemaining } from '../lib/format';
@@ -23,6 +23,8 @@ function selectedLabel(answer: unknown): string | null {
 
 export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const { id = '' } = useParams();
+  const [searchParams] = useSearchParams();
+  const roundIdParam = searchParams.get('roundId') ?? undefined;
   const navigate = useNavigate();
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
@@ -32,6 +34,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState('');
+  const [proctorWarn, setProctorWarn] = useState('');
   const [busy, setBusy] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const revisionRef = useRef(0);
@@ -47,7 +50,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     setError('');
     try {
       if (mode === 'start') {
-        const data = await startAttempt(id);
+        const data = await startAttempt(id, roundIdParam);
         setAttempt(data.attempt);
         setQuestions(data.questions);
         revisionRef.current = data.attempt.revision;
@@ -60,7 +63,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       } else {
         const data = await resumeAttempt(id);
         if (data.submitted && data.result) {
-          navigate(`/results/${data.result.id}`, { replace: true });
+          if (data.attempt.roundId) {
+            navigate(`/assessments/${data.attempt.activityId}`, { replace: true });
+          } else {
+            navigate(`/results/${data.result.id}`, { replace: true });
+          }
           return;
         }
         setAttempt(data.attempt);
@@ -83,11 +90,46 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     } finally {
       setBusy(false);
     }
-  }, [id, mode, navigate]);
+  }, [id, mode, navigate, roundIdParam]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!attempt?.softProctoring) return;
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        setProctorWarn(
+          'You left this tab. Stay on this page until you submit — leaving may be flagged.',
+        );
+      }
+    };
+    const block = (e: Event) => {
+      e.preventDefault();
+    };
+
+    document.addEventListener('visibilitychange', onVisibility);
+    document.addEventListener('copy', block);
+    document.addEventListener('cut', block);
+    document.addEventListener('paste', block);
+    document.addEventListener('contextmenu', block);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('copy', block);
+      document.removeEventListener('cut', block);
+      document.removeEventListener('paste', block);
+      document.removeEventListener('contextmenu', block);
+    };
+  }, [attempt?.softProctoring]);
+
+  useEffect(() => {
+    if (!proctorWarn) return;
+    const t = window.setTimeout(() => setProctorWarn(''), 6000);
+    return () => window.clearTimeout(t);
+  }, [proctorWarn]);
 
   const persist = useCallback(
     async (nextAnswers: Record<string, string>) => {
@@ -189,7 +231,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         await saveChainRef.current.catch(() => undefined);
         const key = `submit-${attempt.id}`;
         const data = await submitAttempt(attempt.id, key);
-        navigate(`/results/${data.result.id}`, { replace: true });
+        if (attempt.roundId) {
+          navigate(`/assessments/${attempt.activityId}`, { replace: true });
+        } else {
+          navigate(`/results/${data.result.id}`, { replace: true });
+        }
       } catch (err) {
         setError(err instanceof ApiError ? err.message : 'Submit failed.');
         setSubmitting(false);
@@ -254,6 +300,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       {error && (
         <div className="error-text" style={{ padding: '8px 16px' }}>
           {error}
+        </div>
+      )}
+      {proctorWarn && (
+        <div className="error-text" role="status" style={{ padding: '8px 16px' }}>
+          {proctorWarn}
         </div>
       )}
       <div className="exam-layout">

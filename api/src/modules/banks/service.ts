@@ -103,6 +103,7 @@ export async function listBanks(
   const where: Prisma.QuestionBankWhereInput = {
     organizationId,
     kind: query.kind,
+    origin: 'reusable',
     ...(query.status !== 'all' ? { status: query.status } : {}),
     ...(query.q
       ? {

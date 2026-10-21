@@ -2,6 +2,7 @@ import { Prisma } from '#prisma';
 import { notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { parseQuizSettings } from '../../lib/quiz-settings.js';
 import { scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
 import type {
@@ -94,10 +95,28 @@ export async function listMyActivities(
                 },
               },
             },
+            rounds: {
+              orderBy: { sortOrder: 'asc' },
+              include: {
+                banks: {
+                  include: {
+                    bank: {
+                      include: {
+                        _count: { select: { questions: { where: { isActive: true } } } },
+                      },
+                    },
+                  },
+                },
+                localBank: {
+                  include: {
+                    _count: { select: { questions: { where: { isActive: true } } } },
+                  },
+                },
+              },
+            },
             attempts: {
               where: { studentId },
               orderBy: { startedAt: 'desc' },
-              take: 1,
               include: { result: true },
             },
           },
@@ -111,13 +130,33 @@ export async function listMyActivities(
   return listEnvelope(
     items.map((row) => {
       const activity = row.activity;
-      const questionCount = activity.activityBanks.reduce(
-        (n, ab) => n + ab.bank._count.questions,
-        0,
-      );
-      const latest = activity.attempts[0];
+      const isAssessment = activity.kind === 'assessment';
+
+      const questionCount = isAssessment
+        ? activity.rounds.reduce((n, round) => {
+            const fromBanks = round.banks.reduce((m, b) => m + b.bank._count.questions, 0);
+            const fromLocal = round.localBank?._count.questions ?? 0;
+            return n + fromBanks + fromLocal;
+          }, 0)
+        : activity.activityBanks.reduce((n, ab) => n + ab.bank._count.questions, 0);
+
+      const attempts = activity.attempts;
+      const openAttempt = attempts.find((a) => a.status === 'in_progress');
+      const latest = attempts[0];
+
       let attemptState: 'not_started' | 'in_progress' | 'submitted' = 'not_started';
-      if (latest) {
+      if (isAssessment && activity.rounds.length > 0) {
+        const allDone = activity.rounds.every((round) =>
+          attempts.some(
+            (a) =>
+              a.roundId === round.id &&
+              (a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result)),
+          ),
+        );
+        if (openAttempt) attemptState = 'in_progress';
+        else if (allDone) attemptState = 'submitted';
+        else if (attempts.length > 0) attemptState = 'in_progress';
+      } else if (latest) {
         if (latest.status === 'in_progress') attemptState = 'in_progress';
         else if (
           latest.status === 'submitted' ||
@@ -127,6 +166,68 @@ export async function listMyActivities(
           attemptState = 'submitted';
         }
       }
+
+      const rounds = isAssessment
+        ? activity.rounds.map((round, index) => {
+            const roundAttempts = attempts.filter((a) => a.roundId === round.id);
+            const open = roundAttempts.find((a) => a.status === 'in_progress');
+            const done = roundAttempts.find(
+              (a) => a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result),
+            );
+            let state: 'locked' | 'available' | 'in_progress' | 'completed';
+            if (done) {
+              state = 'completed';
+            } else if (open) {
+              state = 'in_progress';
+            } else if (index === 0) {
+              state = 'available';
+            } else {
+              const prev = activity.rounds[index - 1];
+              const prevDone = prev
+                ? attempts.some(
+                    (a) =>
+                      a.roundId === prev.id &&
+                      (a.status === 'submitted' ||
+                        a.status === 'auto_submitted' ||
+                        Boolean(a.result)),
+                  )
+                : false;
+              state = prevDone ? 'available' : 'locked';
+            }
+            const qCount =
+              round.banks.reduce((n, b) => n + b.bank._count.questions, 0) +
+              (round.localBank?._count.questions ?? 0);
+            return {
+              id: round.id,
+              name: round.name,
+              sortOrder: round.sortOrder,
+              durationMinutes: round.durationMinutes ?? activity.durationMinutes,
+              questionCount: qCount,
+              state,
+              openAttemptId: open?.id ?? null,
+              latestResultId: done?.result?.id ?? null,
+            };
+          })
+        : undefined;
+
+      const latestCompleted = attempts.find(
+        (a) => a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result),
+      );
+
+      const quizSettings = activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
+      let leaderboardAvailable = false;
+      if (quizSettings) {
+        const released =
+          !quizSettings.leaderboardReleasedAt ||
+          new Date(quizSettings.leaderboardReleasedAt) <= new Date();
+        leaderboardAvailable =
+          released &&
+          (quizSettings.dailyLeaderboardVisible ||
+            quizSettings.overallLeaderboardVisible ||
+            quizSettings.dailyGroupLeaderboardVisible ||
+            quizSettings.overallGroupLeaderboardVisible);
+      }
+
       return {
         registrationId: row.id,
         activityId: activity.id,
@@ -140,9 +241,11 @@ export async function listMyActivities(
         endsAt: activity.endsAt,
         questionCount,
         attemptState,
-        openAttemptId: latest?.status === 'in_progress' ? latest.id : null,
-        latestResultId: latest?.result?.id ?? null,
-        latestPercent: latest?.result ? toNumber(latest.result.percent) : null,
+        openAttemptId: openAttempt?.id ?? null,
+        latestResultId: latestCompleted?.result?.id ?? null,
+        latestPercent: latestCompleted?.result ? toNumber(latestCompleted.result.percent) : null,
+        leaderboardAvailable,
+        ...(rounds ? { rounds } : {}),
       };
     }),
     page,
@@ -169,8 +272,17 @@ export async function listMyResults(
     prisma.result.findMany({
       where,
       include: {
-        activity: { select: { id: true, name: true, kind: true, code: true } },
-        attempt: { select: { id: true, startedAt: true, submittedAt: true, status: true } },
+        activity: { select: { id: true, name: true, kind: true, code: true, settings: true } },
+        attempt: {
+          select: {
+            id: true,
+            startedAt: true,
+            submittedAt: true,
+            status: true,
+            roundId: true,
+            round: { select: { id: true, name: true, sortOrder: true } },
+          },
+        },
       },
       ...prismaCursorArgs(query),
     }),
@@ -180,6 +292,9 @@ export async function listMyResults(
   return listEnvelope(
     items.map((r) => {
       const published = r.releaseStatus === 'published';
+      const quizSettings =
+        r.activity.kind === 'quiz' ? parseQuizSettings(r.activity.settings) : null;
+      const scoreOk = published && (quizSettings?.scoreVisibleToStudent ?? true);
       return {
         id: r.id,
         activityId: r.activity.id,
@@ -187,10 +302,12 @@ export async function listMyResults(
         title: r.activity.name,
         kind: r.activity.kind,
         attemptId: r.attempt.id,
-        score: published ? toNumber(r.score) : null,
-        maxScore: published ? toNumber(r.maxScore) : null,
-        percent: published ? toNumber(r.percent) : null,
-        passed: published ? r.passed : null,
+        roundId: r.attempt.roundId,
+        roundName: r.attempt.round?.name ?? null,
+        score: scoreOk ? toNumber(r.score) : null,
+        maxScore: scoreOk ? toNumber(r.maxScore) : null,
+        percent: scoreOk ? toNumber(r.percent) : null,
+        passed: scoreOk ? r.passed : null,
         releaseStatus: r.releaseStatus,
         submittedAt: r.attempt.submittedAt ?? r.createdAt,
         durationMinutes:
@@ -234,7 +351,11 @@ export async function getMyResult(organizationId: string, studentId: string, res
   });
   const byId = new Map(versions.map((v) => [v.id, v]));
 
-  const includeKeys = result.releaseStatus === 'published';
+  const quizSettings =
+    result.activity.kind === 'quiz' ? parseQuizSettings(result.activity.settings) : null;
+  const published = result.releaseStatus === 'published';
+  const scoreOk = published && (quizSettings?.scoreVisibleToStudent ?? true);
+  const includeKeys = published && (quizSettings?.answersVisibleToStudent ?? published);
 
   const review = result.attempt.responses.map((response) => {
     const version = byId.get(response.questionVersionId);
@@ -277,12 +398,13 @@ export async function getMyResult(organizationId: string, studentId: string, res
     kind: result.activity.kind,
     activityId: result.activity.id,
     attemptId: result.attempt.id,
-    score: includeKeys ? toNumber(result.score) : null,
-    maxScore: includeKeys ? toNumber(result.maxScore) : null,
-    percent: includeKeys ? toNumber(result.percent) : null,
-    passed: includeKeys ? result.passed : null,
+    score: scoreOk ? toNumber(result.score) : null,
+    maxScore: scoreOk ? toNumber(result.maxScore) : null,
+    percent: scoreOk ? toNumber(result.percent) : null,
+    passed: scoreOk ? result.passed : null,
     releaseStatus: result.releaseStatus,
+    answersVisible: includeKeys,
     submittedAt: result.attempt.submittedAt ?? result.createdAt,
-    review,
+    review: includeKeys ? review : [],
   };
 }

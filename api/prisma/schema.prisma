@@ -47,6 +47,11 @@ enum PresentationMode {
   timed_card
 }
 
+enum BankOrigin {
+  reusable
+  round_local
+}
+
 enum AssignmentStatus {
   assigned
   unassigned
@@ -77,6 +82,11 @@ enum ActorType {
   system
 }
 
+enum ReattemptMode {
+  continue
+  restart
+}
+
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
@@ -91,16 +101,19 @@ model Organization {
   questions      Question[]
   questionVersions QuestionVersion[]
   activities     Activity[]
-  activityBanks  ActivityBank[]
-  registrations  Registration[]
-  attempts       Attempt[]
+  activityBanks    ActivityBank[]
+  activityRounds   ActivityRound[]
+  activityRoundBanks ActivityRoundBank[]
+  registrations    Registration[]
+  attempts         Attempt[]
   attemptResponses AttemptResponse[]
-  results        Result[]
-  resultRevisions ResultRevision[]
-  settings       Setting[]
-  notifications  Notification[]
-  auditEvents    AuditEvent[]
-  fileObjects    FileObject[]
+  results          Result[]
+  resultRevisions  ResultRevision[]
+  settings         Setting[]
+  notifications    Notification[]
+  auditEvents      AuditEvent[]
+  fileObjects      FileObject[]
+  reattemptGrants  ReattemptGrant[]
 
   @@map("organizations")
 }
@@ -115,9 +128,11 @@ model User {
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships Membership[]
-  auditEvents AuditEvent[]
-  fileObjects FileObject[]
+  memberships          Membership[]
+  auditEvents          AuditEvent[]
+  fileObjects          FileObject[]
+  disqualifiedAttempts Attempt[]       @relation("AttemptDisqualifiedBy")
+  reattemptGrants      ReattemptGrant[]
 
   @@map("users")
 }
@@ -151,21 +166,24 @@ model Student {
   phone          String?
   course         String?
   city           String?
+  cohort         String?
   isActive       Boolean   @default(true) @map("is_active")
   lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  registrations Registration[]
-  attempts      Attempt[]
-  results       Result[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registrations   Registration[]
+  attempts        Attempt[]
+  results         Result[]
+  reattemptGrants ReattemptGrant[]
 
   @@unique([organizationId, code])
   @@unique([organizationId, email])
   @@unique([organizationId, phone])
   @@index([organizationId, isActive])
   @@index([organizationId, name])
+  @@index([organizationId, cohort])
   @@map("students")
 }
 
@@ -178,15 +196,19 @@ model QuestionBank {
   description    String?
   presentation   PresentationMode @default(one_at_a_time)
   status         FlowStatus       @default(draft)
+  origin         BankOrigin       @default(reusable)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  questions     Question[]
-  activityBanks ActivityBank[]
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  questions          Question[]
+  activityBanks      ActivityBank[]
+  activityRoundBanks ActivityRoundBank[]
+  localForRounds     ActivityRound[]      @relation("RoundLocalBank")
 
   @@unique([organizationId, code])
   @@index([organizationId, kind, status])
+  @@index([organizationId, origin])
   @@map("question_banks")
 }
 
@@ -266,11 +288,13 @@ model Activity {
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  activityBanks ActivityBank[]
-  registrations Registration[]
-  attempts      Attempt[]
-  results       Result[]
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activityBanks   ActivityBank[]
+  rounds          ActivityRound[]
+  registrations   Registration[]
+  attempts        Attempt[]
+  results         Result[]
+  reattemptGrants ReattemptGrant[]
 
   @@unique([organizationId, code])
   @@index([organizationId, kind, status])
@@ -291,6 +315,44 @@ model ActivityBank {
   @@unique([activityId, bankId])
   @@index([organizationId, activityId])
   @@map("activity_banks")
+}
+
+model ActivityRound {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  activityId      String   @map("activity_id") @db.Uuid
+  name            String
+  sortOrder       Int      @map("sort_order")
+  durationMinutes Int?     @map("duration_minutes")
+  localBankId     String?  @unique @map("local_bank_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity     Activity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  localBank    QuestionBank?       @relation("RoundLocalBank", fields: [localBankId], references: [id], onDelete: SetNull)
+  banks        ActivityRoundBank[]
+  attempts     Attempt[]
+
+  @@unique([activityId, sortOrder])
+  @@index([organizationId, activityId])
+  @@map("activity_rounds")
+}
+
+model ActivityRoundBank {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  roundId        String   @map("round_id") @db.Uuid
+  bankId         String   @map("bank_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  round        ActivityRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  bank         QuestionBank  @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, bankId])
+  @@index([organizationId, roundId])
+  @@map("activity_round_banks")
 }
 
 model Registration {
@@ -314,29 +376,62 @@ model Registration {
 }
 
 model Attempt {
-  id               String        @id @default(uuid()) @db.Uuid
-  organizationId   String        @map("organization_id") @db.Uuid
-  activityId       String        @map("activity_id") @db.Uuid
-  studentId        String        @map("student_id") @db.Uuid
-  status           AttemptStatus @default(in_progress)
-  revision         Int           @default(0)
-  startedAt        DateTime      @map("started_at") @db.Timestamptz(3)
-  deadlineAt       DateTime      @map("deadline_at") @db.Timestamptz(3)
-  submittedAt      DateTime?     @map("submitted_at") @db.Timestamptz(3)
-  submitIdempotencyKey String?   @map("submit_idempotency_key")
-  createdAt        DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt        DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                   String        @id @default(uuid()) @db.Uuid
+  organizationId       String        @map("organization_id") @db.Uuid
+  activityId           String        @map("activity_id") @db.Uuid
+  roundId              String?       @map("round_id") @db.Uuid
+  studentId            String        @map("student_id") @db.Uuid
+  status               AttemptStatus @default(in_progress)
+  revision             Int           @default(0)
+  startedAt            DateTime      @map("started_at") @db.Timestamptz(3)
+  deadlineAt           DateTime      @map("deadline_at") @db.Timestamptz(3)
+  submittedAt          DateTime?     @map("submitted_at") @db.Timestamptz(3)
+  submitIdempotencyKey String?       @map("submit_idempotency_key")
+  questionOrder        String[]      @default([]) @map("question_order")
+  optionOrders         Json?         @map("option_orders") @db.JsonB
+  isAuthoritative      Boolean       @default(true) @map("is_authoritative")
+  disqualified         Boolean       @default(false)
+  disqualifiedAt       DateTime?     @map("disqualified_at") @db.Timestamptz(3)
+  disqualifiedByUserId String?       @map("disqualified_by_user_id") @db.Uuid
+  disqualifiedNote     String?       @map("disqualified_note")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  activity     Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  student      Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  responses    AttemptResponse[]
-  result       Result?
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity         Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  round            ActivityRound?    @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  student          Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  disqualifiedBy   User?             @relation("AttemptDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: SetNull)
+  responses        AttemptResponse[]
+  result           Result?
 
   @@index([organizationId, activityId, studentId, status])
+  @@index([organizationId, activityId, roundId, studentId, status])
   @@index([organizationId, studentId, status])
   @@index([organizationId, id, submitIdempotencyKey])
+  @@index([organizationId, activityId, isAuthoritative, disqualified])
   @@map("attempts")
+}
+
+model ReattemptGrant {
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  activityId      String        @map("activity_id") @db.Uuid
+  studentId       String        @map("student_id") @db.Uuid
+  mode            ReattemptMode
+  note            String?
+  grantedByUserId String        @map("granted_by_user_id") @db.Uuid
+  consumedAt      DateTime?     @map("consumed_at") @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grantedBy    User         @relation(fields: [grantedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, activityId, studentId, consumedAt])
+  @@map("reattempt_grants")
 }
 
 model AttemptResponse {

@@ -3,7 +3,11 @@ import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
+import { parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
 import { scoreObjective, toNumber } from './scoring.js';
+
+type OptionRow = { id: string; label: string; body: string; sortOrder: number };
+type OptionOrders = Record<string, string[]>;
 
 async function autoSubmitIfExpired(attempt: {
   id: string;
@@ -23,21 +27,27 @@ async function autoSubmitIfExpired(attempt: {
   });
 }
 
-function mapAttempt(a: {
-  id: string;
-  status: string;
-  revision: number;
-  startedAt: Date;
-  deadlineAt: Date;
-  submittedAt: Date | null;
-  activityId: string;
-  studentId: string;
-  responses?: {
-    questionVersionId: string;
-    answer: Prisma.JsonValue;
+function mapAttempt(
+  a: {
+    id: string;
+    status: string;
     revision: number;
-  }[];
-}) {
+    startedAt: Date;
+    deadlineAt: Date;
+    submittedAt: Date | null;
+    activityId: string;
+    roundId?: string | null;
+    studentId: string;
+    disqualified?: boolean;
+    isAuthoritative?: boolean;
+    responses?: {
+      questionVersionId: string;
+      answer: Prisma.JsonValue;
+      revision: number;
+    }[];
+  },
+  extras?: { activityKind?: string; softProctoring?: boolean },
+) {
   return {
     id: a.id,
     status: a.status,
@@ -46,7 +56,12 @@ function mapAttempt(a: {
     deadlineAt: a.deadlineAt,
     submittedAt: a.submittedAt,
     activityId: a.activityId,
+    roundId: a.roundId ?? null,
     studentId: a.studentId,
+    disqualified: a.disqualified ?? false,
+    isAuthoritative: a.isAuthoritative ?? true,
+    activityKind: extras?.activityKind ?? null,
+    softProctoring: extras?.softProctoring ?? false,
     responses: (a.responses ?? []).map((r) => ({
       questionVersionId: r.questionVersionId,
       answer: r.answer,
@@ -55,42 +70,119 @@ function mapAttempt(a: {
   };
 }
 
-/** Student-facing result: withhold scores until published. */
-function mapStudentResult(r: {
-  id: string;
-  score: Prisma.Decimal | number;
-  maxScore: Prisma.Decimal | number;
-  percent: Prisma.Decimal | number;
-  passed: boolean | null;
-  releaseStatus: string;
-}) {
+async function presentQuestions(
+  organizationId: string,
+  versionIds: string[],
+  optionOrders: OptionOrders | null,
+) {
+  const versions = await prisma.questionVersion.findMany({
+    where: { organizationId, id: { in: versionIds } },
+    include: {
+      options: {
+        orderBy: { sortOrder: 'asc' },
+        select: { id: true, label: true, body: true, sortOrder: true },
+      },
+    },
+  });
+  const byId = new Map(versions.map((v) => [v.id, v]));
+  return versionIds
+    .map((id) => byId.get(id))
+    .filter((v): v is NonNullable<typeof v> => Boolean(v))
+    .map((v) => {
+      let options: OptionRow[] = v.options;
+      const order = optionOrders?.[v.id];
+      if (order && order.length > 0) {
+        const optById = new Map(options.map((o) => [o.id, o]));
+        options = order.map((oid) => optById.get(oid)).filter((o): o is OptionRow => Boolean(o));
+      }
+      return {
+        questionVersionId: v.id,
+        type: v.type,
+        stem: v.stem,
+        points: toNumber(v.points),
+        options,
+      };
+    });
+}
+
+function buildShuffleOrders(
+  versionIds: string[],
+  optionsByVersion: Map<string, OptionRow[]>,
+  shuffleQuestions: boolean,
+  shuffleOptions: boolean,
+): { questionOrder: string[]; optionOrders: OptionOrders } {
+  const questionOrder = shuffleQuestions ? shuffleInPlace(versionIds) : [...versionIds];
+  const optionOrders: OptionOrders = {};
+  if (shuffleOptions) {
+    for (const id of questionOrder) {
+      const opts = optionsByVersion.get(id) ?? [];
+      if (opts.length > 1) {
+        optionOrders[id] = shuffleInPlace(opts.map((o) => o.id));
+      }
+    }
+  }
+  return { questionOrder, optionOrders };
+}
+
+const questionBankInclude = {
+  questions: {
+    where: { isActive: true },
+    include: {
+      versions: { orderBy: { version: 'desc' as const }, take: 1 },
+    },
+  },
+} satisfies Prisma.QuestionBankInclude;
+
+function versionIdsFromBank(
+  bank: Prisma.QuestionBankGetPayload<{ include: typeof questionBankInclude }>,
+): string[] {
+  return bank.questions.map((q) => q.versions[0]?.id).filter((id): id is string => Boolean(id));
+}
+
+/** Student-facing result: withhold scores until published and quiz visibility allows. */
+function mapStudentResult(
+  r: {
+    id: string;
+    score: Prisma.Decimal | number;
+    maxScore: Prisma.Decimal | number;
+    percent: Prisma.Decimal | number;
+    passed: boolean | null;
+    releaseStatus: string;
+  },
+  visibility?: { scoreVisible: boolean; answersVisible: boolean },
+) {
   const published = r.releaseStatus === 'published';
+  const scoreOk = published && (visibility?.scoreVisible ?? true);
   return {
     id: r.id,
-    score: published ? toNumber(r.score) : null,
-    maxScore: published ? toNumber(r.maxScore) : null,
-    percent: published ? toNumber(r.percent) : null,
-    passed: published ? r.passed : null,
+    score: scoreOk ? toNumber(r.score) : null,
+    maxScore: scoreOk ? toNumber(r.maxScore) : null,
+    percent: scoreOk ? toNumber(r.percent) : null,
+    passed: scoreOk ? r.passed : null,
     releaseStatus: r.releaseStatus,
+    answersVisible: published && (visibility?.answersVisible ?? false),
   };
 }
 
-export async function startAttempt(organizationId: string, studentId: string, activityId: string) {
+export async function startAttempt(
+  organizationId: string,
+  studentId: string,
+  activityId: string,
+  roundId?: string,
+) {
   const activity = await prisma.activity.findFirst({
     where: { organizationId, id: activityId },
     include: {
       activityBanks: {
         include: {
-          bank: {
-            include: {
-              questions: {
-                where: { isActive: true },
-                include: {
-                  versions: { orderBy: { version: 'desc' }, take: 1 },
-                },
-              },
-            },
-          },
+          bank: { include: questionBankInclude },
+        },
+      },
+      rounds: {
+        orderBy: { sortOrder: 'asc' },
+        include: {
+          banks: { include: { bank: { include: questionBankInclude } } },
+          localBank: { include: questionBankInclude },
         },
       },
     },
@@ -116,37 +208,223 @@ export async function startAttempt(organizationId: string, studentId: string, ac
   });
   if (!registration) throw forbidden('Student is not registered for this activity.');
 
-  const open = await prisma.attempt.findFirst({
-    where: { organizationId, activityId, studentId, status: 'in_progress' },
-  });
-  if (open) {
-    const refreshed = await autoSubmitIfExpired(open);
-    if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
-      throw conflict('An open attempt already exists. Resume it instead.');
+  let resolvedRoundId: string | null = null;
+  let durationMinutes = activity.durationMinutes ?? 60;
+  let versionIds: string[];
+
+  if (activity.kind === 'assessment') {
+    if (!roundId) throw badRequest('roundId is required to start an assessment attempt.');
+    const round = activity.rounds.find((r) => r.id === roundId);
+    if (!round) throw notFound('Round not found on this assessment.');
+
+    const previous = activity.rounds.filter((r) => r.sortOrder < round.sortOrder);
+    if (previous.length > 0) {
+      const prevIds = previous.map((r) => r.id);
+      const completed = await prisma.attempt.findMany({
+        where: {
+          organizationId,
+          activityId,
+          studentId,
+          roundId: { in: prevIds },
+          status: { in: ['submitted', 'auto_submitted'] },
+        },
+        select: { roundId: true },
+      });
+      const completedSet = new Set(completed.map((c) => c.roundId));
+      const missing = previous.find((r) => !completedSet.has(r.id));
+      if (missing) {
+        throw forbidden(`Complete "${missing.name}" before starting this round.`);
+      }
     }
+
+    const alreadyDone = await prisma.attempt.findFirst({
+      where: {
+        organizationId,
+        activityId,
+        studentId,
+        roundId,
+        status: { in: ['submitted', 'auto_submitted'] },
+      },
+    });
+    if (alreadyDone) {
+      throw conflict('This round has already been completed.');
+    }
+
+    const open = await prisma.attempt.findFirst({
+      where: {
+        organizationId,
+        activityId,
+        studentId,
+        roundId,
+        status: 'in_progress',
+      },
+    });
+    if (open) {
+      const refreshed = await autoSubmitIfExpired(open);
+      if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
+        throw conflict('An open attempt already exists for this round. Resume it instead.');
+      }
+    }
+
+    // Also block starting another round while any assessment attempt is open
+    const anyOpen = await prisma.attempt.findFirst({
+      where: {
+        organizationId,
+        activityId,
+        studentId,
+        status: 'in_progress',
+        NOT: { roundId },
+      },
+    });
+    if (anyOpen) {
+      throw conflict('Finish or resume your open round attempt first.');
+    }
+
+    resolvedRoundId = round.id;
+    durationMinutes = round.durationMinutes ?? activity.durationMinutes ?? 60;
+    const fromLinked = round.banks.flatMap((rb) => versionIdsFromBank(rb.bank));
+    const fromLocal = round.localBank ? versionIdsFromBank(round.localBank) : [];
+    versionIds = [...new Set([...fromLinked, ...fromLocal])];
+  } else {
+    if (roundId) throw badRequest('Quizzes do not use rounds.');
+    const open = await prisma.attempt.findFirst({
+      where: { organizationId, activityId, studentId, status: 'in_progress' },
+    });
+    if (open) {
+      const grantContinue = await prisma.reattemptGrant.findFirst({
+        where: {
+          organizationId,
+          activityId,
+          studentId,
+          mode: 'continue',
+          consumedAt: null,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (grantContinue) {
+        const refreshed = await autoSubmitIfExpired(open);
+        if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
+          const durationMs = (activity.durationMinutes ?? 60) * 60_000;
+          let newDeadline = new Date(Date.now() + durationMs);
+          if (activity.endsAt && activity.endsAt < newDeadline) newDeadline = activity.endsAt;
+          await prisma.attempt.update({
+            where: { id: open.id },
+            data: { deadlineAt: newDeadline },
+          });
+          await prisma.reattemptGrant.update({
+            where: { id: grantContinue.id },
+            data: { consumedAt: new Date() },
+          });
+          const live = await prisma.attempt.findFirst({
+            where: { id: open.id },
+            include: { responses: true },
+          });
+          if (!live) throw notFound('Attempt not found.');
+          const order =
+            live.questionOrder.length > 0
+              ? live.questionOrder
+              : live.responses.map((r) => r.questionVersionId);
+          const optionOrders = (live.optionOrders as OptionOrders | null) ?? null;
+          const questions = await presentQuestions(organizationId, order, optionOrders);
+          return {
+            attempt: mapAttempt(live, { activityKind: 'quiz', softProctoring: true }),
+            questions,
+          };
+        }
+      }
+      const refreshed = await autoSubmitIfExpired(open);
+      if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
+        throw conflict('An open attempt already exists. Resume it instead.');
+      }
+    }
+
+    const completed = await prisma.attempt.findFirst({
+      where: {
+        organizationId,
+        activityId,
+        studentId,
+        status: { in: ['submitted', 'auto_submitted'] },
+      },
+      orderBy: { submittedAt: 'desc' },
+    });
+    if (completed) {
+      const grant = await prisma.reattemptGrant.findFirst({
+        where: {
+          organizationId,
+          activityId,
+          studentId,
+          consumedAt: null,
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (!grant) {
+        throw conflict('Quiz already completed. Ask an admin for a reattempt.');
+      }
+      if (grant.mode === 'restart' && completed.isAuthoritative) {
+        await prisma.attempt.update({
+          where: { id: completed.id },
+          data: { isAuthoritative: false },
+        });
+      }
+      await prisma.reattemptGrant.update({
+        where: { id: grant.id },
+        data: { consumedAt: new Date() },
+      });
+    }
+
+    versionIds = activity.activityBanks.flatMap((ab) => versionIdsFromBank(ab.bank));
   }
 
-  const durationMs = (activity.durationMinutes ?? 60) * 60_000;
+  if (versionIds.length === 0) {
+    throw badRequest('No questions available for this attempt.');
+  }
+
+  const durationMs = durationMinutes * 60_000;
   let deadlineAt = new Date(now.getTime() + durationMs);
   if (activity.endsAt && activity.endsAt < deadlineAt) {
     deadlineAt = activity.endsAt;
   }
 
-  const versionIds = activity.activityBanks.flatMap((ab) =>
-    ab.bank.questions.map((q) => q.versions[0]?.id).filter((id): id is string => Boolean(id)),
-  );
+  const quizSettings =
+    activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
+
+  let questionOrder = [...versionIds];
+  let optionOrders: OptionOrders = {};
+  if (activity.kind === 'quiz' && quizSettings) {
+    const versionsForOpts = await prisma.questionVersion.findMany({
+      where: { organizationId, id: { in: versionIds } },
+      include: {
+        options: {
+          orderBy: { sortOrder: 'asc' },
+          select: { id: true, label: true, body: true, sortOrder: true },
+        },
+      },
+    });
+    const optionsByVersion = new Map(versionsForOpts.map((v) => [v.id, v.options]));
+    const built = buildShuffleOrders(
+      versionIds,
+      optionsByVersion,
+      quizSettings.shuffleQuestions,
+      quizSettings.shuffleOptions,
+    );
+    questionOrder = built.questionOrder;
+    optionOrders = built.optionOrders;
+  }
 
   const attempt = await prisma.attempt.create({
     data: {
       organizationId,
       activityId,
+      roundId: resolvedRoundId,
       studentId,
       status: 'in_progress',
       revision: 0,
       startedAt: now,
       deadlineAt,
+      questionOrder,
+      optionOrders: Object.keys(optionOrders).length > 0 ? optionOrders : undefined,
       responses: {
-        create: versionIds.map((questionVersionId) => ({
+        create: questionOrder.map((questionVersionId) => ({
           organizationId,
           questionVersionId,
           answer: {},
@@ -159,38 +437,45 @@ export async function startAttempt(organizationId: string, studentId: string, ac
 
   await invalidateDashboard(organizationId);
 
-  const versions = await prisma.questionVersion.findMany({
-    where: { organizationId, id: { in: versionIds } },
-    include: {
-      options: {
-        orderBy: { sortOrder: 'asc' },
-        select: { id: true, label: true, body: true, sortOrder: true },
-      },
-    },
-  });
+  const questions = await presentQuestions(
+    organizationId,
+    questionOrder,
+    Object.keys(optionOrders).length > 0 ? optionOrders : null,
+  );
 
   return {
-    attempt: mapAttempt(attempt),
-    questions: versions.map((v) => ({
-      questionVersionId: v.id,
-      type: v.type,
-      stem: v.stem,
-      points: toNumber(v.points),
-      options: v.options,
-    })),
+    attempt: mapAttempt(attempt, {
+      activityKind: activity.kind,
+      softProctoring: activity.kind === 'quiz',
+    }),
+    questions,
   };
 }
 
 export async function resumeAttempt(organizationId: string, studentId: string, attemptId: string) {
   const attempt = await prisma.attempt.findFirst({
     where: { organizationId, id: attemptId, studentId },
-    include: { responses: true },
+    include: { responses: true, activity: { select: { kind: true, settings: true } } },
   });
   if (!attempt) throw notFound('Attempt not found.');
 
+  const quizSettings =
+    attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
+
   const maybe = await autoSubmitIfExpired(attempt);
   if (maybe && 'result' in maybe) {
-    return { attempt: maybe.attempt, submitted: true, result: maybe.result };
+    return {
+      attempt: {
+        ...maybe.attempt,
+        activityKind: attempt.activity.kind,
+        softProctoring: attempt.activity.kind === 'quiz',
+      },
+      submitted: true,
+      result: mapStudentResult(maybe.result as never, {
+        scoreVisible: quizSettings?.scoreVisibleToStudent ?? true,
+        answersVisible: quizSettings?.answersVisibleToStudent ?? false,
+      }),
+    };
   }
 
   const live = await prisma.attempt.findFirst({
@@ -201,26 +486,19 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
     throw conflict('Attempt is no longer in progress.');
   }
 
-  const versionIds = live.responses.map((r) => r.questionVersionId);
-  const versions = await prisma.questionVersion.findMany({
-    where: { organizationId, id: { in: versionIds } },
-    include: {
-      options: {
-        orderBy: { sortOrder: 'asc' },
-        select: { id: true, label: true, body: true, sortOrder: true },
-      },
-    },
-  });
+  const versionIds =
+    live.questionOrder.length > 0
+      ? live.questionOrder
+      : live.responses.map((r) => r.questionVersionId);
+  const optionOrders = (live.optionOrders as OptionOrders | null) ?? null;
+  const questions = await presentQuestions(organizationId, versionIds, optionOrders);
 
   return {
-    attempt: mapAttempt(live),
-    questions: versions.map((v) => ({
-      questionVersionId: v.id,
-      type: v.type,
-      stem: v.stem,
-      points: toNumber(v.points),
-      options: v.options,
-    })),
+    attempt: mapAttempt(live, {
+      activityKind: attempt.activity.kind,
+      softProctoring: attempt.activity.kind === 'quiz',
+    }),
+    questions,
     submitted: false,
   };
 }
@@ -321,14 +599,8 @@ async function submitAttemptInternal(
       studentId,
       submitIdempotencyKey: opts.idempotencyKey,
     },
-    include: { result: true, responses: true },
+    include: { result: true, responses: true, activity: true },
   });
-  if (existingByKey?.result) {
-    return {
-      attempt: mapAttempt(existingByKey),
-      result: mapStudentResult(existingByKey.result),
-    };
-  }
 
   const attempt = await prisma.attempt.findFirst({
     where: { organizationId, id: attemptId, studentId },
@@ -340,17 +612,42 @@ async function submitAttemptInternal(
   });
   if (!attempt) throw notFound('Attempt not found.');
 
-  if (
-    attempt.submitIdempotencyKey &&
-    attempt.submitIdempotencyKey === opts.idempotencyKey &&
-    attempt.result
-  ) {
-    return { attempt: mapAttempt(attempt), result: mapStudentResult(attempt.result) };
+  const quizSettings =
+    attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
+  const visibility = {
+    scoreVisible: quizSettings?.scoreVisibleToStudent ?? true,
+    answersVisible: quizSettings?.answersVisibleToStudent ?? false,
+  };
+
+  if (existingByKey?.result) {
+    return {
+      attempt: mapAttempt(existingByKey, {
+        activityKind: attempt.activity.kind,
+        softProctoring: attempt.activity.kind === 'quiz',
+      }),
+      result: mapStudentResult(existingByKey.result, visibility),
+    };
+  }
+
+  if (attempt.submitIdempotencyKey === opts.idempotencyKey && attempt.result) {
+    return {
+      attempt: mapAttempt(attempt, {
+        activityKind: attempt.activity.kind,
+        softProctoring: attempt.activity.kind === 'quiz',
+      }),
+      result: mapStudentResult(attempt.result, visibility),
+    };
   }
 
   if (attempt.status !== 'in_progress' && attempt.result) {
     if (attempt.submitIdempotencyKey === opts.idempotencyKey) {
-      return { attempt: mapAttempt(attempt), result: mapStudentResult(attempt.result) };
+      return {
+        attempt: mapAttempt(attempt, {
+          activityKind: attempt.activity.kind,
+          softProctoring: attempt.activity.kind === 'quiz',
+        }),
+        result: mapStudentResult(attempt.result, visibility),
+      };
     }
     throw conflict('Attempt already submitted.');
   }
@@ -437,7 +734,13 @@ async function submitAttemptInternal(
   });
   await invalidateDashboard(organizationId);
 
-  return { attempt: mapAttempt(updated), result: mapStudentResult(result) };
+  return {
+    attempt: mapAttempt(updated, {
+      activityKind: attempt.activity.kind,
+      softProctoring: attempt.activity.kind === 'quiz',
+    }),
+    result: mapStudentResult(result, visibility),
+  };
 }
 
 export async function submitAttempt(
@@ -453,4 +756,167 @@ export async function submitAttempt(
     auto: false,
     idempotencyKey,
   });
+}
+
+export async function disqualifyAttempt(
+  organizationId: string,
+  actorUserId: string,
+  attemptId: string,
+  note?: string,
+) {
+  const attempt = await prisma.attempt.findFirst({
+    where: { organizationId, id: attemptId },
+    include: { activity: true },
+  });
+  if (!attempt) throw notFound('Attempt not found.');
+  if (attempt.activity.kind !== 'quiz') {
+    throw badRequest('Disqualify is only available for quiz attempts.');
+  }
+  if (attempt.disqualified) throw conflict('Attempt is already disqualified.');
+
+  const updated = await prisma.attempt.update({
+    where: { id: attemptId },
+    data: {
+      disqualified: true,
+      disqualifiedAt: new Date(),
+      disqualifiedByUserId: actorUserId,
+      disqualifiedNote: note?.trim() || null,
+      isAuthoritative: false,
+    },
+    include: { responses: true },
+  });
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'attempt.disqualify',
+    targetType: 'attempt',
+    targetId: attemptId,
+  });
+  await invalidateDashboard(organizationId);
+  return mapAttempt(updated, { activityKind: 'quiz' });
+}
+
+export async function requalifyAttempt(
+  organizationId: string,
+  actorUserId: string,
+  attemptId: string,
+) {
+  const attempt = await prisma.attempt.findFirst({
+    where: { organizationId, id: attemptId },
+    include: { activity: true },
+  });
+  if (!attempt) throw notFound('Attempt not found.');
+  if (attempt.activity.kind !== 'quiz') {
+    throw badRequest('Re-qualify is only available for quiz attempts.');
+  }
+  if (!attempt.disqualified) throw conflict('Attempt is not disqualified.');
+
+  // Make this the authoritative completed attempt if submitted
+  if (attempt.status === 'submitted' || attempt.status === 'auto_submitted') {
+    await prisma.attempt.updateMany({
+      where: {
+        organizationId,
+        activityId: attempt.activityId,
+        studentId: attempt.studentId,
+        id: { not: attemptId },
+        status: { in: ['submitted', 'auto_submitted'] },
+      },
+      data: { isAuthoritative: false },
+    });
+  }
+
+  const updated = await prisma.attempt.update({
+    where: { id: attemptId },
+    data: {
+      disqualified: false,
+      disqualifiedAt: null,
+      disqualifiedByUserId: null,
+      disqualifiedNote: null,
+      isAuthoritative: true,
+    },
+    include: { responses: true },
+  });
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'attempt.requalify',
+    targetType: 'attempt',
+    targetId: attemptId,
+  });
+  await invalidateDashboard(organizationId);
+  return mapAttempt(updated, { activityKind: 'quiz' });
+}
+
+export async function grantReattempt(
+  organizationId: string,
+  actorUserId: string,
+  activityId: string,
+  studentId: string,
+  mode: 'continue' | 'restart',
+  note?: string,
+) {
+  const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
+  if (!activity) throw notFound('Activity not found.');
+  if (activity.kind !== 'quiz') throw badRequest('Reattempts are only for quizzes.');
+
+  const student = await prisma.student.findFirst({ where: { organizationId, id: studentId } });
+  if (!student) throw notFound('Student not found.');
+
+  const grant = await prisma.reattemptGrant.create({
+    data: {
+      organizationId,
+      activityId,
+      studentId,
+      mode,
+      note: note?.trim() || null,
+      grantedByUserId: actorUserId,
+    },
+  });
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'reattempt.grant',
+    targetType: 'reattempt_grant',
+    targetId: grant.id,
+  });
+
+  return {
+    id: grant.id,
+    activityId: grant.activityId,
+    studentId: grant.studentId,
+    mode: grant.mode,
+    note: grant.note,
+    consumedAt: grant.consumedAt,
+    createdAt: grant.createdAt,
+  };
+}
+
+export async function listReattemptGrants(organizationId: string, activityId: string) {
+  const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
+  if (!activity) throw notFound('Activity not found.');
+
+  const rows = await prisma.reattemptGrant.findMany({
+    where: { organizationId, activityId },
+    include: {
+      student: { select: { id: true, name: true, code: true } },
+      grantedBy: { select: { id: true, name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return rows.map((g) => ({
+    id: g.id,
+    mode: g.mode,
+    note: g.note,
+    consumedAt: g.consumedAt,
+    createdAt: g.createdAt,
+    student: g.student,
+    grantedBy: g.grantedBy,
+  }));
 }

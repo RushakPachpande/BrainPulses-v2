@@ -12,7 +12,12 @@ import { prisma } from './lib/prisma.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestId } from './middleware/request-id.js';
 import { activitiesRouter } from './modules/activities/routes.js';
+import { adminAttemptsRouter } from './modules/attempts/admin-routes.js';
 import { attemptsRouter } from './modules/attempts/routes.js';
+import {
+  leaderboardsRouter,
+  studentLeaderboardsRouter,
+} from './modules/leaderboards/routes.js';
 import { auditRouter } from './modules/audit/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { banksRouter } from './modules/banks/routes.js';
@@ -146,6 +151,9 @@ export function createApp() {
   app.use('/api/banks', banksRouter);
   app.use('/api/registrations', registrationsRouter);
   app.use('/api/attempts', attemptsRouter);
+  app.use('/api/admin/attempts', adminAttemptsRouter);
+  app.use('/api/leaderboards', leaderboardsRouter);
+  app.use('/api/student/leaderboards', studentLeaderboardsRouter);
   app.use('/api/results', resultsRouter);
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/settings', settingsRouter);

@@ -9,6 +9,7 @@ export async function start(req: Request, res: Response, next: NextFunction) {
       actor.organizationId,
       actor.studentId,
       req.body.activityId,
+      req.body.roundId,
     );
     res.status(201).json({ data });
   } catch (err) {

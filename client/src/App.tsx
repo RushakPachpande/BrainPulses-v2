@@ -6,12 +6,14 @@ import { ActivityDetailPage } from './pages/activity-detail';
 import { AttemptPage } from './pages/attempt';
 import { DashboardPage } from './pages/dashboard';
 import { HelpPage } from './pages/help';
+import { LeaderboardPage } from './pages/leaderboard';
 import { LibraryPage } from './pages/library';
 import { LoginPage } from './pages/login';
 import { ProfilePage } from './pages/profile';
 import { ResultDetailPage, ResultsPage } from './pages/results';
 
 function titleForPath(pathname: string) {
+  if (pathname.includes('/leaderboard')) return 'Leaderboard';
   if (pathname.startsWith('/quizzes/')) return 'Quiz details';
   if (pathname.startsWith('/quizzes')) return 'My quizzes';
   if (pathname.startsWith('/assessments/')) return 'Assessment details';
@@ -44,6 +46,7 @@ export default function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/quizzes" element={<LibraryPage kind="quiz" />} />
+              <Route path="/quizzes/:activityId/leaderboard" element={<LeaderboardPage />} />
               <Route path="/quizzes/:activityId" element={<ActivityDetailPage kind="quiz" />} />
               <Route path="/assessments" element={<LibraryPage kind="assessment" />} />
               <Route

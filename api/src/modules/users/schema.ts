@@ -21,6 +21,8 @@ export const inviteUserSchema = z
 
 export const updateMembershipSchema = z
   .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    email: z.string().email().optional(),
     role: z.enum(['super_admin', 'admin']).optional(),
     assessmentAccess: accessLevelSchema.optional(),
     quizAccess: accessLevelSchema.optional(),

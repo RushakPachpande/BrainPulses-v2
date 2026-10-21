@@ -52,6 +52,7 @@ export function fixturesGetStudents() {
     lastLogin: when(i + 1, 10),
     course: studentCourses[i],
     city: studentCities[i],
+    cohort: i % 2 === 0 ? 'Alpha' : 'Beta',
   }));
 }
 
@@ -121,6 +122,7 @@ export function fixturesGetRegistrations(kind: ActivityKind) {
     attempt: attemptStatuses[i],
     city: studentCities[i],
     course: studentCourses[i],
+    cohort: i % 2 === 0 ? 'Alpha' : 'Beta',
   }));
 }
 

@@ -77,3 +77,52 @@ export async function archive(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function listRoundQuestions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.listRoundQuestions(
+      actor.organizationId,
+      actor,
+      req.params.id as string,
+      req.params.roundId as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function createRoundQuestion(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.createRoundQuestion(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+      req.params.roundId as string,
+      req.body,
+    );
+    res.status(201).json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function deleteRoundQuestion(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    await service.deleteRoundQuestion(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+      req.params.roundId as string,
+      req.params.questionId as string,
+    );
+    res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}

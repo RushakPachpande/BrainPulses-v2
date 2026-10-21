@@ -9,6 +9,7 @@ import {
 import type {
   AttemptQuestion,
   AttemptState,
+  LeaderboardPayload,
   StudentActivity,
   StudentProfile,
   StudentResultDetail,
@@ -115,11 +116,14 @@ export function getResult(id: string) {
   return apiGetData<StudentResultDetail>(`/api/student/results/${id}`);
 }
 
-export function startAttempt(activityId: string) {
+export function startAttempt(activityId: string, roundId?: string) {
   return apiPostData<{
     attempt: AttemptState;
     questions: AttemptQuestion[];
-  }>('/api/attempts/start', { activityId });
+  }>('/api/attempts/start', {
+    activityId,
+    ...(roundId ? { roundId } : {}),
+  });
 }
 
 export function resumeAttempt(attemptId: string) {
@@ -150,4 +154,17 @@ export function submitAttempt(attemptId: string, idempotencyKey: string) {
   }>(`/api/attempts/${attemptId}/submit`, undefined, {
     'idempotency-key': idempotencyKey,
   });
+}
+
+export function getStudentActivityLeaderboard(
+  activityId: string,
+  query: { scope?: 'daily' | 'overall'; kind?: 'individual' | 'group' } = {},
+) {
+  const qs = new URLSearchParams();
+  if (query.scope) qs.set('scope', query.scope);
+  if (query.kind) qs.set('kind', query.kind);
+  const suffix = qs.toString() ? `?${qs}` : '';
+  return apiGetData<LeaderboardPayload>(
+    `/api/student/leaderboards/activities/${activityId}${suffix}`,
+  );
 }

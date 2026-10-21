@@ -1,5 +1,18 @@
 export type ActivityKind = 'assessment' | 'quiz';
 
+export type StudentRoundState = 'locked' | 'available' | 'in_progress' | 'completed';
+
+export type StudentActivityRound = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  durationMinutes: number | null;
+  questionCount: number;
+  state: StudentRoundState;
+  openAttemptId: string | null;
+  latestResultId: string | null;
+};
+
 export type StudentActivity = {
   registrationId: string;
   activityId: string;
@@ -16,6 +29,8 @@ export type StudentActivity = {
   openAttemptId: string | null;
   latestResultId: string | null;
   latestPercent: number | null;
+  leaderboardAvailable?: boolean;
+  rounds?: StudentActivityRound[];
 };
 
 export type StudentResultSummary = {
@@ -25,6 +40,8 @@ export type StudentResultSummary = {
   title: string;
   kind: ActivityKind;
   attemptId: string;
+  roundId?: string | null;
+  roundName?: string | null;
   score: number | null;
   maxScore: number | null;
   percent: number | null;
@@ -45,6 +62,7 @@ export type StudentResultDetail = {
   percent: number | null;
   passed: boolean | null;
   releaseStatus: string;
+  answersVisible?: boolean;
   submittedAt: string;
   review: {
     questionVersionId: string;
@@ -73,8 +91,35 @@ export type AttemptState = {
   deadlineAt: string;
   submittedAt: string | null;
   activityId: string;
+  roundId?: string | null;
   studentId: string;
+  activityKind?: string | null;
+  softProctoring?: boolean;
+  disqualified?: boolean;
+  isAuthoritative?: boolean;
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
+};
+
+export type LeaderboardEntry = {
+  rank: number;
+  studentId?: string;
+  studentName?: string;
+  studentCode?: string;
+  cohort?: string | null;
+  percent?: number;
+  score?: number;
+  maxScore?: number;
+  members?: number;
+  avgPercent?: number;
+  bestPercent?: number;
+};
+
+export type LeaderboardPayload = {
+  activityId: string;
+  activityName: string;
+  scope: string;
+  kind: string;
+  entries: LeaderboardEntry[];
 };
 
 export type StudentProfile = {

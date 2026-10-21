@@ -12,6 +12,7 @@ export type Student = {
   lastLogin: string;
   course: string;
   city: string;
+  cohort: string;
 };
 
 export type AdminUser = {
@@ -49,9 +50,45 @@ export type ActivityRegistrationField = {
   options?: string[];
 };
 
+export type QuizActivitySettings = {
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+  scoreVisibleToStudent: boolean;
+  answersVisibleToStudent: boolean;
+  dailyLeaderboardVisible: boolean;
+  overallLeaderboardVisible: boolean;
+  dailyGroupLeaderboardVisible: boolean;
+  overallGroupLeaderboardVisible: boolean;
+  countsForGroupLeaderboard: boolean;
+  leaderboardReleasedAt: string | null;
+};
+
 export type ActivitySettings = {
   registrationForm?: { fields: ActivityRegistrationField[] };
   assignmentRules?: { mode: 'manual' | 'all_active_students'; notes?: string };
+  quiz?: QuizActivitySettings;
+};
+
+export type ActivityRoundLocalQuestion = {
+  id: string;
+  code: string;
+  type: string;
+  stem: string;
+  points: number;
+  isActive: boolean;
+  options: { id: string; label: string; body: string; sortOrder: number }[];
+};
+
+export type ActivityRoundDetail = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  durationMinutes: number | null;
+  bankIds: string[];
+  banksDetail: { id: string; name: string; code: string }[];
+  localBankId: string | null;
+  localQuestionCount: number;
+  localQuestions: ActivityRoundLocalQuestion[];
 };
 
 export type ActivityDetail = Activity & {
@@ -65,6 +102,7 @@ export type ActivityDetail = Activity & {
   presentation: 'one_at_a_time' | 'all_on_page' | 'timed_card';
   bankIds: string[];
   settings: ActivitySettings | null;
+  rounds?: ActivityRoundDetail[];
 };
 
 export type QuestionBank = {
@@ -110,6 +148,9 @@ export type ResultRow = {
   activityKind?: string;
   studentCode?: string;
   attemptId?: string;
+  activityId?: string;
+  studentId?: string;
+  disqualified?: boolean;
 };
 
 export type ResultDetail = ResultRow & {

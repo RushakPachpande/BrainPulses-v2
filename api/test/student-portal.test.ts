@@ -44,11 +44,15 @@ describe('student portal', () => {
     const token1 = await studentToken('BP-24101');
     const token2 = await studentToken('BP-24102');
 
-    const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26002' } });
+    // Use active weekly GK (QZ-26002 is seeded completed / past window).
+    const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
     assert.ok(activity);
     const student1 = await prisma.student.findFirst({ where: { email: 'student1@mail.com' } });
     assert.ok(student1);
 
+    await prisma.reattemptGrant.deleteMany({
+      where: { studentId: student1.id, activityId: activity.id },
+    });
     await prisma.attemptResponse.deleteMany({
       where: { attempt: { studentId: student1.id, activityId: activity.id } },
     });

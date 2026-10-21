@@ -64,6 +64,7 @@ export function mapStudentFromApi(row: {
   phone: string | null;
   course: string | null;
   city: string | null;
+  cohort?: string | null;
   status: string;
   registered: string | Date;
   activities: number;
@@ -81,6 +82,7 @@ export function mapStudentFromApi(row: {
     lastLogin: formatAdminDateTime(row.lastLoginAt),
     course: row.course ?? '—',
     city: row.city ?? '—',
+    cohort: row.cohort ?? '—',
   };
 }
 
@@ -209,6 +211,9 @@ export function mapResultFromApi(row: {
   releaseStatus?: string;
   activityKind?: string;
   studentCode?: string;
+  activityId?: string;
+  studentId?: string;
+  disqualified?: boolean;
 }): ResultRow {
   const score = Math.round(row.percent);
   return {
@@ -225,6 +230,9 @@ export function mapResultFromApi(row: {
     activityKind: row.activityKind,
     studentCode: row.studentCode,
     attemptId: row.attemptId,
+    activityId: row.activityId,
+    studentId: row.studentId,
+    disqualified: row.disqualified,
   };
 }
 

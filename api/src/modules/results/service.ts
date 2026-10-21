@@ -24,6 +24,8 @@ function viewableKinds(actor: ResultsActor): ActivityKind[] {
 
 function mapResult(r: {
   id: string;
+  activityId: string;
+  studentId: string;
   score: Prisma.Decimal;
   maxScore: Prisma.Decimal;
   percent: Prisma.Decimal;
@@ -33,15 +35,18 @@ function mapResult(r: {
   createdAt: Date;
   student: { name: string; code: string };
   activity: { name: string; kind: string };
-  attempt: { id: string };
+  attempt: { id: string; disqualified: boolean };
 }) {
   return {
     id: r.id,
+    activityId: r.activityId,
+    studentId: r.studentId,
     student: r.student.name,
     studentCode: r.student.code,
     activity: r.activity.name,
     activityKind: r.activity.kind,
     attemptId: r.attempt.id,
+    disqualified: r.attempt.disqualified,
     score: Number(r.score),
     maxScore: Number(r.maxScore),
     percent: Number(r.percent),

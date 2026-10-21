@@ -78,6 +78,7 @@ const nav: NavGroupItem[] = [
       { to: '/quizzes/banks', label: 'Question Banks', end: true },
       { to: '/quizzes/registrations', label: 'Registrations', end: true },
       { to: '/quizzes/reports', label: 'Reports & Results', end: true },
+      { to: '/quizzes/leaderboard', label: 'Leaderboard', end: true },
     ],
   },
   {

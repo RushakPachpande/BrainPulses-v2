@@ -77,13 +77,21 @@ export async function refreshAuthSession(): Promise<RefreshedSession | null> {
 
 async function parseApiError(res: Response): Promise<ApiError> {
   try {
-    const body = (await res.json()) as { error?: { code?: string; message?: string } };
+    const body = (await res.json()) as {
+      error?: { code?: string; message?: string; fields?: Record<string, string> };
+    };
     const err = body.error;
     if (err) {
+      const fieldHint =
+        err.fields && Object.keys(err.fields).length > 0
+          ? ` ${Object.entries(err.fields)
+              .map(([k, v]) => (k === '_' ? v : `${k}: ${v}`))
+              .join(' ')}`
+          : '';
       return new ApiError(
         res.status,
         err.code ?? 'UNKNOWN',
-        err.message ?? (res.statusText || 'Request failed.'),
+        `${err.message ?? (res.statusText || 'Request failed.')}${fieldHint}`.trim(),
       );
     }
   } catch {

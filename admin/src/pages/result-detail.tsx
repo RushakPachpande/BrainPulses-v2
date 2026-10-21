@@ -11,7 +11,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { getResult, publishResult, regradeResult, type ActivityKind } from '@/services';
+import {
+  disqualifyAttempt,
+  getResult,
+  grantReattempt,
+  publishResult,
+  regradeResult,
+  requalifyAttempt,
+  type ActivityKind,
+} from '@/services';
 import type { ResultDetail } from '@/services/types';
 
 export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
@@ -27,6 +35,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   const [saving, setSaving] = useState(false);
   const [regradeScore, setRegradeScore] = useState('');
   const [regradeReason, setRegradeReason] = useState('');
+  const [dqNote, setDqNote] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -86,6 +95,56 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     }
   }
 
+  async function onDisqualify() {
+    if (!row?.attemptId) return;
+    setSaving(true);
+    try {
+      await disqualifyAttempt(row.attemptId, dqNote.trim() || undefined);
+      toast.success('Attempt disqualified.');
+      const data = await getResult(resultId);
+      setRow(data);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not disqualify.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onRequalify() {
+    if (!row?.attemptId) return;
+    setSaving(true);
+    try {
+      await requalifyAttempt(row.attemptId);
+      toast.success('Attempt re-qualified.');
+      const data = await getResult(resultId);
+      setRow(data);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not re-qualify.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onGrantReattempt(mode: 'continue' | 'restart') {
+    if (!row?.activityId || !row.studentId) {
+      toast.error('Missing activity or student on this result.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await grantReattempt(row.activityId, {
+        studentId: row.studentId,
+        mode,
+        note: dqNote.trim() || undefined,
+      });
+      toast.success(`Reattempt (${mode}) granted.`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not grant reattempt.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading || !row) return <FormPageSkeleton fields={5} />;
 
   return (
@@ -133,6 +192,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
             <p className="text-muted-foreground">Release</p>
             <p className="font-medium">{row.releaseStatus ?? '—'}</p>
           </div>
+          {isQuiz ? (
+            <div>
+              <p className="text-muted-foreground">Disqualified</p>
+              <p className="font-medium">{row.disqualified ? 'Yes' : 'No'}</p>
+            </div>
+          ) : null}
           {canFull ? (
             <div className="col-span-full flex flex-col gap-3 border-t pt-4">
               {row.releaseStatus !== 'published' ? (
@@ -168,6 +233,56 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
               >
                 Regrade
               </Button>
+              {isQuiz ? (
+                <>
+                  <Field>
+                    <FieldLabel htmlFor="dq-note">Note (disqualify / reattempt)</FieldLabel>
+                    <Input
+                      id="dq-note"
+                      value={dqNote}
+                      onChange={(e) => setDqNote(e.target.value)}
+                      placeholder="Optional note"
+                    />
+                  </Field>
+                  <div className="flex flex-wrap gap-2">
+                    {row.disqualified ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={() => void onRequalify()}
+                      >
+                        Re-qualify
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        disabled={saving}
+                        onClick={() => void onDisqualify()}
+                      >
+                        Disqualify
+                      </Button>
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => void onGrantReattempt('continue')}
+                    >
+                      Grant continue
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={saving}
+                      onClick={() => void onGrantReattempt('restart')}
+                    >
+                      Grant restart
+                    </Button>
+                  </div>
+                </>
+              ) : null}
             </div>
           ) : null}
         </CardContent>

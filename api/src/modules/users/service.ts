@@ -175,28 +175,56 @@ export async function updateMembership(
     }
   }
 
-  const membership = await prisma.membership.update({
-    where: { id: membershipId },
-    data: {
-      ...(input.role !== undefined ? { role: input.role } : {}),
-      ...(input.assessmentAccess !== undefined ? { assessmentAccess: input.assessmentAccess } : {}),
-      ...(input.quizAccess !== undefined ? { quizAccess: input.quizAccess } : {}),
-      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
-    },
-    include: { user: true },
-  });
+  const nextEmail = input.email !== undefined ? input.email.trim().toLowerCase() : undefined;
+  if (nextEmail && nextEmail !== existing.user.email) {
+    const taken = await prisma.user.findFirst({
+      where: { email: nextEmail, NOT: { id: existing.userId } },
+      select: { id: true },
+    });
+    if (taken) throw conflict('Another account already uses that email.');
+  }
 
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'user.update',
-    targetType: 'membership',
-    targetId: membershipId,
-    metadata: input,
-  });
+  try {
+    if (input.name !== undefined || nextEmail !== undefined) {
+      await prisma.user.update({
+        where: { id: existing.userId },
+        data: {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(nextEmail !== undefined ? { email: nextEmail } : {}),
+        },
+      });
+    }
 
-  return mapMembership(membership);
+    const membership = await prisma.membership.update({
+      where: { id: membershipId },
+      data: {
+        ...(input.role !== undefined ? { role: input.role } : {}),
+        ...(input.assessmentAccess !== undefined
+          ? { assessmentAccess: input.assessmentAccess }
+          : {}),
+        ...(input.quizAccess !== undefined ? { quizAccess: input.quizAccess } : {}),
+        ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
+      },
+      include: { user: true },
+    });
+
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId,
+      action: 'user.update',
+      targetType: 'membership',
+      targetId: membershipId,
+      metadata: input,
+    });
+
+    return mapMembership(membership);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw conflict('Another account already uses that email.');
+    }
+    throw err;
+  }
 }
 
 export async function deactivateMembership(

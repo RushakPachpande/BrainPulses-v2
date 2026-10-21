@@ -20,8 +20,13 @@ describe('attempts', () => {
   it('rejects stale revision and accepts idempotent submit', async () => {
     const app = await getTestApp();
     const token = await studentToken();
-    const activity = await prisma.activity.findFirst({ where: { code: 'ASM-26001' } });
+    const activity = await prisma.activity.findFirst({
+      where: { code: 'ASM-26001' },
+      include: { rounds: { orderBy: { sortOrder: 'asc' }, take: 1 } },
+    });
     assert.ok(activity);
+    const round = activity.rounds[0];
+    assert.ok(round, 'assessment seed should include Round 1');
 
     // Clear prior open attempts for this student/activity
     const student = await prisma.student.findFirst({
@@ -40,7 +45,7 @@ describe('attempts', () => {
 
     const start = await request(app, 'POST', '/api/attempts/start', {
       headers: { authorization: `Bearer ${token}` },
-      body: { activityId: activity.id },
+      body: { activityId: activity.id, roundId: round.id },
     });
     assert.equal(start.status, 201);
     const started = (
@@ -51,6 +56,16 @@ describe('attempts', () => {
         };
       }
     ).data;
+    assert.ok(started.questions[0]);
+    const firstVersion = await prisma.questionVersion.findFirst({
+      where: { id: started.questions[0].questionVersionId },
+      include: { options: true },
+    });
+    assert.ok(firstVersion);
+    const correctLabel =
+      firstVersion.options.find((o) => o.isCorrect)?.label ??
+      ((firstVersion.answerKey as { correctLabels?: string[] })?.correctLabels?.[0] as string);
+    assert.ok(correctLabel);
 
     const stale = await request(app, 'POST', `/api/attempts/${started.attempt.id}/save`, {
       headers: { authorization: `Bearer ${token}` },
@@ -58,8 +73,8 @@ describe('attempts', () => {
         revision: started.attempt.revision + 5,
         responses: [
           {
-            questionVersionId: started.questions[0]!.questionVersionId,
-            answer: { label: 'B' },
+            questionVersionId: started.questions[0].questionVersionId,
+            answer: { label: correctLabel },
           },
         ],
       },
@@ -72,8 +87,8 @@ describe('attempts', () => {
         revision: started.attempt.revision,
         responses: [
           {
-            questionVersionId: started.questions[0]!.questionVersionId,
-            answer: { label: 'B' },
+            questionVersionId: started.questions[0].questionVersionId,
+            answer: { label: correctLabel },
           },
         ],
       },
@@ -88,8 +103,7 @@ describe('attempts', () => {
       },
     });
     assert.equal(submit1.status, 200);
-    const result1 = (submit1.body as { data: { result: { id: string; score: unknown } } }).data
-      .result;
+    const result1 = (submit1.body as { data: { result: { id: string } } }).data.result;
 
     const submit2 = await request(app, 'POST', `/api/attempts/${started.attempt.id}/submit`, {
       headers: {
@@ -100,7 +114,10 @@ describe('attempts', () => {
     assert.equal(submit2.status, 200);
     const result2 = (submit2.body as { data: { result: { id: string } } }).data.result;
     assert.equal(result1.id, result2.id);
-    assert.equal(Number(result1.score), 1);
+
+    const stored = await prisma.result.findFirst({ where: { id: result1.id } });
+    assert.ok(stored);
+    assert.equal(Number(stored.score), Number(stored.maxScore) > 0 ? Number(firstVersion.points) : 0);
   });
 
   it('resumes an in-progress attempt with saved answers and remaining deadline', async () => {

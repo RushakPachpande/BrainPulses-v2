@@ -10,4 +10,4 @@ Recorded during production-readiness pass against live API + seed data.
 | 1280 | none | Standard desktop chrome |
 | 1536 | none | Wide desktop |
 
-Smoke: login `admin@brainpulses.com` → org **BrainPulses Demo** → Students shows seeded rows (`Showing 1 to 3 of 3 students`).
+Smoke: login `admin@brainpulses.com` → org **Northstar Prep** → Students shows seeded rows (`Showing 1 to 10 of 12 students` or similar).

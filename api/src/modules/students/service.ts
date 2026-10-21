@@ -17,6 +17,7 @@ function mapStudent(s: {
   phone: string | null;
   course: string | null;
   city: string | null;
+  cohort?: string | null;
   isActive: boolean;
   lastLoginAt: Date | null;
   createdAt: Date;
@@ -30,6 +31,7 @@ function mapStudent(s: {
     phone: s.phone,
     course: s.course,
     city: s.city,
+    cohort: s.cohort ?? null,
     status: s.isActive ? 'Active' : 'Inactive',
     isActive: s.isActive,
     lastLoginAt: s.lastLoginAt,
@@ -97,6 +99,7 @@ export async function createStudent(
         phone: input.phone ? normalizePhone(input.phone) : input.phone,
         course: input.course,
         city: input.city,
+        cohort: input.cohort,
       },
       include: { _count: { select: { registrations: true } } },
     });
@@ -138,6 +141,7 @@ export async function updateStudent(
           : {}),
         ...(input.course !== undefined ? { course: input.course } : {}),
         ...(input.city !== undefined ? { city: input.city } : {}),
+        ...(input.cohort !== undefined ? { cohort: input.cohort } : {}),
         ...(input.code !== undefined ? { code: input.code } : {}),
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       },

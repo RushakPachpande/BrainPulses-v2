@@ -67,7 +67,7 @@ Full local UAT notes: [`docs/handoff/LOCAL_PRODUCTION.md`](docs/handoff/LOCAL_PR
 | Student (Unique ID) | `BP-24101` on http://localhost:5174/login                                             |
 | Student (Phone OTP) | `+91` / `9876510000` — when `TWILIO_ENABLED=false`, OTP is printed in the API console |
 
-Demo organization slug: `demo`. Seed also creates quizzes and an assessment assigned to the demo students.
+Demo organization slug: `demo` (display name **Northstar Prep**). Seed includes students with cohorts, multi-round assessment, quizzes with results/leaderboard history, and draft/archived activities.
 
 Optional Postgres BI role (not the API user): `brainpulses_readonly` / `brainpulses_ro` — see [`docs/ops/postgres-readonly-role.sql`](docs/ops/postgres-readonly-role.sql).
 

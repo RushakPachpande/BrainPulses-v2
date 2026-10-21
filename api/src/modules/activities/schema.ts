@@ -14,6 +14,21 @@ export const registrationFieldSchema = z
   })
   .strict();
 
+export const quizSettingsSchema = z
+  .object({
+    shuffleQuestions: z.boolean().default(true),
+    shuffleOptions: z.boolean().default(true),
+    scoreVisibleToStudent: z.boolean().default(false),
+    answersVisibleToStudent: z.boolean().default(false),
+    dailyLeaderboardVisible: z.boolean().default(true),
+    overallLeaderboardVisible: z.boolean().default(true),
+    dailyGroupLeaderboardVisible: z.boolean().default(true),
+    overallGroupLeaderboardVisible: z.boolean().default(true),
+    countsForGroupLeaderboard: z.boolean().default(true),
+    leaderboardReleasedAt: z.string().datetime().nullable().optional(),
+  })
+  .strict();
+
 export const activitySettingsSchema = z
   .object({
     registrationForm: z
@@ -29,6 +44,17 @@ export const activitySettingsSchema = z
       })
       .strict()
       .optional(),
+    quiz: quizSettingsSchema.optional(),
+  })
+  .strict();
+
+export const activityRoundInputSchema = z
+  .object({
+    id: z.string().uuid().optional(),
+    name: z.string().trim().min(1).max(120),
+    sortOrder: z.number().int().min(0),
+    durationMinutes: z.number().int().positive().optional().nullable(),
+    bankIds: z.array(z.string().uuid()).default([]),
   })
   .strict();
 
@@ -49,11 +75,77 @@ export const createActivitySchema = z
     passingPercent: z.number().min(0).max(100).optional(),
     presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).default('one_at_a_time'),
     bankIds: z.array(z.string().uuid()).default([]),
+    rounds: z.array(activityRoundInputSchema).max(40).optional(),
+    code: z.string().trim().min(1).max(40).optional(),
+    settings: activitySettingsSchema.optional(),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.kind === 'assessment' && val.rounds !== undefined && val.rounds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Assessments require at least one round when rounds are provided.',
+        path: ['rounds'],
+      });
+    }
+    if (val.kind === 'quiz' && val.rounds && val.rounds.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Quizzes do not support rounds.',
+        path: ['rounds'],
+      });
+    }
+  });
+
+export const updateActivitySchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    subtitle: z.string().trim().max(300).optional().nullable(),
+    startsAt: z.coerce.date().optional().nullable(),
+    endsAt: z.coerce.date().optional().nullable(),
+    durationMinutes: z.number().int().positive().optional().nullable(),
+    passingPercent: z.number().min(0).max(100).optional().nullable(),
+    presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).optional(),
+    bankIds: z.array(z.string().uuid()).optional(),
+    rounds: z.array(activityRoundInputSchema).max(40).optional(),
     code: z.string().trim().min(1).max(40).optional(),
     settings: activitySettingsSchema.optional(),
   })
   .strict();
 
-export const updateActivitySchema = createActivitySchema.partial().omit({ kind: true }).strict();
-
 export const idParamSchema = z.object({ id: z.string().uuid() });
+
+export const roundIdParamSchema = z.object({
+  id: z.string().uuid(),
+  roundId: z.string().uuid(),
+});
+
+export const createRoundQuestionSchema = z
+  .object({
+    code: z.string().trim().min(1).max(40).optional(),
+    type: z.enum([
+      'single_mcq',
+      'multiple_mcq',
+      'numeric',
+      'short_text',
+      'passage',
+      'match',
+      'image_mcq',
+    ]),
+    stem: z.string().trim().min(1).max(5000),
+    points: z.number().positive().max(1000).default(1),
+    options: z
+      .array(
+        z
+          .object({
+            label: z.string().trim().min(1).max(8),
+            body: z.string().trim().min(1).max(1000),
+            isCorrect: z.boolean().default(false),
+          })
+          .strict(),
+      )
+      .max(12)
+      .optional(),
+    answerKey: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();

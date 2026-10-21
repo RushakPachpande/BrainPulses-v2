@@ -23,6 +23,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
   const [phone, setPhone] = useState('');
   const [course, setCourse] = useState('');
   const [city, setCity] = useState('');
+  const [cohort, setCohort] = useState('');
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
@@ -39,6 +40,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
         setPhone(student.phone === '—' ? '' : student.phone);
         setCourse(student.course === '—' ? '' : student.course);
         setCity(student.city === '—' ? '' : student.city);
+        setCohort(student.cohort === '—' ? '' : student.cohort);
         setCode(student.code);
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : 'Could not load student.');
@@ -64,6 +66,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
           phone: phone.trim() || undefined,
           course: course.trim() || undefined,
           city: city.trim() || undefined,
+          cohort: cohort.trim() || undefined,
           code: code.trim() || undefined,
         });
         toast.success('Student created.');
@@ -74,6 +77,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
           phone: phone.trim() || null,
           course: course.trim() || null,
           city: city.trim() || null,
+          cohort: cohort.trim() || null,
         });
         toast.success('Student updated.');
       }
@@ -188,6 +192,16 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   disabled={readOnly}
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="student-cohort">Cohort</FieldLabel>
+                <Input
+                  id="student-cohort"
+                  value={cohort}
+                  onChange={(e) => setCohort(e.target.value)}
+                  disabled={readOnly}
+                  placeholder="e.g. Alpha"
                 />
               </Field>
               {!readOnly ? (

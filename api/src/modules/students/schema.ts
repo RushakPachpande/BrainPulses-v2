@@ -13,6 +13,7 @@ export const createStudentSchema = z
     phone: z.string().trim().max(40).optional(),
     course: z.string().trim().max(120).optional(),
     city: z.string().trim().max(120).optional(),
+    cohort: z.string().trim().max(80).optional(),
     code: z.string().trim().min(1).max(40).optional(),
   })
   .strict();
@@ -23,6 +24,7 @@ export const updateStudentSchema = createStudentSchema
     phone: z.string().trim().max(40).nullable().optional(),
     course: z.string().trim().max(120).nullable().optional(),
     city: z.string().trim().max(120).nullable().optional(),
+    cohort: z.string().trim().max(80).nullable().optional(),
     isActive: z.boolean().optional(),
   })
   .strict();
