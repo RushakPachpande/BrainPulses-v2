@@ -52,7 +52,7 @@ export const optionSchema = z.object({
 
 const questionBaseSchema = z.object({
   type: questionTypeSchema,
-  stem: z.string().trim().min(1),
+  question: z.string().trim().min(1),
   points: z.number().positive().default(1),
   code: z.string().trim().min(1).max(40).optional(),
   options: z.array(optionSchema).default([]),
@@ -187,13 +187,13 @@ export const updateQuestionSchema = questionBaseSchema
   .superRefine((data, ctx) => {
     if (data.type === undefined) return;
     // Only validate shape when type + enough fields are present for a full rewrite.
-    if (data.stem === undefined && data.options === undefined && data.answerKey === undefined) {
+    if (data.question === undefined && data.options === undefined && data.answerKey === undefined) {
       return;
     }
     validateQuestionPayload(
       {
         type: data.type,
-        stem: data.stem ?? 'x',
+        question: data.question ?? 'x',
         points: data.points ?? 1,
         options: data.options ?? [],
         answerKey: data.answerKey ?? {},

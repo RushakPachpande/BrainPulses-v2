@@ -383,7 +383,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
     if (!version) {
       return {
         questionVersionId: response.questionVersionId,
-        stem: 'Question unavailable',
+        question: 'Question unavailable',
         options: [] as { label: string; body: string }[],
         yourAnswer: response.answer,
         correct: null as boolean | null,
@@ -400,7 +400,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
       : [];
     return {
       questionVersionId: version.id,
-      stem: version.stem,
+      question: version.question,
       options: version.options.map((o) => ({
         label: o.label,
         body: o.body,

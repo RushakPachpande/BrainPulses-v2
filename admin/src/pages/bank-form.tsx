@@ -1,12 +1,29 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, MoreVerticalIcon, PlusIcon, SaveIcon } from 'lucide-react';
+import {
+  ArrowLeftIcon,
+  DownloadIcon,
+  FileSpreadsheetIcon,
+  MoreVerticalIcon,
+  PlusIcon,
+  SaveIcon,
+  UploadIcon,
+} from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,10 +44,14 @@ import {
 import {
   addBankQuestion,
   createQuestionBank,
+  downloadBankQuestionsSample,
+  exportBankQuestions,
   getQuestionBank,
+  importBankQuestions,
   updateBankQuestion,
   updateQuestionBank,
   type ActivityKind,
+  type BankImportResult,
   type BankQuestionItem,
 } from '@/services';
 import {
@@ -49,6 +70,15 @@ type DialogMode =
   | { kind: 'edit'; questionId: string }
   | { kind: 'view'; questionId: string };
 
+type ImportResultView = {
+  kind: 'success' | 'warning' | 'error';
+  title: string;
+  summary: string;
+  created: number;
+  issues: string[];
+  tip?: string;
+};
+
 export function BankFormPage({
   kind,
   mode = 'create',
@@ -58,9 +88,12 @@ export function BankFormPage({
 }) {
   const navigate = useNavigate();
   const { bankId = '' } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isQuiz = kind === 'quiz';
   const base = isQuiz ? '/quizzes/banks' : '/assessments/banks';
   const readOnly = mode === 'view';
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const importAutoOpened = useRef(false);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -68,9 +101,11 @@ export function BankFormPage({
   const [search, setSearch] = useState('');
   const [savingMeta, setSavingMeta] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [loading, setLoading] = useState(mode !== 'create');
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());
+  const [importResult, setImportResult] = useState<ImportResultView | null>(null);
 
   async function reloadBank(id: string) {
     const bank = await getQuestionBank(id);
@@ -99,12 +134,23 @@ export function BankFormPage({
     };
   }, [bankId, base, mode, navigate]);
 
+  useEffect(() => {
+    if (readOnly || mode !== 'edit' || loading || !bankId) return;
+    if (searchParams.get('import') !== '1') return;
+    if (importAutoOpened.current) return;
+    importAutoOpened.current = true;
+    const next = new URLSearchParams(searchParams);
+    next.delete('import');
+    setSearchParams(next, { replace: true });
+    queueMicrotask(() => fileInputRef.current?.click());
+  }, [bankId, loading, mode, readOnly, searchParams, setSearchParams]);
+
   const filteredQuestions = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return questions;
     return questions.filter(
       (item) =>
-        item.stem.toLowerCase().includes(q) ||
+        item.question.toLowerCase().includes(q) ||
         item.code.toLowerCase().includes(q) ||
         item.type.toLowerCase().includes(q),
     );
@@ -204,6 +250,86 @@ export function BankFormPage({
     }
   }
 
+  function showImportResult(result: BankImportResult) {
+    const issueLines = result.issues.map((i) => `Row ${i.row}: ${i.message}`);
+    if (result.created === 0 && issueLines.length > 0) {
+      setImportResult({
+        kind: 'error',
+        title: 'Import failed',
+        summary: 'No questions were created.',
+        created: 0,
+        issues: issueLines,
+        tip: 'Fix the listed rows in your sheet and import again.',
+      });
+      return;
+    }
+    if (issueLines.length > 0) {
+      setImportResult({
+        kind: 'warning',
+        title: 'Import finished with issues',
+        summary: `${result.created} question${result.created === 1 ? '' : 's'} created; some rows were skipped.`,
+        created: result.created,
+        issues: issueLines,
+        tip: 'Review skipped rows, fix them, and re-import only the failed rows if needed.',
+      });
+      return;
+    }
+    setImportResult({
+      kind: 'success',
+      title: 'Import complete',
+      summary: `${result.created} question${result.created === 1 ? '' : 's'} created.`,
+      created: result.created,
+      issues: [],
+      tip: 'You can edit any question from the list below.',
+    });
+  }
+
+  async function onSampleDownload() {
+    if (!bankId) return;
+    try {
+      await downloadBankQuestionsSample(bankId, 'xlsx');
+      toast.success('Sample Excel downloaded.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
+    }
+  }
+
+  async function onExport() {
+    if (!bankId) return;
+    if (questions.length === 0) {
+      toast.message('No questions to export. Download the sample Excel to get started.');
+      return;
+    }
+    try {
+      await exportBankQuestions(bankId, 'xlsx');
+      toast.success('Questions exported.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not export questions.');
+    }
+  }
+
+  async function onImportFile(file: File | undefined) {
+    if (!file || !bankId || readOnly) return;
+    setImporting(true);
+    try {
+      const result = await importBankQuestions(bankId, file);
+      showImportResult(result);
+      if (result.created > 0) await reloadBank(bankId);
+    } catch (err) {
+      setImportResult({
+        kind: 'error',
+        title: 'Import failed',
+        summary: err instanceof Error ? err.message : 'Could not import file.',
+        created: 0,
+        issues: [],
+        tip: 'Use Sample Excel for the expected columns, then try again.',
+      });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   if (loading) return <FormPageSkeleton fields={4} />;
 
   const title =
@@ -291,19 +417,69 @@ export function BankFormPage({
                   {questions.length} question{questions.length === 1 ? '' : 's'}
                 </CardDescription>
               </div>
-              {!readOnly ? (
-                <Button type="button" variant="outline" onClick={openAdd}>
-                  <PlusIcon data-icon="inline-start" />
-                  Add question
-                </Button>
-              ) : null}
+              <div className="flex flex-wrap gap-2">
+                {!readOnly ? (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      className="sr-only"
+                      aria-hidden
+                      tabIndex={-1}
+                      onChange={(e) => void onImportFile(e.target.files?.[0])}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={importing}
+                      onClick={() => void onSampleDownload()}
+                    >
+                      <FileSpreadsheetIcon data-icon="inline-start" />
+                      Sample Excel
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={importing}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <UploadIcon data-icon="inline-start" />
+                      {importing ? 'Importing…' : 'Import'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={importing || questions.length === 0}
+                      onClick={() => void onExport()}
+                    >
+                      <DownloadIcon data-icon="inline-start" />
+                      Export
+                    </Button>
+                    <Button type="button" variant="outline" onClick={openAdd}>
+                      <PlusIcon data-icon="inline-start" />
+                      Add question
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={questions.length === 0}
+                    onClick={() => void onExport()}
+                  >
+                    <DownloadIcon data-icon="inline-start" />
+                    Export
+                  </Button>
+                )}
+              </div>
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 pt-5">
             {questions.length > 8 ? (
               <Toolbar
                 filters={[]}
-                searchPlaceholder="Search stem or code"
+                searchPlaceholder="Search question or code"
                 searchValue={search}
                 onSearchChange={setSearch}
               />
@@ -312,7 +488,7 @@ export function BankFormPage({
             {questions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No questions yet.
-                {!readOnly ? ' Use Add question to create the first item.' : null}
+                {!readOnly ? ' Use Add question, or Import from Sample Excel.' : null}
               </p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-border">
@@ -320,7 +496,7 @@ export function BankFormPage({
                   <TableHeader>
                     <TableRow>
                       <TableHead>Code</TableHead>
-                      <TableHead>Stem</TableHead>
+                      <TableHead>Question</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Points</TableHead>
                       <TableHead className="w-12">
@@ -342,7 +518,7 @@ export function BankFormPage({
                             {item.code || '—'}
                           </TableCell>
                           <TableCell className="max-w-md">
-                            <span className="line-clamp-2 font-medium">{item.stem}</span>
+                            <span className="line-clamp-2 font-medium">{item.question}</span>
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
                             {bankQuestionTypeLabel(item.type)}
@@ -355,7 +531,7 @@ export function BankFormPage({
                                   type="button"
                                   variant="ghost"
                                   size="icon"
-                                  aria-label={`Actions for ${item.code || item.stem}`}
+                                  aria-label={`Actions for ${item.code || item.question}`}
                                 >
                                   <MoreVerticalIcon />
                                 </Button>
@@ -405,6 +581,50 @@ export function BankFormPage({
           onSave={() => void onSaveQuestion()}
         />
       ) : null}
+
+      <Dialog
+        open={importResult != null}
+        onOpenChange={(open) => {
+          if (!open) setImportResult(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>{importResult?.title ?? 'Import'}</DialogTitle>
+            <DialogDescription>{importResult?.summary}</DialogDescription>
+          </DialogHeader>
+          {importResult ? (
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-wrap gap-2">
+                <Badge variant={importResult.kind === 'error' ? 'destructive' : 'secondary'}>
+                  {importResult.created} created
+                </Badge>
+                {importResult.issues.length > 0 ? (
+                  <Badge variant="outline">{importResult.issues.length} issues</Badge>
+                ) : null}
+              </div>
+              {importResult.issues.length > 0 ? (
+                <ul className="max-h-48 list-decimal space-y-1 overflow-y-auto pl-5 text-sm text-muted-foreground">
+                  {importResult.issues.map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+              {importResult.tip ? (
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-medium text-foreground">Next: </span>
+                  {importResult.tip}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" onClick={() => setImportResult(null)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

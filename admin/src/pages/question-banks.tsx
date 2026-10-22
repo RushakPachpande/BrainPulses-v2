@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useAsyncService } from '@/hooks/use-async-service';
 import {
   CheckCircle2Icon,
@@ -24,11 +24,20 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -87,14 +96,19 @@ function TypeChips({ value }: { value: string }) {
 }
 
 export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
+  const navigate = useNavigate();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
   const isQuiz = kind === 'quiz';
+  const banksBase = isQuiz ? '/quizzes/banks' : '/assessments/banks';
   const usedNoun = isQuiz ? 'quizzes' : 'assessments';
   const note = isQuiz
     ? 'Quiz question banks contain MCQs with options A, B, C, and D, and exactly one correct answer.'
     : 'Question banks are reusable across assessments. You can attach a bank to any assessment.';
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkSearch, setBulkSearch] = useState('');
+  const [bulkSelectedId, setBulkSelectedId] = useState<string | null>(null);
 
   const typeOptions = useMemo(
     () => (isQuiz ? uniqueTypes(presentationTypes) : uniqueTypes(questionTypes)),
@@ -130,6 +144,28 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
+
+  const bulkBanks = useMemo(() => {
+    const q = bulkSearch.trim().toLowerCase();
+    if (!q) return banks;
+    return banks.filter(
+      (bank) =>
+        bank.name.toLowerCase().includes(q) ||
+        (!isQuiz && bank.description.toLowerCase().includes(q)),
+    );
+  }, [banks, bulkSearch, isQuiz]);
+
+  function openBulkUpload() {
+    setBulkSearch('');
+    setBulkSelectedId(null);
+    setBulkOpen(true);
+  }
+
+  function confirmBulkUpload() {
+    if (!bulkSelectedId) return;
+    setBulkOpen(false);
+    void navigate(`${banksBase}/${bulkSelectedId}/edit?import=1`);
+  }
 
   const metrics = useMemo(() => {
     const total = banks.length;
@@ -274,12 +310,17 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
       <div className="flex flex-col gap-4">
         {canEdit ? (
           <PageHeaderActions>
-            <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={openBulkUpload}
+            >
               <UploadIcon data-icon="inline-start" />
               Bulk Upload
             </Button>
             <Button asChild className="w-full sm:w-auto">
-              <Link to={isQuiz ? '/quizzes/banks/new' : '/assessments/banks/new'}>
+              <Link to={`${banksBase}/new`}>
                 <PlusIcon data-icon="inline-start" />
                 Create Question Bank
               </Link>
@@ -300,12 +341,17 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
     <div className="flex flex-col gap-4">
       {canEdit ? (
         <PageHeaderActions>
-          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={openBulkUpload}
+          >
             <UploadIcon data-icon="inline-start" />
             Bulk Upload
           </Button>
           <Button asChild className="w-full sm:w-auto">
-            <Link to={isQuiz ? '/quizzes/banks/new' : '/assessments/banks/new'}>
+            <Link to={`${banksBase}/new`}>
               <PlusIcon data-icon="inline-start" />
               Create Question Bank
             </Link>
@@ -536,6 +582,83 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={bulkOpen}
+        onOpenChange={(open) => {
+          setBulkOpen(open);
+          if (!open) {
+            setBulkSearch('');
+            setBulkSelectedId(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-lg" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>Bulk upload questions</DialogTitle>
+            <DialogDescription>
+              Choose a question bank to import into. You will pick the CSV or Excel file on the next
+              screen.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <Input
+              placeholder="Search banks"
+              value={bulkSearch}
+              onChange={(e) => setBulkSearch(e.target.value)}
+              aria-label="Search banks"
+            />
+            {bulkBanks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No banks yet.{' '}
+                <Link
+                  to={`${banksBase}/new`}
+                  className="text-primary underline-offset-4 hover:underline"
+                >
+                  Create a bank first
+                </Link>
+                , then use Bulk Upload.
+              </p>
+            ) : (
+              <ul className="max-h-64 overflow-y-auto rounded-lg border border-border">
+                {bulkBanks.map((bank) => {
+                  const selectedBank = bulkSelectedId === bank.id;
+                  return (
+                    <li key={bank.id}>
+                      <button
+                        type="button"
+                        className={cn(
+                          'flex w-full flex-col gap-0.5 px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent',
+                          selectedBank && 'bg-accent text-accent-foreground',
+                        )}
+                        onClick={() => setBulkSelectedId(bank.id)}
+                      >
+                        <span className="font-medium">{bank.name}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {bank.questions} question{bank.questions === 1 ? '' : 's'} · {bank.status}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+            <Button asChild type="button" variant="ghost" className="w-full sm:w-auto">
+              <Link to={`${banksBase}/new`}>Create bank first</Link>
+            </Button>
+            <Button
+              type="button"
+              className="w-full sm:w-auto"
+              disabled={!bulkSelectedId}
+              onClick={confirmBulkUpload}
+            >
+              Continue to import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -393,7 +393,7 @@ export function ResultDetailPage() {
                     {q.correct === true ? 'Correct' : yours ? 'Review needed' : 'Not answered'}
                   </span>
                 </div>
-                <b>{q.stem}</b>
+                <b>{q.question}</b>
                 <p>Your answer: {yourDisplay ?? 'Not answered'}</p>
                 {q.correctLabels.length > 0 && (
                   <div className="review-explanation">

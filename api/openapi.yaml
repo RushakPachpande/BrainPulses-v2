@@ -374,13 +374,49 @@ paths:
           description: Updated
   /api/banks/{id}/import:
     post:
-      summary: Import questions from CSV
+      summary: Import questions from CSV or Excel (multipart file or JSON csv)
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/Id'
       responses:
         '200':
-          description: Import result with row errors
+          description: Import result with created count and per-row issues
+  /api/banks/{id}/questions/sample.xlsx:
+    get:
+      summary: Download sample question import Excel template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Excel workbook
+  /api/banks/{id}/questions/sample.csv:
+    get:
+      summary: Download sample question import CSV template
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: CSV template
+  /api/banks/{id}/questions/export.xlsx:
+    get:
+      summary: Export bank questions as Excel
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Excel workbook
+  /api/banks/{id}/questions/export.csv:
+    get:
+      summary: Export bank questions as CSV
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: CSV export
   /api/registrations:
     get:
       summary: List registrations

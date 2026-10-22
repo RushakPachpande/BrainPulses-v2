@@ -1,5 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
+import { badRequest } from '../../lib/errors.js';
 import { userActor } from '../../middleware/auth.js';
+import { importBodySchema } from './schema.js';
 import * as service from './service.js';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
@@ -81,18 +83,116 @@ export async function updateQuestion(req: Request, res: Response, next: NextFunc
   }
 }
 
-export async function importCsv(req: Request, res: Response, next: NextFunction) {
+export async function importQuestions(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
+    const bankId = req.params.id as string;
+    const idempotencyKey = req.header('idempotency-key') ?? undefined;
+    const file = req.file;
+
+    if (file) {
+      const data = await service.importQuestionsFile(
+        actor.organizationId,
+        actor.userId,
+        actor,
+        bankId,
+        {
+          buffer: file.buffer,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+        },
+        idempotencyKey,
+      );
+      res.json({ data });
+      return;
+    }
+
+    const parsed = importBodySchema.safeParse(req.body);
+    if (!parsed.success) {
+      throw badRequest('Provide a multipart file field “file”, or a JSON body with csv.');
+    }
+
     const data = await service.importQuestions(
       actor.organizationId,
       actor.userId,
       actor,
-      req.params.id as string,
-      req.body.csv,
-      req.header('idempotency-key') ?? undefined,
+      bankId,
+      parsed.data.csv,
+      idempotencyKey,
     );
     res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** @deprecated Prefer importQuestions — kept name for older OpenAPI refs. */
+export const importCsv = importQuestions;
+
+export async function sampleXlsx(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    // Auth + bank access via requireOrgAccess; sample is bank-scoped for route consistency.
+    void actor;
+    void req.params.id;
+    const buffer = await service.sampleQuestionsWorkbook();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="questions-sample.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function sampleCsv(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    void actor;
+    void req.params.id;
+    const csv = service.sampleQuestionsCsv();
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="questions-sample.csv"');
+    res.send(csv);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function exportXlsx(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const buffer = await service.exportQuestionsWorkbook(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="questions-export.xlsx"');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function exportCsv(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const csv = await service.exportQuestionsCsv(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="questions-export.csv"');
+    res.send(csv);
   } catch (err) {
     next(err);
   }

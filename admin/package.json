@@ -6,6 +6,9 @@
     "node": ">=22"
   },
   "type": "module",
+  "overrides": {
+    "braces": "npm:@dieub/braces-depth-guard@3.0.3-pn.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

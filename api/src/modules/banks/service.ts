@@ -1,4 +1,3 @@
-import { parse } from 'csv-parse/sync';
 import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { nextHumanCode } from '../../lib/codes.js';
@@ -6,6 +5,18 @@ import { conflict, forbidden, notFound, unprocessable } from '../../lib/errors.j
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
+import {
+  buildExportCsv,
+  buildExportWorkbook,
+  buildSampleCsv,
+  buildSampleWorkbook,
+  parseBankQuestionsCsv,
+  parseBankQuestionsFile,
+  rowToCreatePayload,
+  type BankImportRow,
+  type ExportableQuestion,
+  type ImportIssue,
+} from './import-export.js';
 import type {
   bankListQuerySchema,
   createBankSchema,
@@ -85,7 +96,7 @@ function mapQuestionAdmin(q: {
   id: string;
   code: string;
   type: string;
-  stem: string;
+  question: string;
   points: Prisma.Decimal;
   isActive: boolean;
   versions: {
@@ -111,24 +122,27 @@ function mapQuestionAdmin(q: {
   const correctLabels =
     fromKey.length > 0 ? fromKey : options.filter((o) => o.isCorrect).map((o) => o.label);
   const passageText = typeof key.passageText === 'string' ? key.passageText : undefined;
-  const stemImageUrl = typeof key.stemImageUrl === 'string' ? key.stemImageUrl : undefined;
+  const questionImageUrl =
+    typeof key.questionImageUrl === 'string'
+      ? key.questionImageUrl
+      : typeof key.stemImageUrl === 'string'
+        ? key.stemImageUrl
+        : undefined;
   const referenceValue = key.value;
   return {
     id: q.id,
     code: q.code,
     type: q.type,
-    stem: q.stem,
+    question: q.question,
     points: Number(q.points),
     isActive: q.isActive,
     version: latest?.version ?? 1,
     correctLabels,
     options,
     ...(passageText !== undefined ? { passageText } : {}),
-    ...(stemImageUrl !== undefined ? { stemImageUrl } : {}),
+    ...(questionImageUrl !== undefined ? { questionImageUrl } : {}),
     ...(referenceValue !== undefined ? { referenceValue } : {}),
-    ...(typeof key.numericTolerance === 'number'
-      ? { numericTolerance: key.numericTolerance }
-      : {}),
+    ...(typeof key.numericTolerance === 'number' ? { numericTolerance: key.numericTolerance } : {}),
   };
 }
 
@@ -274,7 +288,7 @@ async function createQuestionVersion(
   questionId: string,
   input: {
     type: z.infer<typeof createQuestionSchema>['type'];
-    stem: string;
+    question: string;
     points: number;
     options: {
       label: string;
@@ -299,7 +313,7 @@ async function createQuestionVersion(
       questionId,
       version,
       type: input.type,
-      stem: input.stem,
+      question: input.question,
       points: input.points,
       answerKey: answerKey as Prisma.InputJsonValue,
     },
@@ -345,7 +359,7 @@ export async function createQuestion(
       bankId,
       code,
       type: input.type,
-      stem: input.stem,
+      question: input.question,
       points: input.points,
     },
   });
@@ -407,7 +421,7 @@ export async function updateQuestion(
 
   const contentTouched =
     input.type !== undefined ||
-    input.stem !== undefined ||
+    input.question !== undefined ||
     input.points !== undefined ||
     input.options !== undefined ||
     input.answerKey !== undefined;
@@ -427,7 +441,7 @@ export async function updateQuestion(
   const latest = question.versions[0];
   let liveIsActive = question.isActive;
   let liveType = question.type;
-  let liveStem = question.stem;
+  let liveQuestion = question.question;
   let livePoints = Number(question.points);
   let versionForMap = latest
     ? {
@@ -441,7 +455,7 @@ export async function updateQuestion(
   if (contentTouched) {
     const nextVersion = (latest?.version ?? 0) + 1;
     liveType = input.type ?? question.type;
-    liveStem = input.stem ?? question.stem;
+    liveQuestion = input.question ?? question.question;
     livePoints = input.points ?? Number(question.points);
     const options =
       input.options ??
@@ -462,7 +476,7 @@ export async function updateQuestion(
       where: { id: questionId },
       data: {
         type: liveType,
-        stem: liveStem,
+        question: liveQuestion,
         points: livePoints,
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       },
@@ -472,7 +486,7 @@ export async function updateQuestion(
     const version = await createQuestionVersion(
       organizationId,
       questionId,
-      { type: liveType, stem: liveStem, points: livePoints, options, answerKey },
+      { type: liveType, question: liveQuestion, points: livePoints, options, answerKey },
       nextVersion,
     );
     versionForMap = {
@@ -512,7 +526,7 @@ export async function updateQuestion(
     id: questionId,
     code: question.code,
     type: liveType,
-    stem: liveStem,
+    question: liveQuestion,
     points: new Prisma.Decimal(livePoints),
     isActive: liveIsActive,
     versions: versionForMap
@@ -535,12 +549,12 @@ export async function updateQuestion(
   });
 }
 
-export async function importQuestions(
+async function importFromRows(
   organizationId: string,
   actorUserId: string,
   actor: AccessActor,
   bankId: string,
-  csv: string,
+  rows: BankImportRow[],
   idempotencyKey?: string,
 ) {
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
@@ -558,78 +572,31 @@ export async function importQuestions(
     });
     if (existing?.metadata && typeof existing.metadata === 'object') {
       const meta = existing.metadata as { result?: unknown };
-      if (meta.result) return meta.result;
+      if (meta.result) return meta.result as { created: number; issues: ImportIssue[] };
     }
   }
 
-  let records: Record<string, string>[];
-  try {
-    records = parse(csv, {
-      columns: true,
-      skip_empty_lines: true,
-      trim: true,
-      relax_column_count: true,
-    }) as Record<string, string>[];
-  } catch {
-    throw unprocessable('CSV could not be parsed.');
+  if (rows.length === 0) {
+    throw unprocessable('No question rows found in the file.');
   }
 
-  const errors: { row: number; message: string }[] = [];
+  const issues: ImportIssue[] = [];
   let created = 0;
 
-  for (let i = 0; i < records.length; i++) {
-    const row = records[i]!;
-    const stem = (row.stem ?? row.question ?? '').trim();
-    const typeRaw = (row.type ?? 'single_mcq').toLowerCase();
-    if (!stem) {
-      errors.push({ row: i + 2, message: 'stem is required' });
-      continue;
-    }
-
-    const knownTypes = new Set([
-      'single_mcq',
-      'multiple_mcq',
-      'true_false',
-      'numeric',
-      'short_text',
-      'long_text',
-      'passage',
-      'match',
-      'image_mcq',
-      'image_selection',
-      'comprehension_mcq',
-    ]);
-    const type = knownTypes.has(typeRaw)
-      ? (typeRaw as z.infer<typeof createQuestionSchema>['type'])
-      : 'single_mcq';
-
-    const options: { label: string; body: string; isCorrect: boolean }[] = [];
-    for (const label of ['A', 'B', 'C', 'D', 'E']) {
-      const body = (row[`option_${label}`] ?? row[label] ?? '').trim();
-      if (body) {
-        const correct = (row.correct ?? '').toUpperCase().includes(label);
-        options.push({ label, body, isCorrect: correct });
-      }
-    }
-
+  for (const row of rows) {
     try {
-      await createQuestion(organizationId, actorUserId, actor, bankId, {
-        type,
-        stem,
-        points: Number(row.points ?? 1) || 1,
-        options,
-        answerKey: {},
-      });
+      const payload = rowToCreatePayload(row);
+      await createQuestion(organizationId, actorUserId, actor, bankId, payload);
       created += 1;
     } catch (err) {
-      errors.push({
-        row: i + 2,
+      issues.push({
+        row: row.sheetRow,
         message: err instanceof Error ? err.message : 'Failed to import row',
       });
     }
   }
 
-  const result = { created, errors };
+  const result = { created, issues };
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -640,4 +607,109 @@ export async function importQuestions(
     metadata: { idempotencyKey, result },
   });
   return result;
+}
+
+/** Legacy JSON body `{ csv }` and multipart file share this result shape. */
+export async function importQuestions(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  bankId: string,
+  csv: string,
+  idempotencyKey?: string,
+) {
+  return importFromRows(
+    organizationId,
+    actorUserId,
+    actor,
+    bankId,
+    parseBankQuestionsCsv(csv),
+    idempotencyKey,
+  );
+}
+
+export async function importQuestionsFile(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  bankId: string,
+  file: { buffer: Buffer; originalname: string; mimetype?: string },
+  idempotencyKey?: string,
+) {
+  const rows = await parseBankQuestionsFile(file.buffer, file.originalname, file.mimetype);
+  return importFromRows(organizationId, actorUserId, actor, bankId, rows, idempotencyKey);
+}
+
+export async function sampleQuestionsWorkbook() {
+  return buildSampleWorkbook();
+}
+
+export function sampleQuestionsCsv() {
+  return buildSampleCsv();
+}
+
+export async function exportQuestionsWorkbook(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  bankId: string,
+) {
+  const questions = await loadExportableQuestions(organizationId, actor, bankId);
+  const buffer = await buildExportWorkbook(questions);
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'bank.export',
+    targetType: 'question_bank',
+    targetId: bankId,
+    metadata: { format: 'xlsx', count: questions.length },
+  });
+  return buffer;
+}
+
+export async function exportQuestionsCsv(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  bankId: string,
+) {
+  const questions = await loadExportableQuestions(organizationId, actor, bankId);
+  const csv = buildExportCsv(questions);
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'bank.export',
+    targetType: 'question_bank',
+    targetId: bankId,
+    metadata: { format: 'csv', count: questions.length },
+  });
+  return csv;
+}
+
+async function loadExportableQuestions(
+  organizationId: string,
+  actor: AccessActor,
+  bankId: string,
+): Promise<ExportableQuestion[]> {
+  const bank = await prisma.questionBank.findFirst({
+    where: { organizationId, id: bankId },
+    include: {
+      questions: {
+        where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
+        include: {
+          versions: {
+            orderBy: { version: 'desc' },
+            take: 1,
+            include: { options: { orderBy: { sortOrder: 'asc' } } },
+          },
+        },
+      },
+    },
+  });
+  if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'view');
+  return bank.questions.map((q) => mapQuestionAdmin(q) as ExportableQuestion);
 }

@@ -9,6 +9,7 @@
   "scripts": {
     "// workspace": "Install and run all packages from the repo root",
     "cleaninstall": "npm ci --prefix api && npm ci --prefix admin && npm ci --prefix client",
+    "audit:all": "npm audit --prefix api && npm audit --prefix admin && npm audit --prefix client",
     "install": "npm install --prefix api && npm install --prefix admin && npm install --prefix client",
     "dev": "concurrently -n api,admin,client -c blue,magenta,green \"npm run dev:api\" \"npm run dev:admin\" \"npm run dev:client\"",
     "build": "npm run build:api && npm run build:admin && npm run build:client",

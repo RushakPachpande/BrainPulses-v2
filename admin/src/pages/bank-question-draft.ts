@@ -11,11 +11,11 @@ export type OptionDraft = {
 
 export type QuestionDraft = {
   type: BankAuthorType;
-  stem: string;
+  question: string;
   points: number;
   options: OptionDraft[];
   passageText: string;
-  stemImageUrl: string;
+  questionImageUrl: string;
   referenceValue: string;
   numericTolerance: string;
 };
@@ -42,11 +42,11 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
   if (type === 'true_false') {
     return {
       type,
-      stem: '',
+      question: '',
       points: 1,
       options: trueFalseOptions(),
       passageText: '',
-      stemImageUrl: '',
+      questionImageUrl: '',
       referenceValue: '',
       numericTolerance: '0',
     };
@@ -54,11 +54,11 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
   if (type === 'multiple_mcq' || type === 'image_selection') {
     return {
       type,
-      stem: '',
+      question: '',
       points: 1,
       options: emptyOptions(4, true),
       passageText: '',
-      stemImageUrl: '',
+      questionImageUrl: '',
       referenceValue: '',
       numericTolerance: '0',
     };
@@ -66,22 +66,22 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
   if (type === 'numeric' || type === 'short_text' || type === 'long_text') {
     return {
       type,
-      stem: '',
+      question: '',
       points: 1,
       options: [],
       passageText: '',
-      stemImageUrl: '',
+      questionImageUrl: '',
       referenceValue: '',
       numericTolerance: '0',
     };
   }
   return {
     type,
-    stem: '',
+    question: '',
     points: 1,
     options: emptyOptions(4, false),
     passageText: '',
-    stemImageUrl: '',
+    questionImageUrl: '',
     referenceValue: '',
     numericTolerance: '0',
   };
@@ -141,11 +141,11 @@ export function draftFromItem(item: BankQuestionItem): QuestionDraft {
 
   return {
     type,
-    stem: item.stem,
+    question: item.question,
     points: item.points || 1,
     options,
     passageText: item.passageText ?? '',
-    stemImageUrl: item.stemImageUrl ?? '',
+    questionImageUrl: item.questionImageUrl ?? '',
     referenceValue: ref,
     numericTolerance: item.numericTolerance !== undefined ? String(item.numericTolerance) : '0',
   };
@@ -173,7 +173,7 @@ function normalizeCorrectFlags(options: OptionDraft[], multi: boolean) {
 }
 
 export function validateDraft(draft: QuestionDraft): string | null {
-  if (!draft.stem.trim()) return 'Question stem is required.';
+  if (!draft.question.trim()) return 'Question is required.';
   if (draft.points < 1) return 'Points must be at least 1.';
 
   const filled = draft.options.filter((o) => o.body.trim());
@@ -217,12 +217,12 @@ export function validateDraft(draft: QuestionDraft): string | null {
 
 export function draftToPayload(draft: QuestionDraft): {
   type: string;
-  stem: string;
+  question: string;
   points: number;
   options?: { label: string; body: string; isCorrect: boolean; imageUrl?: string | null }[];
   answerKey: Record<string, unknown>;
 } {
-  const stem = draft.stem.trim();
+  const question = draft.question.trim();
   const points = draft.points;
   const type = draft.type;
 
@@ -230,7 +230,7 @@ export function draftToPayload(draft: QuestionDraft): {
     const tol = Number(draft.numericTolerance);
     return {
       type,
-      stem,
+      question,
       points,
       options: [],
       answerKey: {
@@ -243,7 +243,7 @@ export function draftToPayload(draft: QuestionDraft): {
   if (type === 'short_text' || type === 'long_text') {
     const answerKey: Record<string, unknown> = {};
     if (draft.referenceValue.trim()) answerKey.value = draft.referenceValue.trim();
-    return { type, stem, points, options: [], answerKey };
+    return { type, question, points, options: [], answerKey };
   }
 
   const options = draft.options
@@ -257,9 +257,9 @@ export function draftToPayload(draft: QuestionDraft): {
   const correctLabels = options.filter((o) => o.isCorrect).map((o) => o.label);
   const answerKey: Record<string, unknown> = { correctLabels };
   if (draft.passageText.trim()) answerKey.passageText = draft.passageText.trim();
-  if (draft.stemImageUrl.trim()) answerKey.stemImageUrl = draft.stemImageUrl.trim();
+  if (draft.questionImageUrl.trim()) answerKey.questionImageUrl = draft.questionImageUrl.trim();
 
-  return { type, stem, points, options, answerKey };
+  return { type, question, points, options, answerKey };
 }
 
 export function optionsForReadOnly(item: BankQuestionItem): BankQuestionOption[] {

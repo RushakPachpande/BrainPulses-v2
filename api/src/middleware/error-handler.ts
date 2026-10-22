@@ -9,6 +9,12 @@ function isBodyParserError(
 }
 
 export function errorHandler(err: unknown, req: Request, res: Response, _next: NextFunction) {
+  if (err && typeof err === 'object' && 'code' in err && err.code === 'LIMIT_FILE_SIZE') {
+    res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'File is too large (max 10 MB).' },
+    });
+    return;
+  }
   if (err instanceof AppError) {
     res.status(err.status).json({
       error: {

@@ -106,11 +106,16 @@ async function presentQuestions(
           ? (v.answerKey as Record<string, unknown>)
           : {};
       const passageText = typeof key.passageText === 'string' ? key.passageText : undefined;
-      const stemImageUrl = typeof key.stemImageUrl === 'string' ? key.stemImageUrl : undefined;
+      const questionImageUrl =
+        typeof key.questionImageUrl === 'string'
+          ? key.questionImageUrl
+          : typeof key.stemImageUrl === 'string'
+            ? key.stemImageUrl
+            : undefined;
       return {
         questionVersionId: v.id,
         type: v.type,
-        stem: v.stem,
+        question: v.question,
         points: toNumber(v.points),
         options: options.map((o) => ({
           id: o.id,
@@ -120,7 +125,7 @@ async function presentQuestions(
           ...(o.imageUrl ? { imageUrl: o.imageUrl } : {}),
         })),
         ...(passageText ? { passageText } : {}),
-        ...(stemImageUrl ? { stemImageUrl } : {}),
+        ...(questionImageUrl ? { questionImageUrl } : {}),
       };
     });
 }

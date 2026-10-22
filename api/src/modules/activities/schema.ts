@@ -136,7 +136,7 @@ export const createRoundQuestionSchema = z
       'image_selection',
       'comprehension_mcq',
     ]),
-    stem: z.string().trim().min(1).max(5000),
+    question: z.string().trim().min(1).max(5000),
     points: z.number().positive().max(1000).default(1),
     options: z
       .array(

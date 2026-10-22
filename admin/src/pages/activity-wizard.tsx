@@ -356,9 +356,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
   async function handleAddRoundQuestion(roundKey: string) {
     if (readOnly) return;
-    const stem = newQuestionStem.trim();
-    if (!stem) {
-      toast.error('Question stem is required.');
+    const question = newQuestionStem.trim();
+    if (!question) {
+      toast.error('Question is required.');
       return;
     }
     const filled = newQuestionOptions.filter((o) => o.body.trim());
@@ -388,7 +388,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     try {
       await createRoundQuestion(id, roundId, {
         type: 'single_mcq',
-        stem,
+        question,
         points: 1,
         options: filled.map((o) => ({
           label: o.label,
@@ -833,7 +833,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                               key={q.id}
                               className="flex items-start justify-between gap-2 rounded-lg border border-border px-3 py-2"
                             >
-                              <span className="min-w-0 flex-1 text-sm">{q.stem}</span>
+                              <span className="min-w-0 flex-1 text-sm">{q.question}</span>
                               {!readOnly ? (
                                 <Button
                                   type="button"
@@ -853,9 +853,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       {!readOnly && addingQuestionFor === round.key ? (
                         <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
                           <Field>
-                            <FieldLabel htmlFor={`q-stem-${round.key}`}>Stem</FieldLabel>
+                            <FieldLabel htmlFor={`q-question-${round.key}`}>Question</FieldLabel>
                             <Textarea
-                              id={`q-stem-${round.key}`}
+                              id={`q-question-${round.key}`}
                               value={newQuestionStem}
                               onChange={(e) => setNewQuestionStem(e.target.value)}
                             />

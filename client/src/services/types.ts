@@ -69,7 +69,7 @@ export type StudentResultDetail = {
   submittedAt: string;
   review: {
     questionVersionId: string;
-    stem: string;
+    question: string;
     options: { label: string; body: string; isCorrect?: boolean }[];
     yourAnswer: unknown;
     correct: boolean | null;
@@ -81,7 +81,7 @@ export type StudentResultDetail = {
 export type AttemptQuestion = {
   questionVersionId: string;
   type: string;
-  stem: string;
+  question: string;
   points: number;
   options: {
     id: string;
@@ -91,7 +91,7 @@ export type AttemptQuestion = {
     imageUrl?: string;
   }[];
   passageText?: string;
-  stemImageUrl?: string;
+  questionImageUrl?: string;
 };
 
 export type AttemptState = {

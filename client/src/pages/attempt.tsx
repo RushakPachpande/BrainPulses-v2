@@ -362,9 +362,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 {q.passageText}
               </div>
             ) : null}
-            {q.stemImageUrl ? (
+            {q.questionImageUrl ? (
               <img
-                src={q.stemImageUrl}
+                src={q.questionImageUrl}
                 alt=""
                 style={{
                   display: 'block',
@@ -376,7 +376,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 }}
               />
             ) : null}
-            <h1>{q.stem}</h1>
+            <h1>{q.question}</h1>
             <p className="question-instruction">{instructionForType(q.type)}</p>
 
             {isSingleSelectType(q.type) || isMultiSelectType(q.type) ? (

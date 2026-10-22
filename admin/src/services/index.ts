@@ -1,4 +1,12 @@
-import { apiGetData, apiGetList, apiPatchData, apiPostData, apiRequest } from '@/lib/api-client';
+import {
+  apiDownloadBlob,
+  apiGetData,
+  apiGetList,
+  apiPatchData,
+  apiPostData,
+  apiPostFormData,
+  apiRequest,
+} from '@/lib/api-client';
 import {
   buildReportSummaryFromResults,
   mapAccessUserFromApi,
@@ -300,7 +308,7 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
 export type RoundQuestionWrite = {
   type:
     'single_mcq' | 'multiple_mcq' | 'numeric' | 'short_text' | 'passage' | 'match' | 'image_mcq';
-  stem: string;
+  question: string;
   points?: number;
   code?: string;
   options?: { label: string; body: string; isCorrect: boolean }[];
@@ -317,7 +325,7 @@ export async function createRoundQuestion(
       id: crypto.randomUUID(),
       code: 'Q-LOCAL',
       type: payload.type,
-      stem: payload.stem,
+      question: payload.question,
       points: payload.points ?? 1,
       isActive: true,
       options: (payload.options ?? []).map((o, i) => ({
@@ -536,14 +544,14 @@ export type BankQuestionItem = {
   id: string;
   code: string;
   type: string;
-  stem: string;
+  question: string;
   points: number;
   isActive?: boolean;
   version?: number;
   correctLabels?: string[];
   options: BankQuestionOption[];
   passageText?: string;
-  stemImageUrl?: string;
+  questionImageUrl?: string;
   referenceValue?: unknown;
   numericTolerance?: number;
 };
@@ -570,7 +578,7 @@ export async function getQuestionBank(
       })),
       correctLabels: item.correctLabels ?? [],
       passageText: item.passageText,
-      stemImageUrl: item.stemImageUrl,
+      questionImageUrl: item.questionImageUrl,
       referenceValue: item.referenceValue,
       numericTolerance: item.numericTolerance,
     })),
@@ -581,7 +589,7 @@ export async function addBankQuestion(
   bankId: string,
   payload: {
     type: string;
-    stem: string;
+    question: string;
     points?: number;
     options?: {
       label: string;
@@ -601,7 +609,7 @@ export async function updateBankQuestion(
   questionId: string,
   payload: {
     type?: string;
-    stem?: string;
+    question?: string;
     points?: number;
     options?: {
       label: string;
@@ -615,6 +623,49 @@ export async function updateBankQuestion(
 ) {
   if (useFixtures) return { id: questionId, ...payload };
   return apiPatchData(`/api/banks/${bankId}/questions/${questionId}`, payload);
+}
+
+export type BankImportIssue = { row: number; message: string };
+
+export type BankImportResult = {
+  created: number;
+  issues: BankImportIssue[];
+};
+
+const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
+
+export async function importBankQuestions(bankId: string, file: File): Promise<BankImportResult> {
+  if (file.size > IMPORT_MAX_BYTES) {
+    throw new Error('File is too large (max 10 MB).');
+  }
+  if (useFixtures) {
+    return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
+  }
+  const form = new FormData();
+  form.append('file', file);
+  return apiPostFormData<BankImportResult>(`/api/banks/${bankId}/import`, form);
+}
+
+export async function downloadBankQuestionsSample(
+  bankId: string,
+  format: 'xlsx' | 'csv' = 'xlsx',
+): Promise<void> {
+  if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
+  await apiDownloadBlob(
+    `/api/banks/${bankId}/questions/sample.${format}`,
+    `questions-sample.${format}`,
+  );
+}
+
+export async function exportBankQuestions(
+  bankId: string,
+  format: 'xlsx' | 'csv' = 'xlsx',
+): Promise<void> {
+  if (useFixtures) throw new Error('Export is unavailable in fixture mode.');
+  await apiDownloadBlob(
+    `/api/banks/${bankId}/questions/export.${format}`,
+    `questions-export.${format}`,
+  );
 }
 
 export async function assignRegistrations(activityId: string, studentIds: string[]) {

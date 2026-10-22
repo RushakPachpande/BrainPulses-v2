@@ -14,10 +14,10 @@ import {
   createBankSchema,
   createQuestionSchema,
   idParamSchema,
-  importBodySchema,
   updateBankSchema,
   updateQuestionSchema,
 } from './schema.js';
+import { bankImportUpload } from './upload.js';
 
 export const banksRouter = Router();
 
@@ -53,6 +53,30 @@ banksRouter.post(
   validate({ params: idParamSchema, body: createQuestionSchema }),
   controller.createQuestion,
 );
+banksRouter.get(
+  '/:id/questions/sample.xlsx',
+  requireOrgAccess('edit'),
+  validate({ params: idParamSchema }),
+  controller.sampleXlsx,
+);
+banksRouter.get(
+  '/:id/questions/sample.csv',
+  requireOrgAccess('edit'),
+  validate({ params: idParamSchema }),
+  controller.sampleCsv,
+);
+banksRouter.get(
+  '/:id/questions/export.xlsx',
+  requireOrgAccess('view'),
+  validate({ params: idParamSchema }),
+  controller.exportXlsx,
+);
+banksRouter.get(
+  '/:id/questions/export.csv',
+  requireOrgAccess('view'),
+  validate({ params: idParamSchema }),
+  controller.exportCsv,
+);
 banksRouter.patch(
   '/:id/questions/:questionId',
   requireOrgAccess('edit'),
@@ -62,6 +86,7 @@ banksRouter.patch(
 banksRouter.post(
   '/:id/import',
   requireOrgAccess('edit'),
-  validate({ params: idParamSchema, body: importBodySchema }),
-  controller.importCsv,
+  validate({ params: idParamSchema }),
+  bankImportUpload.single('file'),
+  controller.importQuestions,
 );

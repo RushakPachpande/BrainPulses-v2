@@ -136,9 +136,9 @@ export function BankQuestionDialog({
     const next = emptyDraft(type);
     onDraftChange({
       ...next,
-      stem: draft.stem,
+      question: draft.question,
       points: draft.points,
-      stemImageUrl: draft.stemImageUrl,
+      questionImageUrl: draft.questionImageUrl,
       passageText: type === 'comprehension_mcq' ? draft.passageText : '',
     });
   }
@@ -161,7 +161,7 @@ export function BankQuestionDialog({
           <DialogDescription>
             {readOnly
               ? bankQuestionTypeLabel(draft.type)
-              : 'Choose a type, then fill in the stem and answers.'}
+              : 'Choose a type, then fill in the question and answers.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -202,31 +202,31 @@ export function BankQuestionDialog({
           ) : null}
 
           <Field>
-            <FieldLabel htmlFor="bank-q-stem">
-              Stem <span className="text-destructive">*</span>
+            <FieldLabel htmlFor="bank-q-question">
+              Question <span className="text-destructive">*</span>
             </FieldLabel>
             <Textarea
-              id="bank-q-stem"
-              value={draft.stem}
+              id="bank-q-question"
+              value={draft.question}
               disabled={readOnly}
               rows={3}
-              onChange={(e) => onDraftChange({ ...draft, stem: e.target.value })}
+              onChange={(e) => onDraftChange({ ...draft, question: e.target.value })}
             />
           </Field>
 
           {(draft.type === 'image_mcq' || draft.type === 'image_selection') && (
             <Field>
-              <FieldLabel htmlFor="bank-q-stem-image">Stem image URL (optional)</FieldLabel>
+              <FieldLabel htmlFor="bank-q-question-image">Question image URL (optional)</FieldLabel>
               <Input
-                id="bank-q-stem-image"
-                value={draft.stemImageUrl}
+                id="bank-q-question-image"
+                value={draft.questionImageUrl}
                 disabled={readOnly}
                 placeholder="https://…"
-                onChange={(e) => onDraftChange({ ...draft, stemImageUrl: e.target.value })}
+                onChange={(e) => onDraftChange({ ...draft, questionImageUrl: e.target.value })}
               />
-              {draft.stemImageUrl ? (
+              {draft.questionImageUrl ? (
                 <img
-                  src={draft.stemImageUrl}
+                  src={draft.questionImageUrl}
                   alt=""
                   className="mt-2 max-h-40 max-w-full rounded-md border border-border object-contain"
                 />
@@ -379,7 +379,7 @@ export function BankQuestionDialog({
 export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }) {
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <p className="font-medium">{item.stem}</p>
+      <p className="font-medium">{item.question}</p>
       {item.passageText ? (
         <p className="whitespace-pre-wrap text-muted-foreground">{item.passageText}</p>
       ) : null}

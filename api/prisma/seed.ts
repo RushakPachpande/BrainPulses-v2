@@ -17,7 +17,7 @@ const LABELS = ['A', 'B', 'C', 'D'] as const;
 
 type McqSeed = {
   code: string;
-  stem: string;
+  question: string;
   options: [string, string, string, string];
   correctIndex: 0 | 1 | 2 | 3;
   points?: number;
@@ -121,7 +121,7 @@ async function upsertMcq(organizationId: string, bankId: string, q: McqSeed) {
         bankId,
         code: q.code,
         type: 'single_mcq',
-        stem: q.stem,
+        question: q.question,
         points,
         isActive: true,
       },
@@ -132,7 +132,7 @@ async function upsertMcq(organizationId: string, bankId: string, q: McqSeed) {
         questionId: question.id,
         version: 1,
         type: 'single_mcq',
-        stem: q.stem,
+        question: q.question,
         points,
         answerKey,
         options: {
@@ -151,7 +151,7 @@ async function upsertMcq(organizationId: string, bankId: string, q: McqSeed) {
 
   await prisma.question.update({
     where: { id: existing.id },
-    data: { stem: q.stem, points, type: 'single_mcq', isActive: true },
+    data: { question: q.question, points, type: 'single_mcq', isActive: true },
   });
 
   const latest = existing.versions[0];
@@ -162,7 +162,7 @@ async function upsertMcq(organizationId: string, bankId: string, q: McqSeed) {
         questionId: existing.id,
         version: 1,
         type: 'single_mcq',
-        stem: q.stem,
+        question: q.question,
         points,
         answerKey,
         options: {
@@ -183,7 +183,7 @@ async function upsertMcq(organizationId: string, bankId: string, q: McqSeed) {
   await prisma.questionVersion.update({
     where: { id: latest.id },
     data: {
-      stem: q.stem,
+      question: q.question,
       points,
       type: 'single_mcq',
       answerKey,
@@ -356,31 +356,31 @@ async function seedSubmittedAttempt(input: {
 const physicsQuestions: McqSeed[] = [
   {
     code: 'PHY-01',
-    stem: 'What is the SI unit of force?',
+    question: 'What is the SI unit of force?',
     options: ['Joule', 'Newton', 'Watt', 'Pascal'],
     correctIndex: 1,
   },
   {
     code: 'PHY-02',
-    stem: 'Acceleration due to gravity near Earth’s surface is approximately:',
+    question: 'Acceleration due to gravity near Earth’s surface is approximately:',
     options: ['1.6 m/s²', '9.8 m/s²', '3.0×10⁸ m/s', '100 N/kg'],
     correctIndex: 1,
   },
   {
     code: 'PHY-03',
-    stem: 'In an isolated system with no external torque, which quantity is conserved?',
+    question: 'In an isolated system with no external torque, which quantity is conserved?',
     options: ['Linear momentum only', 'Angular momentum', 'Kinetic energy only', 'Temperature'],
     correctIndex: 1,
   },
   {
     code: 'PHY-04',
-    stem: 'Ohm’s law relating voltage V, current I, and resistance R is:',
+    question: 'Ohm’s law relating voltage V, current I, and resistance R is:',
     options: ['V = I / R', 'V = I × R', 'V = I² × R', 'V = R / I'],
     correctIndex: 1,
   },
   {
     code: 'PHY-05',
-    stem: 'A body moving with constant velocity has:',
+    question: 'A body moving with constant velocity has:',
     options: [
       'Zero acceleration',
       'Increasing kinetic energy',
@@ -391,7 +391,7 @@ const physicsQuestions: McqSeed[] = [
   },
   {
     code: 'PHY-06',
-    stem: 'The work done by a force is zero when the displacement is:',
+    question: 'The work done by a force is zero when the displacement is:',
     options: [
       'Parallel to the force',
       'Perpendicular to the force',
@@ -402,7 +402,7 @@ const physicsQuestions: McqSeed[] = [
   },
   {
     code: 'PHY-07',
-    stem: 'Power is defined as:',
+    question: 'Power is defined as:',
     options: [
       'Force × displacement',
       'Work done per unit time',
@@ -413,19 +413,19 @@ const physicsQuestions: McqSeed[] = [
   },
   {
     code: 'PHY-08',
-    stem: 'Which of the following is a scalar quantity?',
+    question: 'Which of the following is a scalar quantity?',
     options: ['Velocity', 'Force', 'Momentum', 'Energy'],
     correctIndex: 3,
   },
   {
     code: 'PHY-09',
-    stem: 'If mass is constant, Newton’s second law can be written as F =',
+    question: 'If mass is constant, Newton’s second law can be written as F =',
     options: ['m / a', 'm × a', 'm × v', 'a / m'],
     correctIndex: 1,
   },
   {
     code: 'PHY-10',
-    stem: 'The dimensional formula of pressure is the same as that of:',
+    question: 'The dimensional formula of pressure is the same as that of:',
     options: ['Force', 'Energy density', 'Momentum', 'Power'],
     correctIndex: 1,
   },
@@ -434,49 +434,49 @@ const physicsQuestions: McqSeed[] = [
 const chemistryQuestions: McqSeed[] = [
   {
     code: 'CHM-01',
-    stem: 'The chemical formula of water is:',
+    question: 'The chemical formula of water is:',
     options: ['CO₂', 'H₂O', 'NaCl', 'O₂'],
     correctIndex: 1,
   },
   {
     code: 'CHM-02',
-    stem: 'Atomic number of carbon is:',
+    question: 'Atomic number of carbon is:',
     options: ['4', '6', '8', '12'],
     correctIndex: 1,
   },
   {
     code: 'CHM-03',
-    stem: 'pH of a neutral aqueous solution at 25 °C is approximately:',
+    question: 'pH of a neutral aqueous solution at 25 °C is approximately:',
     options: ['0', '7', '14', '1'],
     correctIndex: 1,
   },
   {
     code: 'CHM-04',
-    stem: 'Which gas is evolved when zinc reacts with dilute HCl?',
+    question: 'Which gas is evolved when zinc reacts with dilute HCl?',
     options: ['Oxygen', 'Hydrogen', 'Chlorine', 'Nitrogen'],
     correctIndex: 1,
   },
   {
     code: 'CHM-05',
-    stem: 'Avogadro’s number is approximately:',
+    question: 'Avogadro’s number is approximately:',
     options: ['6.022 × 10²³', '3.0 × 10⁸', '1.6 × 10⁻¹⁹', '9.8'],
     correctIndex: 0,
   },
   {
     code: 'CHM-06',
-    stem: 'An acid turns blue litmus:',
+    question: 'An acid turns blue litmus:',
     options: ['Blue', 'Red', 'Green', 'Colourless'],
     correctIndex: 1,
   },
   {
     code: 'CHM-07',
-    stem: 'The most abundant gas in Earth’s atmosphere is:',
+    question: 'The most abundant gas in Earth’s atmosphere is:',
     options: ['Oxygen', 'Carbon dioxide', 'Nitrogen', 'Argon'],
     correctIndex: 2,
   },
   {
     code: 'CHM-08',
-    stem: 'NaCl is an example of a:',
+    question: 'NaCl is an example of a:',
     options: ['Covalent compound', 'Ionic compound', 'Metallic alloy', 'Polymer'],
     correctIndex: 1,
   },
@@ -485,13 +485,13 @@ const chemistryQuestions: McqSeed[] = [
 const roundLocalQuestions: McqSeed[] = [
   {
     code: 'LOC-01',
-    stem: 'In this paper’s instructions, how many marks does each MCQ carry unless stated otherwise?',
+    question: 'In this paper’s instructions, how many marks does each MCQ carry unless stated otherwise?',
     options: ['0.5', '1', '2', '4'],
     correctIndex: 1,
   },
   {
     code: 'LOC-02',
-    stem: 'Negative marking for this round is:',
+    question: 'Negative marking for this round is:',
     options: ['−1 per wrong', '−0.25 per wrong', 'None (demo paper)', '−2 per wrong'],
     correctIndex: 2,
   },
@@ -500,25 +500,25 @@ const roundLocalQuestions: McqSeed[] = [
 const gkQuestions: McqSeed[] = [
   {
     code: 'GK-01',
-    stem: 'Which planet is known as the Red Planet?',
+    question: 'Which planet is known as the Red Planet?',
     options: ['Venus', 'Mars', 'Jupiter', 'Mercury'],
     correctIndex: 1,
   },
   {
     code: 'GK-02',
-    stem: 'The capital of India is:',
+    question: 'The capital of India is:',
     options: ['Mumbai', 'Kolkata', 'New Delhi', 'Chennai'],
     correctIndex: 2,
   },
   {
     code: 'GK-03',
-    stem: 'Which gas do plants primarily absorb during photosynthesis?',
+    question: 'Which gas do plants primarily absorb during photosynthesis?',
     options: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'],
     correctIndex: 2,
   },
   {
     code: 'GK-04',
-    stem: 'Who wrote the national anthem of India?',
+    question: 'Who wrote the national anthem of India?',
     options: [
       'Bankim Chandra Chatterjee',
       'Rabindranath Tagore',
@@ -529,25 +529,25 @@ const gkQuestions: McqSeed[] = [
   },
   {
     code: 'GK-05',
-    stem: 'The largest desert in the world by area is the:',
+    question: 'The largest desert in the world by area is the:',
     options: ['Gobi', 'Sahara', 'Antarctic', 'Thar'],
     correctIndex: 2,
   },
   {
     code: 'GK-06',
-    stem: 'Which Indian state is known as the “Land of Five Rivers”?',
+    question: 'Which Indian state is known as the “Land of Five Rivers”?',
     options: ['Punjab', 'Kerala', 'Rajasthan', 'Assam'],
     correctIndex: 0,
   },
   {
     code: 'GK-07',
-    stem: 'The currency of Japan is the:',
+    question: 'The currency of Japan is the:',
     options: ['Yuan', 'Won', 'Yen', 'Ringgit'],
     correctIndex: 2,
   },
   {
     code: 'GK-08',
-    stem: 'Which organ purifies blood in the human body?',
+    question: 'Which organ purifies blood in the human body?',
     options: ['Heart', 'Liver', 'Kidney', 'Lungs'],
     correctIndex: 2,
   },
@@ -556,49 +556,49 @@ const gkQuestions: McqSeed[] = [
 const quantQuestions: McqSeed[] = [
   {
     code: 'QNT-01',
-    stem: 'What is 15% of 240?',
+    question: 'What is 15% of 240?',
     options: ['24', '30', '36', '40'],
     correctIndex: 2,
   },
   {
     code: 'QNT-02',
-    stem: 'If 3x + 5 = 20, then x =',
+    question: 'If 3x + 5 = 20, then x =',
     options: ['3', '5', '7', '15'],
     correctIndex: 1,
   },
   {
     code: 'QNT-03',
-    stem: 'The average of 4, 8, and 12 is:',
+    question: 'The average of 4, 8, and 12 is:',
     options: ['6', '8', '10', '12'],
     correctIndex: 1,
   },
   {
     code: 'QNT-04',
-    stem: 'A train covers 120 km in 2 hours. Its average speed is:',
+    question: 'A train covers 120 km in 2 hours. Its average speed is:',
     options: ['40 km/h', '50 km/h', '60 km/h', '80 km/h'],
     correctIndex: 2,
   },
   {
     code: 'QNT-05',
-    stem: 'Simple interest on ₹1000 at 10% per annum for 2 years is:',
+    question: 'Simple interest on ₹1000 at 10% per annum for 2 years is:',
     options: ['₹100', '₹150', '₹200', '₹250'],
     correctIndex: 2,
   },
   {
     code: 'QNT-06',
-    stem: 'The next number in the series 2, 6, 12, 20, … is:',
+    question: 'The next number in the series 2, 6, 12, 20, … is:',
     options: ['24', '28', '30', '32'],
     correctIndex: 2,
   },
   {
     code: 'QNT-07',
-    stem: 'If the ratio of boys to girls is 3:2 and there are 30 boys, girls =',
+    question: 'If the ratio of boys to girls is 3:2 and there are 30 boys, girls =',
     options: ['15', '20', '25', '45'],
     correctIndex: 1,
   },
   {
     code: 'QNT-08',
-    stem: '√144 equals:',
+    question: '√144 equals:',
     options: ['10', '11', '12', '14'],
     correctIndex: 2,
   },
@@ -607,13 +607,13 @@ const quantQuestions: McqSeed[] = [
 const draftQuizQuestions: McqSeed[] = [
   {
     code: 'DFT-01',
-    stem: 'Placeholder: which season follows summer in India?',
+    question: 'Placeholder: which season follows summer in India?',
     options: ['Spring', 'Monsoon', 'Winter', 'Autumn'],
     correctIndex: 1,
   },
   {
     code: 'DFT-02',
-    stem: 'Placeholder: 2² equals:',
+    question: 'Placeholder: 2² equals:',
     options: ['2', '3', '4', '8'],
     correctIndex: 2,
   },

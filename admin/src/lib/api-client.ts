@@ -108,7 +108,8 @@ async function refreshSessionOnce(): Promise<boolean> {
 async function request(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
   const headers = new Headers(init.headers);
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
-  if (init.body != null && !headers.has('Content-Type')) {
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
+  if (init.body != null && !headers.has('Content-Type') && !isFormData) {
     headers.set('Content-Type', 'application/json');
   }
 
@@ -182,4 +183,45 @@ export async function apiPatchData<T>(path: string, payload: unknown): Promise<T
     body: JSON.stringify(payload),
   });
   return body.data;
+}
+
+export async function apiPostFormData<T>(path: string, formData: FormData): Promise<T> {
+  const body = await apiRequest<{ data: T }>(path, {
+    method: 'POST',
+    body: formData,
+  });
+  return body.data;
+}
+
+function filenameFromContentDisposition(header: string | null, fallback: string): string {
+  if (!header) return fallback;
+  const utf = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utf?.[1]) {
+    try {
+      return decodeURIComponent(utf[1].trim());
+    } catch {
+      return utf[1].trim();
+    }
+  }
+  const plain = /filename="?([^";]+)"?/i.exec(header);
+  return plain?.[1]?.trim() || fallback;
+}
+
+/** Download a binary/text attachment and trigger a browser save. */
+export async function apiDownloadBlob(path: string, fallbackFilename: string): Promise<void> {
+  const res = await request(path);
+  const blob = await res.blob();
+  const filename = filenameFromContentDisposition(
+    res.headers.get('Content-Disposition'),
+    fallbackFilename,
+  );
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

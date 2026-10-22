@@ -73,7 +73,7 @@ export type ActivityRoundLocalQuestion = {
   id: string;
   code: string;
   type: string;
-  stem: string;
+  question: string;
   points: number;
   isActive: boolean;
   options: { id: string; label: string; body: string; sortOrder: number }[];
