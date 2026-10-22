@@ -143,11 +143,22 @@ export const createRoundQuestionSchema = z
         z
           .object({
             label: z.string().trim().min(1).max(8),
-            body: z.string().trim().min(1).max(1000),
+            body: z.string().max(1000).default(''),
             isCorrect: z.boolean().default(false),
             imageUrl: z.string().trim().max(2000).optional().nullable(),
           })
-          .strict(),
+          .strict()
+          .superRefine((o, ctx) => {
+            const body = (o.body ?? '').trim();
+            const image = typeof o.imageUrl === 'string' ? o.imageUrl.trim() : '';
+            if (!body && !image) {
+              ctx.addIssue({
+                code: 'custom',
+                message: 'Each option needs text, an image URL, or both.',
+                path: ['body'],
+              });
+            }
+          }),
       )
       .max(12)
       .optional(),

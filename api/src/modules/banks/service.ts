@@ -17,12 +17,14 @@ import {
   type ExportableQuestion,
   type ImportIssue,
 } from './import-export.js';
-import type {
-  bankListQuerySchema,
-  createBankSchema,
-  createQuestionSchema,
-  updateBankSchema,
-  updateQuestionSchema,
+import {
+  assertTypeAllowedForKind,
+  normalizeAnswerKeyImages,
+  type bankListQuerySchema,
+  type createBankSchema,
+  type createQuestionSchema,
+  type updateBankSchema,
+  type updateQuestionSchema,
 } from './schema.js';
 
 const accessRank: Record<AccessLevel, number> = {
@@ -300,12 +302,13 @@ async function createQuestionVersion(
   },
   version: number,
 ) {
-  const answerKey =
+  const rawKey =
     Object.keys(input.answerKey).length > 0
       ? input.answerKey
       : {
           correctLabels: input.options.filter((o) => o.isCorrect).map((o) => o.label),
         };
+  const answerKey = normalizeAnswerKeyImages(rawKey);
 
   const created = await prisma.questionVersion.create({
     data: {
@@ -325,7 +328,7 @@ async function createQuestionVersion(
         questionId,
         questionVersionId: created.id,
         label: o.label,
-        body: o.body,
+        body: o.body ?? '',
         imageUrl: o.imageUrl ?? null,
         sortOrder: i,
         isCorrect: o.isCorrect,
@@ -351,6 +354,7 @@ export async function createQuestion(
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'edit');
+  assertTypeAllowedForKind(bank.kind, input.type);
 
   const code = input.code ?? `Q-${Date.now().toString(36)}`;
   const question = await prisma.question.create({
@@ -455,6 +459,11 @@ export async function updateQuestion(
   if (contentTouched) {
     const nextVersion = (latest?.version ?? 0) + 1;
     liveType = input.type ?? question.type;
+    // Quiz banks: coerce legacy image_mcq → single_mcq on save; reject other types.
+    if (bank.kind === 'quiz' && liveType === 'image_mcq') {
+      liveType = 'single_mcq';
+    }
+    assertTypeAllowedForKind(bank.kind, liveType);
     liveQuestion = input.question ?? question.question;
     livePoints = input.points ?? Number(question.points);
     const options =
@@ -585,7 +594,7 @@ async function importFromRows(
 
   for (const row of rows) {
     try {
-      const payload = rowToCreatePayload(row);
+      const payload = rowToCreatePayload(row, bank.kind);
       await createQuestion(organizationId, actorUserId, actor, bankId, payload);
       created += 1;
     } catch (err) {
@@ -640,12 +649,26 @@ export async function importQuestionsFile(
   return importFromRows(organizationId, actorUserId, actor, bankId, rows, idempotencyKey);
 }
 
-export async function sampleQuestionsWorkbook() {
-  return buildSampleWorkbook();
+export async function sampleQuestionsWorkbook(
+  organizationId: string,
+  actor: AccessActor,
+  bankId: string,
+) {
+  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'view');
+  return buildSampleWorkbook(bank.kind);
 }
 
-export function sampleQuestionsCsv() {
-  return buildSampleCsv();
+export async function sampleQuestionsCsv(
+  organizationId: string,
+  actor: AccessActor,
+  bankId: string,
+) {
+  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'view');
+  return buildSampleCsv(bank.kind);
 }
 
 export async function exportQuestionsWorkbook(
@@ -654,8 +677,8 @@ export async function exportQuestionsWorkbook(
   actor: AccessActor,
   bankId: string,
 ) {
-  const questions = await loadExportableQuestions(organizationId, actor, bankId);
-  const buffer = await buildExportWorkbook(questions);
+  const { kind, questions } = await loadExportableQuestions(organizationId, actor, bankId);
+  const buffer = await buildExportWorkbook(questions, kind);
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -674,8 +697,8 @@ export async function exportQuestionsCsv(
   actor: AccessActor,
   bankId: string,
 ) {
-  const questions = await loadExportableQuestions(organizationId, actor, bankId);
-  const csv = buildExportCsv(questions);
+  const { kind, questions } = await loadExportableQuestions(organizationId, actor, bankId);
+  const csv = buildExportCsv(questions, kind);
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -692,7 +715,7 @@ async function loadExportableQuestions(
   organizationId: string,
   actor: AccessActor,
   bankId: string,
-): Promise<ExportableQuestion[]> {
+): Promise<{ kind: 'quiz' | 'assessment'; questions: ExportableQuestion[] }> {
   const bank = await prisma.questionBank.findFirst({
     where: { organizationId, id: bankId },
     include: {
@@ -711,5 +734,8 @@ async function loadExportableQuestions(
   });
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'view');
-  return bank.questions.map((q) => mapQuestionAdmin(q) as ExportableQuestion);
+  return {
+    kind: bank.kind,
+    questions: bank.questions.map((q) => mapQuestionAdmin(q) as ExportableQuestion),
+  };
 }

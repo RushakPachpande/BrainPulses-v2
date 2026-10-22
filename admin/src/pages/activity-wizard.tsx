@@ -126,9 +126,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [rounds, setRounds] = useState<RoundDraft[]>(() => [emptyRound(0)]);
   const [addingQuestionFor, setAddingQuestionFor] = useState<string | null>(null);
   const [newQuestionStem, setNewQuestionStem] = useState('');
+  const [newQuestionImageUrl, setNewQuestionImageUrl] = useState('');
   const [newQuestionOptions, setNewQuestionOptions] = useState([
-    { label: 'A', body: '', isCorrect: true },
-    { label: 'B', body: '', isCorrect: false },
+    { label: 'A', body: '', isCorrect: true, imageUrl: '' },
+    { label: 'B', body: '', isCorrect: false, imageUrl: '' },
   ]);
   const [banks, setBanks] = useState<{ id: string; name: string; questions: number }[]>([]);
   const [assignMode, setAssignMode] = useState<'manual' | 'all_active_students'>('manual');
@@ -361,9 +362,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       toast.error('Question is required.');
       return;
     }
-    const filled = newQuestionOptions.filter((o) => o.body.trim());
+    const filled = newQuestionOptions.filter((o) => o.body.trim() || o.imageUrl.trim());
     if (filled.length < 2) {
-      toast.error('Add at least two options.');
+      toast.error('Add at least two options (text, image URL, or both).');
       return;
     }
     if (!filled.some((o) => o.isCorrect)) {
@@ -384,6 +385,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       return;
     }
 
+    const stemImage = newQuestionImageUrl.trim();
+    const correctLabels = filled.filter((o) => o.isCorrect).map((o) => o.label);
     setSaving(true);
     try {
       await createRoundQuestion(id, roundId, {
@@ -394,14 +397,20 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           label: o.label,
           body: o.body.trim(),
           isCorrect: o.isCorrect,
+          ...(o.imageUrl.trim() ? { imageUrl: o.imageUrl.trim() } : {}),
         })),
+        answerKey: {
+          correctLabels,
+          ...(stemImage ? { questionImageUrl: stemImage } : {}),
+        },
       });
       await syncRoundsFromServer(id);
       setAddingQuestionFor(null);
       setNewQuestionStem('');
+      setNewQuestionImageUrl('');
       setNewQuestionOptions([
-        { label: 'A', body: '', isCorrect: true },
-        { label: 'B', body: '', isCorrect: false },
+        { label: 'A', body: '', isCorrect: true, imageUrl: '' },
+        { label: 'B', body: '', isCorrect: false, imageUrl: '' },
       ]);
       toast.success('Question added to round.');
     } catch (err) {
@@ -860,32 +869,58 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                               onChange={(e) => setNewQuestionStem(e.target.value)}
                             />
                           </Field>
+                          <Field>
+                            <FieldLabel htmlFor={`q-image-${round.key}`}>
+                              Question image URL (optional)
+                            </FieldLabel>
+                            <Input
+                              id={`q-image-${round.key}`}
+                              value={newQuestionImageUrl}
+                              placeholder="https://…"
+                              onChange={(e) => setNewQuestionImageUrl(e.target.value)}
+                            />
+                          </Field>
+                          <p className="text-xs text-muted-foreground">
+                            Each option needs text, an image URL, or both. Mark exactly one correct.
+                          </p>
                           {newQuestionOptions.map((opt, oi) => (
                             <div
                               key={opt.label}
-                              className="flex flex-col gap-2 sm:flex-row sm:items-center"
+                              className="flex flex-col gap-2 rounded-lg border border-border p-3"
                             >
-                              <label className="flex items-center gap-2 text-sm">
-                                <Checkbox
-                                  checked={opt.isCorrect}
-                                  onCheckedChange={(value) => {
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                <label className="flex items-center gap-2 text-sm">
+                                  <Checkbox
+                                    checked={opt.isCorrect}
+                                    onCheckedChange={(value) => {
+                                      setNewQuestionOptions((prev) =>
+                                        prev.map((o, i) => ({
+                                          ...o,
+                                          isCorrect: i === oi ? value === true : false,
+                                        })),
+                                      );
+                                    }}
+                                  />
+                                  {opt.label}
+                                </label>
+                                <Input
+                                  value={opt.body}
+                                  placeholder={`Option ${opt.label}`}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
                                     setNewQuestionOptions((prev) =>
-                                      prev.map((o, i) => ({
-                                        ...o,
-                                        isCorrect: i === oi ? value === true : false,
-                                      })),
+                                      prev.map((o, i) => (i === oi ? { ...o, body: value } : o)),
                                     );
                                   }}
                                 />
-                                {opt.label}
-                              </label>
+                              </div>
                               <Input
-                                value={opt.body}
-                                placeholder={`Option ${opt.label}`}
+                                value={opt.imageUrl}
+                                placeholder="Image URL (optional)"
                                 onChange={(e) => {
                                   const value = e.target.value;
                                   setNewQuestionOptions((prev) =>
-                                    prev.map((o, i) => (i === oi ? { ...o, body: value } : o)),
+                                    prev.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)),
                                   );
                                 }}
                               />
@@ -917,9 +952,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           onClick={() => {
                             setAddingQuestionFor(round.key);
                             setNewQuestionStem('');
+                            setNewQuestionImageUrl('');
                             setNewQuestionOptions([
-                              { label: 'A', body: '', isCorrect: true },
-                              { label: 'B', body: '', isCorrect: false },
+                              { label: 'A', body: '', isCorrect: true, imageUrl: '' },
+                              { label: 'B', body: '', isCorrect: false, imageUrl: '' },
                             ]);
                           }}
                         >

@@ -132,15 +132,16 @@ export const importCsv = importQuestions;
 export async function sampleXlsx(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    // Auth + bank access via requireOrgAccess; sample is bank-scoped for route consistency.
-    void actor;
-    void req.params.id;
-    const buffer = await service.sampleQuestionsWorkbook();
+    const buffer = await service.sampleQuestionsWorkbook(
+      actor.organizationId,
+      actor,
+      req.params.id as string,
+    );
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    res.setHeader('Content-Disposition', 'attachment; filename="questions-sample.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-sample.xlsx"');
     res.send(buffer);
   } catch (err) {
     next(err);
@@ -150,11 +151,13 @@ export async function sampleXlsx(req: Request, res: Response, next: NextFunction
 export async function sampleCsv(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    void actor;
-    void req.params.id;
-    const csv = service.sampleQuestionsCsv();
+    const csv = await service.sampleQuestionsCsv(
+      actor.organizationId,
+      actor,
+      req.params.id as string,
+    );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="questions-sample.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-sample.csv"');
     res.send(csv);
   } catch (err) {
     next(err);
@@ -174,7 +177,7 @@ export async function exportXlsx(req: Request, res: Response, next: NextFunction
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    res.setHeader('Content-Disposition', 'attachment; filename="questions-export.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-export.xlsx"');
     res.send(buffer);
   } catch (err) {
     next(err);
@@ -191,7 +194,7 @@ export async function exportCsv(req: Request, res: Response, next: NextFunction)
       req.params.id as string,
     );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="questions-export.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-export.csv"');
     res.send(csv);
   } catch (err) {
     next(err);

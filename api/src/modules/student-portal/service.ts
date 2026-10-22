@@ -366,7 +366,14 @@ export async function getMyResult(organizationId: string, studentId: string, res
     include: {
       options: {
         orderBy: { sortOrder: 'asc' },
-        select: { id: true, label: true, body: true, sortOrder: true, isCorrect: true },
+        select: {
+          id: true,
+          label: true,
+          body: true,
+          sortOrder: true,
+          isCorrect: true,
+          imageUrl: true,
+        },
       },
     },
   });
@@ -384,7 +391,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
       return {
         questionVersionId: response.questionVersionId,
         question: 'Question unavailable',
-        options: [] as { label: string; body: string }[],
+        options: [] as { label: string; body: string; imageUrl?: string }[],
         yourAnswer: response.answer,
         correct: null as boolean | null,
         correctLabels: [] as string[],
@@ -398,12 +405,26 @@ export async function getMyResult(organizationId: string, studentId: string, res
     const correctLabels = includeKeys
       ? version.options.filter((o) => o.isCorrect).map((o) => o.label)
       : [];
+    const key =
+      version.answerKey &&
+      typeof version.answerKey === 'object' &&
+      !Array.isArray(version.answerKey)
+        ? (version.answerKey as Record<string, unknown>)
+        : {};
+    const questionImageUrl =
+      typeof key.questionImageUrl === 'string'
+        ? key.questionImageUrl
+        : typeof key.stemImageUrl === 'string'
+          ? key.stemImageUrl
+          : undefined;
     return {
       questionVersionId: version.id,
       question: version.question,
+      ...(questionImageUrl ? { questionImageUrl } : {}),
       options: version.options.map((o) => ({
         label: o.label,
         body: o.body,
+        ...(o.imageUrl ? { imageUrl: o.imageUrl } : {}),
         ...(includeKeys ? { isCorrect: o.isCorrect } : {}),
       })),
       yourAnswer: response.answer,

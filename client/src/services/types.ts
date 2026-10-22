@@ -70,7 +70,8 @@ export type StudentResultDetail = {
   review: {
     questionVersionId: string;
     question: string;
-    options: { label: string; body: string; isCorrect?: boolean }[];
+    questionImageUrl?: string;
+    options: { label: string; body: string; imageUrl?: string; isCorrect?: boolean }[];
     yourAnswer: unknown;
     correct: boolean | null;
     correctLabels: string[];

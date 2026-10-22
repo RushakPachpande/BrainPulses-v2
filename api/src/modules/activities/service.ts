@@ -247,10 +247,24 @@ async function assertReusableBanksForKind(
       id: { in: unique },
       origin: 'reusable',
     },
-    select: { id: true },
+    select: {
+      id: true,
+      questions: { where: { isActive: true }, select: { type: true } },
+    },
   });
   if (banks.length !== unique.length) {
     throw badRequest('One or more question banks are invalid for this organization and kind.');
+  }
+  if (kind === 'quiz') {
+    const allowed = new Set(['single_mcq', 'image_mcq']);
+    for (const bank of banks) {
+      const bad = bank.questions.find((q) => !allowed.has(q.type));
+      if (bad) {
+        throw badRequest(
+          'Quiz activities only accept banks whose questions are single choice (or legacy image_mcq).',
+        );
+      }
+    }
   }
 }
 
@@ -707,12 +721,22 @@ export async function createRoundQuestion(
 
   const code = input.code ?? `Q-${Date.now().toString(36)}`;
   const options = input.options ?? [];
-  const answerKey =
+  const rawKey: Record<string, unknown> =
     input.answerKey && Object.keys(input.answerKey).length > 0
-      ? input.answerKey
+      ? { ...input.answerKey }
       : {
           correctLabels: options.filter((o) => o.isCorrect).map((o) => o.label),
         };
+  if (!Array.isArray(rawKey.correctLabels)) {
+    rawKey.correctLabels = options.filter((o) => o.isCorrect).map((o) => o.label);
+  }
+  const fromQuestion =
+    typeof rawKey.questionImageUrl === 'string' ? rawKey.questionImageUrl.trim() : '';
+  const fromStem = typeof rawKey.stemImageUrl === 'string' ? rawKey.stemImageUrl.trim() : '';
+  delete rawKey.stemImageUrl;
+  if (fromQuestion || fromStem) rawKey.questionImageUrl = fromQuestion || fromStem;
+  else delete rawKey.questionImageUrl;
+  const answerKey = rawKey;
 
   const question = await prisma.question.create({
     data: {
@@ -743,7 +767,7 @@ export async function createRoundQuestion(
         questionId: question.id,
         questionVersionId: version.id,
         label: o.label,
-        body: o.body,
+        body: o.body ?? '',
         imageUrl: o.imageUrl ?? null,
         sortOrder: i,
         isCorrect: o.isCorrect,

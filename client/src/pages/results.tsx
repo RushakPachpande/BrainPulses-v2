@@ -370,18 +370,19 @@ export function ResultDetailPage() {
           </div>
           {attempt.review.map((q, i) => {
             const yours = answerLabel(q.yourAnswer);
-            const multiYours =
-              yours?.includes(',')
-                ? yours.split(',').map((s) => s.trim())
-                : yours
-                  ? [yours]
-                  : [];
+            const multiYours = yours?.includes(',')
+              ? yours.split(',').map((s) => s.trim())
+              : yours
+                ? [yours]
+                : [];
             const yourDisplay =
               multiYours.length > 0
                 ? multiYours
                     .map((label) => {
-                      const body = q.options.find((o) => o.label === label)?.body;
-                      return body ? `${label}. ${body}` : label;
+                      const opt = q.options.find((o) => o.label === label);
+                      if (!opt) return label;
+                      if (opt.body) return `${label}. ${opt.body}`;
+                      return opt.imageUrl ? `${label} (image)` : label;
                     })
                     .join('; ')
                 : null;
@@ -394,6 +395,49 @@ export function ResultDetailPage() {
                   </span>
                 </div>
                 <b>{q.question}</b>
+                {q.questionImageUrl ? (
+                  <img
+                    src={q.questionImageUrl}
+                    alt=""
+                    style={{
+                      display: 'block',
+                      maxWidth: '100%',
+                      maxHeight: 180,
+                      marginTop: 8,
+                      marginBottom: 8,
+                      borderRadius: 12,
+                      objectFit: 'contain',
+                    }}
+                  />
+                ) : null}
+                <div className="option-list" style={{ marginTop: 12 }}>
+                  {q.options.map((op) => (
+                    <div
+                      key={op.label}
+                      className={`answer-option ${multiYours.includes(op.label) ? 'chosen' : ''}`}
+                      style={{ cursor: 'default' }}
+                    >
+                      <span className="option-letter">{op.label}</span>
+                      <span
+                        style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}
+                      >
+                        {op.imageUrl ? (
+                          <img
+                            src={op.imageUrl}
+                            alt=""
+                            style={{
+                              maxWidth: '100%',
+                              maxHeight: 120,
+                              borderRadius: 8,
+                              objectFit: 'contain',
+                            }}
+                          />
+                        ) : null}
+                        {op.body ? <span>{op.body}</span> : null}
+                      </span>
+                    </div>
+                  ))}
+                </div>
                 <p>Your answer: {yourDisplay ?? 'Not answered'}</p>
                 {q.correctLabels.length > 0 && (
                   <div className="review-explanation">
@@ -402,8 +446,10 @@ export function ResultDetailPage() {
                       <b>Correct answer</b>
                       {q.correctLabels
                         .map((label) => {
-                          const body = q.options.find((o) => o.label === label)?.body;
-                          return body ? `${label}. ${body}` : label;
+                          const opt = q.options.find((o) => o.label === label);
+                          if (!opt) return label;
+                          if (opt.body) return `${label}. ${opt.body}`;
+                          return opt.imageUrl ? `${label} (image)` : label;
                         })
                         .join(', ')}
                     </span>

@@ -13,6 +13,7 @@ import {
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -56,13 +57,13 @@ import {
 } from '@/services';
 import {
   draftFromItem,
-  draftToPayload,
+  draftToPayloadForKind,
   emptyDraft,
   validateDraft,
   type QuestionDraft,
 } from './bank-question-draft';
 import { BankQuestionDialog } from './bank-question-form';
-import { bankQuestionTypeLabel } from './bank-question-types';
+import { bankQuestionTypeLabel, isQuizAllowedType } from './bank-question-types';
 
 type DialogMode =
   | null
@@ -156,6 +157,11 @@ export function BankFormPage({
     );
   }, [questions, search]);
 
+  const hasDisallowedQuizTypes = useMemo(
+    () => isQuiz && questions.some((q) => !isQuizAllowedType(q.type)),
+    [isQuiz, questions],
+  );
+
   function closeDialog() {
     setDialog(null);
     setDraft(emptyDraft());
@@ -167,6 +173,11 @@ export function BankFormPage({
   }
 
   function openEdit(item: BankQuestionItem) {
+    if (isQuiz && !isQuizAllowedType(item.type)) {
+      toast.error('This question type is not editable in quiz banks. View only.');
+      openView(item);
+      return;
+    }
     setDraft(draftFromItem(item));
     setDialog({ kind: 'edit', questionId: item.id });
   }
@@ -216,7 +227,7 @@ export function BankFormPage({
       toast.error(error);
       return;
     }
-    const payload = draftToPayload(draft);
+    const payload = draftToPayloadForKind(draft, kind);
     setSavingQuestion(true);
     try {
       if (dialog.kind === 'add') {
@@ -415,6 +426,7 @@ export function BankFormPage({
                 <CardTitle>Questions</CardTitle>
                 <CardDescription>
                   {questions.length} question{questions.length === 1 ? '' : 's'}
+                  {isQuiz ? ' · Single choice only (text and/or image options)' : ''}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -476,6 +488,15 @@ export function BankFormPage({
             </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-4 pt-5">
+            {hasDisallowedQuizTypes ? (
+              <Alert>
+                <AlertTitle>Legacy question types</AlertTitle>
+                <AlertDescription>
+                  This quiz bank has questions that are not single choice. They remain available for
+                  attempts but can only be viewed here — new questions must be single choice.
+                </AlertDescription>
+              </Alert>
+            ) : null}
             {questions.length > 8 ? (
               <Toolbar
                 filters={[]}
@@ -574,6 +595,7 @@ export function BankFormPage({
           mode={dialog.kind}
           draft={draft}
           saving={savingQuestion}
+          kind={kind}
           onOpenChange={(open) => {
             if (!open) closeDialog();
           }}

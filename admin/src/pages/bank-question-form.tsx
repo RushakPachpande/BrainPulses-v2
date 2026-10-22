@@ -27,9 +27,11 @@ import {
   type QuestionDraft,
 } from './bank-question-draft';
 import {
-  BANK_QUESTION_TYPES,
   bankQuestionTypeLabel,
+  supportsChoiceMedia,
+  typesForKind,
   type BankAuthorType,
+  type BankKind,
 } from './bank-question-types';
 
 function OptionRows({
@@ -116,6 +118,7 @@ export function BankQuestionDialog({
   mode,
   draft,
   saving,
+  kind = 'assessment',
   onOpenChange,
   onDraftChange,
   onSave,
@@ -124,6 +127,7 @@ export function BankQuestionDialog({
   mode: 'add' | 'edit' | 'view';
   draft: QuestionDraft;
   saving: boolean;
+  kind?: BankKind;
   onOpenChange: (open: boolean) => void;
   onDraftChange: (draft: QuestionDraft) => void;
   onSave: () => void;
@@ -131,6 +135,9 @@ export function BankQuestionDialog({
   const readOnly = mode === 'view';
   const title =
     mode === 'add' ? 'Add question' : mode === 'edit' ? 'Edit question' : 'View question';
+  const typeOptions = typesForKind(kind);
+  const quizLocked = kind === 'quiz';
+  const showMedia = supportsChoiceMedia(draft.type);
 
   function setType(type: BankAuthorType) {
     const next = emptyDraft(type);
@@ -161,30 +168,34 @@ export function BankQuestionDialog({
           <DialogDescription>
             {readOnly
               ? bankQuestionTypeLabel(draft.type)
-              : 'Choose a type, then fill in the question and answers.'}
+              : quizLocked
+                ? 'Single choice only. Options may be text, an image URL, or both.'
+                : 'Choose a type, then fill in the question and answers.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          <Field>
-            <FieldLabel htmlFor="bank-q-type">Type</FieldLabel>
-            {readOnly ? (
-              <Input id="bank-q-type" value={bankQuestionTypeLabel(draft.type)} disabled />
-            ) : (
-              <Select value={draft.type} onValueChange={(v) => setType(v as BankAuthorType)}>
-                <SelectTrigger id="bank-q-type" className="w-full" aria-label="Question type">
-                  <SelectValue placeholder="Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {BANK_QUESTION_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-          </Field>
+          {!quizLocked ? (
+            <Field>
+              <FieldLabel htmlFor="bank-q-type">Type</FieldLabel>
+              {readOnly ? (
+                <Input id="bank-q-type" value={bankQuestionTypeLabel(draft.type)} disabled />
+              ) : (
+                <Select value={draft.type} onValueChange={(v) => setType(v as BankAuthorType)}>
+                  <SelectTrigger id="bank-q-type" className="w-full" aria-label="Question type">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {typeOptions.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </Field>
+          ) : null}
 
           {draft.type === 'comprehension_mcq' ? (
             <Field>
@@ -214,7 +225,7 @@ export function BankQuestionDialog({
             />
           </Field>
 
-          {(draft.type === 'image_mcq' || draft.type === 'image_selection') && (
+          {showMedia ? (
             <Field>
               <FieldLabel htmlFor="bank-q-question-image">Question image URL (optional)</FieldLabel>
               <Input
@@ -232,7 +243,7 @@ export function BankQuestionDialog({
                 />
               ) : null}
             </Field>
-          )}
+          ) : null}
 
           <Field className="max-w-40">
             <FieldLabel htmlFor="bank-q-points">Points</FieldLabel>
@@ -309,10 +320,16 @@ export function BankQuestionDialog({
           {showOptions ? (
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium">Options</p>
+              {!readOnly && showMedia ? (
+                <p className="text-xs text-muted-foreground">
+                  Each option needs text, an image URL, or both.
+                  {multi ? ' Mark at least one correct.' : ' Mark exactly one correct.'}
+                </p>
+              ) : null}
               <OptionRows
                 options={draft.options}
                 multi={multi}
-                showImageUrl={draft.type === 'image_selection'}
+                showImageUrl={showMedia}
                 readOnly={readOnly}
                 onChange={(options) => onDraftChange({ ...draft, options })}
               />
@@ -380,15 +397,31 @@ export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }
   return (
     <div className="flex flex-col gap-2 text-sm">
       <p className="font-medium">{item.question}</p>
+      {item.questionImageUrl ? (
+        <img
+          src={item.questionImageUrl}
+          alt=""
+          className="max-h-40 max-w-full rounded-md border border-border object-contain"
+        />
+      ) : null}
       {item.passageText ? (
         <p className="whitespace-pre-wrap text-muted-foreground">{item.passageText}</p>
       ) : null}
       <ul className="space-y-1">
         {(item.options ?? []).map((o) => (
-          <li key={o.label}>
-            <span className="font-medium">{o.label}.</span> {o.body}
-            {o.isCorrect ? (
-              <span className="ml-2 text-xs font-medium text-success">Correct</span>
+          <li key={o.label} className="flex flex-col gap-1">
+            <span>
+              <span className="font-medium">{o.label}.</span> {o.body}
+              {o.isCorrect ? (
+                <span className="ml-2 text-xs font-medium text-success">Correct</span>
+              ) : null}
+            </span>
+            {o.imageUrl ? (
+              <img
+                src={o.imageUrl}
+                alt=""
+                className="max-h-24 max-w-full rounded-md border border-border object-contain"
+              />
             ) : null}
           </li>
         ))}

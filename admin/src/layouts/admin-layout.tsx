@@ -57,18 +57,6 @@ const nav: NavGroupItem[] = [
   { to: '/students', label: 'Students', icon: UsersIcon, end: true },
   { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
   {
-    to: '/assessments',
-    label: 'Assessments',
-    icon: ListIcon,
-    end: false,
-    children: [
-      { to: '/assessments', label: 'All Assessments', end: true },
-      { to: '/assessments/banks', label: 'Question Banks', end: true },
-      { to: '/assessments/registrations', label: 'Registrations', end: true },
-      { to: '/assessments/reports', label: 'Reports & Results', end: true },
-    ],
-  },
-  {
     to: '/quizzes',
     label: 'Quizzes',
     icon: CircleHelpIcon,
@@ -79,6 +67,18 @@ const nav: NavGroupItem[] = [
       { to: '/quizzes/registrations', label: 'Registrations', end: true },
       { to: '/quizzes/reports', label: 'Reports & Results', end: true },
       { to: '/quizzes/leaderboard', label: 'Leaderboard', end: true },
+    ],
+  },
+  {
+    to: '/assessments',
+    label: 'Assessments',
+    icon: ListIcon,
+    end: false,
+    children: [
+      { to: '/assessments', label: 'All Assessments', end: true },
+      { to: '/assessments/banks', label: 'Question Banks', end: true },
+      { to: '/assessments/registrations', label: 'Registrations', end: true },
+      { to: '/assessments/reports', label: 'Reports & Results', end: true },
     ],
   },
   {

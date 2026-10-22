@@ -1,6 +1,6 @@
 import type { BankQuestionItem, BankQuestionOption } from '@/services';
 import type { BankAuthorType } from './bank-question-types';
-import { isBankAuthorType } from './bank-question-types';
+import { isBankAuthorType, isOptionFilled } from './bank-question-types';
 
 export type OptionDraft = {
   label: string;
@@ -153,14 +153,14 @@ export function draftFromItem(item: BankQuestionItem): QuestionDraft {
 
 function normalizeCorrectFlags(options: OptionDraft[], multi: boolean) {
   if (multi) {
-    if (!options.some((o) => o.isCorrect) && options.some((o) => o.body.trim())) {
-      const first = options.find((o) => o.body.trim());
+    if (!options.some((o) => o.isCorrect) && options.some((o) => isOptionFilled(o))) {
+      const first = options.find((o) => isOptionFilled(o));
       if (first) first.isCorrect = true;
     }
     return;
   }
   if (!options.some((o) => o.isCorrect)) {
-    const first = options.find((o) => o.body.trim());
+    const first = options.find((o) => isOptionFilled(o));
     if (first) first.isCorrect = true;
   } else {
     let kept = false;
@@ -176,7 +176,7 @@ export function validateDraft(draft: QuestionDraft): string | null {
   if (!draft.question.trim()) return 'Question is required.';
   if (draft.points < 1) return 'Points must be at least 1.';
 
-  const filled = draft.options.filter((o) => o.body.trim());
+  const filled = draft.options.filter((o) => isOptionFilled(o));
   const correct = filled.filter((o) => o.isCorrect);
 
   switch (draft.type) {
@@ -247,7 +247,7 @@ export function draftToPayload(draft: QuestionDraft): {
   }
 
   const options = draft.options
-    .filter((o) => o.body.trim())
+    .filter((o) => isOptionFilled(o))
     .map((o) => ({
       label: o.label,
       body: o.body.trim(),
@@ -260,6 +260,18 @@ export function draftToPayload(draft: QuestionDraft): {
   if (draft.questionImageUrl.trim()) answerKey.questionImageUrl = draft.questionImageUrl.trim();
 
   return { type, question, points, options, answerKey };
+}
+
+/** Quiz banks persist only single_mcq; coerce legacy image_mcq on save. */
+export function draftToPayloadForKind(
+  draft: QuestionDraft,
+  kind: 'quiz' | 'assessment',
+): ReturnType<typeof draftToPayload> {
+  const payload = draftToPayload(draft);
+  if (kind === 'quiz' && (payload.type === 'image_mcq' || payload.type === 'single_mcq')) {
+    return { ...payload, type: 'single_mcq' };
+  }
+  return payload;
 }
 
 export function optionsForReadOnly(item: BankQuestionItem): BankQuestionOption[] {

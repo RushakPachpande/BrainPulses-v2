@@ -51,7 +51,7 @@ export async function exportCsv(req: Request, res: Response, next: NextFunction)
       req.query.activityId as string,
     );
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="registrations.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-registrations.csv"');
     res.send(csv);
   } catch (err) {
     next(err);

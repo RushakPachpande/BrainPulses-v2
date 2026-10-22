@@ -4,7 +4,12 @@ import ExcelJS from 'exceljs';
 import type { z } from 'zod';
 import { sanitizeCsvCell } from '../../lib/csv.js';
 import { unprocessable } from '../../lib/errors.js';
-import { createQuestionSchema, type QuestionTypeValue } from './schema.js';
+import {
+  authorableTypesForKind,
+  createQuestionSchema,
+  type BankKind,
+  type QuestionTypeValue,
+} from './schema.js';
 
 export const BANK_IMPORT_HEADERS = [
   'type',
@@ -32,19 +37,16 @@ export const BANK_IMPORT_HEADERS = [
 
 export type BankImportHeader = (typeof BANK_IMPORT_HEADERS)[number];
 
-const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
+/** Quiz sheets omit `type` — every row is single choice. */
+export const QUIZ_BANK_IMPORT_HEADERS = BANK_IMPORT_HEADERS.filter(
+  (h): h is Exclude<BankImportHeader, 'type'> => h !== 'type',
+);
 
-const AUTHORABLE_TYPES = new Set<string>([
-  'single_mcq',
-  'multiple_mcq',
-  'true_false',
-  'numeric',
-  'short_text',
-  'long_text',
-  'image_mcq',
-  'image_selection',
-  'comprehension_mcq',
-]);
+export function headersForKind(kind: BankKind): readonly BankImportHeader[] {
+  return kind === 'quiz' ? QUIZ_BANK_IMPORT_HEADERS : BANK_IMPORT_HEADERS;
+}
+
+const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
 export type BankImportRow = Record<BankImportHeader, string> & { sheetRow: number };
 
@@ -145,7 +147,8 @@ function emptyRow(sheetRow: number): BankImportRow {
 
 function sheetHasRequiredHeaders(headers: (string | undefined)[]): boolean {
   const keys = new Set(headers.filter(Boolean).map((h) => normalizeHeaderKey(h!)));
-  return keys.has('type') && (keys.has('question') || keys.has('stem') || keys.has('text'));
+  // Assessment sheets include type; quiz sheets may omit it (always single_mcq).
+  return keys.has('question') || keys.has('stem') || keys.has('text');
 }
 
 function pickWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
@@ -170,11 +173,8 @@ function rowsFromSheet(sheet: ExcelJS.Worksheet): BankImportRow[] {
     if (alias && alias !== 'skip') headerByCol[col] = alias;
   });
 
-  if (
-    !Object.values(headerByCol).includes('type') ||
-    !Object.values(headerByCol).includes('question')
-  ) {
-    throw unprocessable('Missing required columns. Expected at least type and question (or stem).');
+  if (!Object.values(headerByCol).includes('question')) {
+    throw unprocessable('Missing required column. Expected question (or stem).');
   }
 
   const rows: BankImportRow[] = [];
@@ -277,7 +277,7 @@ function collectOptions(row: BankImportRow): {
     if (!body && !imageUrl) continue;
     options.push({
       label: letter,
-      body: body || imageUrl,
+      body,
       isCorrect: letters.includes(letter),
       ...(imageUrl ? { imageUrl } : {}),
     });
@@ -288,15 +288,28 @@ function collectOptions(row: BankImportRow): {
 /**
  * Map a sheet row to a createQuestion payload. Throws Error with a user-facing message on failure.
  */
-export function rowToCreatePayload(row: BankImportRow): BankCreatePayload {
+export function rowToCreatePayload(
+  row: BankImportRow,
+  kind: BankKind = 'assessment',
+): BankCreatePayload {
   const typeRaw = row.type.trim().toLowerCase();
-  if (!typeRaw) throw new Error('type is required');
-  if (!AUTHORABLE_TYPES.has(typeRaw)) {
-    throw new Error(
-      `Unknown type “${row.type.trim()}”. Use one of: ${[...AUTHORABLE_TYPES].join(', ')}`,
-    );
+  const allowed = authorableTypesForKind(kind);
+  let type: QuestionTypeValue;
+  if (kind === 'quiz') {
+    // Quiz sheets omit type; blank or single_mcq both mean single choice.
+    if (typeRaw && typeRaw !== 'single_mcq' && typeRaw !== 'image_mcq') {
+      throw new Error(`Quiz banks only support single-choice questions. Got “${row.type.trim()}”.`);
+    }
+    type = 'single_mcq';
+  } else {
+    if (!typeRaw) throw new Error('type is required');
+    if (!allowed.has(typeRaw)) {
+      throw new Error(
+        `Unknown type “${row.type.trim()}”. Use one of: ${[...allowed].join(', ')}`,
+      );
+    }
+    type = typeRaw as QuestionTypeValue;
   }
-  const type = typeRaw as QuestionTypeValue;
 
   const question = row.question.trim();
   if (!question) throw new Error('question is required');
@@ -343,7 +356,7 @@ export function rowToCreatePayload(row: BankImportRow): BankCreatePayload {
     answerKey.passageText = passage;
   }
 
-  if (stemImageUrl) answerKey.stemImageUrl = stemImageUrl;
+  if (stemImageUrl) answerKey.questionImageUrl = stemImageUrl;
 
   if (
     type === 'single_mcq' ||
@@ -372,7 +385,7 @@ export function rowToCreatePayload(row: BankImportRow): BankCreatePayload {
   return parsed.data;
 }
 
-function sampleDataRows(): Record<BankImportHeader, string>[] {
+function sampleDataRows(kind: BankKind = 'assessment'): Record<BankImportHeader, string>[] {
   const blank = (): Record<BankImportHeader, string> => {
     const o = {} as Record<BankImportHeader, string>;
     for (const h of BANK_IMPORT_HEADERS) o[h] = '';
@@ -383,7 +396,7 @@ function sampleDataRows(): Record<BankImportHeader, string>[] {
 
   {
     const r = blank();
-    r.type = 'single_mcq';
+    if (kind !== 'quiz') r.type = 'single_mcq';
     r.question = 'Which planet is known as the Red Planet?';
     r.points = '1';
     r.optionA = 'Venus';
@@ -393,6 +406,35 @@ function sampleDataRows(): Record<BankImportHeader, string>[] {
     r.correct = 'B';
     rows.push(r);
   }
+  {
+    const r = blank();
+    if (kind !== 'quiz') r.type = 'single_mcq';
+    r.question = 'Which of the following is the Taj Mahal?';
+    r.points = '1';
+    r.optionA = '';
+    r.optionB = '';
+    r.optionC = '';
+    r.optionA_imageUrl = 'https://example.com/taj-mahal.png';
+    r.optionB_imageUrl = 'https://example.com/eiffel.png';
+    r.optionC_imageUrl = 'https://example.com/colosseum.png';
+    r.correct = 'A';
+    rows.push(r);
+  }
+  {
+    const r = blank();
+    if (kind !== 'quiz') r.type = 'single_mcq';
+    r.question = 'What landmark is shown?';
+    r.points = '1';
+    r.stemImageUrl = 'https://example.com/landmark.png';
+    r.optionA = 'Taj Mahal';
+    r.optionB = 'Eiffel Tower';
+    r.optionC = 'Colosseum';
+    r.correct = 'A';
+    rows.push(r);
+  }
+
+  if (kind === 'quiz') return rows;
+
   {
     const r = blank();
     r.type = 'multiple_mcq';
@@ -481,53 +523,72 @@ function sampleDataRows(): Record<BankImportHeader, string>[] {
   return rows;
 }
 
-function fillSheetFromRows(sheet: ExcelJS.Worksheet, rows: Record<BankImportHeader, string>[]) {
-  sheet.addRow([...BANK_IMPORT_HEADERS]);
+function fillSheetFromRows(
+  sheet: ExcelJS.Worksheet,
+  rows: Record<BankImportHeader, string>[],
+  headers: readonly BankImportHeader[] = BANK_IMPORT_HEADERS,
+) {
+  sheet.addRow([...headers]);
   for (const row of rows) {
-    sheet.addRow(BANK_IMPORT_HEADERS.map((h) => row[h] ?? ''));
+    sheet.addRow(headers.map((h) => row[h] ?? ''));
   }
   sheet.getRow(1).font = { bold: true };
-  sheet.columns = BANK_IMPORT_HEADERS.map((h) => ({
+  sheet.columns = headers.map((h) => ({
     header: h,
     key: h,
     width: Math.min(28, Math.max(12, h.length + 2)),
   }));
 }
 
-export async function buildSampleWorkbook(): Promise<Buffer> {
+export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const instructions = workbook.addWorksheet('Instructions');
+  const headers = headersForKind(kind);
   instructions.addRow(['BrainPulses question bank import']);
   instructions.addRow([]);
   instructions.addRow(['1. Fill the Questions sheet. Do not rename column headers.']);
-  instructions.addRow(['2. type must be one of the authorable types listed below.']);
-  instructions.addRow([
-    '3. For choice types, put option text in optionA–optionF and mark correct with letters (e.g. B or A,C).',
-  ]);
-  instructions.addRow(['4. true_false may leave options blank (defaults to True/False as A/B).']);
-  instructions.addRow(['5. numeric uses numericValue (+ optional numericTolerance).']);
-  instructions.addRow(['6. short_text / long_text use optional referenceAnswer.']);
-  instructions.addRow(['7. comprehension_mcq requires passageText.']);
-  instructions.addRow(['8. image_selection requires option*_imageUrl for each filled option.']);
-  instructions.addRow([]);
-  instructions.addRow(['Authorable types:']);
-  for (const t of AUTHORABLE_TYPES) {
-    instructions.addRow([t]);
+  if (kind === 'quiz') {
+    instructions.addRow([
+      '2. Quiz questions are always single choice — there is no type column.',
+    ]);
+    instructions.addRow([
+      '3. Options may be text (optionA–F), image (option*_imageUrl), or both. Stem image via stemImageUrl.',
+    ]);
+    instructions.addRow(['4. Mark the single correct letter in correct (e.g. B).']);
+  } else {
+    instructions.addRow(['2. type must be one of the authorable types listed below.']);
+    instructions.addRow([
+      '3. For choice types, put option text in optionA–optionF and/or option*_imageUrl; mark correct with letters (e.g. B or A,C).',
+    ]);
+    instructions.addRow(['4. true_false may leave options blank (defaults to True/False as A/B).']);
+    instructions.addRow(['5. numeric uses numericValue (+ optional numericTolerance).']);
+    instructions.addRow(['6. short_text / long_text use optional referenceAnswer.']);
+    instructions.addRow(['7. comprehension_mcq requires passageText.']);
+    instructions.addRow(['8. image_selection requires option*_imageUrl for each filled option.']);
+    instructions.addRow([
+      '9. Optional stemImageUrl works on choice types; option images work on any choice type.',
+    ]);
+    instructions.addRow([]);
+    instructions.addRow(['Authorable types:']);
+    for (const t of authorableTypesForKind(kind)) {
+      instructions.addRow([t]);
+    }
   }
   instructions.getColumn(1).width = 100;
 
   const questions = workbook.addWorksheet('Questions');
-  fillSheetFromRows(questions, sampleDataRows());
+  fillSheetFromRows(questions, sampleDataRows(kind), headers);
 
   const buf = await workbook.xlsx.writeBuffer();
   return Buffer.from(buf);
 }
 
-export function buildSampleCsv(): string {
-  const rows = sampleDataRows();
+export function buildSampleCsv(kind: BankKind = 'assessment'): string {
+  const rows = sampleDataRows(kind);
+  const headers = headersForKind(kind);
   return stringify(
-    rows.map((r) => BANK_IMPORT_HEADERS.map((h) => sanitizeCsvCell(r[h] ?? ''))),
-    { header: true, columns: [...BANK_IMPORT_HEADERS] },
+    rows.map((r) => headers.map((h) => sanitizeCsvCell(r[h] ?? ''))),
+    { header: true, columns: [...headers] },
   );
 }
 
@@ -572,21 +633,30 @@ export function questionToExportRow(q: ExportableQuestion): Record<BankImportHea
   return row;
 }
 
-export async function buildExportWorkbook(questions: ExportableQuestion[]): Promise<Buffer> {
+export async function buildExportWorkbook(
+  questions: ExportableQuestion[],
+  kind: BankKind = 'assessment',
+): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Questions');
+  const headers = headersForKind(kind);
   fillSheetFromRows(
     sheet,
     questions.map((q) => questionToExportRow(q)),
+    headers,
   );
   const buf = await workbook.xlsx.writeBuffer();
   return Buffer.from(buf);
 }
 
-export function buildExportCsv(questions: ExportableQuestion[]): string {
+export function buildExportCsv(
+  questions: ExportableQuestion[],
+  kind: BankKind = 'assessment',
+): string {
   const rows = questions.map((q) => questionToExportRow(q));
+  const headers = headersForKind(kind);
   return stringify(
-    rows.map((r) => BANK_IMPORT_HEADERS.map((h) => sanitizeCsvCell(r[h] ?? ''))),
-    { header: true, columns: [...BANK_IMPORT_HEADERS] },
+    rows.map((r) => headers.map((h) => sanitizeCsvCell(r[h] ?? ''))),
+    { header: true, columns: [...headers] },
   );
 }

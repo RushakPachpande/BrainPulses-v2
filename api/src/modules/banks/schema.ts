@@ -1,7 +1,10 @@
 import { z } from 'zod';
 import { listQuerySchema } from '../../lib/pagination.js';
+import { unprocessable } from '../../lib/errors.js';
 
 export const kindSchema = z.enum(['assessment', 'quiz']);
+
+export type BankKind = z.infer<typeof kindSchema>;
 
 /** Full DB enum including legacy passage/match. */
 export const questionTypeSchema = z.enum([
@@ -19,6 +22,64 @@ export const questionTypeSchema = z.enum([
 ]);
 
 export type QuestionTypeValue = z.infer<typeof questionTypeSchema>;
+
+/** Types that may be newly authored into a quiz bank. */
+export const QUIZ_AUTHORABLE_TYPES = new Set<string>(['single_mcq']);
+
+/** Types allowed when attaching an existing quiz bank to a quiz activity (includes legacy). */
+export const QUIZ_ATTACH_ALLOWED_TYPES = new Set<string>(['single_mcq', 'image_mcq']);
+
+export const ASSESSMENT_AUTHORABLE_TYPES = new Set<string>([
+  'single_mcq',
+  'multiple_mcq',
+  'true_false',
+  'numeric',
+  'short_text',
+  'long_text',
+  'image_mcq',
+  'image_selection',
+  'comprehension_mcq',
+]);
+
+export function authorableTypesForKind(kind: BankKind): Set<string> {
+  return kind === 'quiz' ? QUIZ_AUTHORABLE_TYPES : ASSESSMENT_AUTHORABLE_TYPES;
+}
+
+/**
+ * Enforce quiz = single_mcq only for new authoring.
+ * Legacy `image_mcq` on quiz banks is not creatable; updates coerce via service.
+ */
+export function assertTypeAllowedForKind(kind: BankKind, type: string): void {
+  const allowed = authorableTypesForKind(kind);
+  if (!allowed.has(type)) {
+    if (kind === 'quiz') {
+      throw unprocessable(
+        `Quiz banks only support single-choice questions (single_mcq). Got “${type}”.`,
+      );
+    }
+    throw unprocessable(`Type “${type}” is not allowed for assessment banks.`);
+  }
+}
+
+export function isOptionFilled(o: { body?: string; imageUrl?: string | null }): boolean {
+  const body = (o.body ?? '').trim();
+  const image = typeof o.imageUrl === 'string' ? o.imageUrl.trim() : '';
+  return Boolean(body || image);
+}
+
+/** Prefer questionImageUrl; fold stemImageUrl into it for consistent storage. */
+export function normalizeAnswerKeyImages(
+  answerKey: Record<string, unknown>,
+): Record<string, unknown> {
+  const key = { ...answerKey };
+  const fromQuestion = typeof key.questionImageUrl === 'string' ? key.questionImageUrl.trim() : '';
+  const fromStem = typeof key.stemImageUrl === 'string' ? key.stemImageUrl.trim() : '';
+  const url = fromQuestion || fromStem;
+  delete key.stemImageUrl;
+  if (url) key.questionImageUrl = url;
+  else delete key.questionImageUrl;
+  return key;
+}
 
 export const bankListQuerySchema = listQuerySchema.extend({
   kind: kindSchema,
@@ -43,12 +104,22 @@ export const updateBankSchema = createBankSchema
   })
   .strict();
 
-export const optionSchema = z.object({
-  label: z.string().min(1).max(10),
-  body: z.string().min(1),
-  isCorrect: z.boolean().default(false),
-  imageUrl: z.string().trim().max(2000).optional().nullable(),
-});
+export const optionSchema = z
+  .object({
+    label: z.string().min(1).max(10),
+    body: z.string().default(''),
+    isCorrect: z.boolean().default(false),
+    imageUrl: z.string().trim().max(2000).optional().nullable(),
+  })
+  .superRefine((o, ctx) => {
+    if (!isOptionFilled(o)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Each option needs text, an image URL, or both.',
+        path: ['body'],
+      });
+    }
+  });
 
 const questionBaseSchema = z.object({
   type: questionTypeSchema,
@@ -59,12 +130,9 @@ const questionBaseSchema = z.object({
   answerKey: z.record(z.unknown()).default({}),
 });
 
-function validateQuestionPayload(
-  data: z.infer<typeof questionBaseSchema>,
-  ctx: z.RefinementCtx,
-) {
+function validateQuestionPayload(data: z.infer<typeof questionBaseSchema>, ctx: z.RefinementCtx) {
   const { type, options, answerKey } = data;
-  const filled = options.filter((o) => o.body.trim());
+  const filled = options.filter((o) => isOptionFilled(o));
   const correctCount = filled.filter((o) => o.isCorrect).length;
   const key = answerKey ?? {};
 
@@ -114,7 +182,9 @@ function validateQuestionPayload(
         });
       }
       if (type === 'image_selection') {
-        const missingImage = filled.some((o) => !o.imageUrl);
+        const missingImage = filled.some(
+          (o) => !(typeof o.imageUrl === 'string' && o.imageUrl.trim()),
+        );
         if (missingImage) {
           ctx.addIssue({
             code: 'custom',
@@ -125,8 +195,7 @@ function validateQuestionPayload(
       }
       break;
     case 'comprehension_mcq': {
-      const passage =
-        typeof key.passageText === 'string' ? key.passageText.trim() : '';
+      const passage = typeof key.passageText === 'string' ? key.passageText.trim() : '';
       if (!passage) {
         ctx.addIssue({
           code: 'custom',
@@ -176,7 +245,9 @@ function validateQuestionPayload(
   }
 }
 
-export const createQuestionSchema = questionBaseSchema.strict().superRefine(validateQuestionPayload);
+export const createQuestionSchema = questionBaseSchema
+  .strict()
+  .superRefine(validateQuestionPayload);
 
 export const updateQuestionSchema = questionBaseSchema
   .partial()

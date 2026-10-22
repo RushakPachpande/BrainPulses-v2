@@ -307,11 +307,21 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
 
 export type RoundQuestionWrite = {
   type:
-    'single_mcq' | 'multiple_mcq' | 'numeric' | 'short_text' | 'passage' | 'match' | 'image_mcq';
+    | 'single_mcq'
+    | 'multiple_mcq'
+    | 'true_false'
+    | 'numeric'
+    | 'short_text'
+    | 'long_text'
+    | 'passage'
+    | 'match'
+    | 'image_mcq'
+    | 'image_selection'
+    | 'comprehension_mcq';
   question: string;
   points?: number;
   code?: string;
-  options?: { label: string; body: string; isCorrect: boolean }[];
+  options?: { label: string; body: string; isCorrect: boolean; imageUrl?: string | null }[];
   answerKey?: Record<string, unknown>;
 };
 
@@ -653,7 +663,7 @@ export async function downloadBankQuestionsSample(
   if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
   await apiDownloadBlob(
     `/api/banks/${bankId}/questions/sample.${format}`,
-    `questions-sample.${format}`,
+    `brainpulses-question-sample.${format}`,
   );
 }
 
@@ -664,7 +674,7 @@ export async function exportBankQuestions(
   if (useFixtures) throw new Error('Export is unavailable in fixture mode.');
   await apiDownloadBlob(
     `/api/banks/${bankId}/questions/export.${format}`,
-    `questions-export.${format}`,
+    `brainpulses-question-export.${format}`,
   );
 }
 
