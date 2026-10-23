@@ -38,6 +38,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [marked, setMarked] = useState<number[]>([]);
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
+  const [exitConfirm, setExitConfirm] = useState(false);
+  const [allowLeave, setAllowLeave] = useState(false);
   const [error, setError] = useState('');
   const [proctorWarn, setProctorWarn] = useState('');
   const [busy, setBusy] = useState(true);
@@ -54,7 +56,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const answersRef = useRef<AnswerMap>({});
   const attemptIdRef = useRef<string | null>(null);
 
-  useLeaveGuard(Boolean(attempt && !busy) || submitting || savingInFlight || pendingSave);
+  useLeaveGuard(
+    !allowLeave && (Boolean(attempt && !busy) || submitting || savingInFlight || pendingSave),
+  );
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -330,6 +334,32 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     queueSave(next);
   }
 
+  function exitDestination() {
+    if (!attempt) return '/dashboard';
+    if (attempt.roundId || attempt.activityKind === 'assessment') {
+      return `/assessments/${attempt.activityId}`;
+    }
+    return `/quizzes/${attempt.activityId}`;
+  }
+
+  async function confirmExit() {
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const latest = pendingAnswersRef.current ?? answers;
+    pendingAnswersRef.current = null;
+    try {
+      if (Object.keys(latest).length) await enqueueSave(latest);
+      await saveChainRef.current.catch(() => undefined);
+    } catch {
+      /* still allow leave — keepalive flush may have covered it */
+    }
+    setAllowLeave(true);
+    setExitConfirm(false);
+    navigate(exitDestination());
+  }
+
   const answeredCount = useMemo(
     () => Object.values(answers).filter((a) => isAnswered(a)).length,
     [answers],
@@ -365,7 +395,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   return (
     <div className="exam-page">
       <header className="exam-topbar">
-        <button className="exam-brand" type="button" onClick={() => setConfirm(true)}>
+        <button className="exam-brand" type="button" onClick={() => setExitConfirm(true)}>
           <img src="/brand.svg" alt="" />
           BrainPulses
         </button>
@@ -380,7 +410,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             <b>{timeRemaining(seconds)}</b>
           </div>
         </div>
-        <button className="btn outline exit-btn" type="button" onClick={() => setConfirm(true)}>
+        <button className="btn outline exit-btn" type="button" onClick={() => setExitConfirm(true)}>
           <LogOut size={15} /> Exit
         </button>
       </header>
@@ -679,6 +709,36 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 onClick={() => void doSubmit(true)}
               >
                 Submit attempt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {exitConfirm && (
+        <div className="modal-backdrop">
+          <div className="confirm-modal" role="dialog" aria-labelledby="exit-attempt-title">
+            <div className="modal-icon">
+              <LogOut size={22} />
+            </div>
+            <button
+              className="modal-close icon-btn"
+              type="button"
+              onClick={() => setExitConfirm(false)}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+            <h2 id="exit-attempt-title">Leave attempt?</h2>
+            <p>
+              Your answers are saved. You can return later with Continue before the deadline.
+              Leaving does not submit your attempt.
+            </p>
+            <div className="modal-actions">
+              <button className="btn outline" type="button" onClick={() => setExitConfirm(false)}>
+                Stay
+              </button>
+              <button className="btn primary" type="button" onClick={() => void confirmExit()}>
+                Leave attempt
               </button>
             </div>
           </div>

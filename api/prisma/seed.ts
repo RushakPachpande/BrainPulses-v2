@@ -872,12 +872,13 @@ async function main() {
     questions: quantQuestions,
   });
 
+  // Draft bank for admin status filters only — never linked to a published activity.
   const draftBank = await ensureBankWithQuestions({
     organizationId: org.id,
     kind: 'quiz',
     code: 'QB-DRAFT',
-    name: 'Seasonal Warm-up (Draft)',
-    description: 'Work-in-progress bank — not yet attached to a live quiz.',
+    name: 'Seasonal Warm-up',
+    description: 'Work-in-progress question bank for authoring demos.',
     questions: draftQuizQuestions,
     status: 'draft',
   });
@@ -996,14 +997,16 @@ async function main() {
   });
   await registerStudents(org.id, quantQuiz.id, studentIds);
 
-  // Draft quiz (not assigned widely)
+  // Draft quiz for admin status filters only.
+  // Copy must not encode workflow status — `status` is the source of truth.
+  // Never register students: drafts must not appear in the student portal.
   const draftQuiz = await prisma.activity.create({
     data: {
       organizationId: org.id,
       kind: 'quiz',
       code: 'QZ-DRAFT',
       name: 'Monsoon Warm-up Quiz',
-      subtitle: 'Draft · Not yet published to students',
+      subtitle: 'Short seasonal warm-up · monsoon practice set',
       status: 'draft',
       startsAt: null,
       endsAt: null,
@@ -1015,15 +1018,19 @@ async function main() {
   await prisma.activityBank.create({
     data: { organizationId: org.id, activityId: draftQuiz.id, bankId: draftBank.id },
   });
+  const draftRegs = await prisma.registration.count({ where: { activityId: draftQuiz.id } });
+  if (draftRegs > 0) {
+    throw new Error('Seed invariant: QZ-DRAFT must have zero student registrations.');
+  }
 
-  // Archived assessment for filter variety
+  // Archived assessment for admin status filters only (no student registrations).
   await prisma.activity.create({
     data: {
       organizationId: org.id,
       kind: 'assessment',
       code: 'ASM-ARCHIVE',
       name: 'Foundation Checkpoint — Jan',
-      subtitle: 'Archived · Previous cycle',
+      subtitle: 'January cycle · foundation checkpoint',
       status: 'archived',
       startsAt: daysAgo(60),
       endsAt: daysAgo(45),

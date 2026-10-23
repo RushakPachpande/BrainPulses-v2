@@ -1,4 +1,12 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router';
+import {
+  createBrowserRouter,
+  createRoutesFromElements,
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+  useLocation,
+} from 'react-router';
 import { ApiLoadingProvider } from './contexts/api-loading';
 import { AuthProvider } from './contexts/auth';
 import { ClientQueryProvider } from './contexts/query-provider';
@@ -35,37 +43,41 @@ function ShellLayout() {
   );
 }
 
+const appRouter = createBrowserRouter(
+  createRoutesFromElements(
+    <Route>
+      <Route path="/login" element={<LoginPage />} />
+      <Route element={<RequireAuth />}>
+        <Route path="/attempt/start/:id" element={<AttemptPage mode="start" />} />
+        <Route path="/attempt/:id" element={<AttemptPage mode="resume" />} />
+        <Route element={<ShellLayout />}>
+          <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/quizzes" element={<LibraryPage kind="quiz" />} />
+          <Route path="/quizzes/:activityId/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/quizzes/:activityId" element={<ActivityDetailPage kind="quiz" />} />
+          <Route path="/assessments" element={<LibraryPage kind="assessment" />} />
+          <Route
+            path="/assessments/:activityId"
+            element={<ActivityDetailPage kind="assessment" />}
+          />
+          <Route path="/results" element={<ResultsPage />} />
+          <Route path="/results/:id" element={<ResultDetailPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/help" element={<HelpPage />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Route>
+      </Route>
+    </Route>,
+  ),
+);
+
 export default function App() {
   return (
     <ApiLoadingProvider>
       <AuthProvider>
         <ClientQueryProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route element={<RequireAuth />}>
-                <Route path="/attempt/start/:id" element={<AttemptPage mode="start" />} />
-                <Route path="/attempt/:id" element={<AttemptPage mode="resume" />} />
-                <Route element={<ShellLayout />}>
-                  <Route index element={<Navigate to="/dashboard" replace />} />
-                  <Route path="/dashboard" element={<DashboardPage />} />
-                  <Route path="/quizzes" element={<LibraryPage kind="quiz" />} />
-                  <Route path="/quizzes/:activityId/leaderboard" element={<LeaderboardPage />} />
-                  <Route path="/quizzes/:activityId" element={<ActivityDetailPage kind="quiz" />} />
-                  <Route path="/assessments" element={<LibraryPage kind="assessment" />} />
-                  <Route
-                    path="/assessments/:activityId"
-                    element={<ActivityDetailPage kind="assessment" />}
-                  />
-                  <Route path="/results" element={<ResultsPage />} />
-                  <Route path="/results/:id" element={<ResultDetailPage />} />
-                  <Route path="/profile" element={<ProfilePage />} />
-                  <Route path="/help" element={<HelpPage />} />
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
-                </Route>
-              </Route>
-            </Routes>
-          </BrowserRouter>
+          <RouterProvider router={appRouter} />
         </ClientQueryProvider>
       </AuthProvider>
     </ApiLoadingProvider>

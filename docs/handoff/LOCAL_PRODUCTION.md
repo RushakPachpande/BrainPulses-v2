@@ -81,7 +81,7 @@ Seeded activities (wired with banks, registrations, and sample results):
 - Assessment `ASM-26001` — Northstar JEE Mock (2 rounds: Physics + Chemistry)
 - Quiz `QZ-26001` — Weekly General Knowledge (active; leaderboard history seeded)
 - Quiz `QZ-26002` — Maths Sprint #12 (completed window)
-- Draft `QZ-DRAFT` and archived `ASM-ARCHIVE` for list/filter variety
+- Draft `QZ-DRAFT` (Monsoon Warm-up) and archived `ASM-ARCHIVE` for admin status filters only — no student registrations; copy does not encode workflow status
 
 Primary student `BP-24101` has no attempts so they can start quizzes/assessments fresh.
 
