@@ -9,6 +9,7 @@ import {
   studentVerifyOtp,
 } from '../services/api';
 import type { StudentProfile } from '../services/types';
+import { clearClientQueryCache } from '../lib/query-client';
 import { AuthContext, SessionActiveError } from './auth-context';
 
 const DEFAULT_ORG_SLUG = 'demo';
@@ -102,8 +103,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
-    void studentSignOut().finally(() => setStudent(null));
-  }, []);
+    const studentId = student?.id ?? null;
+    void studentSignOut().finally(() => {
+      clearClientQueryCache(studentId);
+      setStudent(null);
+    });
+  }, [student?.id]);
 
   const value = useMemo(
     () => ({

@@ -567,7 +567,22 @@ export async function publishActivity(
   actorUserId: string,
   actor: AccessActor,
   id: string,
+  idempotencyKey?: string,
 ) {
+  if (idempotencyKey) {
+    const prior = await prisma.auditEvent.findFirst({
+      where: {
+        organizationId,
+        action: 'activity.publish',
+        targetId: id,
+        metadata: { path: ['idempotencyKey'], equals: idempotencyKey },
+      },
+    });
+    if (prior) {
+      return getActivity(organizationId, id, actor);
+    }
+  }
+
   const existing = await prisma.activity.findFirst({
     where: { organizationId, id },
     include: {
@@ -577,6 +592,11 @@ export async function publishActivity(
   });
   if (!existing) throw notFound('Activity not found.');
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, existing.kind, 'full');
+
+  // Already published — safe retry (e.g. client never saw the first response).
+  if (existing.status === 'active') {
+    return getActivity(organizationId, id, actor);
+  }
   if (existing.status !== 'draft' && existing.status !== 'archived') {
     throw badRequest('Only draft or archived activities can be published.');
   }
@@ -611,6 +631,7 @@ export async function publishActivity(
     action: 'activity.publish',
     targetType: 'activity',
     targetId: id,
+    metadata: { idempotencyKey },
   });
   await invalidateDashboard(organizationId);
   return mapActivity(activity);

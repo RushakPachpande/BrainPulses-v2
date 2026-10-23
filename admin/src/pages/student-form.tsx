@@ -8,8 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import { canMutateOrg } from '@/lib/access';
 import { useAuth } from '@/contexts/auth-context';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { canMutateOrg } from '@/lib/access';
 import { createStudent, getStudent, updateStudent } from '@/services';
 
 export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) {
@@ -27,6 +28,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
+  useLeaveGuard(saving);
 
   useEffect(() => {
     if (mode === 'create') return;

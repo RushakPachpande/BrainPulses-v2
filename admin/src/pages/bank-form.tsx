@@ -63,6 +63,7 @@ import {
   type QuestionDraft,
 } from './bank-question-draft';
 import { BankQuestionDialog } from './bank-question-form';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { bankQuestionTypeLabel, isQuizAllowedType } from './bank-question-types';
 
 type DialogMode =
@@ -103,6 +104,7 @@ export function BankFormPage({
   const [savingMeta, setSavingMeta] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [importing, setImporting] = useState(false);
+  useLeaveGuard(savingMeta || savingQuestion || importing);
   const [loading, setLoading] = useState(mode !== 'create');
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());

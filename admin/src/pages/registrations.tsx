@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { useAsyncService } from '@/hooks/use-async-service';
+import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -45,7 +45,9 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { getRegistrations, type ActivityKind } from '@/services';
 import { assessmentNames, quizNames, studentCities, studentCourses } from '@/services/fixtures';
@@ -82,7 +84,12 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'attempt', label: attemptLabel },
   ];
 
-  const { data, loading } = useAsyncService(() => getRegistrations(kind), [kind]);
+  const orgId = useOrgId();
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.registrations(orgId, kind),
+    queryFn: () => getRegistrations(kind),
+    enabled: Boolean(orgId),
+  });
   const rows = data ?? EMPTY_ROWS;
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState('All');

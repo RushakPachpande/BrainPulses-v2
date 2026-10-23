@@ -7,6 +7,7 @@ import {
   apiPostFormData,
   apiRequest,
 } from '@/lib/api-client';
+import { invalidateAdmin } from '@/lib/query-client';
 import {
   buildReportSummaryFromResults,
   mapAccessUserFromApi,
@@ -263,9 +264,15 @@ export async function createActivity(
   payload: ActivityWritePayload & { kind: ActivityKind; name: string },
 ) {
   if (useFixtures) {
+    invalidateAdmin(['activities', 'dashboard']);
     return { id: crypto.randomUUID(), code: 'LOCAL' };
   }
-  return apiPostData<{ id: string; code: string }>('/api/activities', activityBody(payload));
+  const data = await apiPostData<{ id: string; code: string }>(
+    '/api/activities',
+    activityBody(payload),
+  );
+  invalidateAdmin(['activities', 'dashboard']);
+  return data;
 }
 
 export async function getActivity(id: string): Promise<ActivityDetail> {
@@ -360,8 +367,13 @@ export async function deleteRoundQuestion(activityId: string, roundId: string, q
 }
 
 export async function updateActivity(id: string, payload: ActivityWritePayload) {
-  if (useFixtures) return { id, ...payload };
-  return apiPatchData(`/api/activities/${id}`, activityBody(payload));
+  if (useFixtures) {
+    invalidateAdmin(['activities', 'dashboard']);
+    return { id, ...payload };
+  }
+  const data = await apiPatchData(`/api/activities/${id}`, activityBody(payload));
+  invalidateAdmin(['activities', 'dashboard']);
+  return data;
 }
 
 export async function getSettingsGroup(group: 'general' | 'access' | 'notifications' | 'system') {
@@ -397,18 +409,45 @@ export async function updateMembershipAccess(
     role?: 'super_admin' | 'admin';
   },
 ) {
-  if (useFixtures) return patch;
-  return apiPatchData(`/api/users/${membershipId}`, patch);
+  if (useFixtures) {
+    invalidateAdmin(['users']);
+    return patch;
+  }
+  const data = await apiPatchData(`/api/users/${membershipId}`, patch);
+  invalidateAdmin(['users']);
+  return data;
 }
 
-export async function publishActivity(activityId: string) {
-  if (useFixtures) return { id: activityId };
-  return apiPostData(`/api/activities/${activityId}/publish`);
+function idempotencyHeaders(key?: string): Record<string, string> {
+  return { 'Idempotency-Key': key ?? crypto.randomUUID() };
 }
 
-export async function archiveActivity(activityId: string) {
-  if (useFixtures) return { id: activityId };
-  return apiPostData(`/api/activities/${activityId}/archive`);
+export async function publishActivity(activityId: string, idempotencyKey?: string) {
+  if (useFixtures) {
+    invalidateAdmin(['activities', 'dashboard', 'registrations']);
+    return { id: activityId };
+  }
+  const data = await apiPostData(
+    `/api/activities/${activityId}/publish`,
+    undefined,
+    idempotencyHeaders(idempotencyKey),
+  );
+  invalidateAdmin(['activities', 'dashboard', 'registrations']);
+  return data;
+}
+
+export async function archiveActivity(activityId: string, idempotencyKey?: string) {
+  if (useFixtures) {
+    invalidateAdmin(['activities', 'dashboard']);
+    return { id: activityId };
+  }
+  const data = await apiPostData(
+    `/api/activities/${activityId}/archive`,
+    undefined,
+    idempotencyHeaders(idempotencyKey),
+  );
+  invalidateAdmin(['activities', 'dashboard']);
+  return data;
 }
 
 export async function createStudent(payload: {
@@ -420,8 +459,13 @@ export async function createStudent(payload: {
   cohort?: string;
   code?: string;
 }) {
-  if (useFixtures) return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
-  return apiPostData<{ id: string; code: string }>('/api/students', payload);
+  if (useFixtures) {
+    invalidateAdmin(['students', 'dashboard']);
+    return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
+  }
+  const data = await apiPostData<{ id: string; code: string }>('/api/students', payload);
+  invalidateAdmin(['students', 'dashboard']);
+  return data;
 }
 
 export async function updateStudent(
@@ -436,8 +480,13 @@ export async function updateStudent(
     isActive?: boolean;
   },
 ) {
-  if (useFixtures) return { id, ...payload };
-  return apiPatchData(`/api/students/${id}`, payload);
+  if (useFixtures) {
+    invalidateAdmin(['students', 'dashboard']);
+    return { id, ...payload };
+  }
+  const data = await apiPatchData(`/api/students/${id}`, payload);
+  invalidateAdmin(['students', 'dashboard']);
+  return data;
 }
 
 export async function disqualifyAttempt(attemptId: string, note?: string) {
@@ -485,8 +534,13 @@ export async function getActivityLeaderboard(
 }
 
 export async function deactivateStudent(id: string) {
-  if (useFixtures) return { id };
-  return apiPostData(`/api/students/${id}/deactivate`);
+  if (useFixtures) {
+    invalidateAdmin(['students', 'dashboard']);
+    return { id };
+  }
+  const data = await apiPostData(`/api/students/${id}/deactivate`);
+  invalidateAdmin(['students', 'dashboard']);
+  return data;
 }
 
 export async function getStudent(id: string) {
@@ -508,13 +562,23 @@ export async function inviteUser(payload: {
   assessmentAccess?: 'full' | 'edit' | 'view' | 'none';
   quizAccess?: 'full' | 'edit' | 'view' | 'none';
 }) {
-  if (useFixtures) return { id: crypto.randomUUID() };
-  return apiPostData('/api/users/invite', payload);
+  if (useFixtures) {
+    invalidateAdmin(['users', 'dashboard']);
+    return { id: crypto.randomUUID() };
+  }
+  const data = await apiPostData('/api/users/invite', payload);
+  invalidateAdmin(['users', 'dashboard']);
+  return data;
 }
 
 export async function deactivateMembership(membershipId: string) {
-  if (useFixtures) return { id: membershipId };
-  return apiPostData(`/api/users/${membershipId}/deactivate`);
+  if (useFixtures) {
+    invalidateAdmin(['users']);
+    return { id: membershipId };
+  }
+  const data = await apiPostData(`/api/users/${membershipId}/deactivate`);
+  invalidateAdmin(['users']);
+  return data;
 }
 
 export async function createQuestionBank(payload: {
@@ -524,8 +588,13 @@ export async function createQuestionBank(payload: {
   presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
   code?: string;
 }) {
-  if (useFixtures) return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
-  return apiPostData<{ id: string; code: string }>('/api/banks', payload);
+  if (useFixtures) {
+    invalidateAdmin(['banks']);
+    return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
+  }
+  const data = await apiPostData<{ id: string; code: string }>('/api/banks', payload);
+  invalidateAdmin(['banks']);
+  return data;
 }
 
 export async function updateQuestionBank(
@@ -537,8 +606,13 @@ export async function updateQuestionBank(
     status?: 'draft' | 'active' | 'completed' | 'archived';
   },
 ) {
-  if (useFixtures) return { id, ...payload };
-  return apiPatchData(`/api/banks/${id}`, payload);
+  if (useFixtures) {
+    invalidateAdmin(['banks']);
+    return { id, ...payload };
+  }
+  const data = await apiPatchData(`/api/banks/${id}`, payload);
+  invalidateAdmin(['banks']);
+  return data;
 }
 
 export type BankQuestionOption = {
@@ -653,7 +727,13 @@ export async function importBankQuestions(bankId: string, file: File): Promise<B
   }
   const form = new FormData();
   form.append('file', file);
-  return apiPostFormData<BankImportResult>(`/api/banks/${bankId}/import`, form);
+  const data = await apiPostFormData<BankImportResult>(
+    `/api/banks/${bankId}/import`,
+    form,
+    idempotencyHeaders(),
+  );
+  invalidateAdmin(['banks']);
+  return data;
 }
 
 export async function downloadBankQuestionsSample(
@@ -679,18 +759,45 @@ export async function exportBankQuestions(
 }
 
 export async function assignRegistrations(activityId: string, studentIds: string[]) {
-  if (useFixtures) return [];
-  return apiPostData('/api/registrations/assign', { activityId, studentIds });
+  if (useFixtures) {
+    invalidateAdmin(['registrations', 'activities', 'dashboard']);
+    return [];
+  }
+  const data = await apiPostData(
+    '/api/registrations/assign',
+    { activityId, studentIds },
+    idempotencyHeaders(),
+  );
+  invalidateAdmin(['registrations', 'activities', 'dashboard']);
+  return data;
 }
 
 export async function unassignRegistrations(activityId: string, studentIds: string[]) {
-  if (useFixtures) return [];
-  return apiPostData('/api/registrations/unassign', { activityId, studentIds });
+  if (useFixtures) {
+    invalidateAdmin(['registrations', 'activities']);
+    return [];
+  }
+  const data = await apiPostData(
+    '/api/registrations/unassign',
+    { activityId, studentIds },
+    idempotencyHeaders(),
+  );
+  invalidateAdmin(['registrations', 'activities']);
+  return data;
 }
 
-export async function publishResult(resultId: string) {
-  if (useFixtures) return { id: resultId };
-  return apiPostData(`/api/results/${resultId}/publish`);
+export async function publishResult(resultId: string, idempotencyKey?: string) {
+  if (useFixtures) {
+    invalidateAdmin(['results', 'dashboard']);
+    return { id: resultId };
+  }
+  const data = await apiPostData(
+    `/api/results/${resultId}/publish`,
+    undefined,
+    idempotencyHeaders(idempotencyKey),
+  );
+  invalidateAdmin(['results', 'dashboard']);
+  return data;
 }
 
 export async function regradeResult(resultId: string, score: number, reason: string) {

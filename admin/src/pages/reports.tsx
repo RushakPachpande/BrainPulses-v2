@@ -15,8 +15,10 @@ import {
   parseFixtureDate,
   type DateRangeValue,
 } from '@/lib/date-range';
+import { useQuery } from '@tanstack/react-query';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
-import { useAsyncService } from '@/hooks/use-async-service';
+import { useOrgId } from '@/hooks/use-org-id';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { getReportSummary, getResults, type ActivityKind } from '@/services';
 import type { ReportSummaryRow, ResultRow } from '@/services/types';
 
@@ -24,19 +26,22 @@ const EMPTY_RESULTS: ResultRow[] = [];
 const EMPTY_SUMMARY: ReportSummaryRow[] = [];
 
 export function ReportsPage({ kind }: { kind: ActivityKind }) {
+  const orgId = useOrgId();
   const label = kind === 'quiz' ? 'Quiz' : 'Assessment';
   const reportsBase = kind === 'quiz' ? '/quizzes/reports' : '/assessments/reports';
   const current = kind === 'quiz' ? 'Weekly GK Quiz' : 'JEE Mock Series 2026';
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
 
-  const { data: resultsData, loading: resultsLoading } = useAsyncService(
-    () => getResults(kind),
-    [kind],
-  );
-  const { data: summaryData, loading: summaryLoading } = useAsyncService(
-    () => getReportSummary(kind),
-    [kind],
-  );
+  const { data: resultsData, isPending: resultsLoading } = useQuery({
+    queryKey: adminQueryKeys.results(orgId, kind),
+    queryFn: () => getResults(kind),
+    enabled: Boolean(orgId),
+  });
+  const { data: summaryData, isPending: summaryLoading } = useQuery({
+    queryKey: adminQueryKeys.resultsSummary(orgId, kind),
+    queryFn: () => getReportSummary(kind),
+    enabled: Boolean(orgId),
+  });
   const allResults = resultsData ?? EMPTY_RESULTS;
   const summary = summaryData ?? EMPTY_SUMMARY;
   const loading = resultsLoading || summaryLoading;

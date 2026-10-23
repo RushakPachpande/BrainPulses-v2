@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, PlusIcon, TrashIcon } from 'lucide-react';
@@ -19,9 +19,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/auth-context';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { ApiError } from '@/lib/api-client';
 import { canEditKind } from '@/lib/access';
-import { useAuth } from '@/contexts/auth-context';
 import { cn } from '@/lib/utils';
 import {
   archiveActivity,
@@ -141,6 +142,59 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   );
   const [quizSettings, setQuizSettings] = useState<QuizActivitySettings>(defaultQuizSettings);
   const [leaderboardReleaseLocal, setLeaderboardReleaseLocal] = useState('');
+  const [baselineFp, setBaselineFp] = useState<string | null>(null);
+  const publishIdempotencyKeyRef = useRef<string | null>(null);
+
+  const draftFingerprint = useMemo(
+    () =>
+      JSON.stringify({
+        name,
+        description,
+        code,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        regFields,
+        bankIds,
+        rounds: rounds.map((r) => ({
+          id: r.id,
+          name: r.name,
+          bankIds: r.bankIds,
+          localQuestions: r.localQuestions,
+        })),
+        assignMode,
+        assignNotes,
+        durationMinutes,
+        passingPercent,
+        presentation,
+        quizSettings,
+        leaderboardReleaseLocal,
+      }),
+    [
+      name,
+      description,
+      code,
+      startDate,
+      endDate,
+      regFields,
+      bankIds,
+      rounds,
+      assignMode,
+      assignNotes,
+      durationMinutes,
+      passingPercent,
+      presentation,
+      quizSettings,
+      leaderboardReleaseLocal,
+    ],
+  );
+
+  useEffect(() => {
+    if (loading || readOnly) return;
+    if (baselineFp === null) setBaselineFp(draftFingerprint);
+  }, [loading, readOnly, draftFingerprint, baselineFp]);
+
+  const dirty = !readOnly && baselineFp !== null && draftFingerprint !== baselineFp;
+  useLeaveGuard(saving || dirty);
 
   useEffect(() => {
     let cancelled = false;
@@ -332,7 +386,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       }
 
       if (opts?.publish) {
-        await publishActivity(id);
+        if (!publishIdempotencyKeyRef.current) {
+          publishIdempotencyKeyRef.current = crypto.randomUUID();
+        }
+        await publishActivity(id, publishIdempotencyKeyRef.current);
+        publishIdempotencyKeyRef.current = null;
         setStatusKey('active');
         toast.success(`${noun} published.`);
       } else if (opts?.archive) {
@@ -343,6 +401,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         toast.success(`${noun} saved.`);
       }
 
+      setBaselineFp(null);
       if (!opts?.stay) {
         void navigate(listPath);
       }

@@ -122,12 +122,18 @@ export function isSessionActiveConflict(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.fields?.reason === 'SESSION_ACTIVE';
 }
 
+function isMutationMethod(method: string | undefined): boolean {
+  const m = (method ?? 'GET').toUpperCase();
+  return m !== 'GET' && m !== 'HEAD';
+}
+
 async function request(
   path: string,
   init: RequestInit = {},
   extraHeaders?: Record<string, string>,
 ): Promise<Response> {
-  trackLoading(1);
+  const trackOverlay = isMutationMethod(init.method);
+  if (trackOverlay) trackLoading(1);
   try {
     const headers = new Headers(init.headers);
     if (init.body !== undefined && !headers.has('content-type')) {
@@ -146,7 +152,7 @@ async function request(
       throw err;
     }
   } finally {
-    trackLoading(-1);
+    if (trackOverlay) trackLoading(-1);
   }
 }
 

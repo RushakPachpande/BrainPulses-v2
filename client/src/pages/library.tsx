@@ -10,12 +10,15 @@ import {
   Trophy,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { LibraryStatsSkeleton } from '../components/skeletons';
 import { Heading, KindIcon, Status } from '../components/ui-bits';
-import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
+import { useAuth } from '../contexts/auth-context';
 import { useDebouncedValue } from '../hooks/use-debounced-value';
+import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
+import { clientQueryKeys } from '../lib/query-keys';
 import { listActivities } from '../services/api';
 import type { ActivityKind, StudentActivity } from '../services/types';
 
@@ -37,37 +40,25 @@ function LibraryGridSkeleton() {
 
 export function LibraryPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
-  const [items, setItems] = useState<StudentActivity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { student } = useAuth();
+  const studentId = student?.id ?? '';
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebouncedValue(searchInput, 300);
   // Clear empties the filter immediately; typing still waits 300ms.
   const search = searchInput === '' ? '' : debouncedSearch;
   const [view, setView] = useState('All');
-  const [error, setError] = useState('');
   const isQuiz = kind === 'quiz';
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError('');
-    (async () => {
-      try {
-        const rows = await listActivities(kind);
-        if (!cancelled) setItems(rows);
-      } catch {
-        if (!cancelled) {
-          setError('Unable to load activities.');
-          setItems([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [kind]);
+  const {
+    data: items = [],
+    isPending: loading,
+    isError,
+  } = useQuery({
+    queryKey: clientQueryKeys.activities(studentId, kind),
+    queryFn: () => listActivities(kind),
+    enabled: Boolean(studentId),
+  });
+  const error = isError ? 'Unable to load activities.' : '';
 
   const filtered = useMemo(() => {
     return items.filter((x) => {
@@ -93,8 +84,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
   }
 
   const availableCount = items.filter(
-    (x) =>
-      x.attemptState !== 'submitted' && (x.canAttempt !== false || Boolean(x.openAttemptId)),
+    (x) => x.attemptState !== 'submitted' && (x.canAttempt !== false || Boolean(x.openAttemptId)),
   ).length;
   const completedCount = items.filter((x) => x.attemptState === 'submitted').length;
   const filtersActive = Boolean(search) || view !== 'All';

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useAsyncService } from '@/hooks/use-async-service';
+import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -57,7 +57,9 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { getQuestionBanks, type ActivityKind } from '@/services';
 import { presentationTypes, questionTypes } from '@/services/fixtures';
@@ -134,7 +136,12 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
         { key: 'status', label: 'Status' },
       ];
 
-  const { data, loading } = useAsyncService(() => getQuestionBanks(kind), [kind]);
+  const orgId = useOrgId();
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.banks(orgId, kind),
+    queryFn: () => getQuestionBanks(kind),
+    enabled: Boolean(orgId),
+  });
   const banks = data ?? EMPTY_BANKS;
   const [search, setSearch] = useState('');
   const [type, setType] = useState('All');

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
-import { useAsyncService } from '@/hooks/use-async-service';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -42,7 +42,9 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canManageUsersOrSettings } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { getUsers, type AdminUser as User } from '@/services';
 
 const EMPTY_USERS: User[] = [];
@@ -66,9 +68,14 @@ function compareUsers(a: User, b: User, key: SortKey) {
 
 export function UsersPage() {
   const auth = useAuth();
+  const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canManage = canManageUsersOrSettings(membership);
-  const { data, loading } = useAsyncService(() => getUsers(), []);
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.users(orgId),
+    queryFn: () => getUsers(),
+    enabled: Boolean(orgId),
+  });
   const users = data ?? EMPTY_USERS;
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('All');

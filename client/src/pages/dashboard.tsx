@@ -10,44 +10,43 @@ import {
   Target,
   Trophy,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
 import { GoalPanelSkeleton, MetricsSkeleton } from '../components/skeletons';
 import { KindIcon, Metric, Status } from '../components/ui-bits';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
+import { clientQueryKeys } from '../lib/query-keys';
 import { listActivities, listResults } from '../services/api';
-import type { StudentActivity, StudentResultSummary } from '../services/types';
+import type { StudentActivity } from '../services/types';
 
 export function DashboardPage() {
   const { student } = useAuth();
   const navigate = useNavigate();
-  const [items, setItems] = useState<StudentActivity[]>([]);
-  const [results, setResults] = useState<StudentResultSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const studentId = student?.id ?? '';
   const name = student?.name?.split(' ')[0] ?? 'there';
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      try {
-        const [acts, res] = await Promise.all([listActivities('all'), listResults('all')]);
-        if (!cancelled) {
-          setItems(acts);
-          setResults(res);
-        }
-      } catch {
-        if (!cancelled) setError('Unable to load your dashboard.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: items = [],
+    isPending: actsLoading,
+    isError: actsError,
+  } = useQuery({
+    queryKey: clientQueryKeys.activities(studentId, 'all'),
+    queryFn: () => listActivities('all'),
+    enabled: Boolean(studentId),
+  });
+  const {
+    data: results = [],
+    isPending: resultsLoading,
+    isError: resultsError,
+  } = useQuery({
+    queryKey: clientQueryKeys.results(studentId, 'all'),
+    queryFn: () => listResults('all'),
+    enabled: Boolean(studentId),
+  });
+
+  const loading = actsLoading || resultsLoading;
+  const error = actsError || resultsError ? 'Unable to load your dashboard.' : '';
 
   const available = items.filter((x) => x.attemptState !== 'submitted').slice(0, 3);
   const scored = results.filter((a) => a.percent != null);

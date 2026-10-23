@@ -1,10 +1,13 @@
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { ApiError } from '@/lib/api-client';
-import { useAsyncService } from '@/hooks/use-async-service';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -24,19 +27,26 @@ const EMPTY_STUDENTS: Student[] = [];
 
 export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
+  const orgId = useOrgId();
   const isQuiz = kind === 'quiz';
   const listPath = isQuiz ? '/quizzes/registrations' : '/assessments/registrations';
-  const { data: activitiesData, loading: activitiesLoading } = useAsyncService(
-    () => getActivities(kind),
-    [kind],
-  );
-  const { data: studentsData, loading: studentsLoading } = useAsyncService(() => getStudents(), []);
+  const { data: activitiesData, isPending: activitiesLoading } = useQuery({
+    queryKey: adminQueryKeys.activities(orgId, kind),
+    queryFn: () => getActivities(kind),
+    enabled: Boolean(orgId),
+  });
+  const { data: studentsData, isPending: studentsLoading } = useQuery({
+    queryKey: adminQueryKeys.students(orgId),
+    queryFn: () => getStudents(),
+    enabled: Boolean(orgId),
+  });
   const activities = activitiesData ?? EMPTY_ACTIVITIES;
   const students = studentsData ?? EMPTY_STUDENTS;
   const loading = activitiesLoading || studentsLoading;
   const [activityId, setActivityId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
+  useLeaveGuard(saving);
 
   const activityOptions = useMemo(
     () =>

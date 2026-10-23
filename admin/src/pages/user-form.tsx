@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { inviteUser } from '@/services';
 
 export function UserFormPage() {
@@ -27,6 +28,7 @@ export function UserFormPage() {
   );
   const [quizAccess, setQuizAccess] = useState<'full' | 'edit' | 'view' | 'none'>('full');
   const [saving, setSaving] = useState(false);
+  useLeaveGuard(saving);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();

@@ -13,6 +13,7 @@ import {
   type OrgOption,
   type SessionPayload,
 } from '@/contexts/auth-context';
+import { clearAdminQueryCache } from '@/lib/query-client';
 
 type SessionWithToken = SessionPayload & { accessToken: string };
 
@@ -92,14 +93,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(async () => {
+    const orgId = state.status === 'authenticated' ? state.organization.id : null;
     try {
       await apiRequest('/api/auth/sign-out', { method: 'POST' });
     } catch {
       /* ignore */
     }
+    clearAdminQueryCache(orgId);
     setAccessToken(null);
     setState({ status: 'anonymous' });
-  }, []);
+  }, [state]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

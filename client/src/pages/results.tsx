@@ -8,6 +8,7 @@ import {
   FileText,
   Trophy,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ResultDetailSkeleton, SummaryTilesSkeleton } from '../components/skeletons';
@@ -19,39 +20,30 @@ import {
   SelectItem,
   SelectTrigger,
 } from '../components/ui/select';
+import { useAuth } from '../contexts/auth-context';
 import { answerLabel, formatDateLabel, formatKind } from '../lib/format';
+import { clientQueryKeys } from '../lib/query-keys';
 import { getResult, listResults } from '../services/api';
-import type { StudentResultDetail, StudentResultSummary } from '../services/types';
+import type { StudentResultDetail } from '../services/types';
 
 const RESULT_FILTERS = ['All', 'Quiz', 'Assessment'] as const;
 
 export function ResultsPage() {
   const navigate = useNavigate();
-  const [attempts, setAttempts] = useState<StudentResultSummary[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { student } = useAuth();
+  const studentId = student?.id ?? '';
   const [filter, setFilter] = useState<(typeof RESULT_FILTERS)[number]>('All');
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    (async () => {
-      try {
-        const rows = await listResults('all');
-        if (!cancelled) setAttempts(rows);
-      } catch {
-        if (!cancelled) {
-          setError('Unable to load results.');
-          setAttempts([]);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const {
+    data: attempts = [],
+    isPending: loading,
+    isError,
+  } = useQuery({
+    queryKey: clientQueryKeys.results(studentId, 'all'),
+    queryFn: () => listResults('all'),
+    enabled: Boolean(studentId),
+  });
+  const error = isError ? 'Unable to load results.' : '';
 
   const list = useMemo(
     () =>

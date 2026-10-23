@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { deactivateMembership, getUser, updateMembershipAccess } from '@/services';
 
 type AccessLevel = 'full' | 'edit' | 'view' | 'none';
@@ -39,6 +40,7 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
   const [status, setStatus] = useState('Active');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  useLeaveGuard(saving);
 
   useEffect(() => {
     let cancelled = false;

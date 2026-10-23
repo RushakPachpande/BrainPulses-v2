@@ -5,15 +5,22 @@ import { KpiGrid } from '@/components/kpi-grid';
 import { DashboardSkeleton } from '@/components/loading-skeletons';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/auth-context';
-import { useAsyncService } from '@/hooks/use-async-service';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind, canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { getDashboard } from '@/services';
 
 export function DashboardPage() {
   const auth = useAuth();
+  const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
-  const { data, loading } = useAsyncService(() => getDashboard(), []);
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.dashboard(orgId),
+    queryFn: () => getDashboard(),
+    enabled: Boolean(orgId),
+  });
 
   const showAssessment = canEditKind(membership, 'assessment');
   const showQuiz = canEditKind(membership, 'quiz');

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
-import { useAsyncService } from '@/hooks/use-async-service';
+import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -41,7 +41,9 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canMutateOrg } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { getStudents, type Student } from '@/services';
 import { studentCities, studentCourses } from '@/services/fixtures';
 
@@ -70,9 +72,14 @@ function compareStudents(a: Student, b: Student, key: SortKey) {
 
 export function StudentsPage() {
   const auth = useAuth();
+  const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
-  const { data, loading } = useAsyncService(() => getStudents(), []);
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.students(orgId),
+    queryFn: () => getStudents(),
+    enabled: Boolean(orgId),
+  });
   const students = data ?? EMPTY_STUDENTS;
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');

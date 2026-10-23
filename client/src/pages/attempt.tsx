@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Check, Clock3, Flag, LogOut, ShieldCheck, X } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExamShellSkeleton } from '../components/skeletons';
+import { useLeaveGuard } from '../hooks/use-leave-guard';
 import { ApiError } from '../lib/api-client';
 import {
   answerFromResponse,
@@ -14,11 +15,14 @@ import {
 } from '../lib/attempt-answers';
 import { timeRemaining } from '../lib/format';
 import {
+  clearSubmitIdempotencyKey,
   resumeAttempt,
   saveAttempt,
+  saveAttemptKeepalive,
   startAttempt,
   studentSignOut,
   submitAttempt,
+  submitIdempotencyKeyFor,
 } from '../services/api';
 import type { AttemptQuestion, AttemptState } from '../services/types';
 
@@ -38,6 +42,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [proctorWarn, setProctorWarn] = useState('');
   const [busy, setBusy] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [savingInFlight, setSavingInFlight] = useState(false);
+  const [pendingSave, setPendingSave] = useState(false);
   const revisionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const pendingAnswersRef = useRef<AnswerMap | null>(null);
@@ -45,6 +51,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const autoSubmitted = useRef(false);
   const sessionEndedRef = useRef(false);
+  const answersRef = useRef<AnswerMap>({});
+  const attemptIdRef = useRef<string | null>(null);
+
+  useLeaveGuard(Boolean(attempt && !busy) || submitting || savingInFlight || pendingSave);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -52,10 +62,12 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     try {
       if (mode === 'start') {
         const data = await startAttempt(id, roundIdParam);
+        attemptIdRef.current = data.attempt.id;
         setAttempt(data.attempt);
         setQuestions(data.questions);
         revisionRef.current = data.attempt.revision;
         setAnswers({});
+        answersRef.current = {};
         const remaining = Math.max(
           0,
           Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
@@ -64,6 +76,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       } else {
         const data = await resumeAttempt(id);
         if (data.submitted && data.result) {
+          clearSubmitIdempotencyKey(data.attempt.id);
           if (data.attempt.roundId) {
             navigate(`/assessments/${data.attempt.activityId}`, { replace: true });
           } else {
@@ -71,6 +84,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           }
           return;
         }
+        attemptIdRef.current = data.attempt.id;
         setAttempt(data.attempt);
         setQuestions(data.questions);
         revisionRef.current = data.attempt.revision;
@@ -80,6 +94,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           if (parsed) mapped[r.questionVersionId] = parsed;
         }
         setAnswers(mapped);
+        answersRef.current = mapped;
         const remaining = Math.max(
           0,
           Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
@@ -140,6 +155,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         answer,
       }));
       if (responses.length === 0) return;
+      setSavingInFlight(true);
       try {
         const saved = await saveAttempt(attempt.id, revisionRef.current, responses);
         revisionRef.current = saved.revision;
@@ -167,6 +183,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             ? err.message
             : 'Could not save your answers. Check your connection and try again.',
         );
+      } finally {
+        setSavingInFlight(false);
       }
     },
     [attempt, load, navigate],
@@ -185,12 +203,18 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     if (sessionEndedRef.current) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     pendingAnswersRef.current = next;
+    setPendingSave(true);
     saveTimer.current = window.setTimeout(() => {
       const latest = pendingAnswersRef.current ?? next;
       pendingAnswersRef.current = null;
+      setPendingSave(false);
       void enqueueSave(latest);
     }, 400);
   }
+
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
 
   useEffect(() => {
     return () => {
@@ -201,6 +225,34 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       const pending = pendingAnswersRef.current;
       pendingAnswersRef.current = null;
       if (pending) void enqueueSave(pending);
+    };
+  }, []);
+
+  useEffect(() => {
+    const flushKeepalive = () => {
+      if (sessionEndedRef.current) return;
+      const attemptId = attemptIdRef.current;
+      if (!attemptId) return;
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      const latest = pendingAnswersRef.current ?? answersRef.current;
+      pendingAnswersRef.current = null;
+      const responses = Object.entries(latest).map(([questionVersionId, answer]) => ({
+        questionVersionId,
+        answer,
+      }));
+      saveAttemptKeepalive(attemptId, revisionRef.current, responses);
+    };
+    window.addEventListener('pagehide', flushKeepalive);
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') flushKeepalive();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flushKeepalive);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -227,18 +279,39 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       pendingAnswersRef.current = null;
       setSubmitting(true);
       setConfirm(false);
+      const key = submitIdempotencyKeyFor(attempt.id);
       try {
         if (Object.keys(latest).length) await enqueueSave(latest);
         await saveChainRef.current.catch(() => undefined);
-        const key = `submit-${attempt.id}`;
         const data = await submitAttempt(attempt.id, key);
+        clearSubmitIdempotencyKey(attempt.id);
         if (attempt.roundId) {
           navigate(`/assessments/${attempt.activityId}`, { replace: true });
         } else {
           navigate(`/results/${data.result.id}`, { replace: true });
         }
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : 'Submit failed.');
+        // Response may have committed on the server — align UI.
+        try {
+          const resumed = await resumeAttempt(attempt.id);
+          if (resumed.submitted && resumed.result) {
+            clearSubmitIdempotencyKey(attempt.id);
+            setError('');
+            if (attempt.roundId) {
+              navigate(`/assessments/${attempt.activityId}`, { replace: true });
+            } else {
+              navigate(`/results/${resumed.result.id}`, { replace: true });
+            }
+            return;
+          }
+        } catch {
+          /* fall through to error */
+        }
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : 'Submit failed. If you already submitted, reload to see your result.',
+        );
         setSubmitting(false);
       }
     },

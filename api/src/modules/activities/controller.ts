@@ -56,6 +56,7 @@ export async function publish(req: Request, res: Response, next: NextFunction) {
       actor.userId,
       actor,
       req.params.id as string,
+      req.header('idempotency-key') ?? undefined,
     );
     res.json({ data });
   } catch (err) {

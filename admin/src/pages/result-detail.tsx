@@ -5,8 +5,9 @@ import { ArrowLeftIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { StatusBadge } from '@/components/status-badge';
 import { ApiError } from '@/lib/api-client';
-import { canFullKind } from '@/lib/access';
 import { useAuth } from '@/contexts/auth-context';
+import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { canFullKind } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -36,6 +37,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   const [regradeScore, setRegradeScore] = useState('');
   const [regradeReason, setRegradeReason] = useState('');
   const [dqNote, setDqNote] = useState('');
+  useLeaveGuard(saving);
 
   useEffect(() => {
     let cancelled = false;

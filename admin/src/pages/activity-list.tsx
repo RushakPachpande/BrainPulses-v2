@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { useAsyncService } from '@/hooks/use-async-service';
 import { Link } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -51,7 +51,9 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { getActivities, type ActivityKind } from '@/services';
 import type { Activity } from '@/services/types';
@@ -131,7 +133,12 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
         { key: 'end', label: 'End Date' },
       ];
 
-  const { data, loading } = useAsyncService(() => getActivities(kind), [kind]);
+  const orgId = useOrgId();
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.activities(orgId, kind),
+    queryFn: () => getActivities(kind),
+    enabled: Boolean(orgId),
+  });
   const activities = data ?? EMPTY_ACTIVITIES;
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');

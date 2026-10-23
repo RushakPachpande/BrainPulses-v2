@@ -116,11 +116,16 @@ function apiBaseUrl(): string {
   return raw.replace(/\/$/, '');
 }
 
+function isMutationMethod(method: string | undefined): boolean {
+  const m = (method ?? 'GET').toUpperCase();
+  return m !== 'GET' && m !== 'HEAD';
+}
+
 /** Single-flight refresh so React Strict Mode double-mount cannot reuse a rotated token. */
 export async function refreshAuthSession(): Promise<RefreshedSession | null> {
   if (!sessionRefreshInflight) {
     sessionRefreshInflight = (async () => {
-      trackLoading(1);
+      // Silent — do not drive the blocking overlay.
       const { signal, timedOut } = withRequestTimeout();
       try {
         const res = await fetch(`${apiBaseUrl()}/api/auth/refresh`, {
@@ -138,8 +143,6 @@ export async function refreshAuthSession(): Promise<RefreshedSession | null> {
       } catch (err) {
         if (isAbortError(err) && timedOut()) return null;
         return null;
-      } finally {
-        trackLoading(-1);
       }
     })().finally(() => {
       sessionRefreshInflight = null;
@@ -179,7 +182,8 @@ async function refreshSessionOnce(): Promise<boolean> {
 }
 
 async function request(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
-  if (!retried) trackLoading(1);
+  const trackOverlay = !retried && isMutationMethod(init.method);
+  if (trackOverlay) trackLoading(1);
   try {
     const headers = new Headers(init.headers);
     if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
@@ -215,7 +219,7 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
     if (!res.ok) throw await parseApiError(res);
     return res;
   } finally {
-    if (!retried) trackLoading(-1);
+    if (trackOverlay) trackLoading(-1);
   }
 }
 
@@ -255,9 +259,18 @@ export async function apiGetList<T>(
   return body.data;
 }
 
-export async function apiPostData<T>(path: string, payload?: unknown): Promise<T> {
+export async function apiPostData<T>(
+  path: string,
+  payload?: unknown,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
+  const headers = new Headers();
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
+  }
   const body = await apiRequest<{ data: T }>(path, {
     method: 'POST',
+    headers,
     body: payload !== undefined ? JSON.stringify(payload) : undefined,
   });
   return body.data;
@@ -271,9 +284,18 @@ export async function apiPatchData<T>(path: string, payload: unknown): Promise<T
   return body.data;
 }
 
-export async function apiPostFormData<T>(path: string, formData: FormData): Promise<T> {
+export async function apiPostFormData<T>(
+  path: string,
+  formData: FormData,
+  extraHeaders?: Record<string, string>,
+): Promise<T> {
+  const headers = new Headers();
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
+  }
   const body = await apiRequest<{ data: T }>(path, {
     method: 'POST',
+    headers,
     body: formData,
   });
   return body.data;
