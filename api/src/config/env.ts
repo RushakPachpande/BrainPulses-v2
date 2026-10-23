@@ -30,6 +30,8 @@ const envSchema = z
     RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().default(120),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
+    /** Max time for an API handler to finish before the server responds 504. */
+    REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(30_000),
     /** Trusted proxy hop count. 0 = direct connections (default). */
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().default(60),

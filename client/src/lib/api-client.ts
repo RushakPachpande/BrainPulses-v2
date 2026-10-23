@@ -14,6 +14,70 @@ export class ApiError extends Error {
   }
 }
 
+export const REQUEST_TIMEOUT_MS = 30_000;
+
+type ApiLoadingListener = (delta: 1 | -1) => void;
+
+let loadingListener: ApiLoadingListener | null = null;
+
+/** Wired by ApiLoadingProvider so in-flight fetches drive the blocking overlay. */
+export function setApiLoadingListener(listener: ApiLoadingListener | null) {
+  loadingListener = listener;
+}
+
+function trackLoading(delta: 1 | -1) {
+  loadingListener?.(delta);
+}
+
+function isAbortError(err: unknown): boolean {
+  return (
+    (err instanceof DOMException && err.name === 'AbortError') ||
+    (err instanceof Error && err.name === 'AbortError')
+  );
+}
+
+function timeoutError() {
+  return new ApiError(408, 'TIMEOUT', 'Request timed out. Please try again.');
+}
+
+function withRequestTimeout(userSignal?: AbortSignal | null): {
+  signal: AbortSignal;
+  timedOut: () => boolean;
+} {
+  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  let timedOut = false;
+  timeoutSignal.addEventListener(
+    'abort',
+    () => {
+      timedOut = true;
+    },
+    { once: true },
+  );
+
+  if (!userSignal) {
+    return { signal: timeoutSignal, timedOut: () => timedOut };
+  }
+
+  if (typeof AbortSignal.any === 'function') {
+    return {
+      signal: AbortSignal.any([userSignal, timeoutSignal]),
+      timedOut: () => timedOut,
+    };
+  }
+
+  const ctrl = new AbortController();
+  const abortFrom = (source: AbortSignal) => {
+    if (ctrl.signal.aborted) return;
+    if (source === timeoutSignal) timedOut = true;
+    ctrl.abort(source.reason);
+  };
+  if (userSignal.aborted) abortFrom(userSignal);
+  else userSignal.addEventListener('abort', () => abortFrom(userSignal), { once: true });
+  if (timeoutSignal.aborted) abortFrom(timeoutSignal);
+  else timeoutSignal.addEventListener('abort', () => abortFrom(timeoutSignal), { once: true });
+  return { signal: ctrl.signal, timedOut: () => timedOut };
+}
+
 const TOKEN_KEY = 'bp-client-access-token';
 
 let accessToken: string | null = readSessionStorage(TOKEN_KEY);
@@ -63,15 +127,27 @@ async function request(
   init: RequestInit = {},
   extraHeaders?: Record<string, string>,
 ): Promise<Response> {
-  const headers = new Headers(init.headers);
-  if (init.body !== undefined && !headers.has('content-type')) {
-    headers.set('content-type', 'application/json');
+  trackLoading(1);
+  try {
+    const headers = new Headers(init.headers);
+    if (init.body !== undefined && !headers.has('content-type')) {
+      headers.set('content-type', 'application/json');
+    }
+    if (accessToken) headers.set('authorization', `Bearer ${accessToken}`);
+    if (extraHeaders) {
+      for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
+    }
+
+    const { signal, timedOut } = withRequestTimeout(init.signal);
+    try {
+      return await fetch(`${apiBaseUrl()}${path}`, { ...init, headers, signal });
+    } catch (err) {
+      if (isAbortError(err) && timedOut()) throw timeoutError();
+      throw err;
+    }
+  } finally {
+    trackLoading(-1);
   }
-  if (accessToken) headers.set('authorization', `Bearer ${accessToken}`);
-  if (extraHeaders) {
-    for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
-  }
-  return fetch(`${apiBaseUrl()}${path}`, { ...init, headers });
 }
 
 export async function apiGetData<T>(path: string): Promise<T> {

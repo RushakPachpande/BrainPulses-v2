@@ -14,6 +14,9 @@ async function main() {
   const server = app.listen(env.PORT, env.HOST, () => {
     console.log(`[api] listening on http://${env.HOST}:${env.PORT}`);
   });
+  server.requestTimeout = env.REQUEST_TIMEOUT_MS;
+  // Slightly above requestTimeout so incomplete headers are not cut mid-body.
+  server.headersTimeout = env.REQUEST_TIMEOUT_MS + 5_000;
 
   const shutdown = async (signal: string) => {
     console.log(`[api] ${signal} received, shutting down`);

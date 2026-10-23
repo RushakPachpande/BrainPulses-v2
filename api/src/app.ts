@@ -11,13 +11,11 @@ import { prisma } from './lib/prisma.js';
 
 import { errorHandler } from './middleware/error-handler.js';
 import { requestId } from './middleware/request-id.js';
+import { requestTimeout } from './middleware/request-timeout.js';
 import { activitiesRouter } from './modules/activities/routes.js';
 import { adminAttemptsRouter } from './modules/attempts/admin-routes.js';
 import { attemptsRouter } from './modules/attempts/routes.js';
-import {
-  leaderboardsRouter,
-  studentLeaderboardsRouter,
-} from './modules/leaderboards/routes.js';
+import { leaderboardsRouter, studentLeaderboardsRouter } from './modules/leaderboards/routes.js';
 import { auditRouter } from './modules/audit/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { banksRouter } from './modules/banks/routes.js';
@@ -143,6 +141,7 @@ export function createApp() {
   });
 
   app.use('/api', apiLimiter);
+  app.use('/api', requestTimeout);
   app.use('/api/auth', authLimiter, authRouter);
   app.use('/api/student', studentPortalRouter);
   app.use('/api/students', studentsRouter);
