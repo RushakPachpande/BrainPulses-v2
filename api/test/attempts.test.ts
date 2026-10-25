@@ -117,7 +117,10 @@ describe('attempts', () => {
 
     const stored = await prisma.result.findFirst({ where: { id: result1.id } });
     assert.ok(stored);
-    assert.equal(Number(stored.score), Number(stored.maxScore) > 0 ? Number(firstVersion.points) : 0);
+    assert.equal(
+      Number(stored.score),
+      Number(stored.maxScore) > 0 ? Number(firstVersion.points) : 0,
+    );
   });
 
   it('resumes an in-progress attempt with saved answers and remaining deadline', async () => {

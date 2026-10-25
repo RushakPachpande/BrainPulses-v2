@@ -10,8 +10,8 @@
 | --------------------------------------------- | ----------- | ------------------------------------------------ |
 | Admin JWTs (access)                           | High        | Bearer; short-lived; carries org + access levels |
 | Refresh cookie `bp_refresh`                   | High        | HttpOnly; Redis-backed family rotation           |
-| Student attempt answers / scores              | High        | Before publish; answer keys never to students    |
-| Question bank answer keys                     | High        | Stripped for view-only; never to students        |
+| Student attempt answers / scores              | High        | Attempt start/resume omit `isCorrect` and `answerKey`. Published assessments include review labels by product rule. Quizzes follow `answersVisibleToStudent` (default false). |
+| Question bank answer keys                     | High        | Stripped from attempt payloads. Published assessment review may include `isCorrect` and `correctLabels`, not the raw `answerKey` object. |
 | Tenant org data (students, activities, files) | High        | Multi-tenant isolation                           |
 | Uploaded files                                | Medium–High | Logos, imports; private storage                  |
 | Audit events                                  | Medium      | Super-admin only                                 |

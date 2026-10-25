@@ -9,10 +9,7 @@ describe('scoreObjective', () => {
   });
 
   it('scores true_false and comprehension like single', () => {
-    assert.equal(
-      scoreObjective('true_false', { correctLabels: ['A'] }, { label: 'A' }, 1),
-      1,
-    );
+    assert.equal(scoreObjective('true_false', { correctLabels: ['A'] }, { label: 'A' }, 1), 1);
     assert.equal(
       scoreObjective('comprehension_mcq', { correctLabels: ['C'] }, { label: 'C' }, 3),
       3,
@@ -35,7 +32,10 @@ describe('scoreObjective', () => {
   });
 
   it('scores numeric with tolerance', () => {
-    assert.equal(scoreObjective('numeric', { value: 10, numericTolerance: 0.5 }, { value: 10.4 }, 1), 1);
+    assert.equal(
+      scoreObjective('numeric', { value: 10, numericTolerance: 0.5 }, { value: 10.4 }, 1),
+      1,
+    );
     assert.equal(scoreObjective('numeric', { value: 10 }, { value: 11 }, 1), 0);
   });
 

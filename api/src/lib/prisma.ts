@@ -3,6 +3,7 @@ import { PrismaClient } from '#prisma';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { Pool } from 'pg';
 import { env } from '../config/env.js';
+import { withTenantOrganization } from './tenant-scope.js';
 
 export type TenantContext = {
   organizationId: string;
@@ -64,15 +65,11 @@ function injectOrgOnCreate(
   if (!TENANT_MODELS.has(model)) return;
   if (!args.data) return;
 
+  const organizationId = ctx.organizationId;
   if (Array.isArray(args.data)) {
-    args.data = args.data.map((row) => ({
-      organizationId: ctx.organizationId,
-      ...row,
-    }));
-  } else if (!('organizationId' in args.data)) {
-    args.data = { organizationId: ctx.organizationId, ...args.data };
-  } else if (args.data.organizationId !== ctx.organizationId) {
-    throw new Error(`Tenant scope mismatch on ${model} create`);
+    args.data = args.data.map((row) => withTenantOrganization(model, row, organizationId));
+  } else {
+    args.data = withTenantOrganization(model, args.data, organizationId);
   }
 }
 

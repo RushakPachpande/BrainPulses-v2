@@ -485,7 +485,8 @@ const chemistryQuestions: McqSeed[] = [
 const roundLocalQuestions: McqSeed[] = [
   {
     code: 'LOC-01',
-    question: 'In this paper’s instructions, how many marks does each MCQ carry unless stated otherwise?',
+    question:
+      'In this paper’s instructions, how many marks does each MCQ carry unless stated otherwise?',
     options: ['0.5', '1', '2', '4'],
     correctIndex: 1,
   },

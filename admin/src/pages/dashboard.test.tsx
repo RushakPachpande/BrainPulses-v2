@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
+import { renderWithAdminQuery } from '@/test/render-with-query';
 import { DashboardPage } from './dashboard';
 
 vi.mock('@/contexts/auth-context', () => ({
@@ -37,7 +38,7 @@ vi.mock('@/services', async () => {
 
 describe('DashboardPage', () => {
   it('renders KPI labels and quick actions', async () => {
-    render(
+    renderWithAdminQuery(
       <MemoryRouter>
         <DashboardPage />
       </MemoryRouter>,

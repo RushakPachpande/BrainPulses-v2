@@ -17,8 +17,8 @@
     "typecheck": "npm run typecheck:api && npm run typecheck:admin && npm run typecheck:client",
     "format": "npm run format:api && npm run format:admin && npm run format:client",
     "format:check": "npm run format:check:api && npm run format:check:admin && npm run format:check:client",
-    "test": "npm run test:api && npm run test:admin",
-    "check": "npm run check:api && npm run check:admin && npm run test:admin && npm run check:client",
+    "test": "npm run test:api && npm run test:admin && npm run test:client",
+    "check": "npm run check:api && npm run check:admin && npm run test:admin && npm run check:client && npm run test:client",
     "tailwindcss:upgrade": "npm run tailwindcss:upgrade:admin && npm run tailwindcss:upgrade:client",
 
     "// api": "API package (api/) — Express + Prisma",
@@ -76,6 +76,7 @@
     "format:client": "npm run format --prefix client",
     "format:check:client": "npm run format:check --prefix client",
     "format:fix:client": "npm run format:fix --prefix client",
+    "test:client": "npm run test --prefix client",
     "check:client": "npm run check --prefix client",
     "check:fix:client": "npm run check:fix --prefix client",
     "verify:client": "npm run verify --prefix client",

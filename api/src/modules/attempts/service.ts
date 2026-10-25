@@ -410,8 +410,7 @@ export async function startAttempt(
     deadlineAt = activity.endsAt;
   }
 
-  const quizSettings =
-    activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
+  const quizSettings = activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
 
   let questionOrder = [...versionIds];
   let optionOrders: OptionOrders = {};

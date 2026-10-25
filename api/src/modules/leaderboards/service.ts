@@ -100,10 +100,7 @@ export async function getActivityLeaderboard(
     };
   }
 
-  const byCohort = new Map<
-    string,
-    { totalPercent: number; best: number; members: number }
-  >();
+  const byCohort = new Map<string, { totalPercent: number; best: number; members: number }>();
   for (const r of results) {
     const cohort = r.student.cohort?.trim();
     if (!cohort) continue;

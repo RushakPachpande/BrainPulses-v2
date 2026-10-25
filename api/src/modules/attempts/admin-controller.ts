@@ -51,10 +51,7 @@ export async function grantReattempt(req: Request, res: Response, next: NextFunc
 export async function listReattempts(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.listReattemptGrants(
-      actor.organizationId,
-      req.params.id as string,
-    );
+    const data = await service.listReattemptGrants(actor.organizationId, req.params.id as string);
     res.json({ data });
   } catch (err) {
     next(err);

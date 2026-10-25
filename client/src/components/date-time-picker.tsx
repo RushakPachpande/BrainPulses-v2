@@ -6,7 +6,16 @@
  * Uses the same calendar + scrollable hour / minute / AM-PM columns as the supplied reference.
  * Dates are local Date objects; persist with date.toISOString() when using the API.
  */
-import { useCallback, useEffect, useLayoutEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { createPortal } from 'react-dom';
 import {
   CalendarDays,
@@ -63,19 +72,27 @@ function monthLabel(value: CalendarMonth) {
 }
 function showDate(value: Date) {
   return new Intl.DateTimeFormat('en-US', {
-    day: '2-digit', month: 'short', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', hour12: true,
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
   }).format(value);
 }
 function dateLabel(value: Date) {
   return new Intl.DateTimeFormat('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
   }).format(value);
 }
 function gridDays(month: CalendarMonth): Date[] {
   const first = new Date(month.year, month.month, 1, 12);
-  return Array.from({ length: 42 }, (_, index) =>
-    new Date(month.year, month.month, index + 1 - first.getDay(), 12),
+  return Array.from(
+    { length: 42 },
+    (_, index) => new Date(month.year, month.month, index + 1 - first.getDay(), 12),
   );
 }
 function selectable(date: Date, minDate?: Date, maxDate?: Date) {
@@ -114,7 +131,9 @@ export function DateTimePicker({
   const ampmList = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(() => new Date(valid(value) ? value : new Date()));
-  const [visibleMonth, setVisibleMonth] = useState(() => monthOf(valid(value) ? value : new Date()));
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    monthOf(valid(value) ? value : new Date()),
+  );
   const [position, setPosition] = useState<CSSProperties>({});
   const [error, setError] = useState('');
 
@@ -144,16 +163,10 @@ export function DateTimePicker({
     const spaceBelow = window.innerHeight - rect.bottom - edge;
     const spaceAbove = rect.top - edge;
     const panelHeight = panel.current?.offsetHeight ?? 0;
-    const placeAbove =
-      spaceAbove > spaceBelow &&
-      (panelHeight === 0 || spaceBelow < panelHeight);
-    const maxHeight = placeAbove
-      ? Math.max(0, spaceAbove - gap)
-      : Math.max(0, spaceBelow - gap);
+    const placeAbove = spaceAbove > spaceBelow && (panelHeight === 0 || spaceBelow < panelHeight);
+    const maxHeight = placeAbove ? Math.max(0, spaceAbove - gap) : Math.max(0, spaceBelow - gap);
     const heightForTop = panelHeight > 0 ? Math.min(panelHeight, maxHeight) : maxHeight;
-    const top = placeAbove
-      ? Math.max(edge, rect.top - gap - heightForTop)
-      : rect.bottom + gap;
+    const top = placeAbove ? Math.max(edge, rect.top - gap - heightForTop) : rect.bottom + gap;
     setPosition({ top, left, width, maxHeight });
   }, []);
 
@@ -175,7 +188,9 @@ export function DateTimePicker({
   useLayoutEffect(() => {
     if (!open) return;
     layout();
-    const focusFrame = window.requestAnimationFrame(() => panel.current?.focus({ preventScroll: true }));
+    const focusFrame = window.requestAnimationFrame(() =>
+      panel.current?.focus({ preventScroll: true }),
+    );
     function outside(event: PointerEvent) {
       const target = event.target as Node;
       if (!panel.current?.contains(target) && !trigger.current?.contains(target)) dismiss();
@@ -186,16 +201,21 @@ export function DateTimePicker({
         dismiss(true);
       }
       if (event.key !== 'Tab' || !panel.current) return;
-      const items = Array.from(panel.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), [tabindex="0"]',
-      )).filter((item) => item.getClientRects().length > 0);
+      const items = Array.from(
+        panel.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), [tabindex="0"]',
+        ),
+      ).filter((item) => item.getClientRects().length > 0);
       if (items.length === 0) return;
       if (event.shiftKey && document.activeElement === items[0]) {
-        event.preventDefault(); items[items.length - 1].focus();
+        event.preventDefault();
+        items[items.length - 1].focus();
       } else if (!event.shiftKey && document.activeElement === items[items.length - 1]) {
-        event.preventDefault(); items[0].focus();
+        event.preventDefault();
+        items[0].focus();
       } else if (document.activeElement === panel.current) {
-        event.preventDefault(); (event.shiftKey ? items[items.length - 1] : items[0]).focus();
+        event.preventDefault();
+        (event.shiftKey ? items[items.length - 1] : items[0]).focus();
       }
     }
     document.addEventListener('pointerdown', outside);
@@ -219,8 +239,9 @@ export function DateTimePicker({
     const raf = window.requestAnimationFrame(() => {
       columns.forEach((ref, i) => {
         const el = ref.current;
-        const selected = Array.from(el?.querySelectorAll<HTMLButtonElement>('button') ?? [])
-          .find((button) => button.dataset.value === keys[i]);
+        const selected = Array.from(el?.querySelectorAll<HTMLButtonElement>('button') ?? []).find(
+          (button) => button.dataset.value === keys[i],
+        );
         if (selected && el) {
           el.scrollTop = selected.offsetTop - (el.clientHeight - selected.offsetHeight) / 2;
         }
@@ -253,12 +274,17 @@ export function DateTimePicker({
     setError('');
   }
   function apply() {
-    if (!valid(draft)) { setError('Select a valid date and time.'); return; }
+    if (!valid(draft)) {
+      setError('Select a valid date and time.');
+      return;
+    }
     if (valid(minDate) && draft.getTime() < minDate.getTime()) {
-      setError(`Select a date and time on or after ${showDate(minDate)}.`); return;
+      setError(`Select a date and time on or after ${showDate(minDate)}.`);
+      return;
     }
     if (valid(maxDate) && draft.getTime() > maxDate.getTime()) {
-      setError(`Select a date and time on or before ${showDate(maxDate)}.`); return;
+      setError(`Select a date and time on or before ${showDate(maxDate)}.`);
+      return;
     }
     onChange(new Date(draft));
     dismiss(true);
@@ -286,115 +312,216 @@ export function DateTimePicker({
         </span>
         <ChevronDown size={17} aria-hidden="true" className="bp-dtp__chevron" />
       </button>
-      {open && typeof document !== 'undefined' && createPortal(
-        <div className="bp-dtp__portal">
-          <div className="bp-dtp__backdrop" aria-hidden="true" onClick={() => dismiss()} />
-          <div
-            ref={panel}
-            id={dialogId}
-            role="dialog"
-            aria-labelledby={titleId}
-            aria-modal={typeof window !== 'undefined' && window.innerWidth <= 700}
-            className="bp-dtp__panel"
-            tabIndex={-1}
-            style={position}
-          >
-            <div className="bp-dtp__mobile-title">
-              <span id={titleId}>Choose date &amp; time</span>
-              <button type="button" aria-label="Close picker" className="bp-dtp__nav" onClick={() => dismiss(true)}><X size={18} /></button>
-            </div>
-            {/* Screen readers require a dialog label even when the heading is hidden on desktop. */}
-            <div className="bp-dtp__main">
-              <section aria-label="Calendar" className="bp-dtp__calendar">
-                <div className="bp-dtp__calendar-head">
-                  <button className="bp-dtp__nav" type="button" aria-label="Previous month" onClick={() => setVisibleMonth(moveMonth(visibleMonth, -1))}><ChevronLeft size={19} /></button>
-                  <span className="bp-dtp__month">{monthLabel(visibleMonth)}</span>
-                  <button className="bp-dtp__nav" type="button" aria-label="Next month" onClick={() => setVisibleMonth(moveMonth(visibleMonth, 1))}><ChevronRight size={19} /></button>
-                </div>
-                <div className="bp-dtp__weekdays" aria-hidden="true">{DAYS.map((day) => <span key={day}>{day}</span>)}</div>
-                <div className="bp-dtp__days" role="group" aria-label="Choose calendar date">
-                  {calendarDays.map((date) => {
-                    const selected = dateKey(date) === selectedDay;
-                    const outside = date.getMonth() !== visibleMonth.month;
-                    const isToday = dateKey(date) === todayKey;
-                    return (
-                      <button
-                        key={dateKey(date)}
-                        type="button"
-                        aria-label={dateLabel(date)}
-                        aria-pressed={selected}
-                        aria-current={isToday ? 'date' : undefined}
-                        disabled={!selectable(date, minDate, maxDate)}
-                        className={[
-                          'bp-dtp__day',
-                          outside && 'bp-dtp__day--outside',
-                          isToday && 'bp-dtp__day--today',
-                          selected && 'bp-dtp__day--selected',
-                        ].filter(Boolean).join(' ')}
-                        onClick={() => chooseDay(date)}
-                      >{date.getDate()}</button>
-                    );
-                  })}
-                </div>
-              </section>
-              <section className="bp-dtp__times" aria-label="Choose a time">
-                <div className="bp-dtp__time-head"><Clock3 size={16} aria-hidden="true" /> Select time</div>
-                <div className="bp-dtp__time-grid">
-                  <div className="bp-dtp__time-section">
-                    <div className="bp-dtp__time-label">Hour</div>
-                    <div className="bp-dtp__scroll" ref={hourList} role="group" aria-label="Hour">
-                      {HOURS.map((hour) => (
-                        <button type="button" key={hour} data-value={hour} aria-pressed={hour === selectedHour}
-                          className={`bp-dtp__option ${hour === selectedHour ? 'bp-dtp__option--active' : ''}`}
-                          onClick={() => chooseHour(hour)}>{hour}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bp-dtp__time-section">
-                    <div className="bp-dtp__time-label">Minute</div>
-                    <div className="bp-dtp__scroll" ref={minuteList} role="group" aria-label="Minute">
-                      {minutes.map((minute) => (
-                        <button type="button" key={minute} data-value={minute} aria-pressed={minute === draft.getMinutes()}
-                          className={`bp-dtp__option ${minute === draft.getMinutes() ? 'bp-dtp__option--active' : ''}`}
-                          onClick={() => chooseMinute(minute)}>{String(minute).padStart(2, '0')}</button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="bp-dtp__time-section">
-                    <div className="bp-dtp__time-label">AM / PM</div>
-                    <div className="bp-dtp__scroll" ref={ampmList} role="group" aria-label="AM or PM">
-                      {(['AM', 'PM'] as const).map((ampm) => (
-                        <button type="button" key={ampm} data-value={ampm} aria-pressed={(ampm === 'PM') === isPm}
-                          className={`bp-dtp__option ${(ampm === 'PM') === isPm ? 'bp-dtp__option--active' : ''}`}
-                          onClick={() => chooseAmPm(ampm)}>{ampm}</button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                <div className="bp-dtp__selected-time" aria-live="polite">
-                  {String(selectedHour).padStart(2, '0')}:{String(draft.getMinutes()).padStart(2, '0')} {isPm ? 'PM' : 'AM'}
-                </div>
-              </section>
-            </div>
-            {error && <p role="alert" className="bp-dtp__error">{error}</p>}
-            <footer className="bp-dtp__footer">
-              <div className="bp-dtp__footer-start">
-                <button type="button" className="bp-dtp__footer-button bp-dtp__footer-button--tonal" onClick={() => {
-                  const now = new Date(); setDraft(now); setVisibleMonth(monthOf(now)); setError('');
-                }}><Clock3 size={15} />Now</button>
-                {onClear && !required && <button type="button" className="bp-dtp__footer-button bp-dtp__footer-button--outline" onClick={() => {
-                  onClear(); dismiss(true);
-                }}>Clear</button>}
+      {open &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="bp-dtp__portal">
+            <div className="bp-dtp__backdrop" aria-hidden="true" onClick={() => dismiss()} />
+            <div
+              ref={panel}
+              id={dialogId}
+              role="dialog"
+              aria-labelledby={titleId}
+              aria-modal={typeof window !== 'undefined' && window.innerWidth <= 700}
+              className="bp-dtp__panel"
+              tabIndex={-1}
+              style={position}
+            >
+              <div className="bp-dtp__mobile-title">
+                <span id={titleId}>Choose date &amp; time</span>
+                <button
+                  type="button"
+                  aria-label="Close picker"
+                  className="bp-dtp__nav"
+                  onClick={() => dismiss(true)}
+                >
+                  <X size={18} />
+                </button>
               </div>
-              <div className="bp-dtp__footer-end">
-                <button type="button" className="bp-dtp__footer-button bp-dtp__footer-button--outline" onClick={() => dismiss(true)}>Cancel</button>
-                <button type="button" className="bp-dtp__footer-button bp-dtp__footer-button--primary" onClick={apply}><Check size={15} />Apply</button>
+              {/* Screen readers require a dialog label even when the heading is hidden on desktop. */}
+              <div className="bp-dtp__main">
+                <section aria-label="Calendar" className="bp-dtp__calendar">
+                  <div className="bp-dtp__calendar-head">
+                    <button
+                      className="bp-dtp__nav"
+                      type="button"
+                      aria-label="Previous month"
+                      onClick={() => setVisibleMonth(moveMonth(visibleMonth, -1))}
+                    >
+                      <ChevronLeft size={19} />
+                    </button>
+                    <span className="bp-dtp__month">{monthLabel(visibleMonth)}</span>
+                    <button
+                      className="bp-dtp__nav"
+                      type="button"
+                      aria-label="Next month"
+                      onClick={() => setVisibleMonth(moveMonth(visibleMonth, 1))}
+                    >
+                      <ChevronRight size={19} />
+                    </button>
+                  </div>
+                  <div className="bp-dtp__weekdays" aria-hidden="true">
+                    {DAYS.map((day) => (
+                      <span key={day}>{day}</span>
+                    ))}
+                  </div>
+                  <div className="bp-dtp__days" role="group" aria-label="Choose calendar date">
+                    {calendarDays.map((date) => {
+                      const selected = dateKey(date) === selectedDay;
+                      const outside = date.getMonth() !== visibleMonth.month;
+                      const isToday = dateKey(date) === todayKey;
+                      return (
+                        <button
+                          key={dateKey(date)}
+                          type="button"
+                          aria-label={dateLabel(date)}
+                          aria-pressed={selected}
+                          aria-current={isToday ? 'date' : undefined}
+                          disabled={!selectable(date, minDate, maxDate)}
+                          className={[
+                            'bp-dtp__day',
+                            outside && 'bp-dtp__day--outside',
+                            isToday && 'bp-dtp__day--today',
+                            selected && 'bp-dtp__day--selected',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                          onClick={() => chooseDay(date)}
+                        >
+                          {date.getDate()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+                <section className="bp-dtp__times" aria-label="Choose a time">
+                  <div className="bp-dtp__time-head">
+                    <Clock3 size={16} aria-hidden="true" /> Select time
+                  </div>
+                  <div className="bp-dtp__time-grid">
+                    <div className="bp-dtp__time-section">
+                      <div className="bp-dtp__time-label">Hour</div>
+                      <div className="bp-dtp__scroll" ref={hourList} role="group" aria-label="Hour">
+                        {HOURS.map((hour) => (
+                          <button
+                            type="button"
+                            key={hour}
+                            data-value={hour}
+                            aria-pressed={hour === selectedHour}
+                            className={`bp-dtp__option ${hour === selectedHour ? 'bp-dtp__option--active' : ''}`}
+                            onClick={() => chooseHour(hour)}
+                          >
+                            {hour}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bp-dtp__time-section">
+                      <div className="bp-dtp__time-label">Minute</div>
+                      <div
+                        className="bp-dtp__scroll"
+                        ref={minuteList}
+                        role="group"
+                        aria-label="Minute"
+                      >
+                        {minutes.map((minute) => (
+                          <button
+                            type="button"
+                            key={minute}
+                            data-value={minute}
+                            aria-pressed={minute === draft.getMinutes()}
+                            className={`bp-dtp__option ${minute === draft.getMinutes() ? 'bp-dtp__option--active' : ''}`}
+                            onClick={() => chooseMinute(minute)}
+                          >
+                            {String(minute).padStart(2, '0')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="bp-dtp__time-section">
+                      <div className="bp-dtp__time-label">AM / PM</div>
+                      <div
+                        className="bp-dtp__scroll"
+                        ref={ampmList}
+                        role="group"
+                        aria-label="AM or PM"
+                      >
+                        {(['AM', 'PM'] as const).map((ampm) => (
+                          <button
+                            type="button"
+                            key={ampm}
+                            data-value={ampm}
+                            aria-pressed={(ampm === 'PM') === isPm}
+                            className={`bp-dtp__option ${(ampm === 'PM') === isPm ? 'bp-dtp__option--active' : ''}`}
+                            onClick={() => chooseAmPm(ampm)}
+                          >
+                            {ampm}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="bp-dtp__selected-time" aria-live="polite">
+                    {String(selectedHour).padStart(2, '0')}:
+                    {String(draft.getMinutes()).padStart(2, '0')} {isPm ? 'PM' : 'AM'}
+                  </div>
+                </section>
               </div>
-            </footer>
-          </div>
-        </div>,
-        document.body,
-      )}
+              {error && (
+                <p role="alert" className="bp-dtp__error">
+                  {error}
+                </p>
+              )}
+              <footer className="bp-dtp__footer">
+                <div className="bp-dtp__footer-start">
+                  <button
+                    type="button"
+                    className="bp-dtp__footer-button bp-dtp__footer-button--tonal"
+                    onClick={() => {
+                      const now = new Date();
+                      setDraft(now);
+                      setVisibleMonth(monthOf(now));
+                      setError('');
+                    }}
+                  >
+                    <Clock3 size={15} />
+                    Now
+                  </button>
+                  {onClear && !required && (
+                    <button
+                      type="button"
+                      className="bp-dtp__footer-button bp-dtp__footer-button--outline"
+                      onClick={() => {
+                        onClear();
+                        dismiss(true);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <div className="bp-dtp__footer-end">
+                  <button
+                    type="button"
+                    className="bp-dtp__footer-button bp-dtp__footer-button--outline"
+                    onClick={() => dismiss(true)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="bp-dtp__footer-button bp-dtp__footer-button--primary"
+                    onClick={apply}
+                  >
+                    <Check size={15} />
+                    Apply
+                  </button>
+                </div>
+              </footer>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

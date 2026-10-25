@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { PageHeaderProvider } from '@/contexts/page-header';
+import { renderWithAdminQuery } from '@/test/render-with-query';
 import { StudentsPage } from './students';
 
 vi.mock('@/contexts/auth-context', () => ({
@@ -45,7 +46,7 @@ vi.mock('@/services', async () => {
 
 describe('StudentsPage', () => {
   it('shows the students footer count after load', async () => {
-    render(
+    renderWithAdminQuery(
       <MemoryRouter>
         <PageHeaderProvider>
           <StudentsPage />

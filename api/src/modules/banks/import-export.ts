@@ -304,9 +304,7 @@ export function rowToCreatePayload(
   } else {
     if (!typeRaw) throw new Error('type is required');
     if (!allowed.has(typeRaw)) {
-      throw new Error(
-        `Unknown type “${row.type.trim()}”. Use one of: ${[...allowed].join(', ')}`,
-      );
+      throw new Error(`Unknown type “${row.type.trim()}”. Use one of: ${[...allowed].join(', ')}`);
     }
     type = typeRaw as QuestionTypeValue;
   }
@@ -530,7 +528,7 @@ function fillSheetFromRows(
 ) {
   sheet.addRow([...headers]);
   for (const row of rows) {
-    sheet.addRow(headers.map((h) => row[h] ?? ''));
+    sheet.addRow(headers.map((h) => sanitizeCsvCell(row[h] ?? '')));
   }
   sheet.getRow(1).font = { bold: true };
   sheet.columns = headers.map((h) => ({
@@ -548,9 +546,7 @@ export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promis
   instructions.addRow([]);
   instructions.addRow(['1. Fill the Questions sheet. Do not rename column headers.']);
   if (kind === 'quiz') {
-    instructions.addRow([
-      '2. Quiz questions are always single choice — there is no type column.',
-    ]);
+    instructions.addRow(['2. Quiz questions are always single choice — there is no type column.']);
     instructions.addRow([
       '3. Options may be text (optionA–F), image (option*_imageUrl), or both. Stem image via stemImageUrl.',
     ]);

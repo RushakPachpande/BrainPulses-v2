@@ -14,7 +14,8 @@ function extract(selector) {
   const match = source.match(new RegExp(`${safe}\\s*\\{([^}]+)\\}`));
   if (!match) throw new Error(`Missing ${selector} token block`);
   const entries = [...match[1].matchAll(/(--[a-z\d-]+):\s*([^;]+);/gi)];
-  if (entries.length < 35) throw new Error(`Missing tokens in ${selector}: ${entries.length} found`);
+  if (entries.length < 35)
+    throw new Error(`Missing tokens in ${selector}: ${entries.length} found`);
   return Object.fromEntries(entries.map(([, key, value]) => [key.slice(2), value.trim()]));
 }
 
@@ -29,4 +30,6 @@ const output = {
 };
 const file = resolve(projectRoot, 'docs/design-system/tokens.json');
 writeFileSync(file, JSON.stringify(output, null, 2) + '\n');
-console.log(`Exported ${Object.keys(light).length} light and ${Object.keys(dark).length} dark tokens to docs/design-system/tokens.json`);
+console.log(
+  `Exported ${Object.keys(light).length} light and ${Object.keys(dark).length} dark tokens to docs/design-system/tokens.json`,
+);

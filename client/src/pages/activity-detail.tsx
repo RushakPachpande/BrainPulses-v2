@@ -102,10 +102,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   }
 
   const startBlocked =
-    !!item &&
-    item.attemptState !== 'submitted' &&
-    !item.openAttemptId &&
-    item.canAttempt === false;
+    !!item && item.attemptState !== 'submitted' && !item.openAttemptId && item.canAttempt === false;
 
   return (
     <div className="page-stack">

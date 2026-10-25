@@ -6,12 +6,12 @@ BrainPulses is a professional quiz and assessment platform. Its visual design sh
 
 ## Architecture and ownership
 
-| Directory | Responsibility | Branding rules |
-|---|---|---|
-| `api/` | **Authoritative** accounts, access rules, quiz and assessment logic, answers, scoring, registrations, submissions and reports | No UI/CSS tokens; validate and authorize in the API |
-| `admin/` | Operator dashboard, quiz and assessment builders, registration management, assignment rules, reporting and system settings | shadcn / Radix components, Tailwind v4, semantic CSS tokens, light/dark |
-| `client/` | Participant login/registration, quiz and assessment attempts, progress and results | Existing CSS component patterns, same semantic CSS tokens, light/dark |
-| Each frontend `src/styles/tokens.css` | App-local CSS tokens and light/dark variables | No imports from the repository root or the other frontend |
+| Directory                             | Responsibility                                                                                                                | Branding rules                                                          |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `api/`                                | **Authoritative** accounts, access rules, quiz and assessment logic, answers, scoring, registrations, submissions and reports | No UI/CSS tokens; validate and authorize in the API                     |
+| `admin/`                              | Operator dashboard, quiz and assessment builders, registration management, assignment rules, reporting and system settings    | shadcn / Radix components, Tailwind v4, semantic CSS tokens, light/dark |
+| `client/`                             | Participant login/registration, quiz and assessment attempts, progress and results                                            | Existing CSS component patterns, same semantic CSS tokens, light/dark   |
+| Each frontend `src/styles/tokens.css` | App-local CSS tokens and light/dark variables                                                                                 | No imports from the repository root or the other frontend               |
 
 **Canonical token file for this app:** [`src/styles/tokens.css`](../../src/styles/tokens.css). It is imported **after** the existing app stylesheet by `client/src/main.tsx`. This deliberate ordering preserves legacy layout CSS while making the shared variables authoritative. Some historical theme declarations still exist in the app stylesheets and are superseded by this file; do not edit those old declarations to change the design system. New components should not add more token blocks.
 
@@ -19,23 +19,23 @@ To export the current variables as JSON for design tooling, run `npm run design:
 
 ## Palette
 
-| Token | Light value | Dark value | Guidance |
-|---|---|---|---|
-| `--brand-logo` | `#45058F` | `#45058F` | Fixed color from supplied SVG; do not theme the logo |
-| `--primary` | brand violet | `#7E22CE` | One primary action per surface |
-| `--primary-foreground` | `#FFFFFF` | `#FFFFFF` | White text on primary; passes WCAG AA standard text for both themes |
-| `--background` | `#FAFAFF` | `#081020` | Main app canvas |
-| `--card` | `#FFFFFF` | `#111827` | Cards, panels, tables |
-| `--foreground` | `#0F172A` | `#F8FAFC` | Primary text |
-| `--muted-foreground` | `#485563` | `#CBD5E1` | Secondary text |
-| `--border` | `#E4E7F0` | `#334155` | Restrained 1px separators |
-| `--accent` | `#EDE9FE` | `#2D1B4E` | Active navigation, selections |
-| `--ring` | `#7E22CE` | `#C084FC` | Focus indication |
-| `--success` | `#047857` | `#34D399` | Completed/approved |
-| `--warning` | `#B45309` | `#FBBF24` | Attention/pending |
-| `--destructive` | `#DC2626` | `#F87171` | Destructive actions |
+| Token                  | Light value  | Dark value | Guidance                                                            |
+| ---------------------- | ------------ | ---------- | ------------------------------------------------------------------- |
+| `--brand-logo`         | `#45058F`    | `#45058F`  | Fixed color from supplied SVG; do not theme the logo                |
+| `--primary`            | brand violet | `#7E22CE`  | One primary action per surface                                      |
+| `--primary-foreground` | `#FFFFFF`    | `#FFFFFF`  | White text on primary; passes WCAG AA standard text for both themes |
+| `--background`         | `#FAFAFF`    | `#081020`  | Main app canvas                                                     |
+| `--card`               | `#FFFFFF`    | `#111827`  | Cards, panels, tables                                               |
+| `--foreground`         | `#0F172A`    | `#F8FAFC`  | Primary text                                                        |
+| `--muted-foreground`   | `#485563`    | `#CBD5E1`  | Secondary text                                                      |
+| `--border`             | `#E4E7F0`    | `#334155`  | Restrained 1px separators                                           |
+| `--accent`             | `#EDE9FE`    | `#2D1B4E`  | Active navigation, selections                                       |
+| `--ring`               | `#7E22CE`    | `#C084FC`  | Focus indication                                                    |
+| `--success`            | `#047857`    | `#34D399`  | Completed/approved                                                  |
+| `--warning`            | `#B45309`    | `#FBBF24`  | Attention/pending                                                   |
+| `--destructive`        | `#DC2626`    | `#F87171`  | Destructive actions                                                 |
 
-The brand tonal ramp is `--brand-50` through `--brand-900` (`--brand-600` matches the exact logo violet). The supporting tones are design-system choices *derived around* the source logo color; they are not all literal colors found inside the SVG. Do not assign status meaning with violet. Statuses require explicit words and icons or dots; never rely on hue alone. Use CSS `var(--primary)` and shadcn `bg-primary` / `text-muted-foreground`, not arbitrary hex values in components. The accessibility check covers primary buttons; each **additional text/surface combination** requires review.
+The brand tonal ramp is `--brand-50` through `--brand-900` (`--brand-600` matches the exact logo violet). The supporting tones are design-system choices _derived around_ the source logo color; they are not all literal colors found inside the SVG. Do not assign status meaning with violet. Statuses require explicit words and icons or dots; never rely on hue alone. Use CSS `var(--primary)` and shadcn `bg-primary` / `text-muted-foreground`, not arbitrary hex values in components. The accessibility check covers primary buttons; each **additional text/surface combination** requires review.
 
 ## Typography
 
@@ -55,15 +55,15 @@ The brand tonal ramp is `--brand-50` through `--brand-900` (`--brand-600` matche
 
 ## Component contracts
 
-| Component | Admin implementation | Client implementation | Rules |
-|---|---|---|---|
-| Action buttons | `components/ui/button` | existing `.btn` | Primary, secondary, outline, ghost, destructive; explicit loading/disabled |
-| Text field | shadcn Input and Field | labeled form controls | Persistent label, hint, inline error, visible focus |
-| Select | Radix Select | existing client Select | Keyboard-operable, avoid browser-only hover reliance |
-| Status | `StatusPill` | `Status` | Word + tone; distinguish draft, pending, failed, completed |
-| Panels | Card family | `.panel` | Shared surfaces and borders, consistent spacing |
-| Question options | production quiz builder / attempt controls | `pages/attempt` | Clearly selected state, not hue-only; recover previous answer |
-| Theme | `ThemeProvider` | `use-client-theme` | `.dark` on `<html>`; preserve existing app-specific storage keys |
+| Component        | Admin implementation                       | Client implementation  | Rules                                                                      |
+| ---------------- | ------------------------------------------ | ---------------------- | -------------------------------------------------------------------------- |
+| Action buttons   | `components/ui/button`                     | existing `.btn`        | Primary, secondary, outline, ghost, destructive; explicit loading/disabled |
+| Text field       | shadcn Input and Field                     | labeled form controls  | Persistent label, hint, inline error, visible focus                        |
+| Select           | Radix Select                               | existing client Select | Keyboard-operable, avoid browser-only hover reliance                       |
+| Status           | `StatusPill`                               | `Status`               | Word + tone; distinguish draft, pending, failed, completed                 |
+| Panels           | Card family                                | `.panel`               | Shared surfaces and borders, consistent spacing                            |
+| Question options | production quiz builder / attempt controls | `pages/attempt`        | Clearly selected state, not hue-only; recover previous answer              |
+| Theme            | `ThemeProvider`                            | `use-client-theme`     | `.dark` on `<html>`; preserve existing app-specific storage keys           |
 
 Do not create a second UI component framework. Prefer the existing primitives within each app. The admin design-system screen at `/settings/design-system` is a **non-destructive showcase**: controls on the page do not modify stored quiz/assessment data.
 

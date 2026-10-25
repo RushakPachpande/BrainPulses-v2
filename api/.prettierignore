@@ -16,3 +16,4 @@ package-lock.json
 uploads
 src/generated
 prisma/migrations
+graphify-out
