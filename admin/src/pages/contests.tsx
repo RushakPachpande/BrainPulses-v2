@@ -4,12 +4,12 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { RowActions } from '@/components/row-actions';
-import { SortHeader } from '@/components/sort-header';
 import { Toolbar } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -18,17 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canMutateOrg } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -42,7 +34,33 @@ function compare(a: Contest, b: Contest, key: SortKey) {
   return a[key].localeCompare(b[key], undefined, { numeric: true });
 }
 
+const contestColumns: RecordColumn<Contest>[] = [
+  {
+    key: 'image',
+    label: 'Image',
+    placement: 'media',
+    sortable: false,
+    render: (contest) => <AuthImage fileId={contest.imageFileId} alt="" />,
+  },
+  {
+    key: 'name',
+    label: 'Contest Name',
+    placement: 'title',
+    tableClassName: 'font-medium',
+    render: (contest) => contest.name,
+  },
+  {
+    key: 'sponsorName',
+    label: 'Sponsor',
+    placement: 'primary',
+    render: (contest) => contest.sponsorName,
+  },
+];
+
+const contestSortColumns = contestColumns.filter((column) => column.sortable !== false);
+
 export function ContestsPage() {
+  const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
@@ -131,7 +149,7 @@ export function ContestsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={ref} className="flex flex-col gap-4">
       {canMutate ? (
         <PageHeaderActions>
           <Button asChild className="w-full sm:w-auto">
@@ -161,102 +179,68 @@ export function ContestsPage() {
           setPage(1);
         }}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full sm:ml-auto sm:w-auto"
-            onClick={() => {
-              setSearch('');
-              setPage(1);
-            }}
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={contestSortColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:ml-auto sm:w-auto"
+              onClick={() => {
+                setSearch('');
+                setPage(1);
+              }}
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">Contests</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label="Select all contests on this page"
-                  />
-                </TableHead>
-                <TableHead scope="col">Image</TableHead>
-                {(
-                  [
-                    ['name', 'Contest Name'],
-                    ['sponsorName', 'Sponsor'],
-                  ] as const
-                ).map(([key, label]) => (
-                  <TableHead
-                    key={key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === key ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={label}
-                      active={sortKey === key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                    {search.trim() ? 'No contests match this search.' : 'No contests yet.'}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((contest) => (
-                  <TableRow
-                    key={contest.id}
-                    data-state={selected.has(contest.id) ? 'selected' : undefined}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(contest.id)}
-                        onCheckedChange={(checked) => {
-                          setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (checked === true) next.add(contest.id);
-                            else next.delete(contest.id);
-                            return next;
-                          });
-                        }}
-                        aria-label={`Select ${contest.name}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <AuthImage fileId={contest.imageFileId} alt="" />
-                    </TableCell>
-                    <TableCell className="font-medium">{contest.name}</TableCell>
-                    <TableCell>{contest.sponsorName}</TableCell>
-                    <TableCell>
-                      <RowActions
-                        view={{ to: `/contests/${contest.id}` }}
-                        edit={canMutate ? { to: `/contests/${contest.id}/edit` } : undefined}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption="Contests"
+            rows={pageRows}
+            getRowId={(contest) => contest.id}
+            columns={contestColumns}
+            narrow={narrow}
+            empty={search.trim() ? 'No contests match this search.' : 'No contests yet.'}
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              selected,
+              allSelected: allPageSelected,
+              someSelected: somePageSelected,
+              onToggleAll: toggleAllPage,
+              onToggleOne: (id, checked) => {
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (checked) next.add(id);
+                  else next.delete(id);
+                  return next;
+                });
+              },
+              allLabel: 'Select all contests on this page',
+              rowLabel: (contest) => `Select ${contest.name}`,
+            }}
+            renderActions={(contest) => (
+              <RowActions
+                view={{ to: `/contests/${contest.id}` }}
+                edit={canMutate ? { to: `/contests/${contest.id}/edit` } : undefined}
+              />
+            )}
+          />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length} contests

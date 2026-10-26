@@ -9,13 +9,13 @@ import {
   UploadIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { RowActions } from '@/components/row-actions';
-import { SortHeader } from '@/components/sort-header';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -24,17 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canMutateOrg } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -46,15 +38,52 @@ const EMPTY_STUDENTS: Student[] = [];
 type SortKey =
   'code' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
 
-const sortColumns: { key: SortKey; label: string }[] = [
-  { key: 'code', label: 'Unique ID' },
-  { key: 'name', label: 'Student' },
-  { key: 'email', label: 'Email' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'registered', label: 'Registration Date' },
-  { key: 'activities', label: 'Assigned Activities' },
-  { key: 'status', label: 'Status' },
-  { key: 'lastLogin', label: 'Last Login' },
+const studentColumns: RecordColumn<Student>[] = [
+  {
+    key: 'code',
+    label: 'Unique ID',
+    placement: 'identity',
+    tableClassName: 'tabular-nums',
+    render: (student) => student.code,
+  },
+  {
+    key: 'name',
+    label: 'Student',
+    placement: 'title',
+    render: (student) => <span className="font-medium">{student.name}</span>,
+  },
+  { key: 'email', label: 'Email', placement: 'primary', render: (student) => student.email },
+  {
+    key: 'phone',
+    label: 'Phone',
+    placement: 'primary',
+    tableClassName: 'tabular-nums',
+    render: (student) => student.phone,
+  },
+  {
+    key: 'registered',
+    label: 'Registration Date',
+    placement: 'details',
+    render: (student) => student.registered,
+  },
+  {
+    key: 'activities',
+    label: 'Assigned Activities',
+    placement: 'details',
+    render: (student) => `${student.activities} active`,
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    placement: 'status',
+    render: (student) => <AccountStatusPill value={student.status} />,
+  },
+  {
+    key: 'lastLogin',
+    label: 'Last Login',
+    placement: 'details',
+    render: (student) => student.lastLogin,
+  },
 ];
 
 function compareStudents(a: Student, b: Student, key: SortKey) {
@@ -65,6 +94,7 @@ function compareStudents(a: Student, b: Student, key: SortKey) {
 }
 
 export function StudentsPage() {
+  const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
@@ -215,7 +245,7 @@ export function StudentsPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={ref} className="flex flex-col gap-4">
       {canMutate ? (
         <PageHeaderActions>
           <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
@@ -240,97 +270,58 @@ export function StudentsPage() {
           setPage(1);
         }}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            className="w-full sm:w-auto"
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={studentColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">Students</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label="Select all students on this page"
-                  />
-                </TableHead>
-                {sortColumns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={column.label}
-                      active={sortKey === column.key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(column.key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
-                    No students match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((student) => (
-                  <TableRow
-                    key={student.id}
-                    data-state={selected.has(student.id) ? 'selected' : undefined}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(student.id)}
-                        onCheckedChange={(checked) => toggleOne(student.id, checked === true)}
-                        aria-label={`Select ${student.name}`}
-                      />
-                    </TableCell>
-                    <TableCell className="tabular-nums">{student.code}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{student.name}</span>
-                    </TableCell>
-                    <TableCell>{student.email}</TableCell>
-                    <TableCell className="tabular-nums">{student.phone}</TableCell>
-                    <TableCell>{student.registered}</TableCell>
-                    <TableCell>{student.activities} active</TableCell>
-                    <TableCell>
-                      <AccountStatusPill value={student.status} />
-                    </TableCell>
-                    <TableCell>{student.lastLogin}</TableCell>
-                    <TableCell>
-                      <RowActions
-                        view={{ to: `/students/${student.id}` }}
-                        edit={canMutate ? { to: `/students/${student.id}/edit` } : undefined}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption="Students"
+            rows={pageRows}
+            getRowId={(student) => student.id}
+            columns={studentColumns}
+            narrow={narrow}
+            empty="No students match the current filters."
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              selected,
+              allSelected: allPageSelected,
+              someSelected: somePageSelected,
+              onToggleAll: toggleAllPage,
+              onToggleOne: toggleOne,
+              allLabel: 'Select all students on this page',
+              rowLabel: (student) => `Select ${student.name}`,
+            }}
+            renderActions={(student) => (
+              <RowActions
+                view={{ to: `/students/${student.id}` }}
+                edit={canMutate ? { to: `/students/${student.id}/edit` } : undefined}
+              />
+            )}
+          />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">

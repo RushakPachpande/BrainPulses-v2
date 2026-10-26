@@ -205,13 +205,20 @@ export function ResultsPage() {
                   </small>
                 </span>
               </div>
-              <span className="table-type">{formatKind(a.kind)}</span>
-              <span>{formatDateLabel(a.submittedAt)}</span>
+              <span className="table-type">
+                <span className="result-field-label">Type</span>
+                {formatKind(a.kind)}
+              </span>
+              <span className="table-date">
+                <span className="result-field-label">Date</span>
+                {formatDateLabel(a.submittedAt)}
+              </span>
               <span
                 className={`table-score ${
                   a.percent == null ? '' : a.percent >= 60 ? 'good' : 'low'
                 }`}
               >
+                <span className="result-field-label">Score</span>
                 {a.percent == null ? 'Pending release' : `${Math.round(a.percent)}%`}
               </span>
               <ArrowRight size={16} />

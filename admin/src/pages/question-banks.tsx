@@ -14,15 +14,15 @@ import {
   UploadIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { RowActions } from '@/components/row-actions';
-import { SortHeader } from '@/components/sort-header';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -40,17 +40,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -66,6 +58,38 @@ type SortKey =
 
 function uniqueTypes(values: string[]) {
   return [...new Set(values.flatMap((value) => value.split(',').map((part) => part.trim())))];
+}
+
+function bankPlacement(key: SortKey): RecordColumn<Bank>['placement'] {
+  if (key === 'name') return 'title';
+  if (key === 'status') return 'status';
+  if (key === 'questions' || key === 'updated') return 'primary';
+  return 'details';
+}
+
+function renderBankCell(key: SortKey, row: Bank, usedNoun: string) {
+  switch (key) {
+    case 'name':
+      return <span className="font-medium">{row.name}</span>;
+    case 'description':
+      return row.description;
+    case 'questions':
+      return row.questions;
+    case 'types':
+      return <TypeChips value={row.types} />;
+    case 'presentation':
+      return <TypeChips value={row.presentation} />;
+    case 'updated':
+      return row.updated;
+    case 'usedIn':
+      return (
+        <>
+          {row.usedIn} {usedNoun}
+        </>
+      );
+    case 'status':
+      return <FlowStatusPill status={row.status} />;
+  }
 }
 
 function compareBanks(a: Bank, b: Bank, key: SortKey) {
@@ -92,6 +116,7 @@ function TypeChips({ value }: { value: string }) {
 }
 
 export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
+  const { narrow, ref } = useContainerNarrow();
   const navigate = useNavigate();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
@@ -129,6 +154,14 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
         { key: 'usedIn', label: 'Used In' },
         { key: 'status', label: 'Status' },
       ];
+
+  const recordColumns: RecordColumn<Bank>[] = sortColumns.map((column) => ({
+    key: column.key,
+    label: column.label,
+    placement: bankPlacement(column.key),
+    tableClassName: column.key === 'questions' ? 'tabular-nums' : undefined,
+    render: (row) => renderBankCell(column.key, row, usedNoun),
+  }));
 
   const orgId = useOrgId();
   const { data, isPending: loading } = useQuery({
@@ -263,7 +296,6 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   const pageIds = pageRows.map((row) => row.id);
   const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const somePageSelected = pageIds.some((id) => selected.has(id));
-  const colSpan = isQuiz ? 8 : 9;
 
   function clearFilters() {
     setSearch('');
@@ -339,7 +371,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={ref} className="flex flex-col gap-4">
       {canEdit ? (
         <PageHeaderActions>
           <Button
@@ -399,109 +431,68 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
           setPage(1);
         }}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            className="w-full sm:w-auto"
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={recordColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">
-              {isQuiz ? 'Quiz question banks' : 'Assessment question banks'}
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label="Select all question banks on this page"
-                  />
-                </TableHead>
-                {sortColumns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={column.label}
-                      active={sortKey === column.key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(column.key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={colSpan} className="h-24 text-center text-muted-foreground">
-                    No question banks match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((row) => (
-                  <TableRow key={row.id} data-state={selected.has(row.id) ? 'selected' : undefined}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(row.id)}
-                        onCheckedChange={(checked) => toggleOne(row.id, checked === true)}
-                        aria-label={`Select ${row.name}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{row.name}</span>
-                    </TableCell>
-                    {isQuiz ? null : <TableCell>{row.description}</TableCell>}
-                    <TableCell className="tabular-nums">{row.questions}</TableCell>
-                    <TableCell>
-                      <TypeChips value={isQuiz ? row.presentation : row.types} />
-                    </TableCell>
-                    <TableCell>{row.updated}</TableCell>
-                    <TableCell>
-                      {row.usedIn} {usedNoun}
-                    </TableCell>
-                    <TableCell>
-                      <FlowStatusPill status={row.status} />
-                    </TableCell>
-                    <TableCell>
-                      <RowActions
-                        view={{
-                          to: isQuiz ? `/quizzes/banks/${row.id}` : `/assessments/banks/${row.id}`,
-                        }}
-                        edit={
-                          canEdit
-                            ? {
-                                to: isQuiz
-                                  ? `/quizzes/banks/${row.id}/edit`
-                                  : `/assessments/banks/${row.id}/edit`,
-                              }
-                            : undefined
-                        }
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption={isQuiz ? 'Quiz question banks' : 'Assessment question banks'}
+            rows={pageRows}
+            getRowId={(row) => row.id}
+            columns={recordColumns}
+            narrow={narrow}
+            empty="No question banks match the current filters."
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              selected,
+              allSelected: allPageSelected,
+              someSelected: somePageSelected,
+              onToggleAll: toggleAllPage,
+              onToggleOne: toggleOne,
+              allLabel: 'Select all question banks on this page',
+              rowLabel: (row) => `Select ${row.name}`,
+            }}
+            renderActions={(row) => (
+              <RowActions
+                view={{
+                  to: isQuiz ? `/quizzes/banks/${row.id}` : `/assessments/banks/${row.id}`,
+                }}
+                edit={
+                  canEdit
+                    ? {
+                        to: isQuiz
+                          ? `/quizzes/banks/${row.id}/edit`
+                          : `/assessments/banks/${row.id}/edit`,
+                      }
+                    : undefined
+                }
+              />
+            )}
+          />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">

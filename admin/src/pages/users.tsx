@@ -9,14 +9,14 @@ import {
   UploadIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { RowActions } from '@/components/row-actions';
-import { SortHeader } from '@/components/sort-header';
 import { StatusBadge } from '@/components/status-badge';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -25,17 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -46,14 +38,44 @@ const EMPTY_USERS: User[] = [];
 type SortKey =
   'name' | 'email' | 'role' | 'assessmentAccess' | 'quizAccess' | 'status' | 'lastLogin';
 
-const sortColumns: { key: SortKey; label: string }[] = [
-  { key: 'name', label: 'Name' },
-  { key: 'email', label: 'Email' },
-  { key: 'role', label: 'Role' },
-  { key: 'assessmentAccess', label: 'Assessment Access' },
-  { key: 'quizAccess', label: 'Quiz Access' },
-  { key: 'status', label: 'Status' },
-  { key: 'lastLogin', label: 'Last Login' },
+const userColumns: RecordColumn<User>[] = [
+  {
+    key: 'name',
+    label: 'Name',
+    placement: 'title',
+    render: (user) => <span className="font-medium">{user.name}</span>,
+  },
+  { key: 'email', label: 'Email', placement: 'identity', render: (user) => user.email },
+  {
+    key: 'role',
+    label: 'Role',
+    placement: 'primary',
+    render: (user) => <StatusBadge value={user.role} />,
+  },
+  {
+    key: 'assessmentAccess',
+    label: 'Assessment Access',
+    placement: 'details',
+    render: (user) => user.assessmentAccess,
+  },
+  {
+    key: 'quizAccess',
+    label: 'Quiz Access',
+    placement: 'details',
+    render: (user) => user.quizAccess,
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    placement: 'status',
+    render: (user) => <AccountStatusPill value={user.status} />,
+  },
+  {
+    key: 'lastLogin',
+    label: 'Last Login',
+    placement: 'details',
+    render: (user) => user.lastLogin,
+  },
 ];
 
 function compareUsers(a: User, b: User, key: SortKey) {
@@ -61,6 +83,7 @@ function compareUsers(a: User, b: User, key: SortKey) {
 }
 
 export function UsersPage() {
+  const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
@@ -195,7 +218,7 @@ export function UsersPage() {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={ref} className="flex flex-col gap-4">
       {canManage ? (
         <PageHeaderActions>
           <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
@@ -220,98 +243,58 @@ export function UsersPage() {
           setPage(1);
         }}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            className="w-full sm:w-auto"
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={userColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">Admin users</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label="Select all users on this page"
-                  />
-                </TableHead>
-                {sortColumns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={column.label}
-                      active={sortKey === column.key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(column.key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
-                    No users match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((user) => (
-                  <TableRow
-                    key={user.email}
-                    data-state={selected.has(user.email) ? 'selected' : undefined}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(user.email)}
-                        onCheckedChange={(checked) => toggleOne(user.email, checked === true)}
-                        aria-label={`Select ${user.name}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-medium">{user.name}</span>
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <StatusBadge value={user.role} />
-                    </TableCell>
-                    <TableCell>{user.assessmentAccess}</TableCell>
-                    <TableCell>{user.quizAccess}</TableCell>
-                    <TableCell>
-                      <AccountStatusPill value={user.status} />
-                    </TableCell>
-                    <TableCell>{user.lastLogin}</TableCell>
-                    <TableCell>
-                      <RowActions
-                        view={{ to: `/users/${user.id}` }}
-                        edit={canManage && user.id ? { to: `/users/${user.id}/edit` } : undefined}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption="Admin users"
+            rows={pageRows}
+            getRowId={(user) => user.email}
+            columns={userColumns}
+            narrow={narrow}
+            empty="No users match the current filters."
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              selected,
+              allSelected: allPageSelected,
+              someSelected: somePageSelected,
+              onToggleAll: toggleAllPage,
+              onToggleOne: toggleOne,
+              allLabel: 'Select all users on this page',
+              rowLabel: (user) => `Select ${user.name}`,
+            }}
+            renderActions={(user) => (
+              <RowActions
+                view={{ to: `/users/${user.id}` }}
+                edit={canManage && user.id ? { to: `/users/${user.id}/edit` } : undefined}
+              />
+            )}
+          />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">

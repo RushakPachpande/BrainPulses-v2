@@ -352,7 +352,7 @@ the shipped components, not a second set to invent.
 
 -   shadcn `Card` (12 px, flat; KPI tiles stay on the card color)
 -   `KpiGrid` for summary metrics
--   shadcn `Table` inside a card for lists; `DataTable` only where a page already uses it
+-   shadcn `Table` inside a card for lists at 720px and wider; stacked record panels below that
 -   `Toolbar` for search and filters
 -   `SortHeader` for sortable columns
 -   `StatusPill` and its account, flow, assignment, and attempt wrappers

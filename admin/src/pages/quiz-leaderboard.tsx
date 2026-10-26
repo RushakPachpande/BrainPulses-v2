@@ -1,17 +1,10 @@
 import { useMemo, useState } from 'react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAsyncService } from '@/hooks/use-async-service';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { getActivities, getActivityLeaderboard } from '@/services';
 import type { Activity } from '@/services/types';
 
@@ -36,7 +29,96 @@ type GroupEntry = {
   bestPercent: number;
 };
 
+const individualColumns: RecordColumn<IndividualEntry>[] = [
+  {
+    key: 'rank',
+    label: 'Rank',
+    placement: 'lead',
+    sortable: false,
+    tableClassName: 'tabular-nums',
+    render: (row) => row.rank,
+  },
+  {
+    key: 'student',
+    label: 'Student',
+    placement: 'title',
+    sortable: false,
+    tableClassName: 'font-medium',
+    render: (row) => row.studentName,
+  },
+  {
+    key: 'code',
+    label: 'Unique ID',
+    placement: 'identity',
+    sortable: false,
+    render: (row) => row.studentCode,
+  },
+  {
+    key: 'cohort',
+    label: 'Cohort',
+    placement: 'identity',
+    sortable: false,
+    render: (row) => row.cohort?.trim() || '—',
+  },
+  {
+    key: 'score',
+    label: 'Score',
+    placement: 'status',
+    sortable: false,
+    headClassName: 'text-right',
+    tableClassName: 'text-right tabular-nums',
+    render: (row) => `${Math.round(row.percent)}%`,
+  },
+];
+
+const groupColumns: RecordColumn<GroupEntry>[] = [
+  {
+    key: 'rank',
+    label: 'Rank',
+    placement: 'lead',
+    sortable: false,
+    tableClassName: 'tabular-nums',
+    render: (row) => row.rank,
+  },
+  {
+    key: 'cohort',
+    label: 'Cohort',
+    placement: 'title',
+    sortable: false,
+    tableClassName: 'font-medium',
+    render: (row) => row.cohort,
+  },
+  {
+    key: 'members',
+    label: 'Members',
+    placement: 'primary',
+    sortable: false,
+    headClassName: 'text-right',
+    tableClassName: 'text-right tabular-nums',
+    render: (row) => row.members,
+  },
+  {
+    key: 'avg',
+    label: 'Avg %',
+    placement: 'primary',
+    sortable: false,
+    headClassName: 'text-right',
+    tableClassName: 'text-right tabular-nums',
+    render: (row) => `${Math.round(row.avgPercent)}%`,
+  },
+  {
+    key: 'best',
+    label: 'Best %',
+    placement: 'primary',
+    sortable: false,
+    headClassName: 'text-right',
+    tableClassName: 'text-right tabular-nums',
+    render: (row) => `${Math.round(row.bestPercent)}%`,
+  },
+];
+
 export function QuizLeaderboardPage() {
+  const { narrow, ref } = useContainerNarrow();
   const [activityName, setActivityName] = useState('');
   const [scopeLabel, setScopeLabel] = useState('Overall');
   const [kindLabel, setKindLabel] = useState('Individual');
@@ -89,7 +171,7 @@ export function QuizLeaderboardPage() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div ref={ref} className="flex min-w-0 flex-col gap-4">
       <Toolbar filters={filters} searchPlaceholder="Search leaderboard" />
 
       {loading ? (
@@ -103,69 +185,29 @@ export function QuizLeaderboardPage() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <Table>
-              <TableCaption className="px-4 py-3 text-left">
-                {board?.activityName ?? selectedName} · {scopeLabel} · {kindLabel}
-              </TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Rank</TableHead>
-                  {kind === 'individual' ? (
-                    <>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Unique ID</TableHead>
-                      <TableHead>Cohort</TableHead>
-                      <TableHead className="text-right">Score</TableHead>
-                    </>
-                  ) : (
-                    <>
-                      <TableHead>Cohort</TableHead>
-                      <TableHead className="text-right">Members</TableHead>
-                      <TableHead className="text-right">Avg %</TableHead>
-                      <TableHead className="text-right">Best %</TableHead>
-                    </>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entries.length === 0 ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={kind === 'group' ? 4 : 5}
-                      className="py-10 text-center text-muted-foreground"
-                    >
-                      No entries yet.
-                    </TableCell>
-                  </TableRow>
-                ) : kind === 'individual' ? (
-                  (entries as unknown as IndividualEntry[]).map((row) => (
-                    <TableRow key={`${row.rank}-${row.studentCode}`}>
-                      <TableCell className="tabular-nums">{row.rank}</TableCell>
-                      <TableCell className="font-medium">{row.studentName}</TableCell>
-                      <TableCell>{row.studentCode}</TableCell>
-                      <TableCell>{row.cohort?.trim() || '—'}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {Math.round(row.percent)}%
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  (entries as unknown as GroupEntry[]).map((row) => (
-                    <TableRow key={`${row.rank}-${row.cohort}`}>
-                      <TableCell className="tabular-nums">{row.rank}</TableCell>
-                      <TableCell className="font-medium">{row.cohort}</TableCell>
-                      <TableCell className="text-right tabular-nums">{row.members}</TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {Math.round(row.avgPercent)}%
-                      </TableCell>
-                      <TableCell className="text-right tabular-nums">
-                        {Math.round(row.bestPercent)}%
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+            {kind === 'individual' ? (
+              <ResponsiveRecords
+                caption={`${board?.activityName ?? selectedName} · ${scopeLabel} · ${kindLabel}`}
+                captionClassName="px-4 py-3 text-left"
+                rows={entries as unknown as IndividualEntry[]}
+                getRowId={(row) => `${row.rank}-${row.studentCode}`}
+                columns={individualColumns}
+                narrow={narrow}
+                empty="No entries yet."
+                emptyClassName="py-10 text-center text-muted-foreground"
+              />
+            ) : (
+              <ResponsiveRecords
+                caption={`${board?.activityName ?? selectedName} · ${scopeLabel} · ${kindLabel}`}
+                captionClassName="px-4 py-3 text-left"
+                rows={entries as unknown as GroupEntry[]}
+                getRowId={(row) => `${row.rank}-${row.cohort}`}
+                columns={groupColumns}
+                narrow={narrow}
+                empty="No entries yet."
+                emptyClassName="py-10 text-center text-muted-foreground"
+              />
+            )}
           </CardContent>
         </Card>
       )}

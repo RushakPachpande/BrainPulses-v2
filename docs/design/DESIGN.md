@@ -115,8 +115,8 @@ Import primitives from `@/components/ui`. `admin/components.json` uses shadcn wi
 | Confirmation          | `Dialog`                                                                                                             |
 | Mobile side panel     | `Sheet`                                                                                                              |
 | Alert / toast         | `Alert` / Sonner                                                                                                     |
-| List table            | shadcn `Table` inside `Card`                                                                                         |
-| Compact results table | shared `DataTable` where that page already uses it                                                                   |
+| List table            | `ResponsiveRecords`: shadcn `Table` inside `Card` at 720px and wider, stacked panels below                            |
+| Compact results table | `ResponsiveRecords` on report pages                                                                                  |
 | Status                | `StatusPill` and the account, flow, assignment, and attempt wrappers                                                 |
 | Sort                  | `SortHeader`                                                                                                         |
 | Section tabs          | `ModuleNav`                                                                                                          |
@@ -139,7 +139,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 **Forms.** Persistent labels. Hints in muted text. Placeholder is not a label. Focus, invalid, and disabled states stay visible. Keep the user’s input after a recoverable error.
 
-**Tables.** Uppercase header, 1 px row borders, text-only name and ID columns, status pill, View and Edit buttons with an icon and a label (they wrap in the cell). Selected row mixes 12% primary into the card. The table scrolls inside the card. Footer: “Showing X to Y of Z”, rows per page 10 / 20 / 50, previous, current page, next. Empty state is one muted sentence in the table.
+**Tables.** Uppercase header, 1 px row borders, text-only name and ID columns, status pill, View and Edit buttons with an icon and a label (they wrap in the cell). Selected row mixes 12% primary into the card. When the list container is at least 720px wide, the table scrolls inside the card. Below that, the same card shows one stacked panel per record: name, status, and the primary fields, with the remaining fields behind Details. Sort moves to a toolbar select while panels are showing. The selected panel uses the same 12% primary mix. Footer: “Showing X to Y of Z”, rows per page 10 / 20 / 50, previous, current page, next. Empty state is one muted sentence. The question editor on a bank form keeps a scrolling table.
 
 **Status.** Use the tone table in section 2. Attempt Completed is `ok`. Activity and question-bank Completed is `pr`.
 
@@ -147,7 +147,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 **Shell.** Skip link, collapsible sidebar, sticky top bar (sidebar toggle, global search, theme, notifications, identity), then the content column.
 
-**List.** Meta title and description in `admin/src/routes/meta.ts` → breadcrumb → title and `PageHeaderActions` → `ModuleNav` when the section has one → optional flat KPI row → `Toolbar` (search, filters, Clear Filters) → card table → footer. Create, upload, and download stay in the page header.
+**List.** Meta title and description in `admin/src/routes/meta.ts` → breadcrumb → title and `PageHeaderActions` → `ModuleNav` when the section has one → optional flat KPI row → `Toolbar` (search, filters, Clear Filters, and Sort while panels are showing) → card table or record panels → footer. Create, upload, and download stay in the page header.
 
 **Settings.** `ModuleNav` → grouped cards (icon tile, title, description, fields) → sticky bar with a status line, Reset, and Save. Two columns only from `xl` when the aside is a real second group.
 
@@ -155,7 +155,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 ## 8. Responsive and accessibility
 
-Check about 375 px, 768 px, and 1280 px. Also review 360, 390, 1024, 1440, and 1920 px before release. Sidebar collapses to a rail and becomes a drawer below 768 px. Actions and filters wrap. Tables scroll inside the card. Module tabs may scroll horizontally.
+Check about 375 px, 768 px, and 1280 px. Also review 360, 390, 1024, 1440, and 1920 px before release. Sidebar collapses to a rail and becomes a drawer below 768 px. Actions and filters wrap. Below a 720px list container, record lists become stacked panels inside the card. Wider lists stay tables and scroll inside the card. The bank question editor always scrolls. Module tabs may scroll horizontally.
 
 Target WCAG 2.2 AA: keyboard focus, landmarks, labels, contrast, status that is not color alone, focus return from drawers and dialogs, reduced motion, and reflow. Theme changes must not reset the route, form values, or filters.
 

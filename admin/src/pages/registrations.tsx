@@ -13,13 +13,13 @@ import {
   UsersIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { RowActions } from '@/components/row-actions';
-import { SortHeader } from '@/components/sort-header';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -28,17 +28,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -56,7 +48,43 @@ function compareRows(a: Registration, b: Registration, key: SortKey) {
   return String(a[key]).localeCompare(String(b[key]), undefined, { numeric: true });
 }
 
+const registrationPlacement: Record<SortKey, RecordColumn<Registration>['placement']> = {
+  id: 'identity',
+  name: 'title',
+  email: 'details',
+  phone: 'details',
+  registered: 'details',
+  activity: 'primary',
+  bank: 'details',
+  assignment: 'primary',
+  attempt: 'status',
+};
+
+function renderRegistrationCell(key: SortKey, row: Registration) {
+  switch (key) {
+    case 'id':
+      return row.id;
+    case 'name':
+      return <span className="font-medium">{row.name}</span>;
+    case 'email':
+      return row.email;
+    case 'phone':
+      return row.phone;
+    case 'registered':
+      return row.registered;
+    case 'activity':
+      return row.activity;
+    case 'bank':
+      return row.bank;
+    case 'assignment':
+      return <AssignmentStatusPill value={row.assignment} />;
+    case 'attempt':
+      return <AttemptStatusPill value={row.attempt} />;
+  }
+}
+
 export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
+  const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
@@ -77,6 +105,14 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'assignment', label: 'Assignment Status' },
     { key: 'attempt', label: attemptLabel },
   ];
+
+  const recordColumns: RecordColumn<Registration>[] = sortColumns.map((column) => ({
+    key: column.key,
+    label: column.label,
+    placement: registrationPlacement[column.key],
+    tableClassName: column.key === 'id' || column.key === 'phone' ? 'tabular-nums' : undefined,
+    render: (row) => renderRegistrationCell(column.key, row),
+  }));
 
   const orgId = useOrgId();
   const { data, isPending: loading } = useQuery({
@@ -292,7 +328,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={ref} className="flex flex-col gap-4">
       <PageHeaderActions>
         <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
           <DownloadIcon data-icon="inline-start" />
@@ -342,114 +378,70 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
           setPage(1);
         }}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            className="w-full sm:w-auto"
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={recordColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">{activityLabel} registrations</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label="Select all registrations on this page"
-                  />
-                </TableHead>
-                {sortColumns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={column.label}
-                      active={sortKey === column.key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(column.key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
-                    No registrations match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((row) => (
-                  <TableRow
-                    key={row.registrationId}
-                    data-state={selected.has(row.registrationId) ? 'selected' : undefined}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(row.registrationId)}
-                        onCheckedChange={(checked) =>
-                          toggleOne(row.registrationId, checked === true)
-                        }
-                        aria-label={`Select ${row.name}`}
-                      />
-                    </TableCell>
-                    <TableCell className="tabular-nums">{row.id}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{row.name}</span>
-                    </TableCell>
-                    <TableCell>{row.email}</TableCell>
-                    <TableCell className="tabular-nums">{row.phone}</TableCell>
-                    <TableCell>{row.registered}</TableCell>
-                    <TableCell>{row.activity}</TableCell>
-                    <TableCell>{row.bank}</TableCell>
-                    <TableCell>
-                      <AssignmentStatusPill value={row.assignment} />
-                    </TableCell>
-                    <TableCell>
-                      <AttemptStatusPill value={row.attempt} />
-                    </TableCell>
-                    <TableCell>
-                      <RowActions
-                        view={{
-                          to: isQuiz
-                            ? `/quizzes/registrations/${row.registrationId}`
-                            : `/assessments/registrations/${row.registrationId}`,
-                        }}
-                        edit={
-                          canEdit
-                            ? {
-                                to: isQuiz
-                                  ? `/quizzes/registrations/${row.registrationId}/edit`
-                                  : `/assessments/registrations/${row.registrationId}/edit`,
-                              }
-                            : undefined
-                        }
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption={`${activityLabel} registrations`}
+            rows={pageRows}
+            getRowId={(row) => row.registrationId}
+            columns={recordColumns}
+            narrow={narrow}
+            empty="No registrations match the current filters."
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              selected,
+              allSelected: allPageSelected,
+              someSelected: somePageSelected,
+              onToggleAll: toggleAllPage,
+              onToggleOne: toggleOne,
+              allLabel: 'Select all registrations on this page',
+              rowLabel: (row) => `Select ${row.name}`,
+            }}
+            renderActions={(row) => (
+              <RowActions
+                view={{
+                  to: isQuiz
+                    ? `/quizzes/registrations/${row.registrationId}`
+                    : `/assessments/registrations/${row.registrationId}`,
+                }}
+                edit={
+                  canEdit
+                    ? {
+                        to: isQuiz
+                          ? `/quizzes/registrations/${row.registrationId}/edit`
+                          : `/assessments/registrations/${row.registrationId}/edit`,
+                      }
+                    : undefined
+                }
+              />
+            )}
+          />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">

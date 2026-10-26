@@ -594,6 +594,19 @@ body {
 [data-slot='table-body'] [data-state='selected'] {
   background: color-mix(in srgb, var(--primary) 12%, var(--card));
 }
+[data-slot='record-list'] [data-slot='record-panel'] {
+  border-bottom: 1px solid var(--border);
+}
+[data-slot='record-list'] [data-slot='record-panel']:last-child {
+  border-bottom: 0;
+}
+[data-slot='record-list'] [data-slot='record-panel']:hover {
+  background: color-mix(in srgb, var(--muted) 55%, transparent);
+}
+[data-slot='record-list'] [data-slot='record-panel'][data-state='selected'],
+[data-slot='record-list'] [data-slot='record-panel'][data-state='selected']:hover {
+  background: color-mix(in srgb, var(--primary) 12%, var(--card));
+}
 [data-slot='table-caption'] {
   color: var(--muted-foreground);
 }

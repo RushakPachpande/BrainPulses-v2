@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
 import { KeyRoundIcon, ShieldCheckIcon, UsersIcon } from 'lucide-react';
 import { SettingsListSkeleton } from '@/components/loading-skeletons';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { StatusBadge } from '@/components/status-badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
@@ -15,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import {
   getAccessUsers,
   getPermissions,
@@ -22,7 +24,36 @@ import {
   type AccessUser,
 } from '@/services';
 
+type Permission = Awaited<ReturnType<typeof getPermissions>>[number];
+
+const permissionColumns: RecordColumn<Permission>[] = [
+  {
+    key: 'name',
+    label: 'Permission',
+    placement: 'title',
+    sortable: false,
+    headClassName: 'min-w-56 pl-5',
+    tableClassName: 'pl-5 font-medium',
+    render: (item) => item.name,
+  },
+  {
+    key: 'superAdmin',
+    label: 'Super Admin',
+    placement: 'primary',
+    sortable: false,
+    render: (item) => <StatusBadge value={item.superAdmin} />,
+  },
+  {
+    key: 'admin',
+    label: 'Admin',
+    placement: 'primary',
+    sortable: false,
+    render: (item) => <StatusBadge value={item.admin} />,
+  },
+];
+
 export function AccessSettingsPage() {
+  const { narrow, ref } = useContainerNarrow();
   const [people, setPeople] = useState<AccessUser[]>([]);
   const [permissions, setPermissions] = useState<Awaited<ReturnType<typeof getPermissions>>>([]);
   const [loading, setLoading] = useState(true);
@@ -188,7 +219,7 @@ export function AccessSettingsPage() {
           </Card>
         </div>
       </div>
-      <Card>
+      <Card ref={ref}>
         <CardHeader className="border-b border-border/70 px-5 py-4 sm:px-6">
           <CardTitle>Permission matrix</CardTitle>
           <CardDescription>
@@ -196,40 +227,51 @@ export function AccessSettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="w-full overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead scope="col" className="min-w-56 pl-5">
-                    Permission
-                  </TableHead>
-                  <TableHead scope="col">Super Admin</TableHead>
-                  <TableHead scope="col">Admin</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
+          {narrow && !loading ? (
+            <ResponsiveRecords
+              caption="Permission matrix"
+              rows={permissions}
+              getRowId={(item) => item.name}
+              columns={permissionColumns}
+              narrow
+              empty="No permissions to show."
+            />
+          ) : (
+            <div className="w-full overflow-x-auto">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={3} className="pl-5">
-                      <SettingsListSkeleton rows={5} />
-                    </TableCell>
+                    <TableHead scope="col" className="min-w-56 pl-5">
+                      Permission
+                    </TableHead>
+                    <TableHead scope="col">Super Admin</TableHead>
+                    <TableHead scope="col">Admin</TableHead>
                   </TableRow>
-                ) : (
-                  permissions.map((item) => (
-                    <TableRow key={item.name}>
-                      <TableCell className="pl-5 font-medium">{item.name}</TableCell>
-                      <TableCell>
-                        <StatusBadge value={item.superAdmin} />
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge value={item.admin} />
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={3} className="pl-5">
+                        <SettingsListSkeleton rows={5} />
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                  ) : (
+                    permissions.map((item) => (
+                      <TableRow key={item.name}>
+                        <TableCell className="pl-5 font-medium">{item.name}</TableCell>
+                        <TableCell>
+                          <StatusBadge value={item.superAdmin} />
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge value={item.admin} />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </CardContent>
       </Card>
       <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">

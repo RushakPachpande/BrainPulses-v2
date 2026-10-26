@@ -2006,6 +2006,17 @@ select,
 .table-score.low {
   color: var(--warning);
 }
+.result-field-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
 .table-row > svg {
   color: var(--muted-foreground);
 }
@@ -3242,13 +3253,49 @@ select,
     width: 100%;
   }
   .results-table {
-    overflow-x: auto;
+    overflow: hidden;
   }
-  .table-header,
+  .table-header {
+    display: none;
+  }
   .table-row {
-    min-width: 650px;
-    padding-left: 12px;
-    padding-right: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+    padding: 14px 16px;
+  }
+  .table-activity b {
+    white-space: normal;
+  }
+  .result-field-label {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    display: block;
+    margin-bottom: 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .table-type,
+  .table-date,
+  .table-score {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .table-row > svg {
+    align-self: flex-end;
   }
   .result-hero {
     flex-direction: column;

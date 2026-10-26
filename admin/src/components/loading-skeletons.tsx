@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { cn } from '@/lib/utils';
 
 function ScreenReaderLabel({ children }: { children: string }) {
@@ -129,8 +130,14 @@ export function ListPageSkeleton({
   kpiCount = 4,
   className,
 }: ListPageSkeletonProps) {
+  const { narrow, ref } = useContainerNarrow();
   return (
-    <div className={cn('flex flex-col gap-4', className)} aria-busy="true" aria-live="polite">
+    <div
+      ref={ref}
+      className={cn('flex flex-col gap-4', className)}
+      aria-busy="true"
+      aria-live="polite"
+    >
       <ScreenReaderLabel>Loading list</ScreenReaderLabel>
       {kpiCount > 0 ? (
         <div
@@ -157,25 +164,48 @@ export function ListPageSkeleton({
       </div>
       <Card>
         <CardContent className="overflow-x-auto p-0">
-          <div className="flex gap-3 border-b border-border px-4 py-3">
-            {Array.from({ length: columns }, (_, i) => (
-              <Skeleton key={i} className="h-4 flex-1" />
-            ))}
-          </div>
-          {Array.from({ length: rows }, (_, row) => (
-            <div key={row} className="flex gap-3 border-b border-border px-4 py-3 last:border-0">
-              {Array.from({ length: columns }, (_, col) => (
-                <Skeleton
-                  key={col}
-                  className={cn(
-                    'h-4 flex-1',
-                    col === 0 && 'max-w-8',
-                    col === columns - 1 && 'max-w-10',
-                  )}
-                />
+          {narrow ? (
+            Array.from({ length: rows }, (_, row) => (
+              <div
+                key={row}
+                className="flex flex-col gap-3 border-b border-border px-4 py-4 last:border-0"
+              >
+                <div className="flex items-center gap-3">
+                  <Skeleton className="size-4 shrink-0" />
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="ml-auto h-5 w-16 rounded-full" />
+                </div>
+                <Skeleton className="h-3 w-1/3" />
+                <Skeleton className="h-3 w-4/5" />
+                <Skeleton className="h-(--control-h) w-24 rounded-lg" />
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="flex gap-3 border-b border-border px-4 py-3">
+                {Array.from({ length: columns }, (_, i) => (
+                  <Skeleton key={i} className="h-4 flex-1" />
+                ))}
+              </div>
+              {Array.from({ length: rows }, (_, row) => (
+                <div
+                  key={row}
+                  className="flex gap-3 border-b border-border px-4 py-3 last:border-0"
+                >
+                  {Array.from({ length: columns }, (_, col) => (
+                    <Skeleton
+                      key={col}
+                      className={cn(
+                        'h-4 flex-1',
+                        col === 0 && 'max-w-8',
+                        col === columns - 1 && 'max-w-10',
+                      )}
+                    />
+                  ))}
+                </div>
               ))}
-            </div>
-          ))}
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
