@@ -1,3 +1,4 @@
+import { QuestionImageField, QuestionImagePreview } from '@/components/question-image-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -90,21 +91,14 @@ function OptionRows({
             />
           </div>
           {showImageUrl ? (
-            <Input
+            <QuestionImageField
+              id={`bank-q-option-image-${opt.label}`}
               value={opt.imageUrl}
               placeholder="Image URL"
               disabled={readOnly}
-              onChange={(e) => {
-                const value = e.target.value;
-                onChange(options.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)));
-              }}
-            />
-          ) : null}
-          {showImageUrl && opt.imageUrl ? (
-            <img
-              src={opt.imageUrl}
-              alt=""
-              className="max-h-32 max-w-full rounded-md border border-border object-contain"
+              onChange={(value) =>
+                onChange(options.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)))
+              }
             />
           ) : null}
         </div>
@@ -227,21 +221,14 @@ export function BankQuestionDialog({
 
           {showMedia ? (
             <Field>
-              <FieldLabel htmlFor="bank-q-question-image">Question image URL (optional)</FieldLabel>
-              <Input
+              <FieldLabel htmlFor="bank-q-question-image">Question image (optional)</FieldLabel>
+              <QuestionImageField
                 id="bank-q-question-image"
                 value={draft.questionImageUrl}
                 disabled={readOnly}
                 placeholder="https://…"
-                onChange={(e) => onDraftChange({ ...draft, questionImageUrl: e.target.value })}
+                onChange={(questionImageUrl) => onDraftChange({ ...draft, questionImageUrl })}
               />
-              {draft.questionImageUrl ? (
-                <img
-                  src={draft.questionImageUrl}
-                  alt=""
-                  className="mt-2 max-h-40 max-w-full rounded-md border border-border object-contain"
-                />
-              ) : null}
             </Field>
           ) : null}
 
@@ -398,9 +385,8 @@ export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }
     <div className="flex flex-col gap-2 text-sm">
       <p className="font-medium">{item.question}</p>
       {item.questionImageUrl ? (
-        <img
+        <QuestionImagePreview
           src={item.questionImageUrl}
-          alt=""
           className="max-h-40 max-w-full rounded-md border border-border object-contain"
         />
       ) : null}
@@ -417,9 +403,8 @@ export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }
               ) : null}
             </span>
             {o.imageUrl ? (
-              <img
+              <QuestionImagePreview
                 src={o.imageUrl}
-                alt=""
                 className="max-h-24 max-w-full rounded-md border border-border object-contain"
               />
             ) : null}

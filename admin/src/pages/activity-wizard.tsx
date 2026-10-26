@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, PlusIcon, TrashIcon } from 'lucide-react';
 import { DateTimePicker } from '@/components/date-time-picker';
+import { QuestionImageField } from '@/components/question-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
@@ -1111,13 +1112,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           </Field>
                           <Field>
                             <FieldLabel htmlFor={`q-image-${round.key}`}>
-                              Question image URL (optional)
+                              Question image (optional)
                             </FieldLabel>
-                            <Input
+                            <QuestionImageField
                               id={`q-image-${round.key}`}
                               value={newQuestionImageUrl}
                               placeholder="https://…"
-                              onChange={(e) => setNewQuestionImageUrl(e.target.value)}
+                              onChange={setNewQuestionImageUrl}
                             />
                           </Field>
                           <p className="text-xs text-muted-foreground">
@@ -1154,11 +1155,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                                   }}
                                 />
                               </div>
-                              <Input
+                              <QuestionImageField
+                                id={`q-option-image-${round.key}-${opt.label}`}
                                 value={opt.imageUrl}
                                 placeholder="Image URL (optional)"
-                                onChange={(e) => {
-                                  const value = e.target.value;
+                                onChange={(value) => {
                                   setNewQuestionOptions((prev) =>
                                     prev.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)),
                                   );

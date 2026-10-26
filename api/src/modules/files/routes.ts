@@ -8,6 +8,7 @@ import {
   userActor,
   withTenantContext,
 } from '../../middleware/auth.js';
+import { env } from '../../config/env.js';
 import { validate } from '../../middleware/validate.js';
 import * as service from './service.js';
 
@@ -36,7 +37,14 @@ const initiateSchema = z
       .number()
       .int()
       .positive()
-      .max(20 * 1024 * 1024),
+      .max(
+        Math.max(
+          20 * 1024 * 1024,
+          env.UPLOAD_IMAGE_SIZE_CAPPING || 10 * 1024 * 1024,
+          env.QA_UPLOAD_IMAGE_SIZE_CAPPING || 5 * 1024 * 1024,
+        ),
+      ),
+    purpose: z.enum(['catalog', 'question']).optional(),
   })
   .strict();
 
@@ -51,6 +59,43 @@ filesRouter.get('/download', async (req: Request, res: Response, next: NextFunct
     next(err);
   }
 });
+
+const inlineParams = z.object({ id: z.string().uuid() });
+
+function sendInline(file: { mimeType: string }, buffer: Buffer, res: Response) {
+  res.setHeader('Content-Type', file.mimeType);
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Cache-Control', 'private, max-age=300');
+  res.send(buffer);
+}
+
+function allowImageRead(req: Request, res: Response, next: NextFunction) {
+  if (req.actor?.kind === 'student') {
+    next();
+    return;
+  }
+  requireOrgAccess('view')(req, res, next);
+}
+
+filesRouter.get(
+  '/:id',
+  requireAuth,
+  withTenantContext,
+  allowImageRead,
+  validate({ params: inlineParams }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!req.actor) return;
+      const { file, buffer } = await service.readInlineImage(
+        req.actor.organizationId,
+        req.params.id as string,
+      );
+      sendInline(file, buffer, res);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 filesRouter.use(requireAuth, requireUser, withTenantContext);
 
@@ -83,27 +128,6 @@ filesRouter.put(
         req,
       );
       res.json({ data });
-    } catch (err) {
-      next(err);
-    }
-  },
-);
-
-filesRouter.get(
-  '/:id',
-  requireOrgAccess('view'),
-  validate({ params: z.object({ id: z.string().uuid() }) }),
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const actor = userActor(req);
-      const { file, buffer } = await service.readInlineImage(
-        actor.organizationId,
-        req.params.id as string,
-      );
-      res.setHeader('Content-Type', file.mimeType);
-      res.setHeader('Content-Disposition', 'inline');
-      res.setHeader('Cache-Control', 'private, max-age=300');
-      res.send(buffer);
     } catch (err) {
       next(err);
     }

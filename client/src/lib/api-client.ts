@@ -156,6 +156,12 @@ async function request(
   }
 }
 
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const res = await request(path);
+  if (!res.ok) throw await parseApiError(res);
+  return res.blob();
+}
+
 export async function apiGetData<T>(path: string): Promise<T> {
   const res = await request(path);
   if (!res.ok) throw await parseApiError(res);

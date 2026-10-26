@@ -3,6 +3,7 @@ import { ImageIcon, UploadIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { UPLOAD_IMAGE_SIZE_CAPPING, formatUploadMegabytes } from '@/lib/upload-limits';
 
 export function CatalogImageField({
   id,
@@ -60,7 +61,9 @@ export function CatalogImageField({
           <p className="truncate text-sm font-medium">
             {fileName ?? (fileId ? 'Current image' : 'No image chosen')}
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">PNG, JPEG, or WebP. 2MB maximum.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            PNG, JPEG, or WebP. {formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} maximum.
+          </p>
         </div>
         {disabled ? null : (
           <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>

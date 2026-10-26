@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, Check, Clock3, Flag, LogOut, ShieldCheck, X } fr
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExamShellSkeleton } from '../components/skeletons';
+import { StoredImage } from '../components/stored-image';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
 import { ApiError } from '../lib/api-client';
 import {
@@ -466,7 +467,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               </div>
             ) : null}
             {q.questionImageUrl ? (
-              <img
+              <StoredImage
                 src={q.questionImageUrl}
                 alt=""
                 style={{
@@ -509,7 +510,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                         style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}
                       >
                         {op.imageUrl ? (
-                          <img
+                          <StoredImage
                             src={op.imageUrl}
                             alt=""
                             style={{

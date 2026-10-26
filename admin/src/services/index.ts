@@ -10,6 +10,11 @@ import {
 } from '@/lib/api-client';
 import { invalidateAdmin } from '@/lib/query-client';
 import {
+  QA_UPLOAD_IMAGE_SIZE_CAPPING,
+  UPLOAD_IMAGE_SIZE_CAPPING,
+  formatUploadMegabytes,
+} from '@/lib/upload-limits';
+import {
   buildReportSummaryFromResults,
   mapAccessUserFromApi,
   mapActivityFromApi,
@@ -111,19 +116,22 @@ export async function getUser(membershipId: string): Promise<AdminUser> {
 }
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
-const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+const QUESTION_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
+const imageCapLabel = formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING);
+const questionImageCapLabel = formatUploadMegabytes(QA_UPLOAD_IMAGE_SIZE_CAPPING);
 
-export async function uploadCatalogImage(file: File): Promise<string> {
-  if (!IMAGE_TYPES.has(file.type)) {
-    throw new ApiError(400, 'VALIDATION_ERROR', 'Image must be PNG, JPEG, or WebP.');
-  }
-  if (file.size <= 0 || file.size > IMAGE_MAX_BYTES) {
-    throw new ApiError(400, 'VALIDATION_ERROR', 'Image must be 2MB or smaller.');
+async function uploadImageFile(
+  file: File,
+  options: { purpose: 'catalog' | 'question'; maxBytes: number; tooLarge: string },
+) {
+  if (file.size <= 0 || file.size > options.maxBytes) {
+    throw new ApiError(400, 'VALIDATION_ERROR', options.tooLarge);
   }
   const started = await apiPostData<{ id: string }>('/api/files/initiate', {
     originalName: file.name || 'image',
     mimeType: file.type,
     sizeBytes: file.size,
+    purpose: options.purpose,
   });
   await apiRequest(`/api/files/${started.id}/content`, {
     method: 'PUT',
@@ -131,6 +139,38 @@ export async function uploadCatalogImage(file: File): Promise<string> {
     body: file,
   });
   return started.id;
+}
+
+export async function uploadCatalogImage(file: File): Promise<string> {
+  if (!IMAGE_TYPES.has(file.type)) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Image must be PNG, JPEG, or WebP.');
+  }
+  if (file.size <= 0 || file.size > UPLOAD_IMAGE_SIZE_CAPPING) {
+    throw new ApiError(400, 'VALIDATION_ERROR', `Image must be ${imageCapLabel} or smaller.`);
+  }
+  return uploadImageFile(file, {
+    purpose: 'catalog',
+    maxBytes: UPLOAD_IMAGE_SIZE_CAPPING,
+    tooLarge: `Image must be ${imageCapLabel} or smaller.`,
+  });
+}
+
+export async function uploadQuestionImage(file: File): Promise<string> {
+  if (!QUESTION_IMAGE_TYPES.has(file.type)) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Image must be PNG, JPEG, WebP, or GIF.');
+  }
+  if (file.size <= 0 || file.size > QA_UPLOAD_IMAGE_SIZE_CAPPING) {
+    throw new ApiError(
+      400,
+      'VALIDATION_ERROR',
+      `Question and answer images must be ${questionImageCapLabel} or smaller.`,
+    );
+  }
+  return uploadImageFile(file, {
+    purpose: 'question',
+    maxBytes: QA_UPLOAD_IMAGE_SIZE_CAPPING,
+    tooLarge: `Question and answer images must be ${questionImageCapLabel} or smaller.`,
+  });
 }
 
 export async function getSponsors(): Promise<Sponsor[]> {

@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ResultDetailSkeleton, SummaryTilesSkeleton } from '../components/skeletons';
+import { StoredImage } from '../components/stored-image';
 import { Heading } from '../components/ui-bits';
 import {
   Select,
@@ -395,7 +396,7 @@ export function ResultDetailPage() {
                 </div>
                 <b>{q.question}</b>
                 {q.questionImageUrl ? (
-                  <img
+                  <StoredImage
                     src={q.questionImageUrl}
                     alt=""
                     style={{
@@ -421,7 +422,7 @@ export function ResultDetailPage() {
                         style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}
                       >
                         {op.imageUrl ? (
-                          <img
+                          <StoredImage
                             src={op.imageUrl}
                             alt=""
                             style={{

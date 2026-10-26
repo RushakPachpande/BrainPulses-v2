@@ -161,41 +161,43 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
         <CardContent className="pt-5">
           <form onSubmit={(event) => void onSubmit(event)}>
             <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="contest-sponsor">
-                  Sponsor <span className="text-destructive">*</span>
-                </FieldLabel>
-                <Select
-                  value={sponsorId || undefined}
-                  disabled={readOnly}
-                  onValueChange={setSponsorId}
-                >
-                  <SelectTrigger id="contest-sponsor" className="w-full sm:max-w-md">
-                    <SelectValue placeholder="Choose a sponsor" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {sponsors.map((sponsor) => (
-                        <SelectItem key={sponsor.id} value={sponsor.id}>
-                          {sponsor.name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="contest-name">
-                  Contest name <span className="text-destructive">*</span>
-                </FieldLabel>
-                <Input
-                  id="contest-name"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  required
-                  disabled={readOnly}
-                />
-              </Field>
+              <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="contest-name">
+                    Contest name <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Input
+                    id="contest-name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    required
+                    disabled={readOnly}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="contest-sponsor">
+                    Sponsor <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Select
+                    value={sponsorId || undefined}
+                    disabled={readOnly}
+                    onValueChange={setSponsorId}
+                  >
+                    <SelectTrigger id="contest-sponsor" className="w-full">
+                      <SelectValue placeholder="Choose a sponsor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {sponsors.map((sponsor) => (
+                          <SelectItem key={sponsor.id} value={sponsor.id}>
+                            {sponsor.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
               <Field>
                 <FieldLabel htmlFor="contest-description">Description</FieldLabel>
                 <Textarea

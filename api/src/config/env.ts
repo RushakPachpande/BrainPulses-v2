@@ -1,5 +1,25 @@
 import './load-env.js';
 import { z } from 'zod';
+import { parseByteSize } from './byte-size.js';
+
+/** Missing or blank values use `fallback`. A set value must look like `10MB`. */
+function optionalByteSize(fallback: number) {
+  return z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined || value.trim() === '') return fallback;
+      const parsed = parseByteSize(value);
+      if (parsed === null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Must be a size like 10MB.',
+        });
+        return z.NEVER;
+      }
+      return parsed;
+    });
+}
 
 const envSchema = z
   .object({
@@ -27,6 +47,10 @@ const envSchema = z
     COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
     UPLOAD_DIR: z.string().default('./uploads'),
     FILE_DOWNLOAD_TTL_SECONDS: z.coerce.number().default(300),
+    /** Max size for catalog and other images. Unset uses 10MB. */
+    UPLOAD_IMAGE_SIZE_CAPPING: optionalByteSize(10 * 1024 * 1024),
+    /** Max size for question and answer images. Unset uses 5MB. */
+    QA_UPLOAD_IMAGE_SIZE_CAPPING: optionalByteSize(5 * 1024 * 1024),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().default(120),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),

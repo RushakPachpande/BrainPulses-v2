@@ -78,10 +78,16 @@ function byteLimitTransform(maxBytes: number) {
 export async function initiateUpload(
   organizationId: string,
   userId: string,
-  input: { originalName: string; mimeType: string; sizeBytes: number },
+  input: {
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+    purpose?: 'catalog' | 'question';
+  },
 ) {
-  if (input.sizeBytes <= 0 || input.sizeBytes > 20 * 1024 * 1024) {
-    throw badRequest('File size must be between 1 byte and 20MB.');
+  const maxBytes = maxUploadBytes(input.mimeType, input.purpose);
+  if (input.sizeBytes <= 0 || input.sizeBytes > maxBytes) {
+    throw badRequest(`File size must be between 1 byte and ${formatMegabytes(maxBytes)}.`);
   }
   assertAllowedFile(input.originalName, input.mimeType);
 
@@ -211,8 +217,21 @@ export async function downloadWithToken(token: string) {
   return { file, buffer };
 }
 
+const FILE_MAX_BYTES = 20 * 1024 * 1024;
+const CATALOG_IMAGE_MAX_BYTES = env.UPLOAD_IMAGE_SIZE_CAPPING || 10 * 1024 * 1024;
+const QUESTION_IMAGE_MAX_BYTES = env.QA_UPLOAD_IMAGE_SIZE_CAPPING || 5 * 1024 * 1024;
+
+function formatMegabytes(bytes: number) {
+  const mb = bytes / (1024 * 1024);
+  return `${Number.isInteger(mb) ? mb : mb.toFixed(1)}MB`;
+}
+
+function maxUploadBytes(mimeType: string, purpose?: 'catalog' | 'question') {
+  if (!mimeType.startsWith('image/')) return FILE_MAX_BYTES;
+  return purpose === 'question' ? QUESTION_IMAGE_MAX_BYTES : CATALOG_IMAGE_MAX_BYTES;
+}
+
 const SPONSOR_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
-const SPONSOR_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
 
 export async function assertCatalogImage(organizationId: string, fileId: string) {
   const file = await prisma.fileObject.findFirst({
@@ -222,8 +241,8 @@ export async function assertCatalogImage(organizationId: string, fileId: string)
   if (!SPONSOR_IMAGE_MIMES.has(file.mimeType)) {
     throw badRequest('Image must be PNG, JPEG, or WebP.');
   }
-  if (file.sizeBytes <= 0 || file.sizeBytes > SPONSOR_IMAGE_MAX_BYTES) {
-    throw badRequest('Image must be 2MB or smaller.');
+  if (file.sizeBytes <= 0 || file.sizeBytes > CATALOG_IMAGE_MAX_BYTES) {
+    throw badRequest(`Image must be ${formatMegabytes(CATALOG_IMAGE_MAX_BYTES)} or smaller.`);
   }
   return file;
 }
