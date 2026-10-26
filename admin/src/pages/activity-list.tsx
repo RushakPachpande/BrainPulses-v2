@@ -437,9 +437,11 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
             <p className="text-sm text-muted-foreground">
               Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length} {noun}
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows per page</span>
+            <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                  Rows per page
+                </span>
                 <Select
                   value={pageSize}
                   onValueChange={(value) => {
@@ -447,7 +449,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger aria-label="Rows per page" className="w-20">
+                  <SelectTrigger aria-label="Rows per page" className="w-16 shrink-0 sm:w-20">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

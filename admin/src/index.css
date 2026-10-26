@@ -211,6 +211,21 @@
   }
 }
 
+/* List pager stays one line on a phone: smaller than the 44px field controls. */
+@media (max-width: 639px) {
+  [data-slot='sidebar-inset'] .list-pager [data-slot='button'][data-size='icon'] {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  [data-slot='sidebar-inset'] .list-pager [data-slot='select-trigger'] {
+    height: 36px;
+    min-height: 36px;
+  }
+}
+
 /* Icon buttons in the workspace stay square. size-* utilities would otherwise keep the width at 32px while min-height stretches them to 44px. */
 [data-slot='sidebar-inset'] [data-slot='button'][data-size='icon'],
 [data-slot='sidebar-inset'] [data-slot='button'][data-size='icon-sm'],
