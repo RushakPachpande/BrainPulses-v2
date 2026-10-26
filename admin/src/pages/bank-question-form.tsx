@@ -1,3 +1,4 @@
+import { Loader2Icon } from 'lucide-react';
 import { QuestionImageField, QuestionImagePreview } from '@/components/question-image-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -95,6 +96,7 @@ function OptionRows({
               id={`bank-q-option-image-${opt.label}`}
               value={opt.imageUrl}
               placeholder="Image URL"
+              alt="Answer image"
               disabled={readOnly}
               onChange={(value) =>
                 onChange(options.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)))
@@ -370,7 +372,8 @@ export function BankQuestionDialog({
             {readOnly ? 'Close' : 'Cancel'}
           </Button>
           {!readOnly ? (
-            <Button type="button" disabled={saving} onClick={onSave}>
+            <Button type="button" disabled={saving} aria-busy={saving} onClick={onSave}>
+              {saving ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : null}
               {saving ? 'Saving…' : 'Save question'}
             </Button>
           ) : null}
@@ -385,10 +388,7 @@ export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }
     <div className="flex flex-col gap-2 text-sm">
       <p className="font-medium">{item.question}</p>
       {item.questionImageUrl ? (
-        <QuestionImagePreview
-          src={item.questionImageUrl}
-          className="max-h-40 max-w-full rounded-md border border-border object-contain"
-        />
+        <QuestionImagePreview src={item.questionImageUrl} alt="Question image" />
       ) : null}
       {item.passageText ? (
         <p className="whitespace-pre-wrap text-muted-foreground">{item.passageText}</p>
@@ -402,12 +402,7 @@ export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }
                 <span className="ml-2 text-xs font-medium text-success">Correct</span>
               ) : null}
             </span>
-            {o.imageUrl ? (
-              <QuestionImagePreview
-                src={o.imageUrl}
-                className="max-h-24 max-w-full rounded-md border border-border object-contain"
-              />
-            ) : null}
+            {o.imageUrl ? <QuestionImagePreview src={o.imageUrl} alt="Answer image" /> : null}
           </li>
         ))}
       </ul>

@@ -33,6 +33,10 @@ export type StudentActivity = {
   latestResultId: string | null;
   latestPercent: number | null;
   leaderboardAvailable?: boolean;
+  sponsorName?: string | null;
+  sponsorImageFileId?: string | null;
+  contestName?: string | null;
+  contestImageFileId?: string | null;
   rounds?: StudentActivityRound[];
 };
 

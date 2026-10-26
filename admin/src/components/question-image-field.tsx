@@ -1,20 +1,40 @@
 import { useRef, useState } from 'react';
 import { UploadIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ApiError } from '@/lib/api-client';
+import { cn } from '@/lib/utils';
 import { QA_UPLOAD_IMAGE_SIZE_CAPPING, formatUploadMegabytes } from '@/lib/upload-limits';
 import { uploadQuestionImage } from '@/services';
 
 const FILE_IMAGE = /^\/api\/files\/([0-9a-f-]{36})$/i;
 
-export function QuestionImagePreview({ src, className }: { src: string; className?: string }) {
+export function QuestionImagePreview({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
   const fileId = src.match(FILE_IMAGE)?.[1];
-  if (fileId) {
-    return <AuthImage fileId={fileId} alt="" className={className} />;
-  }
-  return <img src={src} alt="" className={className} />;
+  return (
+    <div className={cn('w-full max-w-md', className)}>
+      <AspectRatio
+        ratio={16 / 9}
+        className="overflow-hidden rounded-md border border-border bg-muted"
+      >
+        {fileId ? (
+          <AuthImage fileId={fileId} alt={alt} className="size-full object-contain" />
+        ) : (
+          <img src={src} alt={alt} className="size-full object-contain" />
+        )}
+      </AspectRatio>
+    </div>
+  );
 }
 
 export function QuestionImageField({
@@ -23,12 +43,14 @@ export function QuestionImageField({
   onChange,
   disabled,
   placeholder = 'Image URL',
+  alt = 'Question image',
 }: {
   id: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  alt?: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
@@ -39,8 +61,8 @@ export function QuestionImageField({
     setError('');
     setUploading(true);
     try {
-      const id = await uploadQuestionImage(file);
-      onChange(`/api/files/${id}`);
+      const fileId = await uploadQuestionImage(file);
+      onChange(`/api/files/${fileId}`);
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -94,12 +116,7 @@ export function QuestionImageField({
           {error}
         </p>
       ) : null}
-      {value ? (
-        <QuestionImagePreview
-          src={value}
-          className="max-h-32 max-w-full rounded-md border border-border object-contain"
-        />
-      ) : null}
+      {value ? <QuestionImagePreview src={value} alt={alt} /> : null}
     </div>
   );
 }

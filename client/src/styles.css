@@ -1137,9 +1137,77 @@ select,
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
-  padding: 17px;
+  padding: 0;
   box-shadow: var(--shadow);
+  overflow: hidden;
   transition: border-color 0.14s;
+}
+.activity-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  padding: 17px;
+}
+.activity-card-media,
+.activity-detail-media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted);
+  overflow: hidden;
+}
+.activity-card-media {
+  height: 148px;
+  border-bottom: 1px solid var(--border);
+}
+.activity-card-photo,
+.activity-detail-photo {
+  max-width: 100%;
+  object-fit: contain;
+}
+.activity-card-photo {
+  max-height: 148px;
+}
+.activity-detail-media {
+  width: min(100%, 360px);
+  height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.activity-detail-photo {
+  max-height: 180px;
+}
+.activity-credit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.activity-sponsor-mark {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex: none;
+}
+.activity-row-thumb {
+  width: 64px;
+  height: 64px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+.activity-row-photo {
+  max-width: 64px;
+  max-height: 64px;
+  object-fit: contain;
 }
 .activity-card:hover {
   border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
@@ -3156,8 +3224,17 @@ select,
     width: 36px;
     height: 36px;
   }
+  .activity-row-thumb {
+    width: 48px;
+    height: 48px;
+  }
+  .activity-row-photo {
+    max-width: 48px;
+    max-height: 48px;
+  }
   .activity-row-main {
-    width: calc(100% - 50px);
+    width: auto;
+    min-width: 0;
     flex: 1;
   }
   .activity-title-line {
@@ -3219,7 +3296,7 @@ select,
   .library-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .activity-card {
+  .activity-card-body {
     padding: 15px;
   }
   .activity-card > p {

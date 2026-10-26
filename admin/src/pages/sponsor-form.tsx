@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon } from 'lucide-react';
 import { CatalogImageField } from '@/components/catalog-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -25,7 +26,8 @@ export function SponsorFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
-  useLeaveGuard(saving);
+  const [dirty, setDirty] = useState(false);
+  const allowLeave = useLeaveGuard(!readOnly && dirty);
 
   useEffect(() => {
     if (mode === 'create') return;
@@ -72,6 +74,7 @@ export function SponsorFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
         });
         toast.success('Sponsor updated.');
       }
+      allowLeave();
       void navigate('/sponsors');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save sponsor.');
@@ -115,7 +118,7 @@ export function SponsorFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={(event) => void onSubmit(event)}>
+          <form onSubmit={(event) => void onSubmit(event)} onChange={() => setDirty(true)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="sponsor-name">
@@ -147,10 +150,7 @@ export function SponsorFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={saving}>
-                    <SaveIcon data-icon="inline-start" />
-                    Save
-                  </Button>
+                  <SaveButton pending={saving}>Save</SaveButton>
                 </div>
               ) : null}
             </FieldGroup>

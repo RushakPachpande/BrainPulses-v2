@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { useConfirm } from '@/components/use-confirm';
 import { ApiError } from '@/lib/api-client';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -41,8 +42,9 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
   const [status, setStatus] = useState('Active');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const confirm = useConfirm();
-  useLeaveGuard(saving);
+  const allowLeave = useLeaveGuard(!readOnly && dirty);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,6 +93,7 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
         isActive: status === 'Active',
       });
       toast.success('User updated.');
+      allowLeave();
       void navigate('/users');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not update user.');
@@ -111,6 +114,7 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
     try {
       await deactivateMembership(userId);
       toast.success('User deactivated.');
+      allowLeave();
       void navigate('/users');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not deactivate user.');
@@ -149,7 +153,7 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
           <CardDescription>{role}</CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={onSubmit}>
+          <form onSubmit={onSubmit} onChange={() => setDirty(true)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="user-name">Name</FieldLabel>
@@ -177,7 +181,10 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
                 <Select
                   value={assessmentAccess}
                   disabled={readOnly}
-                  onValueChange={(v) => setAssessmentAccess(v as AccessLevel)}
+                  onValueChange={(v) => {
+                    setDirty(true);
+                    setAssessmentAccess(v as AccessLevel);
+                  }}
                 >
                   <SelectTrigger className="w-full sm:max-w-xs">
                     <SelectValue />
@@ -195,7 +202,10 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
                 <Select
                   value={quizAccess}
                   disabled={readOnly}
-                  onValueChange={(v) => setQuizAccess(v as AccessLevel)}
+                  onValueChange={(v) => {
+                    setDirty(true);
+                    setQuizAccess(v as AccessLevel);
+                  }}
                 >
                   <SelectTrigger className="w-full sm:max-w-xs">
                     <SelectValue />
@@ -213,7 +223,10 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
                 <Select
                   value={status === 'Active' ? 'Active' : 'Inactive'}
                   disabled={readOnly}
-                  onValueChange={setStatus}
+                  onValueChange={(value) => {
+                    setDirty(true);
+                    setStatus(value);
+                  }}
                 >
                   <SelectTrigger className="w-full sm:max-w-xs">
                     <SelectValue />
@@ -239,10 +252,7 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
                       Deactivate
                     </Button>
                   ) : null}
-                  <Button type="submit" disabled={saving}>
-                    <SaveIcon data-icon="inline-start" />
-                    {saving ? 'Saving…' : 'Save changes'}
-                  </Button>
+                  <SaveButton pending={saving}>Save changes</SaveButton>
                 </div>
               ) : null}
             </FieldGroup>

@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { ApiError } from '@/lib/api-client';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -28,7 +29,8 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
-  useLeaveGuard(saving);
+  const [dirty, setDirty] = useState(false);
+  const allowLeave = useLeaveGuard(!readOnly && dirty);
 
   useEffect(() => {
     if (mode === 'create') return;
@@ -83,6 +85,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
         });
         toast.success('Student updated.');
       }
+      allowLeave();
       void navigate('/students');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save student.');
@@ -130,7 +133,7 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={onSubmit}>
+          <form onSubmit={onSubmit} onChange={() => setDirty(true)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="student-name">
@@ -215,10 +218,9 @@ export function StudentFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={saving}>
-                    <SaveIcon data-icon="inline-start" />
-                    {saving ? 'Saving…' : mode === 'create' ? 'Create student' : 'Save changes'}
-                  </Button>
+                  <SaveButton pending={saving}>
+                    {mode === 'create' ? 'Create student' : 'Save changes'}
+                  </SaveButton>
                 </div>
               ) : null}
             </FieldGroup>

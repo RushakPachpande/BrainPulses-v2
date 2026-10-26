@@ -610,11 +610,13 @@ body {
 [data-slot='record-actions'] > div {
   display: flex;
   width: 100%;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 0.5rem;
 }
 [data-slot='record-actions'] [data-slot='button'] {
-  flex: 1 1 8.5rem;
+  flex: 1 1 0;
+  min-width: 0;
 }
 [data-slot='table-caption'] {
   color: var(--muted-foreground);

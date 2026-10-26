@@ -6,7 +6,6 @@ import {
   DownloadIcon,
   FileSpreadsheetIcon,
   PlusIcon,
-  SaveIcon,
   UploadIcon,
 } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
@@ -16,6 +15,7 @@ import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -100,7 +100,8 @@ export function BankFormPage({
   const [savingMeta, setSavingMeta] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [importing, setImporting] = useState(false);
-  useLeaveGuard(savingMeta || savingQuestion || importing);
+  const [dirty, setDirty] = useState(false);
+  const allowLeave = useLeaveGuard(!readOnly && dirty);
   const [loading, setLoading] = useState(mode !== 'create');
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());
@@ -201,6 +202,7 @@ export function BankFormPage({
           description: description.trim() || undefined,
         });
         toast.success('Question bank updated.');
+        setDirty(false);
         return;
       }
 
@@ -210,6 +212,7 @@ export function BankFormPage({
         description: description.trim() || undefined,
       });
       toast.success('Question bank created.');
+      allowLeave();
       void navigate(`${base}/${bank.id}/edit`);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save question bank.');
@@ -384,7 +387,7 @@ export function BankFormPage({
           <CardDescription>{isQuiz ? 'Quiz' : 'Assessment'} question bank</CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={(e) => void onSaveMeta(e)}>
+          <form onSubmit={(e) => void onSaveMeta(e)} onChange={() => setDirty(true)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="bank-name">
@@ -412,10 +415,9 @@ export function BankFormPage({
                   <Button type="button" variant="outline" onClick={() => void navigate(base)}>
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={savingMeta}>
-                    <SaveIcon data-icon="inline-start" />
-                    {savingMeta ? 'Saving…' : mode === 'edit' ? 'Save changes' : 'Create bank'}
-                  </Button>
+                  <SaveButton pending={savingMeta}>
+                    {mode === 'edit' ? 'Save changes' : 'Create bank'}
+                  </SaveButton>
                 </div>
               ) : null}
             </FieldGroup>

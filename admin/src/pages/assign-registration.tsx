@@ -2,12 +2,13 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { ApiError } from '@/lib/api-client';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { useOrgId } from '@/hooks/use-org-id';
 import { adminQueryKeys } from '@/lib/query-keys';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -46,7 +47,8 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   const [activityId, setActivityId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
-  useLeaveGuard(saving);
+  const [dirty, setDirty] = useState(false);
+  const allowLeave = useLeaveGuard(dirty);
 
   const activityOptions = useMemo(
     () =>
@@ -58,6 +60,7 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   );
 
   function toggle(id: string, on: boolean) {
+    setDirty(true);
     setSelected((prev) => {
       const next = new Set(prev);
       if (on) next.add(id);
@@ -76,6 +79,7 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
     try {
       await assignRegistrations(activityId, [...selected]);
       toast.success('Students assigned.');
+      allowLeave();
       void navigate(listPath);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not assign students.');
@@ -128,7 +132,13 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
             <FieldGroup>
               <Field>
                 <FieldLabel>Activity</FieldLabel>
-                <Select value={activityId} onValueChange={setActivityId}>
+                <Select
+                  value={activityId}
+                  onValueChange={(value) => {
+                    setDirty(true);
+                    setActivityId(value);
+                  }}
+                >
                   <SelectTrigger aria-label="Activity">
                     <SelectValue placeholder="Select activity" />
                   </SelectTrigger>
@@ -167,10 +177,9 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
                 <Button type="button" variant="outline" onClick={() => void navigate(listPath)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
-                  <SaveIcon data-icon="inline-start" />
-                  {saving ? 'Assigning…' : 'Assign selected'}
-                </Button>
+                <SaveButton pending={saving} pendingLabel="Assigning…">
+                  Assign selected
+                </SaveButton>
               </div>
             </FieldGroup>
           </form>

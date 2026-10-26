@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon } from 'lucide-react';
 import { ApiError } from '@/lib/api-client';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -28,7 +29,8 @@ export function UserFormPage() {
   );
   const [quizAccess, setQuizAccess] = useState<'full' | 'edit' | 'view' | 'none'>('full');
   const [saving, setSaving] = useState(false);
-  useLeaveGuard(saving);
+  const [dirty, setDirty] = useState(false);
+  const allowLeave = useLeaveGuard(dirty);
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -43,6 +45,7 @@ export function UserFormPage() {
         quizAccess,
       });
       toast.success('User invited.');
+      allowLeave();
       void navigate('/users');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not invite user.');
@@ -70,7 +73,7 @@ export function UserFormPage() {
           <CardDescription>Password must be at least 8 characters.</CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={onSubmit}>
+          <form onSubmit={onSubmit} onChange={() => setDirty(true)}>
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="user-name">
@@ -111,7 +114,13 @@ export function UserFormPage() {
               </Field>
               <Field>
                 <FieldLabel>Role</FieldLabel>
-                <Select value={role} onValueChange={(v) => setRole(v as typeof role)}>
+                <Select
+                  value={role}
+                  onValueChange={(v) => {
+                    setDirty(true);
+                    setRole(v as typeof role);
+                  }}
+                >
                   <SelectTrigger aria-label="Role">
                     <SelectValue />
                   </SelectTrigger>
@@ -125,7 +134,10 @@ export function UserFormPage() {
                 <FieldLabel>Assessment access</FieldLabel>
                 <Select
                   value={assessmentAccess}
-                  onValueChange={(v) => setAssessmentAccess(v as typeof assessmentAccess)}
+                  onValueChange={(v) => {
+                    setDirty(true);
+                    setAssessmentAccess(v as typeof assessmentAccess);
+                  }}
                 >
                   <SelectTrigger aria-label="Assessment access">
                     <SelectValue />
@@ -142,7 +154,10 @@ export function UserFormPage() {
                 <FieldLabel>Quiz access</FieldLabel>
                 <Select
                   value={quizAccess}
-                  onValueChange={(v) => setQuizAccess(v as typeof quizAccess)}
+                  onValueChange={(v) => {
+                    setDirty(true);
+                    setQuizAccess(v as typeof quizAccess);
+                  }}
                 >
                   <SelectTrigger aria-label="Quiz access">
                     <SelectValue />
@@ -159,10 +174,7 @@ export function UserFormPage() {
                 <Button type="button" variant="outline" onClick={() => void navigate('/users')}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={saving}>
-                  <SaveIcon data-icon="inline-start" />
-                  {saving ? 'Saving…' : 'Invite user'}
-                </Button>
+                <SaveButton pending={saving}>Invite user</SaveButton>
               </div>
             </FieldGroup>
           </form>

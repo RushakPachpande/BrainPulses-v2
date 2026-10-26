@@ -1,23 +1,38 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useBlocker } from 'react-router';
 import { useConfirm } from '@/components/use-confirm';
 
-const LEAVE_MESSAGE = 'You have a save in progress. Leave anyway?';
+const LEAVE_MESSAGE = 'You have unsaved changes. Leave anyway?';
 
 /**
- * Blocks in-app navigation (useBlocker) and tab close/refresh (beforeunload)
- * while `when` is true.
+ * Blocks in-app navigation and tab close while `when` is true.
+ * Call the returned function immediately before a navigation that should
+ * proceed, such as the redirect after a successful save.
  */
 export function useLeaveGuard(when: boolean) {
-  const blocker = useBlocker(when);
+  const whenRef = useRef(when);
+  whenRef.current = when;
+  const bypassRef = useRef(false);
   const confirm = useConfirm();
   const asked = useRef(false);
 
+  const shouldBlock = useCallback(() => {
+    if (bypassRef.current) return false;
+    return whenRef.current;
+  }, []);
+
+  const blocker = useBlocker(shouldBlock);
+
+  const allowLeave = useCallback(() => {
+    bypassRef.current = true;
+  }, []);
+
   useEffect(() => {
     if (!when) return;
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = LEAVE_MESSAGE;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (bypassRef.current) return;
+      event.preventDefault();
+      event.returnValue = LEAVE_MESSAGE;
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
@@ -40,4 +55,6 @@ export function useLeaveGuard(when: boolean) {
       else blocker.reset();
     });
   }, [blocker, confirm]);
+
+  return allowLeave;
 }

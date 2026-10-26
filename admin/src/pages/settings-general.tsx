@@ -17,6 +17,7 @@ import {
   UploadIcon,
   XIcon,
 } from 'lucide-react';
+import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -108,18 +109,43 @@ export function GeneralSettingsPage() {
         /* keep defaults */
       });
   }, []);
-  const [logoName, setLogoName] = useState('brainpulses-logo.svg');
-  const [faviconName, setFaviconName] = useState('favicon-32.png');
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [faviconFile, setFaviconFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [faviconPreview, setFaviconPreview] = useState<string | null>(null);
   const logoInput = useRef<HTMLInputElement>(null);
   const faviconInput = useRef<HTMLInputElement>(null);
+  const logoName = logoFile?.name ?? 'brainpulses-logo.svg';
+  const faviconName = faviconFile?.name ?? 'favicon-32.png';
+
+  useEffect(() => {
+    if (!logoFile) return;
+    const url = URL.createObjectURL(logoFile);
+    setLogoPreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+      setLogoPreview(null);
+    };
+  }, [logoFile]);
+
+  useEffect(() => {
+    if (!faviconFile) return;
+    const url = URL.createObjectURL(faviconFile);
+    setFaviconPreview(url);
+    return () => {
+      URL.revokeObjectURL(url);
+      setFaviconPreview(null);
+    };
+  }, [faviconFile]);
 
   function update(key: keyof typeof initialSettings, value: string) {
     setSettings((current) => ({ ...current, [key]: value }));
     setSaved(false);
   }
-  function onFileChange(event: ChangeEvent<HTMLInputElement>, setName: (name: string) => void) {
+  function onFileChange(event: ChangeEvent<HTMLInputElement>, setFile: (file: File) => void) {
     const file = event.target.files?.[0];
-    if (file) setName(file.name);
+    if (!file) return;
+    setFile(file);
     setSaved(false);
   }
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -145,8 +171,10 @@ export function GeneralSettingsPage() {
   }
   function reset() {
     setSettings(initialSettings);
-    setLogoName('brainpulses-logo.svg');
-    setFaviconName('favicon-32.png');
+    setLogoFile(null);
+    setFaviconFile(null);
+    if (logoInput.current) logoInput.current.value = '';
+    if (faviconInput.current) faviconInput.current.value = '';
     setSaved(false);
   }
 
@@ -296,12 +324,17 @@ export function GeneralSettingsPage() {
             </CardHeader>
             <CardContent className="flex flex-col gap-5 px-5 py-5 sm:px-6">
               <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 p-4 sm:flex-row sm:items-center">
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-border bg-primary p-2">
-                  <img
-                    src="/brand.svg"
-                    alt="BrainPulses logo preview"
-                    className="size-full object-contain"
-                  />
+                <div className="w-24 shrink-0">
+                  <AspectRatio
+                    ratio={1}
+                    className="overflow-hidden rounded-xl border border-border bg-primary"
+                  >
+                    <img
+                      src={logoPreview ?? '/brand.svg'}
+                      alt="BrainPulses logo preview"
+                      className="size-full object-contain p-2"
+                    />
+                  </AspectRatio>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">Application logo</p>
@@ -318,13 +351,22 @@ export function GeneralSettingsPage() {
                   type="file"
                   accept="image/svg+xml,image/png"
                   className="sr-only"
-                  onChange={(e) => onFileChange(e, setLogoName)}
+                  onChange={(e) => onFileChange(e, setLogoFile)}
                   aria-label="Choose application logo"
                 />
               </div>
               <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 p-4 sm:flex-row sm:items-center">
-                <div className="flex size-14 shrink-0 items-center justify-center rounded-xl border border-border bg-muted text-primary">
-                  <img src="/brand.svg" alt="Favicon preview" className="size-8 object-contain" />
+                <div className="w-24 shrink-0">
+                  <AspectRatio
+                    ratio={1}
+                    className="overflow-hidden rounded-xl border border-border bg-muted"
+                  >
+                    <img
+                      src={faviconPreview ?? '/brand.svg'}
+                      alt="Favicon preview"
+                      className="size-full object-contain p-4"
+                    />
+                  </AspectRatio>
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">Browser favicon</p>
@@ -345,7 +387,7 @@ export function GeneralSettingsPage() {
                   type="file"
                   accept="image/png,image/x-icon,image/vnd.microsoft.icon"
                   className="sr-only"
-                  onChange={(e) => onFileChange(e, setFaviconName)}
+                  onChange={(e) => onFileChange(e, setFaviconFile)}
                   aria-label="Choose browser favicon"
                 />
               </div>

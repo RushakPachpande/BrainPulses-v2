@@ -2,9 +2,10 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
+import { ArrowLeftIcon } from 'lucide-react';
 import { CatalogImageField } from '@/components/catalog-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -46,7 +47,8 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
-  useLeaveGuard(saving);
+  const [dirty, setDirty] = useState(false);
+  const allowLeave = useLeaveGuard(!readOnly && dirty);
 
   const sponsorsQuery = useQuery({
     queryKey: adminQueryKeys.sponsors(orgId),
@@ -114,6 +116,7 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
         });
         toast.success('Contest updated.');
       }
+      allowLeave();
       void navigate('/contests');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save contest.');
@@ -159,7 +162,7 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          <form onSubmit={(event) => void onSubmit(event)}>
+          <form onSubmit={(event) => void onSubmit(event)} onChange={() => setDirty(true)}>
             <FieldGroup>
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <Field>
@@ -181,7 +184,10 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
                   <Select
                     value={sponsorId || undefined}
                     disabled={readOnly}
-                    onValueChange={setSponsorId}
+                    onValueChange={(value) => {
+                      setDirty(true);
+                      setSponsorId(value);
+                    }}
                   >
                     <SelectTrigger id="contest-sponsor" className="w-full">
                       <SelectValue placeholder="Choose a sponsor" />
@@ -225,10 +231,7 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
                   >
                     Cancel
                   </Button>
-                  <Button type="submit" disabled={saving}>
-                    <SaveIcon data-icon="inline-start" />
-                    Save
-                  </Button>
+                  <SaveButton pending={saving}>Save</SaveButton>
                 </div>
               ) : null}
             </FieldGroup>

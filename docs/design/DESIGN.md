@@ -122,6 +122,7 @@ Import primitives from `@/components/ui`. `admin/components.json` uses shadcn wi
 | Section tabs          | `ModuleNav`                                                                                                          |
 | Loading               | Route/shell mount: `Skeleton`. In-flight API (`api-client`): full-screen blocking spinner overlay (`LoadingOverlay`) |
 | Checkbox              | `Checkbox`                                                                                                           |
+| Image preview         | `AspectRatio` around the image (`object-contain`, muted fill)                                                        |
 
 Extend `Toolbar`, `ModuleNav`, `StatusPill`, `SortHeader`, `KpiGrid`, `PageHeaderActions`, and `ToggleRow`. Do not copy their markup into a page.
 

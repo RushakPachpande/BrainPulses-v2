@@ -47,7 +47,7 @@ export function RowActions({
   deactivate?: { onClick: () => void };
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex w-max shrink-0 flex-nowrap items-center gap-2">
       {view ? <ActionButton label="View" icon={EyeIcon} target={view} /> : null}
       {edit ? <ActionButton label="Edit" icon={PencilIcon} target={edit} /> : null}
       {deactivate ? (

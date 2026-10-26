@@ -11,6 +11,7 @@ import {
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Heading, KindIcon, Status } from '../components/ui-bits';
+import { ActivityCover, ActivityCredit } from '../components/activity-images';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { listActivities } from '../services/api';
 import type { ActivityKind, StudentActivity, StudentActivityRound } from '../services/types';
@@ -130,6 +131,12 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
             title={item.name}
             description={item.subtitle ?? 'Review the schedule and instructions before you begin.'}
           />
+          <ActivityCover
+            item={item}
+            className="activity-detail-media"
+            imgClassName="activity-detail-photo"
+          />
+          <ActivityCredit item={item} />
 
           <section className="panel activity-detail" aria-labelledby="activity-detail-heading">
             <header className="activity-detail-header">

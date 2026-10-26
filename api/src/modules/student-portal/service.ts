@@ -114,6 +114,8 @@ export async function listMyActivities(
                 },
               },
             },
+            sponsor: { select: { name: true, imageFileId: true } },
+            contest: { select: { name: true, imageFileId: true } },
             attempts: {
               where: { studentId },
               orderBy: { startedAt: 'desc' },
@@ -266,6 +268,10 @@ export async function listMyActivities(
         latestResultId: latestCompleted?.result?.id ?? null,
         latestPercent: latestCompleted?.result ? toNumber(latestCompleted.result.percent) : null,
         leaderboardAvailable,
+        sponsorName: activity.sponsor?.name ?? null,
+        sponsorImageFileId: activity.sponsor?.imageFileId ?? null,
+        contestName: activity.contest?.name ?? null,
+        contestImageFileId: activity.contest?.imageFileId ?? null,
         ...(rounds ? { rounds } : {}),
       };
     }),

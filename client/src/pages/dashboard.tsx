@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
 import { GoalPanelSkeleton, MetricsSkeleton } from '../components/skeletons';
 import { KindIcon, Metric, Status } from '../components/ui-bits';
+import { ActivityCover, ActivityCredit } from '../components/activity-images';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { clientQueryKeys } from '../lib/query-keys';
 import { listActivities, listResults } from '../services/api';
@@ -178,11 +179,19 @@ export function DashboardPage() {
             ) : (
               available.map((x, i) => (
                 <div key={x.activityId} className={`activity-row ${i === 0 ? 'featured' : ''}`}>
-                  <div
-                    className={`activity-type-icon ${x.kind === 'assessment' ? 'assessment' : ''}`}
-                  >
-                    <KindIcon kind={x.kind} />
-                  </div>
+                  {x.contestImageFileId || x.sponsorImageFileId ? (
+                    <ActivityCover
+                      item={x}
+                      className="activity-row-thumb"
+                      imgClassName="activity-row-photo"
+                    />
+                  ) : (
+                    <div
+                      className={`activity-type-icon ${x.kind === 'assessment' ? 'assessment' : ''}`}
+                    >
+                      <KindIcon kind={x.kind} />
+                    </div>
+                  )}
                   <div className="activity-row-main">
                     <div className="activity-title-line">
                       <b>{x.name}</b>
@@ -196,6 +205,7 @@ export function DashboardPage() {
                         }
                       />
                     </div>
+                    <ActivityCredit item={x} />
                     <p>{x.subtitle ?? formatKind(x.kind)}</p>
                     <div className="activity-meta">
                       <span>

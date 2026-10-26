@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon } from 'lucide-react';
+import { ArrowLeftIcon, Loader2Icon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { useConfirm } from '@/components/use-confirm';
 import { StatusBadge } from '@/components/status-badge';
@@ -35,11 +35,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   const [row, setRow] = useState<ResultDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [regradeScore, setRegradeScore] = useState('');
   const [regradeReason, setRegradeReason] = useState('');
   const [dqNote, setDqNote] = useState('');
   const confirm = useConfirm();
-  useLeaveGuard(saving);
+  useLeaveGuard(dirty);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +103,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     try {
       await regradeResult(resultId, score, regradeReason.trim());
       toast.success('Result regraded.');
+      setDirty(false);
       const data = await getResult(resultId);
       setRow(data);
     } catch (err) {
@@ -124,6 +126,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     try {
       await disqualifyAttempt(row.attemptId, dqNote.trim() || undefined);
       toast.success('Attempt disqualified.');
+      setDirty(false);
       const data = await getResult(resultId);
       setRow(data);
     } catch (err) {
@@ -145,6 +148,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     try {
       await requalifyAttempt(row.attemptId);
       toast.success('Attempt re-qualified.');
+      setDirty(false);
       const data = await getResult(resultId);
       setRow(data);
     } catch (err) {
@@ -176,6 +180,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
         note: dqNote.trim() || undefined,
       });
       toast.success(`Reattempt (${mode}) granted.`);
+      setDirty(false);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not grant reattempt.');
     } finally {
@@ -239,7 +244,15 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
           {canFull ? (
             <div className="col-span-full flex flex-col gap-3 border-t pt-4">
               {row.releaseStatus !== 'published' ? (
-                <Button type="button" disabled={saving} onClick={() => void onPublish()}>
+                <Button
+                  type="button"
+                  disabled={saving}
+                  aria-busy={saving}
+                  onClick={() => void onPublish()}
+                >
+                  {saving ? (
+                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                  ) : null}
                   Publish result
                 </Button>
               ) : null}
@@ -251,7 +264,10 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                     type="number"
                     min={0}
                     value={regradeScore}
-                    onChange={(e) => setRegradeScore(e.target.value)}
+                    onChange={(e) => {
+                      setDirty(true);
+                      setRegradeScore(e.target.value);
+                    }}
                   />
                 </Field>
                 <Field>
@@ -259,7 +275,10 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                   <Input
                     id="regrade-reason"
                     value={regradeReason}
-                    onChange={(e) => setRegradeReason(e.target.value)}
+                    onChange={(e) => {
+                      setDirty(true);
+                      setRegradeReason(e.target.value);
+                    }}
                   />
                 </Field>
               </div>
@@ -267,8 +286,10 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                 type="button"
                 variant="secondary"
                 disabled={saving}
+                aria-busy={saving}
                 onClick={() => void onRegrade()}
               >
+                {saving ? <Loader2Icon data-icon="inline-start" className="animate-spin" /> : null}
                 Regrade
               </Button>
               {isQuiz ? (
@@ -278,7 +299,10 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                     <Input
                       id="dq-note"
                       value={dqNote}
-                      onChange={(e) => setDqNote(e.target.value)}
+                      onChange={(e) => {
+                        setDirty(true);
+                        setDqNote(e.target.value);
+                      }}
                       placeholder="Optional note"
                     />
                   </Field>
@@ -288,8 +312,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                         type="button"
                         variant="outline"
                         disabled={saving}
+                        aria-busy={saving}
                         onClick={() => void onRequalify()}
                       >
+                        {saving ? (
+                          <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                        ) : null}
                         Re-qualify
                       </Button>
                     ) : (
@@ -297,8 +325,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                         type="button"
                         variant="destructive"
                         disabled={saving}
+                        aria-busy={saving}
                         onClick={() => void onDisqualify()}
                       >
+                        {saving ? (
+                          <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                        ) : null}
                         Disqualify
                       </Button>
                     )}
@@ -306,16 +338,24 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
                       type="button"
                       variant="outline"
                       disabled={saving}
+                      aria-busy={saving}
                       onClick={() => void onGrantReattempt('continue')}
                     >
+                      {saving ? (
+                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                      ) : null}
                       Grant continue
                     </Button>
                     <Button
                       type="button"
                       variant="outline"
                       disabled={saving}
+                      aria-busy={saving}
                       onClick={() => void onGrantReattempt('restart')}
                     >
+                      {saving ? (
+                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                      ) : null}
                       Grant restart
                     </Button>
                   </div>

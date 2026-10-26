@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, PlusIcon, TrashIcon } from 'lucide-react';
+import {
+  ArrowDownIcon,
+  ArrowLeftIcon,
+  ArrowUpIcon,
+  Loader2Icon,
+  PlusIcon,
+  TrashIcon,
+} from 'lucide-react';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { QuestionImageField } from '@/components/question-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
@@ -214,7 +221,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   }, [loading, readOnly, draftFingerprint, baselineFp]);
 
   const dirty = !readOnly && baselineFp !== null && draftFingerprint !== baselineFp;
-  useLeaveGuard(saving || dirty);
+  const allowLeave = useLeaveGuard(dirty);
 
   useEffect(() => {
     let cancelled = false;
@@ -479,6 +486,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
       setBaselineFp(null);
       if (!opts?.stay) {
+        allowLeave();
         void navigate(listPath);
       }
       return id;
@@ -1159,6 +1167,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                                 id={`q-option-image-${round.key}-${opt.label}`}
                                 value={opt.imageUrl}
                                 placeholder="Image URL (optional)"
+                                alt="Answer image"
                                 onChange={(value) => {
                                   setNewQuestionOptions((prev) =>
                                     prev.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)),
@@ -1484,7 +1493,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   Next
                 </Button>
               ) : step < steps.length - 1 ? (
-                <Button type="button" disabled={saving} onClick={() => void goNext()}>
+                <Button
+                  type="button"
+                  disabled={saving}
+                  aria-busy={saving}
+                  onClick={() => void goNext()}
+                >
+                  {saving ? (
+                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                  ) : null}
                   {saving ? 'Saving…' : 'Save & continue'}
                 </Button>
               ) : (
@@ -1493,15 +1510,20 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     type="button"
                     variant="outline"
                     disabled={saving}
+                    aria-busy={saving}
                     onClick={() => void persist()}
                   >
-                    Save draft
+                    {saving ? (
+                      <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                    ) : null}
+                    {saving ? 'Saving…' : 'Save draft'}
                   </Button>
                   {statusKey === 'active' ? (
                     <Button
                       type="button"
                       variant="secondary"
                       disabled={saving}
+                      aria-busy={saving}
                       onClick={() => {
                         void (async () => {
                           const ok = await confirm({
@@ -1515,12 +1537,16 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                         })();
                       }}
                     >
+                      {saving ? (
+                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                      ) : null}
                       Archive
                     </Button>
                   ) : (
                     <Button
                       type="button"
                       disabled={saving}
+                      aria-busy={saving}
                       onClick={() => {
                         void (async () => {
                           const ok = await confirm({
@@ -1533,6 +1559,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                         })();
                       }}
                     >
+                      {saving ? (
+                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                      ) : null}
                       Publish
                     </Button>
                   )}

@@ -6,10 +6,12 @@ export function AuthImage({
   fileId,
   alt,
   className,
+  onLoad,
 }: {
   fileId: string;
   alt: string;
   className?: string;
+  onLoad?: (image: HTMLImageElement) => void;
 }) {
   const [src, setSrc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -47,5 +49,12 @@ export function AuthImage({
     );
   }
 
-  return <img src={src} alt={alt} className={cn('size-10 rounded-md object-cover', className)} />;
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={cn('size-10 rounded-md object-cover', className)}
+      onLoad={(event) => onLoad?.(event.currentTarget)}
+    />
+  );
 }
