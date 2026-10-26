@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { useConfirm } from '@/components/use-confirm';
 import { AccountStatusPill } from '@/components/status-pill';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -19,6 +20,7 @@ export function RegistrationDetailPage({
 }) {
   const { registrationId = '' } = useParams();
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const isQuiz = kind === 'quiz';
   const base = isQuiz ? '/quizzes/registrations' : '/assessments/registrations';
   const [row, setRow] = useState<RegistrationRow | null>(null);
@@ -45,6 +47,13 @@ export function RegistrationDetailPage({
 
   async function onUnassign() {
     if (!row) return;
+    const ok = await confirm({
+      title: 'Unassign this student?',
+      description: 'They will no longer be able to take this activity.',
+      confirmLabel: 'Unassign',
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await unassignRegistrations(row.activityId, [row.studentId]);

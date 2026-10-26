@@ -30,6 +30,7 @@ export function StudentShell({ title, children }: { title: string; children?: Re
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
   const [toast, setToast] = useState('');
+  const [signOutConfirm, setSignOutConfirm] = useState(false);
   const name = student?.name ?? 'Student';
   const initials = name
     .split(' ')
@@ -106,10 +107,7 @@ export function StudentShell({ title, children }: { title: string; children?: Re
                 className="icon-btn"
                 aria-label="Sign out"
                 title="Sign out"
-                onClick={() => {
-                  signOut();
-                  navigate('/login', { replace: true });
-                }}
+                onClick={() => setSignOutConfirm(true)}
               >
                 <LogOut size={18} aria-hidden />
               </button>
@@ -170,6 +168,45 @@ export function StudentShell({ title, children }: { title: string; children?: Re
         <span>© 2026 BrainPulses</span>
         <span>Learn steadily. Grow confidently.</span>
       </footer>
+      {signOutConfirm ? (
+        <div className="modal-backdrop">
+          <div className="confirm-modal" role="dialog" aria-labelledby="sign-out-title">
+            <div className="modal-icon">
+              <LogOut size={22} />
+            </div>
+            <button
+              className="modal-close icon-btn"
+              type="button"
+              onClick={() => setSignOutConfirm(false)}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+            <h2 id="sign-out-title">Sign out?</h2>
+            <p>You will need to sign in again to continue.</p>
+            <div className="modal-actions">
+              <button
+                className="btn outline"
+                type="button"
+                onClick={() => setSignOutConfirm(false)}
+              >
+                Stay signed in
+              </button>
+              <button
+                className="btn primary"
+                type="button"
+                onClick={() => {
+                  setSignOutConfirm(false);
+                  signOut();
+                  navigate('/login', { replace: true });
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

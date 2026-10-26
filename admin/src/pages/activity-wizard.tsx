@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, PlusIcon, TrashIcon } from 'lucide-react';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -85,6 +86,7 @@ const emptyField = (): FieldDraft => ({
 
 export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: WizardMode }) {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const params = useParams();
   const auth = useAuth();
   const canEdit = canEditKind(auth.status === 'authenticated' ? auth.membership : null, kind);
@@ -556,6 +558,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     if (readOnly || !activityId) return;
     const round = rounds.find((r) => r.key === roundKey);
     if (!round?.id) return;
+    const ok = await confirm({
+      title: 'Delete this question?',
+      description: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await deleteRoundQuestion(activityId, round.id, questionId);
@@ -1492,7 +1501,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       type="button"
                       variant="secondary"
                       disabled={saving}
-                      onClick={() => void persist({ archive: true })}
+                      onClick={() => {
+                        void (async () => {
+                          const ok = await confirm({
+                            title: `Archive this ${noun.toLowerCase()}?`,
+                            description: 'Students will no longer be able to start it.',
+                            confirmLabel: 'Archive',
+                            destructive: true,
+                          });
+                          if (!ok) return;
+                          await persist({ archive: true });
+                        })();
+                      }}
                     >
                       Archive
                     </Button>
@@ -1500,7 +1520,17 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     <Button
                       type="button"
                       disabled={saving}
-                      onClick={() => void persist({ publish: true })}
+                      onClick={() => {
+                        void (async () => {
+                          const ok = await confirm({
+                            title: `Publish this ${noun.toLowerCase()}?`,
+                            description: 'Assigned students can start it.',
+                            confirmLabel: 'Publish',
+                          });
+                          if (!ok) return;
+                          await persist({ publish: true });
+                        })();
+                      }}
                     >
                       Publish
                     </Button>

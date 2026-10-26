@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useBlocker } from 'react-router';
+import { useConfirm } from '@/components/use-confirm';
 
 const LEAVE_MESSAGE = 'You have a save in progress. Leave anyway?';
 
@@ -9,6 +10,8 @@ const LEAVE_MESSAGE = 'You have a save in progress. Leave anyway?';
  */
 export function useLeaveGuard(when: boolean) {
   const blocker = useBlocker(when);
+  const confirm = useConfirm();
+  const asked = useRef(false);
 
   useEffect(() => {
     if (!when) return;
@@ -21,9 +24,20 @@ export function useLeaveGuard(when: boolean) {
   }, [when]);
 
   useEffect(() => {
-    if (blocker.state !== 'blocked') return;
-    const ok = window.confirm(LEAVE_MESSAGE);
-    if (ok) blocker.proceed();
-    else blocker.reset();
-  }, [blocker]);
+    if (blocker.state !== 'blocked') {
+      asked.current = false;
+      return;
+    }
+    if (asked.current) return;
+    asked.current = true;
+    void confirm({
+      title: 'Leave this page?',
+      description: LEAVE_MESSAGE,
+      confirmLabel: 'Leave',
+      destructive: true,
+    }).then((ok) => {
+      if (ok) blocker.proceed();
+      else blocker.reset();
+    });
+  }, [blocker, confirm]);
 }

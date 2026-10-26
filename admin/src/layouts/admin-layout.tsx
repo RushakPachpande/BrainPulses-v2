@@ -14,6 +14,8 @@ import {
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { ConfirmProvider } from '@/components/confirm-dialog';
+import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { Button } from '@/components/ui/button';
@@ -231,9 +233,39 @@ function PageHeader({
   );
 }
 
-export function AdminLayout() {
+function SignOutButton() {
   const auth = useAuth();
   const navigate = useNavigate();
+  const confirm = useConfirm();
+
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label="Sign out"
+      title="Sign out"
+      onClick={() => {
+        void (async () => {
+          const ok = await confirm({
+            title: 'Sign out?',
+            description: 'You will need to sign in again to continue.',
+            confirmLabel: 'Sign out',
+            destructive: true,
+          });
+          if (!ok) return;
+          await auth.signOut();
+          void navigate('/login', { replace: true });
+        })();
+      }}
+    >
+      <LogOutIcon />
+    </Button>
+  );
+}
+
+export function AdminLayout() {
+  const auth = useAuth();
   const { pathname } = useLocation();
   const meta = resolvePageMeta(pathname);
   const crumbs = meta.crumb.split(' / ');
@@ -275,99 +307,90 @@ export function AdminLayout() {
   }, [pathname]);
 
   return (
-    <SidebarProvider
-      style={
-        {
-          '--sidebar-width': '16rem',
-          '--sidebar-width-icon': '76px',
-        } as CSSProperties
-      }
-    >
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
+    <ConfirmProvider>
+      <SidebarProvider
+        style={
+          {
+            '--sidebar-width': '16rem',
+            '--sidebar-width-icon': '76px',
+          } as CSSProperties
+        }
       >
-        Skip to content
-      </a>
-      <Sidebar collapsible="icon">
-        <SidebarHeader className="min-h-18 justify-center border-b border-sidebar-border group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
-          <SidebarMenu className="group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:items-center">
-            <SidebarMenuItem>
-              <SidebarMenuButton asChild size="lg" tooltip="BrainPulses">
-                <NavLink to="/dashboard" className="text-foreground">
-                  <img src="/brand.svg" alt="" className="size-8 shrink-0" />
-                  <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
-                    BrainPulses
-                  </span>
-                </NavLink>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupContent>
-              <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
-                {navItems.map((item) => (
-                  <NavItem key={item.to} item={item} pathname={pathname} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        </SidebarContent>
-        <SidebarFooter className="border-t border-sidebar-border group-data-[collapsible=icon]:items-center">
-          <div className="flex w-full items-center gap-2 group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center">
-            <Avatar>
-              <AvatarFallback>{userInitials}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
-              <div className="truncate text-sm font-medium text-foreground">{userName}</div>
-              <div className="truncate text-xs text-muted-foreground">{userRole}</div>
+        <a
+          href="#main"
+          className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:m-2 focus:rounded-lg focus:bg-primary focus:px-3 focus:py-2 focus:text-primary-foreground"
+        >
+          Skip to content
+        </a>
+        <Sidebar collapsible="icon">
+          <SidebarHeader className="min-h-18 justify-center border-b border-sidebar-border group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:px-0">
+            <SidebarMenu className="group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:items-center">
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild size="lg" tooltip="BrainPulses">
+                  <NavLink to="/dashboard" className="text-foreground">
+                    <img src="/brand.svg" alt="" className="size-8 shrink-0" />
+                    <span className="text-base font-semibold group-data-[collapsible=icon]:hidden">
+                      BrainPulses
+                    </span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarHeader>
+          <SidebarContent>
+            <SidebarGroup>
+              <SidebarGroupContent>
+                <SidebarMenu className="gap-2 group-data-[collapsible=icon]:items-center">
+                  {navItems.map((item) => (
+                    <NavItem key={item.to} item={item} pathname={pathname} />
+                  ))}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          </SidebarContent>
+          <SidebarFooter className="border-t border-sidebar-border group-data-[collapsible=icon]:items-center">
+            <div className="flex w-full items-center gap-2 group-data-[collapsible=icon]:w-auto group-data-[collapsible=icon]:justify-center">
+              <Avatar>
+                <AvatarFallback>{userInitials}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
+                <div className="truncate text-sm font-medium text-foreground">{userName}</div>
+                <div className="truncate text-xs text-muted-foreground">{userRole}</div>
+              </div>
+              <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+                <ThemeToggle />
+                <SignOutButton />
+              </div>
             </div>
-            <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-              <ThemeToggle />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Sign out"
-                title="Sign out"
-                onClick={() => {
-                  void auth.signOut().then(() => navigate('/login', { replace: true }));
-                }}
-              >
-                <LogOutIcon />
-              </Button>
+          </SidebarFooter>
+        </Sidebar>
+        <PageHeaderProvider>
+          <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
+            <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
+              <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
+              <InputGroup className="min-w-0 max-w-117.5 flex-1 bg-muted">
+                <InputGroupAddon align="inline-start">
+                  <SearchIcon />
+                </InputGroupAddon>
+                <InputGroupInput
+                  type="search"
+                  placeholder="Search"
+                  aria-label="Search"
+                  autoComplete="off"
+                />
+              </InputGroup>
+              <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+                <ThemeToggle />
+                <NotificationsMenu />
+              </div>
+            </header>
+            <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
+              <PageHeader title={meta.title} description={meta.description} crumbs={crumbs} />
+              <Outlet />
             </div>
-          </div>
-        </SidebarFooter>
-      </Sidebar>
-      <PageHeaderProvider>
-        <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
-          <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
-            <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
-            <InputGroup className="min-w-0 max-w-117.5 flex-1 bg-muted">
-              <InputGroupAddon align="inline-start">
-                <SearchIcon />
-              </InputGroupAddon>
-              <InputGroupInput
-                type="search"
-                placeholder="Search"
-                aria-label="Search"
-                autoComplete="off"
-              />
-            </InputGroup>
-            <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
-              <ThemeToggle />
-              <NotificationsMenu />
-            </div>
-          </header>
-          <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">
-            <PageHeader title={meta.title} description={meta.description} crumbs={crumbs} />
-            <Outlet />
-          </div>
-        </SidebarInset>
-      </PageHeaderProvider>
-    </SidebarProvider>
+          </SidebarInset>
+        </PageHeaderProvider>
+      </SidebarProvider>
+    </ConfirmProvider>
   );
 }

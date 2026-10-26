@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { useConfirm } from '@/components/use-confirm';
 import { StatusBadge } from '@/components/status-badge';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
@@ -37,6 +38,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   const [regradeScore, setRegradeScore] = useState('');
   const [regradeReason, setRegradeReason] = useState('');
   const [dqNote, setDqNote] = useState('');
+  const confirm = useConfirm();
   useLeaveGuard(saving);
 
   useEffect(() => {
@@ -61,6 +63,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   }, [base, navigate, resultId]);
 
   async function onPublish() {
+    const ok = await confirm({
+      title: 'Publish this result?',
+      description: 'The student will be able to see it according to the activity settings.',
+      confirmLabel: 'Publish result',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await publishResult(resultId);
@@ -84,6 +92,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
       toast.error('Regrade reason is required.');
       return;
     }
+    const ok = await confirm({
+      title: 'Replace this score?',
+      description: 'The stored score will be replaced with the value you entered.',
+      confirmLabel: 'Regrade',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await regradeResult(resultId, score, regradeReason.trim());
@@ -99,6 +113,13 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
 
   async function onDisqualify() {
     if (!row?.attemptId) return;
+    const ok = await confirm({
+      title: 'Disqualify this attempt?',
+      description: 'The result will be marked disqualified and will no longer count.',
+      confirmLabel: 'Disqualify',
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await disqualifyAttempt(row.attemptId, dqNote.trim() || undefined);
@@ -114,6 +135,12 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
 
   async function onRequalify() {
     if (!row?.attemptId) return;
+    const ok = await confirm({
+      title: 'Restore this attempt?',
+      description: 'It will count again and the disqualification will be cleared.',
+      confirmLabel: 'Re-qualify',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await requalifyAttempt(row.attemptId);
@@ -132,6 +159,15 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
       toast.error('Missing activity or student on this result.');
       return;
     }
+    const ok = await confirm({
+      title: mode === 'restart' ? 'Grant a restart?' : 'Grant a continue?',
+      description:
+        mode === 'restart'
+          ? 'The student can take this quiz again.'
+          : 'The student can resume this attempt.',
+      confirmLabel: mode === 'restart' ? 'Grant restart' : 'Grant continue',
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await grantReattempt(row.activityId, {

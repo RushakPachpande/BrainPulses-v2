@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon, SaveIcon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { useConfirm } from '@/components/use-confirm';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +41,7 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
   const [status, setStatus] = useState('Active');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const confirm = useConfirm();
   useLeaveGuard(saving);
 
   useEffect(() => {
@@ -98,6 +100,13 @@ export function UserDetailPage({ mode }: { mode: 'view' | 'edit' }) {
   }
 
   async function onDeactivate() {
+    const ok = await confirm({
+      title: 'Deactivate this user?',
+      description: 'They will lose access until an admin reactivates them.',
+      confirmLabel: 'Deactivate',
+      destructive: true,
+    });
+    if (!ok) return;
     setSaving(true);
     try {
       await deactivateMembership(userId);

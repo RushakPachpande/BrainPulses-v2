@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { RowActions } from '@/components/row-actions';
+import { useConfirm } from '@/components/use-confirm';
 import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -83,6 +84,7 @@ export function BankFormPage({
   mode?: 'create' | 'edit' | 'view';
 }) {
   const navigate = useNavigate();
+  const confirm = useConfirm();
   const { bankId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const isQuiz = kind === 'quiz';
@@ -244,6 +246,13 @@ export function BankFormPage({
 
   async function onDeactivate(item: BankQuestionItem) {
     if (readOnly || !bankId) return;
+    const ok = await confirm({
+      title: 'Deactivate this question?',
+      description: 'It will no longer appear in new attempts.',
+      confirmLabel: 'Deactivate',
+      destructive: true,
+    });
+    if (!ok) return;
     setSavingQuestion(true);
     try {
       await updateBankQuestion(bankId, item.id, { isActive: false });
