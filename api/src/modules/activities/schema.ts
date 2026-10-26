@@ -3,6 +3,7 @@ import { listQuerySchema } from '../../lib/pagination.js';
 
 export const kindSchema = z.enum(['assessment', 'quiz']);
 export const flowStatusSchema = z.enum(['draft', 'active', 'completed', 'archived']);
+export const durationModeSchema = z.enum(['overall', 'per_question']);
 
 export const registrationFieldSchema = z
   .object({
@@ -71,16 +72,73 @@ export const createActivitySchema = z
     subtitle: z.string().trim().max(300).optional(),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),
-    durationMinutes: z.number().int().positive().optional(),
+    durationMinutes: z.number().int().positive().nullable().optional(),
+    durationMode: durationModeSchema.optional(),
+    perQuestionSeconds: z.number().int().positive().max(86_400).nullable().optional(),
     passingPercent: z.number().min(0).max(100).optional(),
     presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).default('one_at_a_time'),
     bankIds: z.array(z.string().uuid()).default([]),
     rounds: z.array(activityRoundInputSchema).max(40).optional(),
     code: z.string().trim().min(1).max(40).optional(),
+    sponsorId: z.string().uuid().optional(),
+    contestId: z.string().uuid().optional(),
     settings: activitySettingsSchema.optional(),
   })
   .strict()
   .superRefine((val, ctx) => {
+    if (val.kind === 'quiz') {
+      if (!val.sponsorId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Choose a sponsor.',
+          path: ['sponsorId'],
+        });
+      }
+      if (!val.contestId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Choose a contest.',
+          path: ['contestId'],
+        });
+      }
+      if (!val.startsAt) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Choose a start date and time.',
+          path: ['startsAt'],
+        });
+      }
+      if (!val.endsAt) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Choose an end date and time.',
+          path: ['endsAt'],
+        });
+      }
+      if (val.startsAt && val.endsAt && val.endsAt <= val.startsAt) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'End must be after start.',
+          path: ['endsAt'],
+        });
+      }
+      const mode = val.durationMode ?? 'overall';
+      if (mode === 'per_question') {
+        if (!val.perQuestionSeconds) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Enter seconds for each question.',
+            path: ['perQuestionSeconds'],
+          });
+        }
+      } else if (!val.durationMinutes) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter the overall duration in minutes.',
+          path: ['durationMinutes'],
+        });
+      }
+    }
     if (val.kind === 'assessment' && val.rounds !== undefined && val.rounds.length === 0) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -104,11 +162,15 @@ export const updateActivitySchema = z
     startsAt: z.coerce.date().optional().nullable(),
     endsAt: z.coerce.date().optional().nullable(),
     durationMinutes: z.number().int().positive().optional().nullable(),
+    durationMode: durationModeSchema.optional(),
+    perQuestionSeconds: z.number().int().positive().max(86_400).optional().nullable(),
     passingPercent: z.number().min(0).max(100).optional().nullable(),
     presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).optional(),
     bankIds: z.array(z.string().uuid()).optional(),
     rounds: z.array(activityRoundInputSchema).max(40).optional(),
     code: z.string().trim().min(1).max(40).optional(),
+    sponsorId: z.string().uuid().nullable().optional(),
+    contestId: z.string().uuid().nullable().optional(),
     settings: activitySettingsSchema.optional(),
   })
   .strict();

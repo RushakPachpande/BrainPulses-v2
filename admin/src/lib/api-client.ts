@@ -229,6 +229,11 @@ export async function apiRequest<T = unknown>(path: string, init?: RequestInit):
   return (await res.json()) as T;
 }
 
+export async function apiGetBlob(path: string): Promise<Blob> {
+  const res = await request(path);
+  return res.blob();
+}
+
 export async function apiGetData<T>(path: string): Promise<T> {
   const body = await apiRequest<{ data: T }>(path);
   return body.data;

@@ -158,6 +158,25 @@ const questionBankInclude = {
   },
 } satisfies Prisma.QuestionBankInclude;
 
+function attemptDurationMs(
+  activity: {
+    kind: string;
+    durationMode: 'overall' | 'per_question';
+    durationMinutes: number | null;
+    perQuestionSeconds: number | null;
+  },
+  questionCount: number,
+  fallbackMinutes: number,
+) {
+  if (activity.kind === 'quiz' && activity.durationMode === 'per_question') {
+    const seconds = activity.perQuestionSeconds ?? 0;
+    if (seconds <= 0) throw badRequest('This quiz has no per-question time.');
+    if (questionCount <= 0) throw badRequest('No questions available for this attempt.');
+    return questionCount * seconds * 1000;
+  }
+  return fallbackMinutes * 60_000;
+}
+
 function versionIdsFromBank(
   bank: Prisma.QuestionBankGetPayload<{ include: typeof questionBankInclude }>,
 ): string[] {
@@ -329,7 +348,12 @@ export async function startAttempt(
       if (grantContinue) {
         const refreshed = await autoSubmitIfExpired(open);
         if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
-          const durationMs = (activity.durationMinutes ?? 60) * 60_000;
+          const questionCount = open.questionOrder.length;
+          const durationMs = attemptDurationMs(
+            activity,
+            questionCount,
+            activity.durationMinutes ?? 60,
+          );
           let newDeadline = new Date(Date.now() + durationMs);
           if (activity.endsAt && activity.endsAt < newDeadline) newDeadline = activity.endsAt;
           await prisma.attempt.update({
@@ -404,7 +428,7 @@ export async function startAttempt(
     throw badRequest('No questions available for this attempt.');
   }
 
-  const durationMs = durationMinutes * 60_000;
+  const durationMs = attemptDurationMs(activity, versionIds.length, durationMinutes);
   let deadlineAt = new Date(now.getTime() + durationMs);
   if (activity.endsAt && activity.endsAt < deadlineAt) {
     deadlineAt = activity.endsAt;

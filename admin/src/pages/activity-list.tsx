@@ -8,12 +8,12 @@ import {
   CircleDashedIcon,
   ClipboardListIcon,
   LayersIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
 } from 'lucide-react';
 import { DateRangeFilter } from '@/components/date-range-filter';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RowActions } from '@/components/row-actions';
 import { SortHeader } from '@/components/sort-header';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
@@ -26,12 +26,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -428,28 +422,10 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                       <TableCell key={column.key}>{renderCell(column.key, item)}</TableCell>
                     ))}
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${item.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link to={`${listPath}/${item.id}`}>View</Link>
-                          </DropdownMenuItem>
-                          {canEdit ? (
-                            <DropdownMenuItem asChild>
-                              <Link to={`${listPath}/${item.id}/edit`}>Edit</Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <RowActions
+                        view={{ to: `${listPath}/${item.id}` }}
+                        edit={canEdit ? { to: `${listPath}/${item.id}/edit` } : undefined}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

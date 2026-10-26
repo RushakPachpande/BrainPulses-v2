@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ListPageSkeleton } from '@/components/loading-skeletons';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RowActions } from '@/components/row-actions';
 import { SortHeader } from '@/components/sort-header';
 import { StatusBadge } from '@/components/status-badge';
 import { AccountStatusPill } from '@/components/status-pill';
@@ -17,12 +17,6 @@ import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -308,28 +302,10 @@ export function UsersPage() {
                     </TableCell>
                     <TableCell>{user.lastLogin}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${user.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link to={`/users/${user.id}`}>View</Link>
-                          </DropdownMenuItem>
-                          {canManage && user.id ? (
-                            <DropdownMenuItem asChild>
-                              <Link to={`/users/${user.id}/edit`}>Edit</Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <RowActions
+                        view={{ to: `/users/${user.id}` }}
+                        edit={canManage && user.id ? { to: `/users/${user.id}/edit` } : undefined}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

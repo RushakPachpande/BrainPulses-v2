@@ -91,6 +91,28 @@ export type ActivityRoundDetail = {
   localQuestions: ActivityRoundLocalQuestion[];
 };
 
+export type DurationMode = 'overall' | 'per_question';
+
+export type Sponsor = {
+  id: string;
+  name: string;
+  imageFileId: string;
+  createdAt: string;
+  updatedAt: string;
+  contests: number;
+};
+
+export type Contest = {
+  id: string;
+  sponsorId: string;
+  sponsorName: string;
+  name: string;
+  description: string | null;
+  imageFileId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type ActivityDetail = Activity & {
   code: string;
   kind: ActivityKind;
@@ -98,9 +120,15 @@ export type ActivityDetail = Activity & {
   startsAt: string | null;
   endsAt: string | null;
   durationMinutes: number | null;
+  durationMode: DurationMode;
+  perQuestionSeconds: number | null;
   passingPercent: number | null;
   presentation: 'one_at_a_time' | 'all_on_page' | 'timed_card';
   bankIds: string[];
+  sponsorId: string | null;
+  contestId: string | null;
+  sponsor: { id: string; name: string } | null;
+  contest: { id: string; name: string } | null;
   settings: ActivitySettings | null;
   rounds?: ActivityRoundDetail[];
 };

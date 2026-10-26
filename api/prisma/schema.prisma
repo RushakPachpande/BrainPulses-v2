@@ -51,6 +51,11 @@ enum PresentationMode {
   timed_card
 }
 
+enum DurationMode {
+  overall
+  per_question
+}
+
 enum BankOrigin {
   reusable
   round_local
@@ -118,6 +123,8 @@ model Organization {
   auditEvents      AuditEvent[]
   fileObjects      FileObject[]
   reattemptGrants  ReattemptGrant[]
+  sponsors         Sponsor[]
+  contests         Contest[]
 
   @@map("organizations")
 }
@@ -287,13 +294,19 @@ model Activity {
   startsAt       DateTime?        @map("starts_at") @db.Timestamptz(3)
   endsAt         DateTime?        @map("ends_at") @db.Timestamptz(3)
   durationMinutes Int?            @map("duration_minutes")
+  durationMode    DurationMode     @default(overall) @map("duration_mode")
+  perQuestionSeconds Int?          @map("per_question_seconds")
   passingPercent Decimal?         @map("passing_percent") @db.Decimal(5, 2)
   presentation   PresentationMode @default(one_at_a_time)
   settings       Json?            @db.JsonB
+  sponsorId      String?          @map("sponsor_id") @db.Uuid
+  contestId      String?          @map("contest_id") @db.Uuid
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sponsor         Sponsor?         @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  contest         Contest?         @relation(fields: [contestId], references: [id], onDelete: Restrict)
   activityBanks   ActivityBank[]
   rounds          ActivityRound[]
   registrations   Registration[]
@@ -303,7 +316,46 @@ model Activity {
 
   @@unique([organizationId, code])
   @@index([organizationId, kind, status])
+  @@index([organizationId, sponsorId])
+  @@index([organizationId, contestId])
   @@map("activities")
+}
+
+model Sponsor {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  imageFileId    String   @map("image_file_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  image        FileObject   @relation("SponsorImage", fields: [imageFileId], references: [id], onDelete: Restrict)
+  contests     Contest[]
+  activities   Activity[]
+
+  @@index([organizationId, name])
+  @@map("sponsors")
+}
+
+model Contest {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  sponsorId      String   @map("sponsor_id") @db.Uuid
+  name           String
+  description    String?
+  imageFileId    String   @map("image_file_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sponsor      Sponsor      @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  image        FileObject   @relation("ContestImage", fields: [imageFileId], references: [id], onDelete: Restrict)
+  activities   Activity[]
+
+  @@index([organizationId, sponsorId])
+  @@index([organizationId, name])
+  @@map("contests")
 }
 
 model ActivityBank {
@@ -562,8 +614,10 @@ model FileObject {
   finalizedAt    DateTime? @map("finalized_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  uploadedBy   User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy    User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  sponsorImages Sponsor[]    @relation("SponsorImage")
+  contestImages Contest[]    @relation("ContestImage")
 
   @@index([organizationId, createdAt])
   @@map("file_objects")

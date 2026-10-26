@@ -7,25 +7,19 @@ import {
   ChevronRightIcon,
   ClockIcon,
   DownloadIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   UserIcon,
   UsersIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RowActions } from '@/components/row-actions';
 import { SortHeader } from '@/components/sort-header';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -434,44 +428,22 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                       <AttemptStatusPill value={row.attempt} />
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${row.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link
-                              to={
-                                isQuiz
-                                  ? `/quizzes/registrations/${row.registrationId}`
-                                  : `/assessments/registrations/${row.registrationId}`
+                      <RowActions
+                        view={{
+                          to: isQuiz
+                            ? `/quizzes/registrations/${row.registrationId}`
+                            : `/assessments/registrations/${row.registrationId}`,
+                        }}
+                        edit={
+                          canEdit
+                            ? {
+                                to: isQuiz
+                                  ? `/quizzes/registrations/${row.registrationId}/edit`
+                                  : `/assessments/registrations/${row.registrationId}/edit`,
                               }
-                            >
-                              View
-                            </Link>
-                          </DropdownMenuItem>
-                          {canEdit ? (
-                            <DropdownMenuItem asChild>
-                              <Link
-                                to={
-                                  isQuiz
-                                    ? `/quizzes/registrations/${row.registrationId}/edit`
-                                    : `/assessments/registrations/${row.registrationId}/edit`
-                                }
-                              >
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            : undefined
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ))

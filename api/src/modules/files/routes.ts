@@ -89,6 +89,27 @@ filesRouter.put(
   },
 );
 
+filesRouter.get(
+  '/:id',
+  requireOrgAccess('view'),
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actor = userActor(req);
+      const { file, buffer } = await service.readInlineImage(
+        actor.organizationId,
+        req.params.id as string,
+      );
+      res.setHeader('Content-Type', file.mimeType);
+      res.setHeader('Content-Disposition', 'inline');
+      res.setHeader('Cache-Control', 'private, max-age=300');
+      res.send(buffer);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
 filesRouter.post(
   '/:id/download-token',
   requireOrgAccess('view'),

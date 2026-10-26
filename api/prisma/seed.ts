@@ -1,4 +1,7 @@
 import '../src/config/load-env.js';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { crc32, deflateSync } from 'node:zlib';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { Pool } from 'pg';
@@ -47,6 +50,63 @@ function daysAgo(d: number) {
   return new Date(Date.now() - d * day);
 }
 
+function pngChunk(type: string, data: Buffer) {
+  const typeBuf = Buffer.from(type);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])));
+  return Buffer.concat([length, typeBuf, data, crc]);
+}
+
+/** Small solid PNG so sponsor and contest images are real uploaded files. */
+function solidPng(size: number, rgb: [number, number, number]) {
+  const [red, green, blue] = rgb;
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0);
+  ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const row = Buffer.alloc(1 + size * 3);
+  for (let x = 0; x < size; x += 1) {
+    row[1 + x * 3] = red;
+    row[2 + x * 3] = green;
+    row[3 + x * 3] = blue;
+  }
+  const raw = Buffer.concat(Array.from({ length: size }, () => Buffer.from(row)));
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  return Buffer.concat([
+    signature,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', deflateSync(raw)),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
+async function seedImage(input: {
+  organizationId: string;
+  uploadedById: string;
+  fileName: string;
+  rgb: [number, number, number];
+}) {
+  const dir = path.resolve(process.env.UPLOAD_DIR ?? './uploads', input.organizationId);
+  await mkdir(dir, { recursive: true });
+  const bytes = solidPng(64, input.rgb);
+  const storagePath = path.join(dir, input.fileName);
+  await writeFile(storagePath, bytes);
+  return prisma.fileObject.create({
+    data: {
+      organizationId: input.organizationId,
+      uploadedById: input.uploadedById,
+      originalName: input.fileName,
+      mimeType: 'image/png',
+      sizeBytes: bytes.length,
+      storagePath,
+      finalizedAt: new Date(),
+    },
+  });
+}
+
 const quizBehaviourSettings = {
   quiz: {
     shuffleQuestions: true,
@@ -78,6 +138,20 @@ async function wipeDemoDomain(organizationId: string) {
   await prisma.activityRound.deleteMany({ where: { organizationId } });
   await prisma.activityBank.deleteMany({ where: { organizationId } });
   await prisma.activity.deleteMany({ where: { organizationId } });
+  await prisma.contest.deleteMany({ where: { organizationId } });
+  await prisma.sponsor.deleteMany({ where: { organizationId } });
+  const files = await prisma.fileObject.findMany({
+    where: { organizationId },
+    select: { id: true, storagePath: true },
+  });
+  for (const file of files) {
+    await unlink(file.storagePath).catch(() => undefined);
+  }
+  if (files.length > 0) {
+    await prisma.fileObject.deleteMany({
+      where: { organizationId, id: { in: files.map((file) => file.id) } },
+    });
+  }
   await prisma.notification.deleteMany({ where: { organizationId } });
   await prisma.auditEvent.deleteMany({ where: { organizationId } });
   await prisma.setting.deleteMany({ where: { organizationId } });
@@ -608,13 +682,13 @@ const quantQuestions: McqSeed[] = [
 const draftQuizQuestions: McqSeed[] = [
   {
     code: 'DFT-01',
-    question: 'Placeholder: which season follows summer in India?',
+    question: 'Which season follows summer across most of India?',
     options: ['Spring', 'Monsoon', 'Winter', 'Autumn'],
     correctIndex: 1,
   },
   {
     code: 'DFT-02',
-    question: 'Placeholder: 2² equals:',
+    question: '2² equals:',
     options: ['2', '3', '4', '8'],
     correctIndex: 2,
   },
@@ -873,7 +947,7 @@ async function main() {
     questions: quantQuestions,
   });
 
-  // Draft bank for admin status filters only — never linked to a published activity.
+  // Draft bank is attached only to the draft quiz, never to a published activity.
   const draftBank = await ensureBankWithQuestions({
     organizationId: org.id,
     kind: 'quiz',
@@ -883,6 +957,84 @@ async function main() {
     questions: draftQuizQuestions,
     status: 'draft',
   });
+
+  const horizonMark = await seedImage({
+    organizationId: org.id,
+    uploadedById: admin.id,
+    fileName: 'horizon-books.png',
+    rgb: [37, 99, 235],
+  });
+  const apexMark = await seedImage({
+    organizationId: org.id,
+    uploadedById: admin.id,
+    fileName: 'apex-academy.png',
+    rgb: [22, 163, 74],
+  });
+  const horizonCup = await seedImage({
+    organizationId: org.id,
+    uploadedById: admin.id,
+    fileName: 'week-16-knowledge-cup.png',
+    rgb: [14, 165, 233],
+  });
+  const sprintCup = await seedImage({
+    organizationId: org.id,
+    uploadedById: admin.id,
+    fileName: 'maths-sprint-cup.png',
+    rgb: [234, 88, 12],
+  });
+  const warmUpCup = await seedImage({
+    organizationId: org.id,
+    uploadedById: admin.id,
+    fileName: 'monsoon-warmup-cup.png',
+    rgb: [124, 58, 237],
+  });
+
+  const horizon = await prisma.sponsor.create({
+    data: {
+      organizationId: org.id,
+      name: 'Horizon Books',
+      imageFileId: horizonMark.id,
+    },
+  });
+  const apex = await prisma.sponsor.create({
+    data: {
+      organizationId: org.id,
+      name: 'Apex Academy',
+      imageFileId: apexMark.id,
+    },
+  });
+
+  const knowledgeCup = await prisma.contest.create({
+    data: {
+      organizationId: org.id,
+      sponsorId: horizon.id,
+      name: 'Week 16 Knowledge Cup',
+      description: 'Weekly general-knowledge cup sponsored by Horizon Books.',
+      imageFileId: horizonCup.id,
+    },
+  });
+  const mathsCup = await prisma.contest.create({
+    data: {
+      organizationId: org.id,
+      sponsorId: apex.id,
+      name: 'Maths Sprint Cup',
+      description: 'Timed quantitative cup for the April practice cycle.',
+      imageFileId: sprintCup.id,
+    },
+  });
+  const monsoonCup = await prisma.contest.create({
+    data: {
+      organizationId: org.id,
+      sponsorId: horizon.id,
+      name: 'Monsoon Warm-up Cup',
+      description: 'Short seasonal cup. Still in draft with its question bank.',
+      imageFileId: warmUpCup.id,
+    },
+  });
+
+  const manualAssignment = {
+    assignmentRules: { mode: 'manual' as const, notes: 'Assigned from the Northstar roster.' },
+  };
 
   // Assessment ASM-26001 — two rounds
   const assessment = await prisma.activity.create({
@@ -896,8 +1048,18 @@ async function main() {
       startsAt: daysAgo(3),
       endsAt: daysFromNow(21),
       durationMinutes: 90,
+      durationMode: 'overall',
       passingPercent: 40,
       presentation: 'one_at_a_time',
+      settings: {
+        registrationForm: {
+          fields: [
+            { key: 'roll', label: 'Roll number', type: 'text', required: true },
+            { key: 'centre', label: 'Exam centre', type: 'text', required: false },
+          ],
+        },
+        ...manualAssignment,
+      },
     },
   });
 
@@ -960,9 +1122,12 @@ async function main() {
       startsAt: daysAgo(2),
       endsAt: daysFromNow(12),
       durationMinutes: 15,
+      durationMode: 'overall',
       passingPercent: 50,
       presentation: 'one_at_a_time',
-      settings: quizBehaviourSettings,
+      sponsorId: horizon.id,
+      contestId: knowledgeCup.id,
+      settings: { ...quizBehaviourSettings, ...manualAssignment },
     },
   });
   await prisma.activityBank.create({
@@ -981,15 +1146,20 @@ async function main() {
       status: 'completed',
       startsAt: daysAgo(14),
       endsAt: daysAgo(1),
-      durationMinutes: 20,
+      durationMinutes: null,
+      durationMode: 'per_question',
+      perQuestionSeconds: 90,
       passingPercent: 50,
       presentation: 'one_at_a_time',
+      sponsorId: apex.id,
+      contestId: mathsCup.id,
       settings: {
         quiz: {
           ...quizBehaviourSettings.quiz,
           scoreVisibleToStudent: true,
           answersVisibleToStudent: false,
         },
+        ...manualAssignment,
       },
     },
   });
@@ -1009,11 +1179,15 @@ async function main() {
       name: 'Monsoon Warm-up Quiz',
       subtitle: 'Short seasonal warm-up · monsoon practice set',
       status: 'draft',
-      startsAt: null,
-      endsAt: null,
+      startsAt: daysFromNow(7),
+      endsAt: daysFromNow(21),
       durationMinutes: 10,
+      durationMode: 'overall',
       passingPercent: 40,
-      settings: quizBehaviourSettings,
+      presentation: 'one_at_a_time',
+      sponsorId: horizon.id,
+      contestId: monsoonCup.id,
+      settings: { ...quizBehaviourSettings, ...manualAssignment },
     },
   });
   await prisma.activityBank.create({
@@ -1024,8 +1198,8 @@ async function main() {
     throw new Error('Seed invariant: QZ-DRAFT must have zero student registrations.');
   }
 
-  // Archived assessment for admin status filters only (no student registrations).
-  await prisma.activity.create({
+  // Archived assessment still keeps its paper, bank, and roster from the January window.
+  const archived = await prisma.activity.create({
     data: {
       organizationId: org.id,
       kind: 'assessment',
@@ -1036,9 +1210,29 @@ async function main() {
       startsAt: daysAgo(60),
       endsAt: daysAgo(45),
       durationMinutes: 60,
+      durationMode: 'overall',
       passingPercent: 35,
+      presentation: 'one_at_a_time',
+      settings: manualAssignment,
     },
   });
+  const archiveRound = await prisma.activityRound.create({
+    data: {
+      organizationId: org.id,
+      activityId: archived.id,
+      name: 'Foundation paper',
+      sortOrder: 0,
+      durationMinutes: 60,
+    },
+  });
+  await prisma.activityRoundBank.create({
+    data: {
+      organizationId: org.id,
+      roundId: archiveRound.id,
+      bankId: chemistryBank.id,
+    },
+  });
+  await registerStudents(org.id, archived.id, studentIds);
 
   // ─── History: weekly GK results (skip BP-24101 so they can still start) ───
   const gkVersions = await latestVersionIds(org.id, gkBank.id);
@@ -1106,7 +1300,7 @@ async function main() {
       correctCount: 4 + (i % 4),
       releaseStatus: 'published',
       submittedAt,
-      startedAt: new Date(submittedAt.getTime() - 18 * 60_000),
+      startedAt: new Date(submittedAt.getTime() - 10 * 60_000),
       deadlineAt: new Date(submittedAt.getTime() + 2 * 60_000),
     });
   }
@@ -1126,6 +1320,21 @@ async function main() {
     submittedAt: round1Submit,
     startedAt: new Date(round1Submit.getTime() - 40 * 60_000),
     deadlineAt: new Date(round1Submit.getTime() + 5 * 60_000),
+  });
+
+  const chemistryVersions = await latestVersionIds(org.id, chemistryBank.id);
+  const archiveSubmit = daysAgo(50);
+  await seedSubmittedAttempt({
+    organizationId: org.id,
+    activityId: archived.id,
+    studentId: byCode['BP-24104']!.id,
+    roundId: archiveRound.id,
+    versionIds: chemistryVersions.map((version) => version.id),
+    correctCount: 6,
+    releaseStatus: 'published',
+    submittedAt: archiveSubmit,
+    startedAt: new Date(archiveSubmit.getTime() - 50 * 60_000),
+    deadlineAt: new Date(archiveSubmit.getTime() + 10 * 60_000),
   });
 
   // Org polish
@@ -1234,6 +1443,8 @@ async function main() {
   console.log('  admin@brainpulses.com / Password123!');
   console.log('  viewer@brainpulses.com / Password123! (view-only)');
   console.log('  Student Unique ID: BP-24101 (phone +91 / 9876510000)');
+  console.log('  Sponsors: Horizon Books, Apex Academy');
+  console.log('  Contests: Week 16 Knowledge Cup, Maths Sprint Cup, Monsoon Warm-up Cup');
   console.log('  Activities: ASM-26001 (2 rounds), QZ-26001, QZ-26002, QZ-DRAFT, ASM-ARCHIVE');
   console.log('  History: quiz results + 1 assessment round attempt (Priya has open path)');
 }

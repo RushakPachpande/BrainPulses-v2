@@ -17,6 +17,18 @@ const StudentsPage = lazy(() =>
 const StudentFormPage = lazy(() =>
   import('@/pages/student-form').then((m) => ({ default: m.StudentFormPage })),
 );
+const SponsorsPage = lazy(() =>
+  import('@/pages/sponsors').then((m) => ({ default: m.SponsorsPage })),
+);
+const SponsorFormPage = lazy(() =>
+  import('@/pages/sponsor-form').then((m) => ({ default: m.SponsorFormPage })),
+);
+const ContestsPage = lazy(() =>
+  import('@/pages/contests').then((m) => ({ default: m.ContestsPage })),
+);
+const ContestFormPage = lazy(() =>
+  import('@/pages/contest-form').then((m) => ({ default: m.ContestFormPage })),
+);
 const UsersPage = lazy(() => import('@/pages/users').then((m) => ({ default: m.UsersPage })));
 const UserFormPage = lazy(() =>
   import('@/pages/user-form').then((m) => ({ default: m.UserFormPage })),
@@ -92,6 +104,18 @@ export function AppRoutes() {
             <Route path="students/:studentId/edit" element={<StudentFormPage mode="edit" />} />
           </Route>
           <Route path="students/:studentId" element={<StudentFormPage mode="view" />} />
+          <Route path="sponsors" element={<SponsorsPage />} />
+          <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
+            <Route path="sponsors/new" element={<SponsorFormPage mode="create" />} />
+            <Route path="sponsors/:sponsorId/edit" element={<SponsorFormPage mode="edit" />} />
+          </Route>
+          <Route path="sponsors/:sponsorId" element={<SponsorFormPage mode="view" />} />
+          <Route path="contests" element={<ContestsPage />} />
+          <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
+            <Route path="contests/new" element={<ContestFormPage mode="create" />} />
+            <Route path="contests/:contestId/edit" element={<ContestFormPage mode="edit" />} />
+          </Route>
+          <Route path="contests/:contestId" element={<ContestFormPage mode="view" />} />
           <Route path="users" element={<UsersPage />} />
           <Route element={<RequireAccess gate={{ type: 'manageUsersOrSettings' }} />}>
             <Route path="users/new" element={<UserFormPage />} />

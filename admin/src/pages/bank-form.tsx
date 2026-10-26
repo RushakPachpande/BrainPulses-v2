@@ -5,12 +5,12 @@ import {
   ArrowLeftIcon,
   DownloadIcon,
   FileSpreadsheetIcon,
-  MoreVerticalIcon,
   PlusIcon,
   SaveIcon,
   UploadIcon,
 } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { RowActions } from '@/components/row-actions';
 import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -25,12 +25,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -548,37 +542,14 @@ export function BankFormPage({
                           </TableCell>
                           <TableCell>{item.points}</TableCell>
                           <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label={`Actions for ${item.code || item.question}`}
-                                >
-                                  <MoreVerticalIcon />
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                {readOnly ? (
-                                  <DropdownMenuItem onClick={() => openView(item)}>
-                                    View
-                                  </DropdownMenuItem>
-                                ) : (
-                                  <>
-                                    <DropdownMenuItem onClick={() => openEdit(item)}>
-                                      Edit
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                      variant="destructive"
-                                      onClick={() => void onDeactivate(item)}
-                                    >
-                                      Deactivate
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            {readOnly ? (
+                              <RowActions view={{ onClick: () => openView(item) }} />
+                            ) : (
+                              <RowActions
+                                edit={{ onClick: () => openEdit(item) }}
+                                deactivate={{ onClick: () => void onDeactivate(item) }}
+                              />
+                            )}
                           </TableCell>
                         </TableRow>
                       ))

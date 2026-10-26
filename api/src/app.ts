@@ -20,7 +20,9 @@ import { auditRouter } from './modules/audit/routes.js';
 import { authRouter } from './modules/auth/routes.js';
 import { banksRouter } from './modules/banks/routes.js';
 import { dashboardRouter } from './modules/dashboard/routes.js';
+import { contestsRouter } from './modules/contests/routes.js';
 import { filesRouter } from './modules/files/routes.js';
+import { sponsorsRouter } from './modules/sponsors/routes.js';
 import { registrationsRouter } from './modules/registrations/routes.js';
 import { resultsRouter } from './modules/results/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
@@ -145,6 +147,8 @@ export function createApp() {
   app.use('/api/auth', authLimiter, authRouter);
   app.use('/api/student', studentPortalRouter);
   app.use('/api/students', studentsRouter);
+  app.use('/api/sponsors', sponsorsRouter);
+  app.use('/api/contests', contestsRouter);
   app.use('/api/users', usersRouter);
   app.use('/api/activities', activitiesRouter);
   app.use('/api/banks', banksRouter);

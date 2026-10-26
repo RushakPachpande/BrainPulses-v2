@@ -111,7 +111,7 @@ export function mapUserFromApi(row: {
 export function mapActivityFromApi(
   row: {
     id: string;
-    code: string;
+    code?: string;
     name: string;
     subtitle: string | null;
     status: string;

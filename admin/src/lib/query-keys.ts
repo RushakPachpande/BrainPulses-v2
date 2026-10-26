@@ -5,6 +5,8 @@ export const adminQueryKeys = {
   all: ['admin'] as const,
   dashboard: (orgId: string) => ['admin', 'dashboard', orgId] as const,
   students: (orgId: string) => ['admin', 'students', orgId] as const,
+  sponsors: (orgId: string) => ['admin', 'sponsors', orgId] as const,
+  contests: (orgId: string) => ['admin', 'contests', orgId] as const,
   users: (orgId: string) => ['admin', 'users', orgId] as const,
   activities: (orgId: string, kind: string) => ['admin', 'activities', orgId, kind] as const,
   banks: (orgId: string, kind: string) => ['admin', 'banks', orgId, kind] as const,

@@ -15,6 +15,24 @@ export const pageMeta: Record<string, PageMeta> = {
     crumb: 'BrainPulses / Students / Add Student',
     title: 'Add Student',
   },
+  '/sponsors': {
+    crumb: 'BrainPulses / Sponsors',
+    title: 'Sponsors',
+    description: 'Manage sponsors used by quizzes.',
+  },
+  '/sponsors/new': {
+    crumb: 'BrainPulses / Sponsors / Add Sponsor',
+    title: 'Add Sponsor',
+  },
+  '/contests': {
+    crumb: 'BrainPulses / Contests',
+    title: 'Contests',
+    description: 'Manage contests and the sponsor each one belongs to.',
+  },
+  '/contests/new': {
+    crumb: 'BrainPulses / Contests / Add Contest',
+    title: 'Add Contest',
+  },
   '/users': {
     crumb: 'BrainPulses / Users',
     title: 'User Management',
@@ -118,6 +136,18 @@ export function resolvePageMeta(pathname: string): PageMeta {
   }
   if (/^\/students\/[^/]+$/.test(pathname)) {
     return { crumb: 'BrainPulses / Students / View Student', title: 'View Student' };
+  }
+  if (/^\/sponsors\/[^/]+\/edit$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Sponsors / Edit Sponsor', title: 'Edit Sponsor' };
+  }
+  if (/^\/sponsors\/[^/]+$/.test(pathname) && pathname !== '/sponsors/new') {
+    return { crumb: 'BrainPulses / Sponsors / View Sponsor', title: 'View Sponsor' };
+  }
+  if (/^\/contests\/[^/]+\/edit$/.test(pathname)) {
+    return { crumb: 'BrainPulses / Contests / Edit Contest', title: 'Edit Contest' };
+  }
+  if (/^\/contests\/[^/]+$/.test(pathname) && pathname !== '/contests/new') {
+    return { crumb: 'BrainPulses / Contests / View Contest', title: 'View Contest' };
   }
   if (/^\/users\/[^/]+\/edit$/.test(pathname)) {
     return { crumb: 'BrainPulses / Users / Edit User', title: 'Edit User' };

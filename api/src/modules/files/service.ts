@@ -211,6 +211,35 @@ export async function downloadWithToken(token: string) {
   return { file, buffer };
 }
 
+const SPONSOR_IMAGE_MIMES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const SPONSOR_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+export async function assertCatalogImage(organizationId: string, fileId: string) {
+  const file = await prisma.fileObject.findFirst({
+    where: { organizationId, id: fileId, finalizedAt: { not: null } },
+  });
+  if (!file) throw badRequest('Upload an image before saving.');
+  if (!SPONSOR_IMAGE_MIMES.has(file.mimeType)) {
+    throw badRequest('Image must be PNG, JPEG, or WebP.');
+  }
+  if (file.sizeBytes <= 0 || file.sizeBytes > SPONSOR_IMAGE_MAX_BYTES) {
+    throw badRequest('Image must be 2MB or smaller.');
+  }
+  return file;
+}
+
+export async function readInlineImage(organizationId: string, fileId: string) {
+  const file = await prisma.fileObject.findFirst({
+    where: { organizationId, id: fileId, finalizedAt: { not: null } },
+  });
+  if (!file) throw notFound('File not found.');
+  if (!file.mimeType.startsWith('image/')) {
+    throw badRequest('Only images can be shown inline.');
+  }
+  const buffer = await readFile(file.storagePath);
+  return { file, buffer };
+}
+
 export async function deletePendingFile(organizationId: string, fileId: string) {
   const file = await prisma.fileObject.findFirst({
     where: { organizationId, id: fileId, finalizedAt: null },

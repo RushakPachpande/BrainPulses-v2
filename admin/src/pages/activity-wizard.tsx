@@ -31,7 +31,9 @@ import {
   createRoundQuestion,
   deleteRoundQuestion,
   getActivity,
+  getContests,
   getQuestionBanks,
+  getSponsors,
   getStudents,
   publishActivity,
   updateActivity,
@@ -114,6 +116,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [code, setCode] = useState('');
+  const [sponsorId, setSponsorId] = useState('');
+  const [contestId, setContestId] = useState('');
+  const [sponsors, setSponsors] = useState<{ id: string; name: string }[]>([]);
+  const [contests, setContests] = useState<{ id: string; sponsorId: string; name: string }[]>([]);
+  const [durationMode, setDurationMode] = useState<'overall' | 'per_question'>('overall');
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState('30');
+  const [bankQuery, setBankQuery] = useState('');
   const [startDate, setStartDate] = useState(() => new Date());
   const [endDate, setEndDate] = useState(() => {
     const d = new Date();
@@ -151,6 +160,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         name,
         description,
         code,
+        sponsorId,
+        contestId,
+        durationMode,
+        perQuestionSeconds,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         regFields,
@@ -173,6 +186,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       name,
       description,
       code,
+      sponsorId,
+      contestId,
+      durationMode,
+      perQuestionSeconds,
       startDate,
       endDate,
       regFields,
@@ -214,6 +231,29 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   }, [kind]);
 
   useEffect(() => {
+    if (!isQuiz) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [sponsorRows, contestRows] = await Promise.all([getSponsors(), getContests()]);
+        if (cancelled) return;
+        setSponsors(sponsorRows.map((row) => ({ id: row.id, name: row.name })));
+        setContests(
+          contestRows.map((row) => ({ id: row.id, sponsorId: row.sponsorId, name: row.name })),
+        );
+      } catch {
+        if (!cancelled) {
+          setSponsors([]);
+          setContests([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isQuiz]);
+
+  useEffect(() => {
     if (mode === 'create') return;
     let cancelled = false;
     (async () => {
@@ -223,7 +263,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         setActivityId(activity.id);
         setName(activity.name);
         setDescription(activity.subtitle);
-        setCode(activity.code);
+        if (activity.kind !== 'quiz') setCode(activity.code);
+        setSponsorId(activity.sponsorId ?? '');
+        setContestId(activity.contestId ?? '');
+        setDurationMode(activity.durationMode ?? 'overall');
+        setPerQuestionSeconds(
+          activity.perQuestionSeconds != null ? String(activity.perQuestionSeconds) : '30',
+        );
         setStatusKey(activity.statusKey);
         if (activity.startsAt) setStartDate(new Date(activity.startsAt));
         if (activity.endsAt) setEndDate(new Date(activity.endsAt));
@@ -246,7 +292,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             },
           ]);
         }
-        setDurationMinutes(String(activity.durationMinutes ?? 60));
+        setDurationMinutes(
+          activity.kind === 'quiz' && activity.durationMode === 'per_question'
+            ? ''
+            : String(activity.durationMinutes ?? 60),
+        );
         setPassingPercent(String(activity.passingPercent ?? 40));
         setPresentation(activity.presentation);
         const settings = activity.settings;
@@ -337,21 +387,44 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       setStep(2);
       return null;
     }
+    if (isQuiz && (!sponsorId || !contestId)) {
+      toast.error('Choose a sponsor and a contest.');
+      setStep(0);
+      return null;
+    }
+    const duration = Number(durationMinutes);
+    const seconds = Number(perQuestionSeconds);
+    if (isQuiz && durationMode === 'overall' && (!Number.isFinite(duration) || duration <= 0)) {
+      toast.error('Enter the overall quiz duration in minutes.');
+      setStep(4);
+      return null;
+    }
+    if (isQuiz && durationMode === 'per_question' && (!Number.isFinite(seconds) || seconds <= 0)) {
+      toast.error('Enter the time in seconds for each question.');
+      setStep(4);
+      return null;
+    }
     setSaving(true);
     try {
-      const duration = Number(durationMinutes);
       const passing = Number(passingPercent);
       const payload = {
         name: name.trim(),
         subtitle: description.trim() || undefined,
         startsAt: startDate,
         endsAt: endDate,
-        durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : undefined,
         passingPercent: Number.isFinite(passing) ? passing : undefined,
         presentation,
         ...(isQuiz
-          ? { bankIds }
+          ? {
+              bankIds,
+              sponsorId,
+              contestId,
+              durationMode,
+              durationMinutes: durationMode === 'overall' ? duration : null,
+              perQuestionSeconds: durationMode === 'per_question' ? seconds : null,
+            }
           : {
+              durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : undefined,
               rounds: rounds.map((r, i) => ({
                 ...(r.id ? { id: r.id } : {}),
                 name: r.name.trim(),
@@ -360,7 +433,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               })),
             }),
         settings: settingsPayload,
-        ...(code.trim() ? { code: code.trim() } : {}),
+        ...(!isQuiz && code.trim() ? { code: code.trim() } : {}),
       };
 
       let id = activityId;
@@ -368,7 +441,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         const created = await createActivity({ kind, ...payload });
         id = created.id;
         setActivityId(created.id);
-        if (created.code) setCode(created.code);
+        if (!isQuiz && created.code) setCode(created.code);
       } else {
         await updateActivity(id, payload);
       }
@@ -587,16 +660,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   disabled={readOnly}
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="activity-code">Code</FieldLabel>
-                <Input
-                  id="activity-code"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  disabled={readOnly || mode === 'edit'}
-                  placeholder="Auto-generated if empty"
-                />
-              </Field>
+              {isQuiz ? null : (
+                <Field>
+                  <FieldLabel htmlFor="activity-code">Code</FieldLabel>
+                  <Input
+                    id="activity-code"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    disabled={readOnly || mode === 'edit'}
+                    placeholder="Auto-generated if empty"
+                  />
+                </Field>
+              )}
               <Field>
                 <FieldLabel htmlFor="activity-description">Description</FieldLabel>
                 <Textarea
@@ -607,9 +682,72 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 />
                 <FieldDescription>Students see this on the start screen.</FieldDescription>
               </Field>
+              {isQuiz ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <Field>
+                    <FieldLabel htmlFor="quiz-sponsor">
+                      Sponsor <span className="text-destructive">*</span>
+                    </FieldLabel>
+                    <Select
+                      value={sponsorId || undefined}
+                      disabled={readOnly}
+                      onValueChange={(value) => {
+                        setSponsorId(value);
+                        setContestId((current) =>
+                          contests.some((row) => row.id === current && row.sponsorId === value)
+                            ? current
+                            : '',
+                        );
+                      }}
+                    >
+                      <SelectTrigger id="quiz-sponsor" className="w-full">
+                        <SelectValue placeholder="Choose a sponsor" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {sponsors.map((sponsor) => (
+                            <SelectItem key={sponsor.id} value={sponsor.id}>
+                              {sponsor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="quiz-contest">
+                      Contest <span className="text-destructive">*</span>
+                    </FieldLabel>
+                    <Select
+                      value={contestId || undefined}
+                      disabled={readOnly || !sponsorId}
+                      onValueChange={setContestId}
+                    >
+                      <SelectTrigger id="quiz-contest" className="w-full">
+                        <SelectValue
+                          placeholder={sponsorId ? 'Choose a contest' : 'Choose a sponsor first'}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {contests
+                            .filter((row) => row.sponsorId === sponsorId)
+                            .map((contest) => (
+                              <SelectItem key={contest.id} value={contest.id}>
+                                {contest.name}
+                              </SelectItem>
+                            ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
-                  <FieldLabel>Start Date</FieldLabel>
+                  <FieldLabel>
+                    Start Date {isQuiz ? <span className="text-destructive">*</span> : null}
+                  </FieldLabel>
                   <DateTimePicker
                     id="start-date"
                     value={startDate}
@@ -618,7 +756,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   />
                 </Field>
                 <Field>
-                  <FieldLabel>End Date</FieldLabel>
+                  <FieldLabel>
+                    End Date {isQuiz ? <span className="text-destructive">*</span> : null}
+                  </FieldLabel>
                   <DateTimePicker
                     id="end-date"
                     value={endDate}
@@ -722,9 +862,12 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
           {step === 2 && isQuiz ? (
             <div className="flex flex-col gap-3">
-              <p className="text-sm text-muted-foreground">
-                Select one or more question banks for this {noun.toLowerCase()}.
-              </p>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Select one or more question banks for this {noun.toLowerCase()}.
+                </p>
+                <p className="text-sm font-medium">{bankIds.length} selected</p>
+              </div>
               {banks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No banks yet.{' '}
@@ -733,33 +876,62 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   </Link>
                 </p>
               ) : (
-                banks.map((bank) => {
-                  const checked = bankIds.includes(bank.id);
-                  return (
-                    <label
-                      key={bank.id}
-                      className="flex min-h-(--control-h) items-center gap-3 rounded-lg border border-border px-3"
-                    >
-                      <Checkbox
-                        checked={checked}
-                        disabled={readOnly}
-                        onCheckedChange={(value) => {
-                          setBankIds((prev) =>
-                            value === true
-                              ? [...prev, bank.id]
-                              : prev.filter((id) => id !== bank.id),
+                <>
+                  <Input
+                    type="search"
+                    value={bankQuery}
+                    onChange={(event) => setBankQuery(event.target.value)}
+                    placeholder="Search question banks"
+                    aria-label="Search question banks"
+                  />
+                  {banks.filter((bank) =>
+                    bank.name.toLowerCase().includes(bankQuery.trim().toLowerCase()),
+                  ).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No question banks match this search.
+                    </p>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      {banks
+                        .filter((bank) =>
+                          bank.name.toLowerCase().includes(bankQuery.trim().toLowerCase()),
+                        )
+                        .map((bank) => {
+                          const checked = bankIds.includes(bank.id);
+                          return (
+                            <label
+                              key={bank.id}
+                              className={cn(
+                                'flex min-h-(--control-h) cursor-pointer items-center gap-3 rounded-lg border px-3 py-3',
+                                checked
+                                  ? 'border-primary bg-accent text-accent-foreground'
+                                  : 'border-border',
+                                readOnly ? 'cursor-default' : '',
+                              )}
+                            >
+                              <Checkbox
+                                checked={checked}
+                                disabled={readOnly}
+                                onCheckedChange={(value) => {
+                                  setBankIds((prev) =>
+                                    value === true
+                                      ? [...prev, bank.id]
+                                      : prev.filter((id) => id !== bank.id),
+                                  );
+                                }}
+                              />
+                              <span className="min-w-0 flex-1">
+                                <span className="block font-medium">{bank.name}</span>
+                                <span className="text-sm text-muted-foreground">
+                                  {bank.questions} questions
+                                </span>
+                              </span>
+                            </label>
                           );
-                        }}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="font-medium">{bank.name}</span>
-                        <span className="ml-2 text-sm text-muted-foreground">
-                          {bank.questions} questions
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })
+                        })}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : null}
@@ -1078,17 +1250,67 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           {step === 4 ? (
             <FieldGroup>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="duration">Duration (minutes)</FieldLabel>
-                  <Input
-                    id="duration"
-                    type="number"
-                    min={1}
-                    value={durationMinutes}
-                    disabled={readOnly}
-                    onChange={(e) => setDurationMinutes(e.target.value)}
-                  />
-                </Field>
+                {isQuiz ? (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="duration-mode">Time duration</FieldLabel>
+                      <Select
+                        value={durationMode}
+                        disabled={readOnly}
+                        onValueChange={(value) =>
+                          setDurationMode(value as 'overall' | 'per_question')
+                        }
+                      >
+                        <SelectTrigger id="duration-mode" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="overall">Overall quiz</SelectItem>
+                            <SelectItem value="per_question">Per question</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    {durationMode === 'per_question' ? (
+                      <Field>
+                        <FieldLabel htmlFor="per-question-seconds">Seconds per question</FieldLabel>
+                        <Input
+                          id="per-question-seconds"
+                          type="number"
+                          min={1}
+                          value={perQuestionSeconds}
+                          disabled={readOnly}
+                          onChange={(e) => setPerQuestionSeconds(e.target.value)}
+                        />
+                      </Field>
+                    ) : (
+                      <Field>
+                        <FieldLabel htmlFor="duration">Duration (minutes)</FieldLabel>
+                        <Input
+                          id="duration"
+                          type="number"
+                          min={1}
+                          value={durationMinutes}
+                          disabled={readOnly}
+                          onChange={(e) => setDurationMinutes(e.target.value)}
+                        />
+                      </Field>
+                    )}
+                  </>
+                ) : (
+                  <Field>
+                    <FieldLabel htmlFor="duration">Duration (minutes)</FieldLabel>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min={1}
+                      value={durationMinutes}
+                      disabled={readOnly}
+                      onChange={(e) => setDurationMinutes(e.target.value)}
+                    />
+                  </Field>
+                )}
                 <Field>
                   <FieldLabel htmlFor="passing">Passing percent</FieldLabel>
                   <Input
@@ -1175,9 +1397,22 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               <p>
                 <span className="text-muted-foreground">Name:</span> {name || '—'}
               </p>
-              <p>
-                <span className="text-muted-foreground">Code:</span> {code || 'Auto'}
-              </p>
+              {isQuiz ? (
+                <>
+                  <p>
+                    <span className="text-muted-foreground">Sponsor:</span>{' '}
+                    {sponsors.find((row) => row.id === sponsorId)?.name || '—'}
+                  </p>
+                  <p>
+                    <span className="text-muted-foreground">Contest:</span>{' '}
+                    {contests.find((row) => row.id === contestId)?.name || '—'}
+                  </p>
+                </>
+              ) : (
+                <p>
+                  <span className="text-muted-foreground">Code:</span> {code || 'Auto'}
+                </p>
+              )}
               {isQuiz ? (
                 <p>
                   <span className="text-muted-foreground">Banks:</span>{' '}
@@ -1207,8 +1442,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 {assignMode === 'manual' ? 'Manual' : 'All active students'}
               </p>
               <p>
-                <span className="text-muted-foreground">Duration:</span> {durationMinutes || '—'}{' '}
-                min · Pass {passingPercent || '—'}%
+                <span className="text-muted-foreground">Duration:</span>{' '}
+                {isQuiz && durationMode === 'per_question'
+                  ? `${perQuestionSeconds || '—'} sec per question`
+                  : `${durationMinutes || '—'} min`}{' '}
+                · Pass {passingPercent || '—'}%
               </p>
               <p>
                 <span className="text-muted-foreground">Registration fields:</span>{' '}

@@ -3,11 +3,13 @@ import { NavLink, Outlet, useLocation, useMatch, useNavigate } from 'react-route
 import {
   ChevronDownIcon,
   CircleHelpIcon,
+  HandshakeIcon,
   LayoutDashboardIcon,
   ListIcon,
   LogOutIcon,
   SearchIcon,
   SlidersHorizontalIcon,
+  TrophyIcon,
   UserCogIcon,
   UsersIcon,
   type LucideIcon,
@@ -56,6 +58,8 @@ const nav: NavGroupItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
   { to: '/students', label: 'Students', icon: UsersIcon, end: true },
   { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
+  { to: '/sponsors', label: 'Sponsors', icon: HandshakeIcon, end: true },
+  { to: '/contests', label: 'Contests', icon: TrophyIcon, end: true },
   {
     to: '/quizzes',
     label: 'Quizzes',

@@ -4,24 +4,18 @@ import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RowActions } from '@/components/row-actions';
 import { SortHeader } from '@/components/sort-header';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -327,28 +321,10 @@ export function StudentsPage() {
                     </TableCell>
                     <TableCell>{student.lastLogin}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${student.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link to={`/students/${student.id}`}>View</Link>
-                          </DropdownMenuItem>
-                          {canMutate ? (
-                            <DropdownMenuItem asChild>
-                              <Link to={`/students/${student.id}/edit`}>Edit</Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <RowActions
+                        view={{ to: `/students/${student.id}` }}
+                        edit={canMutate ? { to: `/students/${student.id}/edit` } : undefined}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

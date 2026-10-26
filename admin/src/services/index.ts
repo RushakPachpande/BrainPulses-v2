@@ -1,3 +1,4 @@
+import { ApiError } from '@/lib/api-client';
 import {
   apiDownloadBlob,
   apiGetData,
@@ -44,6 +45,8 @@ import type {
   ActivityRoundLocalQuestion,
   ActivitySettings,
   AdminUser,
+  Contest,
+  Sponsor,
   AuditLogRow,
   DashboardData,
   NotificationPreference,
@@ -62,6 +65,9 @@ export type {
   ActivityRegistrationField,
   ActivitySettings,
   QuizActivitySettings,
+  DurationMode,
+  Sponsor,
+  Contest,
   Student,
   AdminUser,
   AccessUser,
@@ -102,6 +108,93 @@ export async function getUser(membershipId: string): Promise<AdminUser> {
   }
   const row = await apiGetData<ApiUserRow>(`/api/users/${membershipId}`);
   return mapUserFromApi(row);
+}
+
+const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
+const IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+export async function uploadCatalogImage(file: File): Promise<string> {
+  if (!IMAGE_TYPES.has(file.type)) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Image must be PNG, JPEG, or WebP.');
+  }
+  if (file.size <= 0 || file.size > IMAGE_MAX_BYTES) {
+    throw new ApiError(400, 'VALIDATION_ERROR', 'Image must be 2MB or smaller.');
+  }
+  const started = await apiPostData<{ id: string }>('/api/files/initiate', {
+    originalName: file.name || 'image',
+    mimeType: file.type,
+    sizeBytes: file.size,
+  });
+  await apiRequest(`/api/files/${started.id}/content`, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+  return started.id;
+}
+
+export async function getSponsors(): Promise<Sponsor[]> {
+  const rows = await apiGetList<Sponsor>('/api/sponsors', {
+    limit: 100,
+    sort: 'name',
+    order: 'asc',
+  });
+  return rows;
+}
+
+export async function getSponsor(id: string): Promise<Sponsor> {
+  return apiGetData<Sponsor>(`/api/sponsors/${id}`);
+}
+
+export async function createSponsor(payload: { name: string; imageFileId: string }) {
+  const data = await apiPostData<Sponsor>('/api/sponsors', payload);
+  invalidateAdmin(['sponsors']);
+  return data;
+}
+
+export async function updateSponsor(id: string, payload: { name?: string; imageFileId?: string }) {
+  const data = await apiPatchData<Sponsor>(`/api/sponsors/${id}`, payload);
+  invalidateAdmin(['sponsors', 'contests']);
+  return data;
+}
+
+export async function getContests(sponsorId?: string): Promise<Contest[]> {
+  const rows = await apiGetList<Contest>('/api/contests', {
+    limit: 100,
+    sort: 'name',
+    order: 'asc',
+    sponsorId,
+  });
+  return rows;
+}
+
+export async function getContest(id: string): Promise<Contest> {
+  return apiGetData<Contest>(`/api/contests/${id}`);
+}
+
+export async function createContest(payload: {
+  sponsorId: string;
+  name: string;
+  description?: string;
+  imageFileId: string;
+}) {
+  const data = await apiPostData<Contest>('/api/contests', payload);
+  invalidateAdmin(['contests', 'sponsors']);
+  return data;
+}
+
+export async function updateContest(
+  id: string,
+  payload: {
+    sponsorId?: string;
+    name?: string;
+    description?: string | null;
+    imageFileId?: string;
+  },
+) {
+  const data = await apiPatchData<Contest>(`/api/contests/${id}`, payload);
+  invalidateAdmin(['contests']);
+  return data;
 }
 
 export async function getActivities(kind: ActivityKind) {
@@ -202,11 +295,15 @@ type ActivityWritePayload = {
   startsAt?: Date | null;
   endsAt?: Date | null;
   durationMinutes?: number | null;
+  durationMode?: 'overall' | 'per_question';
+  perQuestionSeconds?: number | null;
   passingPercent?: number | null;
   presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
   bankIds?: string[];
   rounds?: ActivityRoundWrite[];
   code?: string;
+  sponsorId?: string;
+  contestId?: string;
   settings?: ActivitySettings;
 };
 
@@ -230,13 +327,19 @@ function activityBody(payload: ActivityWritePayload) {
 
 function mapActivityDetail(
   row: ApiActivityRow & {
-    code: string;
     kind: ActivityKind;
     statusKey?: string;
+    code?: string;
     durationMinutes?: number | null;
+    durationMode?: 'overall' | 'per_question';
+    perQuestionSeconds?: number | null;
     passingPercent?: number | null;
     presentation?: string;
     bankIds?: string[];
+    sponsorId?: string | null;
+    contestId?: string | null;
+    sponsor?: { id: string; name: string } | null;
+    contest?: { id: string; name: string } | null;
     settings?: ActivitySettings | null;
     startsAt?: string | Date | null;
     endsAt?: string | Date | null;
@@ -246,15 +349,21 @@ function mapActivityDetail(
   const base = mapActivityFromApi(row, 0);
   return {
     ...base,
-    code: row.code,
+    code: row.kind === 'quiz' ? '' : (row.code ?? ''),
     kind: row.kind,
     statusKey: row.statusKey ?? row.status.toLowerCase(),
     startsAt: row.startsAt ? new Date(row.startsAt).toISOString() : null,
     endsAt: row.endsAt ? new Date(row.endsAt).toISOString() : null,
     durationMinutes: row.durationMinutes ?? null,
+    durationMode: row.durationMode ?? 'overall',
+    perQuestionSeconds: row.perQuestionSeconds ?? null,
     passingPercent: row.passingPercent ?? null,
     presentation: (row.presentation as ActivityDetail['presentation']) ?? 'one_at_a_time',
     bankIds: row.bankIds ?? [],
+    sponsorId: row.sponsorId ?? null,
+    contestId: row.contestId ?? null,
+    sponsor: row.sponsor ?? null,
+    contest: row.contest ?? null,
     settings: row.settings ?? null,
     rounds: row.rounds,
   };
@@ -267,7 +376,7 @@ export async function createActivity(
     invalidateAdmin(['activities', 'dashboard']);
     return { id: crypto.randomUUID(), code: 'LOCAL' };
   }
-  const data = await apiPostData<{ id: string; code: string }>(
+  const data = await apiPostData<{ id: string; code?: string }>(
     '/api/activities',
     activityBody(payload),
   );
@@ -289,9 +398,15 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
       startsAt: null,
       endsAt: null,
       durationMinutes: 60,
+      durationMode: 'overall',
+      perQuestionSeconds: null,
       passingPercent: 40,
       presentation: 'one_at_a_time',
       bankIds: [],
+      sponsorId: null,
+      contestId: null,
+      sponsor: null,
+      contest: null,
       settings: null,
       rounds: [
         {

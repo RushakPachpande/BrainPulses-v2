@@ -105,8 +105,14 @@ function mapActivity(a: {
   startsAt: Date | null;
   endsAt: Date | null;
   durationMinutes: number | null;
+  durationMode?: 'overall' | 'per_question';
+  perQuestionSeconds?: number | null;
   passingPercent: Prisma.Decimal | null;
   presentation: string;
+  sponsorId?: string | null;
+  contestId?: string | null;
+  sponsor?: { id: string; name: string } | null;
+  contest?: { id: string; name: string } | null;
   settings?: Prisma.JsonValue | null;
   _count?: { registrations: number; activityBanks: number; attempts: number; rounds?: number };
   registrations?: { status: string }[];
@@ -133,7 +139,7 @@ function mapActivity(a: {
         }, 0)
       : (a._count?.activityBanks ?? 0);
   const rounds = fullRounds;
-  return {
+  const row = {
     id: a.id,
     code: a.code,
     name: a.name,
@@ -144,8 +150,14 @@ function mapActivity(a: {
     startsAt: a.startsAt,
     endsAt: a.endsAt,
     durationMinutes: a.durationMinutes,
+    durationMode: a.durationMode ?? 'overall',
+    perQuestionSeconds: a.perQuestionSeconds ?? null,
     passingPercent: a.passingPercent ? Number(a.passingPercent) : null,
     presentation: a.presentation,
+    sponsorId: a.sponsorId ?? null,
+    contestId: a.contestId ?? null,
+    sponsor: a.sponsor ? { id: a.sponsor.id, name: a.sponsor.name } : null,
+    contest: a.contest ? { id: a.contest.id, name: a.contest.name } : null,
     settings: a.settings ?? null,
     registered,
     assigned,
@@ -153,12 +165,19 @@ function mapActivity(a: {
     attempts: a._count?.attempts ?? 0,
     ...(rounds ? { rounds } : {}),
   };
+  if (a.kind === 'quiz') {
+    const { code: _quizCode, ...withoutCode } = row;
+    return withoutCode;
+  }
+  return row;
 }
 
 const listInclude = {
   _count: { select: { registrations: true, activityBanks: true, attempts: true, rounds: true } },
   registrations: { select: { status: true } },
   rounds: { select: { banks: { select: { id: true } } } },
+  sponsor: { select: { id: true, name: true } },
+  contest: { select: { id: true, name: true } },
 } satisfies Prisma.ActivityInclude;
 
 export async function listActivities(
@@ -173,7 +192,9 @@ export async function listActivities(
       ? {
           OR: [
             { name: { contains: query.q, mode: 'insensitive' } },
-            { code: { contains: query.q, mode: 'insensitive' } },
+            ...(query.kind === 'assessment'
+              ? [{ code: { contains: query.q, mode: 'insensitive' as const } }]
+              : []),
           ],
         }
       : {}),
@@ -366,6 +387,40 @@ function normalizeAssessmentRounds(
   return undefined;
 }
 
+async function assertSponsorContest(organizationId: string, sponsorId: string, contestId: string) {
+  const contest = await prisma.contest.findFirst({
+    where: { organizationId, id: contestId, sponsorId },
+    select: { id: true },
+  });
+  if (!contest) throw badRequest('Contest must belong to the selected sponsor.');
+}
+
+function quizTimingWrite(input: {
+  durationMode?: 'overall' | 'per_question' | null;
+  durationMinutes?: number | null;
+  perQuestionSeconds?: number | null;
+}) {
+  const mode = input.durationMode ?? 'overall';
+  if (mode === 'per_question') {
+    if (!input.perQuestionSeconds || input.perQuestionSeconds <= 0) {
+      throw badRequest('Enter a time in seconds for each question.');
+    }
+    return {
+      durationMode: 'per_question' as const,
+      durationMinutes: null,
+      perQuestionSeconds: input.perQuestionSeconds,
+    };
+  }
+  if (!input.durationMinutes || input.durationMinutes <= 0) {
+    throw badRequest('Enter the overall quiz duration in minutes.');
+  }
+  return {
+    durationMode: 'overall' as const,
+    durationMinutes: input.durationMinutes,
+    perQuestionSeconds: null,
+  };
+}
+
 export async function createActivity(
   organizationId: string,
   actorUserId: string,
@@ -374,10 +429,19 @@ export async function createActivity(
 ) {
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, input.kind, 'edit');
   const prefix = input.kind === 'assessment' ? 'ASM' : 'QUZ';
-  const code = input.code ?? (await nextHumanCode(organizationId, prefix, 'activity'));
+  const code =
+    input.kind === 'quiz'
+      ? await nextHumanCode(organizationId, prefix, 'activity')
+      : (input.code ?? (await nextHumanCode(organizationId, prefix, 'activity')));
 
   try {
     if (input.kind === 'quiz') {
+      if (!input.sponsorId || !input.contestId || !input.startsAt || !input.endsAt) {
+        throw badRequest('A quiz needs a sponsor, a contest, and a start and end.');
+      }
+      if (input.endsAt <= input.startsAt) throw badRequest('End must be after start.');
+      await assertSponsorContest(organizationId, input.sponsorId, input.contestId);
+      const timing = quizTimingWrite(input);
       await assertReusableBanksForKind(organizationId, input.kind, input.bankIds);
       const activity = await prisma.activity.create({
         data: {
@@ -388,7 +452,11 @@ export async function createActivity(
           subtitle: input.subtitle,
           startsAt: input.startsAt,
           endsAt: input.endsAt,
-          durationMinutes: input.durationMinutes,
+          durationMinutes: timing.durationMinutes,
+          durationMode: timing.durationMode,
+          perQuestionSeconds: timing.perQuestionSeconds,
+          sponsorId: input.sponsorId,
+          contestId: input.contestId,
           passingPercent: input.passingPercent,
           presentation: input.presentation,
           settings: input.settings ?? undefined,
@@ -489,6 +557,40 @@ export async function updateActivity(
   if (existing.kind === 'quiz' && input.rounds) {
     throw badRequest('Quizzes do not support rounds.');
   }
+  if (existing.kind === 'quiz' && input.code !== undefined) {
+    throw badRequest('Quizzes do not use a code.');
+  }
+
+  let quizPatch: {
+    sponsorId: string;
+    contestId: string;
+    startsAt: Date;
+    endsAt: Date;
+    durationMode: 'overall' | 'per_question';
+    durationMinutes: number | null;
+    perQuestionSeconds: number | null;
+  } | null = null;
+
+  if (existing.kind === 'quiz') {
+    const sponsorId = input.sponsorId !== undefined ? input.sponsorId : existing.sponsorId;
+    const contestId = input.contestId !== undefined ? input.contestId : existing.contestId;
+    const startsAt = input.startsAt !== undefined ? input.startsAt : existing.startsAt;
+    const endsAt = input.endsAt !== undefined ? input.endsAt : existing.endsAt;
+    if (!sponsorId || !contestId) throw badRequest('A quiz needs a sponsor and a contest.');
+    if (!startsAt || !endsAt) throw badRequest('A quiz needs a start and an end.');
+    if (endsAt <= startsAt) throw badRequest('End must be after start.');
+    await assertSponsorContest(organizationId, sponsorId, contestId);
+    const timing = quizTimingWrite({
+      durationMode: input.durationMode ?? existing.durationMode,
+      durationMinutes:
+        input.durationMinutes !== undefined ? input.durationMinutes : existing.durationMinutes,
+      perQuestionSeconds:
+        input.perQuestionSeconds !== undefined
+          ? input.perQuestionSeconds
+          : existing.perQuestionSeconds,
+    });
+    quizPatch = { sponsorId, contestId, startsAt, endsAt, ...timing };
+  }
 
   const activity = await prisma.$transaction(async (tx) => {
     if (existing.kind === 'quiz' && input.bankIds) {
@@ -519,10 +621,23 @@ export async function updateActivity(
         ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
         ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
         ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
-        ...(input.durationMinutes !== undefined ? { durationMinutes: input.durationMinutes } : {}),
+        ...(existing.kind === 'assessment' && input.durationMinutes !== undefined
+          ? { durationMinutes: input.durationMinutes }
+          : {}),
         ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
         ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
-        ...(input.code !== undefined ? { code: input.code } : {}),
+        ...(existing.kind === 'assessment' && input.code !== undefined ? { code: input.code } : {}),
+        ...(quizPatch
+          ? {
+              sponsorId: quizPatch.sponsorId,
+              contestId: quizPatch.contestId,
+              startsAt: quizPatch.startsAt,
+              endsAt: quizPatch.endsAt,
+              durationMode: quizPatch.durationMode,
+              durationMinutes: quizPatch.durationMinutes,
+              perQuestionSeconds: quizPatch.perQuestionSeconds,
+            }
+          : {}),
         ...(input.settings !== undefined ? { settings: input.settings } : {}),
       },
       include: {

@@ -9,12 +9,12 @@ import {
   FolderOpenIcon,
   InfoIcon,
   LayersIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RowActions } from '@/components/row-actions';
 import { SortHeader } from '@/components/sort-header';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
@@ -31,12 +31,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -488,42 +482,20 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
                       <FlowStatusPill status={row.status} />
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${row.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem asChild>
-                            <Link
-                              to={
-                                isQuiz ? `/quizzes/banks/${row.id}` : `/assessments/banks/${row.id}`
+                      <RowActions
+                        view={{
+                          to: isQuiz ? `/quizzes/banks/${row.id}` : `/assessments/banks/${row.id}`,
+                        }}
+                        edit={
+                          canEdit
+                            ? {
+                                to: isQuiz
+                                  ? `/quizzes/banks/${row.id}/edit`
+                                  : `/assessments/banks/${row.id}/edit`,
                               }
-                            >
-                              View
-                            </Link>
-                          </DropdownMenuItem>
-                          {canEdit ? (
-                            <DropdownMenuItem asChild>
-                              <Link
-                                to={
-                                  isQuiz
-                                    ? `/quizzes/banks/${row.id}/edit`
-                                    : `/assessments/banks/${row.id}/edit`
-                                }
-                              >
-                                Edit
-                              </Link>
-                            </DropdownMenuItem>
-                          ) : null}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            : undefined
+                        }
+                      />
                     </TableCell>
                   </TableRow>
                 ))

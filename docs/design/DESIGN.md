@@ -139,7 +139,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 **Forms.** Persistent labels. Hints in muted text. Placeholder is not a label. Focus, invalid, and disabled states stay visible. Keep the user’s input after a recoverable error.
 
-**Tables.** Uppercase header, 1 px row borders, text-only name and ID columns, status pill, kebab with View and Edit. Selected row mixes 12% primary into the card. The table scrolls inside the card. Footer: “Showing X to Y of Z”, rows per page 10 / 20 / 50, previous, current page, next. Empty state is one muted sentence in the table.
+**Tables.** Uppercase header, 1 px row borders, text-only name and ID columns, status pill, View and Edit buttons with an icon and a label (they wrap in the cell). Selected row mixes 12% primary into the card. The table scrolls inside the card. Footer: “Showing X to Y of Z”, rows per page 10 / 20 / 50, previous, current page, next. Empty state is one muted sentence in the table.
 
 **Status.** Use the tone table in section 2. Attempt Completed is `ok`. Activity and question-bank Completed is `pr`.
 
