@@ -60,3 +60,23 @@ export async function deactivate(req: Request, res: Response, next: NextFunction
     next(err);
   }
 }
+
+export async function deactivateMany(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.deactivateStudents(actor.organizationId, actor.userId, req.body.ids);
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function activateMany(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.activateStudents(actor.organizationId, actor.userId, req.body.ids);
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}

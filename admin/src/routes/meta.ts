@@ -11,10 +11,6 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Students',
     description: 'Manage student accounts, view details, and track their learning progress.',
   },
-  '/students/new': {
-    crumb: 'BrainPulses / Students / Add Student',
-    title: 'Add Student',
-  },
   '/sponsors': {
     crumb: 'BrainPulses / Sponsors',
     title: 'Sponsors',
@@ -131,12 +127,6 @@ export const pageMeta: Record<string, PageMeta> = {
 
 export function resolvePageMeta(pathname: string): PageMeta {
   if (pageMeta[pathname]) return pageMeta[pathname]!;
-  if (/^\/students\/[^/]+\/edit$/.test(pathname)) {
-    return { crumb: 'BrainPulses / Students / Edit Student', title: 'Edit Student' };
-  }
-  if (/^\/students\/[^/]+$/.test(pathname)) {
-    return { crumb: 'BrainPulses / Students / View Student', title: 'View Student' };
-  }
   if (/^\/sponsors\/[^/]+\/edit$/.test(pathname)) {
     return { crumb: 'BrainPulses / Sponsors / Edit Sponsor', title: 'Edit Sponsor' };
   }

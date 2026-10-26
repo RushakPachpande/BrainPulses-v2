@@ -604,19 +604,20 @@ body {
 }
 [data-slot='record-panel'][data-state='selected'],
 [data-slot='record-panel'][data-state='selected']:hover {
-  border-color: color-mix(in srgb, var(--primary) 32%, var(--border));
-  background: color-mix(in srgb, var(--primary) 12%, var(--card));
+  border-color: color-mix(in srgb, var(--primary) 70%, var(--border));
+  background: var(--card);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ring) 80%, transparent);
 }
 [data-slot='record-actions'] > div {
-  display: flex;
+  display: grid;
   width: 100%;
-  flex-wrap: nowrap;
-  align-items: center;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
 }
 [data-slot='record-actions'] [data-slot='button'] {
-  flex: 1 1 0;
+  width: 100%;
   min-width: 0;
+  justify-content: center;
 }
 [data-slot='table-caption'] {
   color: var(--muted-foreground);

@@ -28,6 +28,7 @@ import {
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -99,7 +100,6 @@ export function UsersPage() {
   const [status, setStatus] = useState('All');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
@@ -151,8 +151,13 @@ export function UsersPage() {
   const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
 
   const pageIds = pageRows.map((row) => row.email);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const records = useRecordSelection(
+    orgId,
+    'users',
+    'users',
+    pageIds,
+    filtered.map((row) => row.email),
+  );
 
   function clearFilters() {
     setSearch('');
@@ -173,26 +178,6 @@ export function UsersPage() {
     }
     setSortKey(null);
     setSortDir('asc');
-  }
-
-  function toggleAllPage(checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of pageIds) {
-        if (checked) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  function toggleOne(id: string, checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
   }
 
   if (loading) {
@@ -280,12 +265,7 @@ export function UsersPage() {
               onSort: (key) => toggleSort(key as SortKey),
             }}
             selection={{
-              selected,
-              allSelected: allPageSelected,
-              someSelected: somePageSelected,
-              onToggleAll: toggleAllPage,
-              onToggleOne: toggleOne,
-              allLabel: 'Select all users on this page',
+              ...records,
               rowLabel: (user) => `Select ${user.name}`,
             }}
             renderActions={(user) => (

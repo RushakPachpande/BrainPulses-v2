@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Outlet, Route } from 'react-router';
+import { Navigate, Outlet, Route, useParams } from 'react-router';
 import { RouteLoadingSkeleton } from '@/components/loading-skeletons';
 import { RequireAccess } from '@/contexts/require-access';
 import { RequireAuth } from '@/contexts/require-auth';
@@ -13,9 +13,6 @@ const DashboardPage = lazy(() =>
 );
 const StudentsPage = lazy(() =>
   import('@/pages/students').then((m) => ({ default: m.StudentsPage })),
-);
-const StudentFormPage = lazy(() =>
-  import('@/pages/student-form').then((m) => ({ default: m.StudentFormPage })),
 );
 const SponsorsPage = lazy(() =>
   import('@/pages/sponsors').then((m) => ({ default: m.SponsorsPage })),
@@ -90,6 +87,12 @@ function SuspenseOutlet() {
   );
 }
 
+function LegacyStudentRoute({ edit }: { edit?: boolean }) {
+  const { studentId = '' } = useParams();
+  const target = edit ? `/students?edit=${studentId}` : `/students?view=${studentId}`;
+  return <Navigate to={target} replace />;
+}
+
 export function AppRoutes() {
   return (
     <Route element={<SuspenseOutlet />}>
@@ -100,10 +103,10 @@ export function AppRoutes() {
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="students" element={<StudentsPage />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
-            <Route path="students/new" element={<StudentFormPage mode="create" />} />
-            <Route path="students/:studentId/edit" element={<StudentFormPage mode="edit" />} />
+            <Route path="students/new" element={<Navigate to="/students?create=1" replace />} />
+            <Route path="students/:studentId/edit" element={<LegacyStudentRoute edit />} />
           </Route>
-          <Route path="students/:studentId" element={<StudentFormPage mode="view" />} />
+          <Route path="students/:studentId" element={<LegacyStudentRoute />} />
           <Route path="sponsors" element={<SponsorsPage />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
             <Route path="sponsors/new" element={<SponsorFormPage mode="create" />} />

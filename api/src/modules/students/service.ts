@@ -169,3 +169,38 @@ export async function updateStudent(
 export async function deactivateStudent(organizationId: string, actorUserId: string, id: string) {
   return updateStudent(organizationId, actorUserId, id, { isActive: false });
 }
+
+async function setStudentsActive(
+  organizationId: string,
+  actorUserId: string,
+  ids: string[],
+  isActive: boolean,
+  action: string,
+) {
+  const result = await prisma.student.updateMany({
+    where: { organizationId, id: { in: ids } },
+    data: { isActive },
+  });
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action,
+    targetType: 'student',
+    metadata: { ids, updated: result.count },
+  });
+  await invalidateDashboard(organizationId);
+  return { updated: result.count };
+}
+
+export async function deactivateStudents(
+  organizationId: string,
+  actorUserId: string,
+  ids: string[],
+) {
+  return setStudentsActive(organizationId, actorUserId, ids, false, 'student.bulk_deactivate');
+}
+
+export async function activateStudents(organizationId: string, actorUserId: string, ids: string[]) {
+  return setStudentsActive(organizationId, actorUserId, ids, true, 'student.bulk_activate');
+}

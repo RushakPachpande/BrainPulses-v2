@@ -8,6 +8,7 @@ import {
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
+  bulkStudentIdsSchema,
   createStudentSchema,
   idParamSchema,
   studentListQuerySchema,
@@ -41,6 +42,18 @@ studentsRouter.patch(
   requireOrgAccess('edit'),
   validate({ params: idParamSchema, body: updateStudentSchema }),
   controller.update,
+);
+studentsRouter.post(
+  '/deactivate',
+  requireOrgAccess('full'),
+  validate({ body: bulkStudentIdsSchema }),
+  controller.deactivateMany,
+);
+studentsRouter.post(
+  '/activate',
+  requireOrgAccess('full'),
+  validate({ body: bulkStudentIdsSchema }),
+  controller.activateMany,
 );
 studentsRouter.post(
   '/:id/deactivate',

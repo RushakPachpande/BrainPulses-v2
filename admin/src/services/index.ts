@@ -698,6 +698,26 @@ export async function deactivateStudent(id: string) {
   return data;
 }
 
+export async function deactivateStudents(ids: string[]) {
+  if (useFixtures) {
+    invalidateAdmin(['students', 'dashboard']);
+    return { updated: ids.length };
+  }
+  const data = await apiPostData<{ updated: number }>('/api/students/deactivate', { ids });
+  invalidateAdmin(['students', 'dashboard']);
+  return data;
+}
+
+export async function activateStudents(ids: string[]) {
+  if (useFixtures) {
+    invalidateAdmin(['students', 'dashboard']);
+    return { updated: ids.length };
+  }
+  const data = await apiPostData<{ updated: number }>('/api/students/activate', { ids });
+  invalidateAdmin(['students', 'dashboard']);
+  return data;
+}
+
 export async function getStudent(id: string) {
   if (useFixtures) {
     const rows = await getStudents();

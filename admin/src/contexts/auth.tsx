@@ -13,6 +13,7 @@ import {
   type OrgOption,
   type SessionPayload,
 } from '@/contexts/auth-context';
+import { clearAllListSelections } from '@/lib/list-selection';
 import { clearAdminQueryCache } from '@/lib/query-client';
 
 type SessionWithToken = SessionPayload & { accessToken: string };
@@ -100,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* ignore */
     }
     clearAdminQueryCache(orgId);
+    clearAllListSelections();
     setAccessToken(null);
     setState({ status: 'anonymous' });
   }, [state]);

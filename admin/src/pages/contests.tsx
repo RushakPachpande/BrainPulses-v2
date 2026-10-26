@@ -21,6 +21,7 @@ import {
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canMutateOrg } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -74,7 +75,6 @@ export function ContestsPage() {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
@@ -102,8 +102,13 @@ export function ContestsPage() {
   const pageRows = filtered.slice(start, start + size);
   const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
   const pageIds = pageRows.map((row) => row.id);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const records = useRecordSelection(
+    orgId,
+    'contests',
+    'contests',
+    pageIds,
+    filtered.map((row) => row.id),
+  );
 
   function toggleSort(key: SortKey) {
     if (sortKey !== key) {
@@ -117,17 +122,6 @@ export function ContestsPage() {
     }
     setSortKey(null);
     setSortDir('asc');
-  }
-
-  function toggleAllPage(checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of pageIds) {
-        if (checked) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
   }
 
   if (loading) {
@@ -219,19 +213,7 @@ export function ContestsPage() {
               onSort: (key) => toggleSort(key as SortKey),
             }}
             selection={{
-              selected,
-              allSelected: allPageSelected,
-              someSelected: somePageSelected,
-              onToggleAll: toggleAllPage,
-              onToggleOne: (id, checked) => {
-                setSelected((prev) => {
-                  const next = new Set(prev);
-                  if (checked) next.add(id);
-                  else next.delete(id);
-                  return next;
-                });
-              },
-              allLabel: 'Select all contests on this page',
+              ...records,
               rowLabel: (contest) => `Select ${contest.name}`,
             }}
             renderActions={(contest) => (

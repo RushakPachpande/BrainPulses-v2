@@ -31,6 +31,7 @@ import {
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canEditKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
@@ -51,8 +52,8 @@ function compareRows(a: Registration, b: Registration, key: SortKey) {
 const registrationPlacement: Record<SortKey, RecordColumn<Registration>['placement']> = {
   id: 'identity',
   name: 'title',
-  email: 'details',
-  phone: 'details',
+  email: 'wide',
+  phone: 'wide',
   registered: 'details',
   activity: 'primary',
   bank: 'details',
@@ -110,6 +111,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     key: column.key,
     label: column.label,
     placement: registrationPlacement[column.key],
+    identityPrefix: column.key === 'id' ? 'ID: ' : undefined,
     tableClassName: column.key === 'id' || column.key === 'phone' ? 'tabular-nums' : undefined,
     render: (row) => renderRegistrationCell(column.key, row),
   }));
@@ -129,7 +131,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const [attempt, setAttempt] = useState('All');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
@@ -258,8 +259,13 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
 
   const pageIds = pageRows.map((row) => row.registrationId);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const records = useRecordSelection(
+    orgId,
+    `registrations-${kind}`,
+    'registrations',
+    pageIds,
+    filtered.map((row) => row.registrationId),
+  );
 
   function clearFilters() {
     setSearch('');
@@ -283,26 +289,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     }
     setSortKey(null);
     setSortDir('asc');
-  }
-
-  function toggleAllPage(checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of pageIds) {
-        if (checked) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  function toggleOne(id: string, checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
   }
 
   if (loading) {
@@ -415,12 +401,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
               onSort: (key) => toggleSort(key as SortKey),
             }}
             selection={{
-              selected,
-              allSelected: allPageSelected,
-              someSelected: somePageSelected,
-              onToggleAll: toggleAllPage,
-              onToggleOne: toggleOne,
-              allLabel: 'Select all registrations on this page',
+              ...records,
               rowLabel: (row) => `Select ${row.name}`,
             }}
             renderActions={(row) => (
