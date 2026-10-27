@@ -16,27 +16,15 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Sponsors',
     description: 'Manage sponsors used by quizzes.',
   },
-  '/sponsors/new': {
-    crumb: 'BrainPulses / Sponsors / Add Sponsor',
-    title: 'Add Sponsor',
-  },
   '/contests': {
     crumb: 'BrainPulses / Contests',
     title: 'Contests',
     description: 'Manage contests and the sponsor each one belongs to.',
   },
-  '/contests/new': {
-    crumb: 'BrainPulses / Contests / Add Contest',
-    title: 'Add Contest',
-  },
   '/users': {
     crumb: 'BrainPulses / Users',
     title: 'User Management',
     description: 'Manage admin users, roles, and access to assessments and quizzes.',
-  },
-  '/users/new': {
-    crumb: 'BrainPulses / Users / Invite User',
-    title: 'Invite User',
   },
   '/assessments': {
     crumb: 'BrainPulses / Assessment',
@@ -127,24 +115,6 @@ export const pageMeta: Record<string, PageMeta> = {
 
 export function resolvePageMeta(pathname: string): PageMeta {
   if (pageMeta[pathname]) return pageMeta[pathname]!;
-  if (/^\/sponsors\/[^/]+\/edit$/.test(pathname)) {
-    return { crumb: 'BrainPulses / Sponsors / Edit Sponsor', title: 'Edit Sponsor' };
-  }
-  if (/^\/sponsors\/[^/]+$/.test(pathname) && pathname !== '/sponsors/new') {
-    return { crumb: 'BrainPulses / Sponsors / View Sponsor', title: 'View Sponsor' };
-  }
-  if (/^\/contests\/[^/]+\/edit$/.test(pathname)) {
-    return { crumb: 'BrainPulses / Contests / Edit Contest', title: 'Edit Contest' };
-  }
-  if (/^\/contests\/[^/]+$/.test(pathname) && pathname !== '/contests/new') {
-    return { crumb: 'BrainPulses / Contests / View Contest', title: 'View Contest' };
-  }
-  if (/^\/users\/[^/]+\/edit$/.test(pathname)) {
-    return { crumb: 'BrainPulses / Users / Edit User', title: 'Edit User' };
-  }
-  if (/^\/users\/[^/]+$/.test(pathname) && pathname !== '/users/new') {
-    return { crumb: 'BrainPulses / Users / View User', title: 'View User' };
-  }
   const activityEdit = pathname.match(/^\/(assessments|quizzes)\/([^/]+)\/edit$/);
   if (
     activityEdit &&

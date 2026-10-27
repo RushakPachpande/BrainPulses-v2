@@ -1,26 +1,10 @@
 import { useId } from 'react';
+import { GraduationCapIcon } from 'lucide-react';
+import { FormDialog } from '@/components/form-dialog';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import type { Student } from '@/services';
-
-const fields = [
-  { key: 'name', label: 'Full name' },
-  { key: 'email', label: 'Email', type: 'email' },
-  { key: 'code', label: 'Unique ID' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'course', label: 'Course' },
-  { key: 'city', label: 'City' },
-  { key: 'cohort', label: 'Cohort' },
-] as const;
 
 export function StudentViewDialog({
   student,
@@ -36,31 +20,13 @@ export function StudentViewDialog({
   const formId = useId();
 
   return (
-    <Dialog
-      open
-      onOpenChange={(next) => {
-        if (!next) onOpenChange(false);
-      }}
-    >
-      <DialogContent className="max-h-[min(40rem,calc(100dvh-2rem))] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>View Student</DialogTitle>
-          <DialogDescription>Student profile (read-only).</DialogDescription>
-        </DialogHeader>
-        <FieldGroup>
-          {fields.map((field) => (
-            <Field key={field.key}>
-              <FieldLabel htmlFor={`${formId}-${field.key}`}>{field.label}</FieldLabel>
-              <Input
-                id={`${formId}-${field.key}`}
-                type={'type' in field ? field.type : 'text'}
-                value={student[field.key]}
-                disabled
-              />
-            </Field>
-          ))}
-        </FieldGroup>
-        <DialogFooter>
+    <FormDialog
+      icon={GraduationCapIcon}
+      title="View Student"
+      description="Student profile (read-only)."
+      onOpenChange={onOpenChange}
+      footer={
+        <>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Close
           </Button>
@@ -69,8 +35,45 @@ export function StudentViewDialog({
               Edit
             </Button>
           ) : null}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <FieldGroup>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${formId}-name`}>Full name</FieldLabel>
+            <Input id={`${formId}-name`} value={student.name} disabled />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-code`}>Unique ID</FieldLabel>
+            <Input id={`${formId}-code`} value={student.code} disabled />
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor={`${formId}-email`}>Email address</FieldLabel>
+          <Input id={`${formId}-email`} type="email" value={student.email} disabled />
+        </Field>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${formId}-phone`}>Phone number</FieldLabel>
+            <Input id={`${formId}-phone`} value={student.phone} disabled />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-course`}>Course</FieldLabel>
+            <Input id={`${formId}-course`} value={student.course} disabled />
+          </Field>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`${formId}-city`}>City</FieldLabel>
+            <Input id={`${formId}-city`} value={student.city} disabled />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-cohort`}>Cohort</FieldLabel>
+            <Input id={`${formId}-cohort`} value={student.cohort} disabled />
+          </Field>
+        </div>
+      </FieldGroup>
+    </FormDialog>
   );
 }

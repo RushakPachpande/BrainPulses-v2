@@ -1,15 +1,9 @@
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import { GraduationCapIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { FormDialog } from '@/components/form-dialog';
 import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/use-confirm';
@@ -128,22 +122,40 @@ export function StudentEditorDialog({
     }
   }
 
-  const title = mode === 'create' ? 'Add Student' : 'Edit Student';
+  const isCreate = mode === 'create';
 
   return (
-    <Dialog
-      open
+    <FormDialog
+      icon={GraduationCapIcon}
+      title={isCreate ? 'Add Student' : 'Edit Student'}
+      description={
+        isCreate
+          ? 'Enter student details to create an account.'
+          : 'Update this student’s account information.'
+      }
+      busy={saving}
       onOpenChange={(next) => {
         if (!next) void requestClose();
       }}
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void requestClose()}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <SaveButton form={formId} pending={saving} disabled={loading}>
+            {isCreate ? 'Save Student' : 'Update Student'}
+          </SaveButton>
+        </>
+      }
     >
-      <DialogContent className="max-h-[min(40rem,calc(100dvh-2rem))] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>Required fields must be completed before saving.</DialogDescription>
-        </DialogHeader>
-        <form id={formId} onSubmit={onSubmit} onChange={() => setDirty(true)}>
-          <FieldGroup>
+      <form id={formId} onSubmit={onSubmit} onChange={() => setDirty(true)}>
+        <FieldGroup>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor={`${formId}-name`}>
                 Full name <span className="text-destructive">*</span>
@@ -152,21 +164,10 @@ export function StudentEditorDialog({
                 id={`${formId}-name`}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
+                placeholder="e.g. Aisha Begum"
                 required
                 disabled={loading || saving}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor={`${formId}-email`}>
-                Email <span className="text-destructive">*</span>
-              </FieldLabel>
-              <Input
-                id={`${formId}-email`}
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                required
-                disabled={loading || saving}
+                autoComplete="name"
               />
             </Field>
             <Field>
@@ -176,16 +177,35 @@ export function StudentEditorDialog({
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
                 placeholder="Auto-generated if blank"
-                disabled={mode !== 'create' || loading || saving}
+                disabled={!isCreate || loading || saving}
               />
             </Field>
+          </div>
+          <Field>
+            <FieldLabel htmlFor={`${formId}-email`}>
+              Email address <span className="text-destructive">*</span>
+            </FieldLabel>
+            <Input
+              id={`${formId}-email`}
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="student@example.com"
+              required
+              disabled={loading || saving}
+              autoComplete="email"
+            />
+          </Field>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
-              <FieldLabel htmlFor={`${formId}-phone`}>Phone</FieldLabel>
+              <FieldLabel htmlFor={`${formId}-phone`}>Phone number</FieldLabel>
               <Input
                 id={`${formId}-phone`}
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
+                placeholder="+91 98765 43210"
                 disabled={loading || saving}
+                autoComplete="tel"
               />
             </Field>
             <Field>
@@ -197,6 +217,8 @@ export function StudentEditorDialog({
                 disabled={loading || saving}
               />
             </Field>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field>
               <FieldLabel htmlFor={`${formId}-city`}>City</FieldLabel>
               <Input
@@ -216,22 +238,10 @@ export function StudentEditorDialog({
                 placeholder="e.g. Alpha"
               />
             </Field>
-          </FieldGroup>
-        </form>
-        <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => void requestClose()}
-            disabled={saving}
-          >
-            Cancel
-          </Button>
-          <SaveButton form={formId} pending={saving} disabled={loading}>
-            {mode === 'create' ? 'Create student' : 'Save changes'}
-          </SaveButton>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </div>
+          <p className="text-xs text-muted-foreground">* Required fields.</p>
+        </FieldGroup>
+      </form>
+    </FormDialog>
   );
 }

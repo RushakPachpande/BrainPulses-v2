@@ -56,6 +56,7 @@ export function MediaCardGrid<Item>({
 
 export function MediaCard({
   to,
+  onView,
   title,
   imageFileId,
   kind,
@@ -65,8 +66,10 @@ export function MediaCard({
   meta,
   footerLabel,
   editTo,
+  onEdit,
 }: {
-  to: string;
+  to?: string;
+  onView?: () => void;
   title: string;
   imageFileId: string;
   kind: 'sponsor' | 'contest';
@@ -76,9 +79,21 @@ export function MediaCard({
   meta?: { icon: ReactNode; label: string }[];
   footerLabel?: ReactNode;
   editTo?: string;
+  onEdit?: () => void;
 }) {
   const KindIcon = kind === 'sponsor' ? Building2Icon : TrophyIcon;
   const kindLabel = kind === 'sponsor' ? 'Sponsor' : 'Contest';
+  const titleNode = onView ? (
+    <button type="button" className="media-catalog-card-link" onClick={onView}>
+      {title}
+    </button>
+  ) : to ? (
+    <Link to={to} className="media-catalog-card-link">
+      {title}
+    </Link>
+  ) : (
+    <span className="media-catalog-card-link">{title}</span>
+  );
 
   return (
     <article className="media-catalog-card">
@@ -116,11 +131,7 @@ export function MediaCard({
             </span>
           </p>
         ) : null}
-        <h3>
-          <Link to={to} className="media-catalog-card-link">
-            {title}
-          </Link>
-        </h3>
+        <h3>{titleNode}</h3>
         <p className="media-catalog-card-summary">
           {description?.trim() ||
             (kind === 'sponsor' ? 'Partner for quizzes and contests.' : 'Contest catalog entry.')}
@@ -140,7 +151,19 @@ export function MediaCard({
       <div className="media-catalog-card-bottom">
         <div className="media-catalog-card-foot">{footerLabel}</div>
         <div className="media-catalog-card-actions">
-          {editTo ? (
+          {onEdit ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="media-catalog-card-edit"
+              aria-label={`Edit ${title}`}
+              onClick={onEdit}
+            >
+              <PencilIcon data-icon="inline-start" />
+              Edit
+            </Button>
+          ) : editTo ? (
             <Button asChild variant="outline" size="sm" className="media-catalog-card-edit">
               <Link to={editTo} aria-label={`Edit ${title}`}>
                 <PencilIcon data-icon="inline-start" />
@@ -148,12 +171,19 @@ export function MediaCard({
               </Link>
             </Button>
           ) : null}
-          <Button asChild size="sm" className="media-catalog-card-action">
-            <Link to={to}>
+          {onView ? (
+            <Button type="button" size="sm" className="media-catalog-card-action" onClick={onView}>
               View
               <ArrowRightIcon data-icon="inline-end" />
-            </Link>
-          </Button>
+            </Button>
+          ) : to ? (
+            <Button asChild size="sm" className="media-catalog-card-action">
+              <Link to={to}>
+                View
+                <ArrowRightIcon data-icon="inline-end" />
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </div>
     </article>

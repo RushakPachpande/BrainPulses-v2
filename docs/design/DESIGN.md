@@ -113,6 +113,7 @@ Import primitives from `@/components/ui`. `admin/components.json` uses shadcn wi
 | Boolean setting       | `Switch` inside `ToggleRow`                                                                                          |
 | Menu                  | `DropdownMenu`                                                                                                       |
 | Confirmation          | `Dialog`                                                                                                             |
+| Record create/view/edit | `FormDialog` (icon header, sticky footer, scroll body, optional size); students/users/sponsors/contests; confirmations stay on plain `Dialog` |
 | Mobile side panel     | `Sheet`                                                                                                              |
 | Alert / toast         | `Alert` / Sonner                                                                                                     |
 | List table            | `ResponsiveRecords`: shadcn `Table` inside `Card` at 720px and wider, stacked panels below                           |
@@ -125,7 +126,7 @@ Import primitives from `@/components/ui`. `admin/components.json` uses shadcn wi
 | Checkbox              | `Checkbox`                                                                                                           |
 | Image preview         | `AspectRatio` around the image (`object-contain`, muted fill)                                                        |
 
-Extend `Toolbar`, `ModuleNav`, `StatusPill`, `SortHeader`, `KpiGrid`, `PageHeaderActions`, and `ToggleRow`. Do not copy their markup into a page.
+Extend `Toolbar`, `ModuleNav`, `StatusPill`, `SortHeader`, `KpiGrid`, `PageHeaderActions`, `ToggleRow`, and `FormDialog`. Do not copy their markup into a page.
 
 ## 5. Lucide icon rules
 
