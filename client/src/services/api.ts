@@ -147,7 +147,7 @@ export function saveAttempt(
     acknowledged: boolean;
     revision: number;
     attempt: AttemptState;
-  }>(`/api/attempts/${attemptId}/save`, { revision, responses });
+  }>(`/api/attempts/${attemptId}/save`, { revision, responses }, undefined, { background: true });
 }
 
 /**

@@ -41,7 +41,7 @@ Confirm response format before implementation.
 | Results | list/detail/publish/regrade | Release policy |
 | Settings | read/update settings groups | Separate sensitive operations |
 | Audit | list/detail | Strict permissions |
-| Files | initiate/finalize upload/download | Limits and signed URLs |
+| Files | initiate/finalize upload/download, image library list | Limits and signed URLs; library is org-scoped and filtered by purpose |
 
 Implement only approved MVP endpoints.
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { ensureReviewResults } from './fixtures.js';
 import { getTestApp, request } from './helpers.js';
 
 type ResultRow = { id: string; kind: string; activityCode: string };
@@ -26,7 +27,7 @@ function forbidKey(value: unknown, banned: string) {
 async function studentToken(code: string) {
   const app = await getTestApp();
   const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
-    body: { code, organizationSlug: 'demo', replaceSession: true },
+    body: { code, organizationSlug: 'nextgeninnov8', replaceSession: true },
   });
   assert.equal(res.status, 200);
   return (res.body as { data: { accessToken: string } }).data.accessToken;
@@ -36,16 +37,17 @@ describe('published result review policy', () => {
   it('shows assessment review keys and hides quiz answers when the flag is false', async () => {
     const app = await getTestApp();
     const token = await studentToken('BP-24102');
+    await ensureReviewResults();
     const headers = { authorization: `Bearer ${token}` };
 
     const list = await request(app, 'GET', '/api/student/results?limit=50', { headers });
     assert.equal(list.status, 200);
     const rows = (list.body as { data: ResultRow[] }).data;
 
-    const assessment = rows.find((row) => row.activityCode === 'ASM-26001');
-    const hiddenQuiz = rows.find((row) => row.activityCode === 'QZ-26002');
+    const assessment = rows.find((row) => row.activityCode === 'ASM-ROUND');
+    const hiddenQuiz = rows.find((row) => row.activityCode === 'QZ-HIDDEN');
     assert.ok(assessment, 'seed should publish an assessment result for BP-24102');
-    assert.ok(hiddenQuiz, 'seed should publish QZ-26002 with answers hidden');
+    assert.ok(hiddenQuiz, 'fixture should publish QZ-HIDDEN with answers hidden');
 
     const assessmentRes = await request(app, 'GET', `/api/student/results/${assessment.id}`, {
       headers,

@@ -1,5 +1,17 @@
-import { ArrowLeft, ArrowRight, Check, Clock3, Flag, LogOut, ShieldCheck, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  Clock3,
+  Eraser,
+  Flag,
+  LogOut,
+  ShieldCheck,
+  TriangleAlert,
+  X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExamShellSkeleton } from '../components/skeletons';
 import { StoredImage } from '../components/stored-image';
@@ -17,6 +29,7 @@ import {
 import { timeRemaining } from '../lib/format';
 import {
   clearSubmitIdempotencyKey,
+  listActivities,
   resumeAttempt,
   saveAttempt,
   saveAttemptKeepalive,
@@ -66,13 +79,34 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     setError('');
     try {
       if (mode === 'start') {
-        const data = await startAttempt(id, roundIdParam);
+        let data: { attempt: AttemptState; questions: AttemptQuestion[] };
+        try {
+          data = await startAttempt(id, roundIdParam);
+        } catch (err) {
+          // A second Start (Strict Mode, or a double click) finds the attempt the first Start created.
+          if (
+            !(err instanceof ApiError) ||
+            err.status !== 409 ||
+            !err.message.includes('Resume it instead')
+          ) {
+            throw err;
+          }
+          const rows = await listActivities('all');
+          const openId = rows.find((row) => row.activityId === id)?.openAttemptId;
+          if (!openId) throw err;
+          data = await resumeAttempt(openId);
+        }
         attemptIdRef.current = data.attempt.id;
         setAttempt(data.attempt);
         setQuestions(data.questions);
         revisionRef.current = data.attempt.revision;
-        setAnswers({});
-        answersRef.current = {};
+        const mapped: AnswerMap = {};
+        for (const r of data.attempt.responses) {
+          const parsed = answerFromResponse(r.answer);
+          if (parsed) mapped[r.questionVersionId] = parsed;
+        }
+        setAnswers(mapped);
+        answersRef.current = mapped;
         const remaining = Math.max(
           0,
           Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
@@ -285,16 +319,22 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       setSubmitting(true);
       setConfirm(false);
       const key = submitIdempotencyKeyFor(attempt.id);
+      // The guard must be off before navigate() runs, so commit the state synchronously.
+      const leaveSubmitted = (resultId: string) => {
+        flushSync(() => {
+          setAllowLeave(true);
+          setMarked([]);
+        });
+        navigate(attempt.roundId ? `/assessments/${attempt.activityId}` : `/results/${resultId}`, {
+          replace: true,
+        });
+      };
       try {
         if (Object.keys(latest).length) await enqueueSave(latest);
         await saveChainRef.current.catch(() => undefined);
         const data = await submitAttempt(attempt.id, key);
         clearSubmitIdempotencyKey(attempt.id);
-        if (attempt.roundId) {
-          navigate(`/assessments/${attempt.activityId}`, { replace: true });
-        } else {
-          navigate(`/results/${data.result.id}`, { replace: true });
-        }
+        leaveSubmitted(data.result.id);
       } catch (err) {
         // Response may have committed on the server — align UI.
         try {
@@ -302,11 +342,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           if (resumed.submitted && resumed.result) {
             clearSubmitIdempotencyKey(attempt.id);
             setError('');
-            if (attempt.roundId) {
-              navigate(`/assessments/${attempt.activityId}`, { replace: true });
-            } else {
-              navigate(`/results/${resumed.result.id}`, { replace: true });
-            }
+            leaveSubmitted(resumed.result.id);
             return;
           }
         } catch {
@@ -365,7 +401,20 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     () => Object.values(answers).filter((a) => isAnswered(a)).length,
     [answers],
   );
+  const allAnswered = questions.length > 0 && answeredCount === questions.length;
+  const markedSorted = useMemo(() => [...marked].sort((a, b) => a - b), [marked]);
   const q = questions[qIndex];
+
+  function requestSubmit() {
+    if (!allAnswered || submitting) return;
+    void doSubmit(false);
+  }
+
+  function reviewMarked() {
+    setConfirm(false);
+    const first = markedSorted[0];
+    if (first !== undefined) setQIndex(first);
+  }
 
   if (busy && !attempt) {
     return <ExamShellSkeleton />;
@@ -392,6 +441,18 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const numericValue =
     current && 'value' in current && Number.isFinite(current.value) ? String(current.value) : '';
   const textValue = current && 'text' in current ? current.text : '';
+  const isChoice = isSingleSelectType(q.type) || isMultiSelectType(q.type);
+  const isMarked = marked.includes(qIndex);
+  const saving = savingInFlight || pendingSave;
+
+  function toggleMarked() {
+    setMarked((p) => (p.includes(qIndex) ? p.filter((i) => i !== qIndex) : [...p, qIndex]));
+  }
+
+  function clearSelection() {
+    if (!q) return;
+    setAnswer(q.questionVersionId, isMultiSelectType(q.type) ? { labels: [] } : { label: '' });
+  }
 
   return (
     <div className="exam-page">
@@ -435,18 +496,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               QUESTION {String(qIndex + 1).padStart(2, '0')}{' '}
               <span className="question-total">/ {String(questions.length).padStart(2, '0')}</span>
             </span>
-            <button
-              className={`mark-btn ${marked.includes(qIndex) ? 'marked' : ''}`}
-              type="button"
-              onClick={() =>
-                setMarked((p) =>
-                  p.includes(qIndex) ? p.filter((i) => i !== qIndex) : [...p, qIndex],
-                )
-              }
-            >
-              <Flag size={15} />
-              {marked.includes(qIndex) ? 'Marked for review' : 'Mark for review'}
-            </button>
+            {isMarked ? (
+              <span className="review-chip">
+                <Flag size={13} aria-hidden /> Marked for review
+              </span>
+            ) : null}
           </div>
           <div className="question-card">
             <div className="question-context">ASSESSMENT QUESTION</div>
@@ -584,6 +638,27 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               </div>
             ) : null}
           </div>
+          <div className="question-actions">
+            <button
+              className={`btn outline review-toggle ${isMarked ? 'is-marked' : ''}`}
+              type="button"
+              aria-pressed={isMarked}
+              onClick={toggleMarked}
+            >
+              <Flag size={15} aria-hidden />
+              {isMarked ? 'Unmark review' : 'Mark for review'}
+            </button>
+            {isChoice ? (
+              <button
+                className="btn outline"
+                type="button"
+                disabled={!isAnswered(current)}
+                onClick={clearSelection}
+              >
+                <Eraser size={15} aria-hidden /> Clear selection
+              </button>
+            ) : null}
+          </div>
           <div className="question-footer">
             <button
               className="btn outline"
@@ -593,8 +668,12 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             >
               <ArrowLeft size={15} /> Previous
             </button>
-            <div className="question-footer-status">
+            <div className="question-footer-status" id="attempt-submit-status">
               {answeredCount} of {questions.length} answered
+              {saving ? ' · Saving…' : ''}
+              {!allAnswered && qIndex === questions.length - 1
+                ? ' · Answer every question to submit'
+                : ''}
             </div>
             {qIndex < questions.length - 1 ? (
               <button className="btn primary" type="button" onClick={() => setQIndex(qIndex + 1)}>
@@ -604,8 +683,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               <button
                 className="btn primary"
                 type="button"
-                disabled={submitting}
-                onClick={() => void doSubmit(false)}
+                disabled={submitting || !allAnswered}
+                aria-describedby="attempt-submit-status"
+                onClick={requestSubmit}
               >
                 Submit attempt <Check size={16} />
               </button>
@@ -664,14 +744,16 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               <b>{marked.length}</b>
             </div>
           </div>
-          <button
-            className="btn primary full"
-            type="button"
-            disabled={submitting}
-            onClick={() => void doSubmit(false)}
-          >
-            Submit attempt <ArrowRight size={15} />
-          </button>
+          {allAnswered ? (
+            <button
+              className="btn primary full"
+              type="button"
+              disabled={submitting}
+              onClick={requestSubmit}
+            >
+              Submit attempt <ArrowRight size={15} />
+            </button>
+          ) : null}
           <p className="autosave-note">
             <ShieldCheck size={14} /> Answers are saved to the server as you go.
           </p>
@@ -679,9 +761,15 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       </div>
       {confirm && (
         <div className="modal-backdrop">
-          <div className="confirm-modal">
-            <div className="modal-icon">
-              <Flag size={22} />
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="submit-attempt-title"
+            aria-describedby="submit-attempt-desc"
+          >
+            <div className={`modal-icon ${markedSorted.length ? 'warning' : ''}`}>
+              {markedSorted.length ? <TriangleAlert size={22} /> : <Flag size={22} />}
             </div>
             <button
               className="modal-close icon-btn"
@@ -691,17 +779,34 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             >
               <X size={18} />
             </button>
-            <h2>Submit your attempt?</h2>
-            <p>
-              You have answered{' '}
-              <b>
-                {answeredCount} of {questions.length}
-              </b>{' '}
-              questions. {questions.length - answeredCount} questions are still unanswered.
-            </p>
+            {markedSorted.length ? (
+              <>
+                <h2 id="submit-attempt-title">Questions marked for review</h2>
+                <p id="submit-attempt-desc">
+                  You marked{' '}
+                  <b>
+                    {markedSorted.length} {markedSorted.length === 1 ? 'question' : 'questions'}
+                  </b>{' '}
+                  for review ({markedSorted.map((i) => `Q${i + 1}`).join(', ')}). Please confirm you
+                  want to submit. You can&apos;t change answers after submitting.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 id="submit-attempt-title">Submit your attempt?</h2>
+                <p id="submit-attempt-desc">
+                  You have answered all <b>{questions.length}</b> questions. You can&apos;t change
+                  answers after submitting.
+                </p>
+              </>
+            )}
             <div className="modal-actions">
-              <button className="btn outline" type="button" onClick={() => setConfirm(false)}>
-                Review answers
+              <button
+                className="btn outline"
+                type="button"
+                onClick={markedSorted.length ? reviewMarked : () => setConfirm(false)}
+              >
+                {markedSorted.length ? 'Review marked' : 'Review answers'}
               </button>
               <button
                 className="btn primary"
@@ -709,7 +814,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 disabled={submitting}
                 onClick={() => void doSubmit(true)}
               >
-                Submit attempt
+                {markedSorted.length ? 'Submit anyway' : 'Submit attempt'}
               </button>
             </div>
           </div>

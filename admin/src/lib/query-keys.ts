@@ -14,6 +14,8 @@ export const adminQueryKeys = {
   results: (orgId: string, kind: string) => ['admin', 'results', orgId, kind] as const,
   resultsSummary: (orgId: string, kind: string) =>
     ['admin', 'results-summary', orgId, kind] as const,
+  imageLibrary: (orgId: string, purpose: string, q: string) =>
+    ['admin', 'image-library', orgId, purpose, q] as const,
 };
 
 export function adminPersistKey(orgId: string) {

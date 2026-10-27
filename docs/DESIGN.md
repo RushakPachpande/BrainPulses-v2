@@ -388,8 +388,8 @@ the shipped components, not a second set to invent.
     page dramatically when content loads.
 -   Use a stable minimum height for loading regions when layout shift
     would disrupt the user.
--   Skeletons are temporary loading indicators, not permanent
-    placeholders for unfinished production pages.
+-   Skeletons show a loading state. They are not a stand-in for
+    unfinished pages.
 
 ------------------------------------------------------------------------
 

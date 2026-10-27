@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState, type SyntheticEvent } from 'react';
-import { ImageIcon, UploadIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type DragEvent, type SyntheticEvent } from 'react';
+import { ImageIcon, ImagesIcon, UploadIcon, XIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
+import { ImageLibraryDialog } from '@/components/image-library-dialog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Button } from '@/components/ui/button';
 import { Field, FieldLabel } from '@/components/ui/field';
 import { UPLOAD_IMAGE_SIZE_CAPPING, formatUploadMegabytes } from '@/lib/upload-limits';
+import { cn } from 'cn';
+
+const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 
 export function CatalogImageField({
   id,
@@ -14,6 +18,8 @@ export function CatalogImageField({
   disabled,
   required,
   onFile,
+  onPickExisting,
+  onClear,
 }: {
   id: string;
   label: string;
@@ -22,9 +28,13 @@ export function CatalogImageField({
   disabled: boolean;
   required: boolean;
   onFile: (file: File | null) => void;
+  onPickExisting?: (fileId: string) => void;
+  onClear?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [ratio, setRatio] = useState(16 / 9);
 
@@ -36,6 +46,38 @@ export function CatalogImageField({
   function onPreviewLoad(event: SyntheticEvent<HTMLImageElement>) {
     rememberRatio(event.currentTarget);
   }
+
+  function choose(next: File | null) {
+    setFile(next);
+    onFile(next);
+  }
+
+  function clear() {
+    if (inputRef.current) inputRef.current.value = '';
+    setRatio(16 / 9);
+    choose(null);
+    onClear?.();
+  }
+
+  function onDrop(event: DragEvent<HTMLElement>) {
+    event.preventDefault();
+    setDragging(false);
+    const dropped = event.dataTransfer.files?.[0];
+    if (!dropped || !ACCEPTED_TYPES.includes(dropped.type)) return;
+    if (inputRef.current) inputRef.current.files = event.dataTransfer.files;
+    choose(dropped);
+  }
+
+  const dropHandlers = disabled
+    ? {}
+    : {
+        onDragOver: (event: DragEvent<HTMLElement>) => {
+          event.preventDefault();
+          setDragging(true);
+        },
+        onDragLeave: () => setDragging(false),
+        onDrop,
+      };
 
   useEffect(() => {
     if (!file) return;
@@ -57,11 +99,19 @@ export function CatalogImageField({
       <FieldLabel htmlFor={id}>
         {label} {required ? <span className="text-destructive">*</span> : null}
       </FieldLabel>
-      <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 p-4">
-        <div className="w-full" style={{ maxWidth: `min(100%, ${frameMaxWidth}px)` }}>
+      <div className="flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 p-4 md:flex-row md:items-center md:gap-6">
+        <div
+          className="w-full md:w-64 md:shrink-0"
+          style={{ maxWidth: `min(100%, ${frameMaxWidth}px)` }}
+        >
           <AspectRatio
             ratio={frameRatio}
-            className="overflow-hidden rounded-xl border border-border bg-muted"
+            className={cn(
+              'overflow-hidden rounded-xl border border-border bg-muted transition-colors',
+              !hasImage && 'md:border-dashed',
+              dragging && 'border-primary bg-accent',
+            )}
+            {...dropHandlers}
           >
             {preview ? (
               <img
@@ -77,15 +127,29 @@ export function CatalogImageField({
                 className="size-full rounded-none object-contain"
                 onLoad={rememberRatio}
               />
-            ) : (
+            ) : disabled ? (
               <div className="flex size-full items-center justify-center text-muted-foreground">
                 <ImageIcon aria-hidden />
               </div>
+            ) : (
+              <button
+                type="button"
+                aria-label={`Choose ${label.toLowerCase()} file`}
+                className="flex size-full cursor-pointer flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                onClick={() => inputRef.current?.click()}
+              >
+                <span className="flex size-10 items-center justify-center rounded-full bg-background ring-1 ring-border">
+                  <UploadIcon aria-hidden className="size-4" />
+                </span>
+                <span className="hidden text-sm font-medium text-foreground md:block">
+                  {dragging ? 'Drop to upload' : 'Click or drop an image'}
+                </span>
+              </button>
             )}
           </AspectRatio>
         </div>
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between md:flex-1 md:flex-col md:items-start md:justify-center">
+          <div className="min-w-0 max-w-full">
             <p className="truncate text-sm font-medium">
               {fileName ?? (fileId ? 'Current image' : 'No image chosen')}
             </p>
@@ -94,10 +158,24 @@ export function CatalogImageField({
             </p>
           </div>
           {disabled ? null : (
-            <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
-              <UploadIcon data-icon="inline-start" />
-              {hasImage ? 'Change' : 'Choose image'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" onClick={() => inputRef.current?.click()}>
+                <UploadIcon data-icon="inline-start" />
+                {hasImage ? 'Change' : 'Choose image'}
+              </Button>
+              {onPickExisting ? (
+                <Button type="button" variant="outline" onClick={() => setLibraryOpen(true)}>
+                  <ImagesIcon data-icon="inline-start" />
+                  Choose existing
+                </Button>
+              ) : null}
+              {hasImage && onClear ? (
+                <Button type="button" variant="ghost" onClick={clear}>
+                  <XIcon data-icon="inline-start" />
+                  Clear
+                </Button>
+              ) : null}
+            </div>
           )}
         </div>
         {disabled ? null : (
@@ -108,13 +186,22 @@ export function CatalogImageField({
             accept="image/png,image/jpeg,image/webp"
             required={required && !fileId}
             className="sr-only"
-            onChange={(event) => {
-              const next = event.target.files?.[0] ?? null;
-              setFile(next);
-              onFile(next);
-            }}
+            onChange={(event) => choose(event.target.files?.[0] ?? null)}
           />
         )}
+        {!disabled && onPickExisting ? (
+          <ImageLibraryDialog
+            open={libraryOpen}
+            onOpenChange={setLibraryOpen}
+            purpose="catalog"
+            selectedFileId={file ? undefined : fileId || undefined}
+            onSelect={(nextId) => {
+              setFile(null);
+              if (inputRef.current) inputRef.current.value = '';
+              onPickExisting(nextId);
+            }}
+          />
+        ) : null}
       </div>
     </Field>
   );

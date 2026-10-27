@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { prisma } from '../src/lib/prisma.js';
+import { ensureRoundAssessment } from './fixtures.js';
 import { getTestApp, request } from './helpers.js';
 
 async function studentToken() {
@@ -8,7 +9,7 @@ async function studentToken() {
   const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
     body: {
       code: 'BP-24101',
-      organizationSlug: 'demo',
+      organizationSlug: 'nextgeninnov8',
       replaceSession: true,
     },
   });
@@ -20,13 +21,7 @@ describe('attempts', () => {
   it('rejects stale revision and accepts idempotent submit', async () => {
     const app = await getTestApp();
     const token = await studentToken();
-    const activity = await prisma.activity.findFirst({
-      where: { code: 'ASM-26001' },
-      include: { rounds: { orderBy: { sortOrder: 'asc' }, take: 1 } },
-    });
-    assert.ok(activity);
-    const round = activity.rounds[0];
-    assert.ok(round, 'assessment seed should include Round 1');
+    const { activity, round } = await ensureRoundAssessment();
 
     // Clear prior open attempts for this student/activity
     const student = await prisma.student.findFirst({

@@ -1474,7 +1474,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </div>
           ) : null}
 
-          <div className="mt-6 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-between">
+          <div className="mt-6 flex flex-row flex-nowrap items-center justify-between gap-2 border-t border-border pt-4">
             <Button
               type="button"
               variant="outline"
@@ -1483,7 +1483,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             >
               Back
             </Button>
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex min-w-0 flex-row flex-nowrap justify-end gap-2">
               {readOnly ? (
                 <Button
                   type="button"

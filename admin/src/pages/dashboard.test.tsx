@@ -8,7 +8,7 @@ vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     status: 'authenticated',
     user: { id: 'u1', email: 'admin@brainpulses.com', name: 'Admin' },
-    organization: { id: 'o1', name: 'Demo', slug: 'demo' },
+    organization: { id: 'o1', name: 'NextGenInnov8', slug: 'nextgeninnov8' },
     membership: {
       id: 'm1',
       role: 'super_admin',

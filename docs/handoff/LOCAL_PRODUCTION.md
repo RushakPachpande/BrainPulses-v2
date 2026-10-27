@@ -1,6 +1,6 @@
 # Local production-like stack — BrainPulses v2.0
 
-Run Admin, Student Client, and API against Docker Postgres/Redis with seeded demo data. This is the supported way to test end-to-end as an end customer before cloud hosting.
+Run Admin, Student Client, and API against Docker Postgres/Redis with the seeded organizations. This is the supported way to test end-to-end before cloud hosting.
 
 ## Ports
 
@@ -59,31 +59,31 @@ Invoke-RestMethod http://127.0.0.1:3002/health/ready
 
 Admin (Admin UI at http://localhost:5173):
 
-| Role            | Email                    | Password       |
-| --------------- | ------------------------ | -------------- |
-| Super admin     | `admin@brainpulses.com`  | `Password123!` |
-| View-only admin | `viewer@brainpulses.com` | `Password123!` |
+| Role            | Email                         | Password       |
+| --------------- | ----------------------------- | -------------- |
+| Super admin     | `superadmin@brainpulses.com`  | `Password123!` |
+| Admin           | `admin@brainpulses.com`       | `Password123!` |
+| View-only admin | `viewer@brainpulses.com`      | `Password123!` |
 
-Students (Student client at http://localhost:5174 — Unique ID or Phone OTP):
+Staff accounts belong to both **NextGenInnov8** (`nextgeninnov8`) and **GreyCaps** (`greycaps`).
 
-| Name        | Unique ID  | Phone (E.164)   | National (demo)      |
+Students (Student client at http://localhost:5174 — Unique ID or Phone OTP). All twelve students belong to NextGenInnov8:
+
+| Name        | Unique ID  | Phone (E.164)   | National number      |
 | ----------- | ---------- | --------------- | -------------------- |
 | Priya Patel | `BP-24101` | `+919876510000` | `+91` / `9876510000` |
 | Rohan Mehta | `BP-24102` | `+919876510001` | `+91` / `9876510001` |
 | Sana Khan   | `BP-24103` | `+919876510002` | `+91` / `9876510002` |
 
-Plus ~9 more Northstar Prep students (`BP-24104` …) with cohorts Alpha / Beta / Gamma. Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
+Plus nine more students (`BP-24104` … `BP-24112`) in cohorts Alpha, Beta, and Gamma. Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
 
-Demo organization slug: `demo` (display name **Northstar Prep**).
+Seeded content:
 
-Seeded activities (wired with banks, registrations, and sample results):
+- Question bank `QB-26001` — Foundation Question Bank (20 single-choice questions)
+- Sponsor NextGenInnov8 and contest Launch Cup
+- Quiz `QZ-26001` — Launch Quiz (active; every NextGenInnov8 student is assigned)
 
-- Assessment `ASM-26001` — Northstar JEE Mock (2 rounds: Physics + Chemistry)
-- Quiz `QZ-26001` — Weekly General Knowledge (active; leaderboard history seeded)
-- Quiz `QZ-26002` — Maths Sprint #12 (completed window)
-- Draft `QZ-DRAFT` (Monsoon Warm-up) and archived `ASM-ARCHIVE` for admin status filters only — no student registrations; copy does not encode workflow status
-
-Primary student `BP-24101` has no attempts so they can start quizzes/assessments fresh.
+GreyCaps has the same three staff memberships and no students, bank, or quiz.
 
 ## Production-like preview (built assets)
 

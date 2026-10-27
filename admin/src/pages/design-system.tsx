@@ -65,7 +65,9 @@ function TokenSwatch({ label, token, note }: Swatch) {
 export function DesignSystemPage() {
   const [selected, setSelected] = useState<number | null>(0);
   const [notifications, setNotifications] = useState(true);
-  const [demoSchedule, setDemoSchedule] = useState<Date | null>(new Date(2026, 9, 24, 10, 30));
+  const [previewSchedule, setPreviewSchedule] = useState<Date | null>(
+    new Date(2026, 9, 24, 10, 30),
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-5 pb-8">
@@ -208,7 +210,7 @@ export function DesignSystemPage() {
               </label>
               <label className="grid gap-1.5 text-sm font-semibold text-foreground">
                 Read-only identifier
-                <Input value="BP-DEMO-001" readOnly aria-readonly="true" />
+                <Input value="BP-24101" readOnly aria-readonly="true" />
               </label>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -230,7 +232,7 @@ export function DesignSystemPage() {
               <Switch
                 checked={notifications}
                 onCheckedChange={setNotifications}
-                aria-label="Demo email notifications"
+                aria-label="Email notifications"
               />
             </label>
           </CardContent>
@@ -247,14 +249,17 @@ export function DesignSystemPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="max-w-md space-y-1.5">
-            <label htmlFor="bp-picker-demo" className="block text-sm font-semibold text-foreground">
+            <label
+              htmlFor="bp-picker-preview"
+              className="block text-sm font-semibold text-foreground"
+            >
               Assessment start
             </label>
             <DateTimePicker
-              id="bp-picker-demo"
-              value={demoSchedule}
-              onChange={setDemoSchedule}
-              onClear={() => setDemoSchedule(null)}
+              id="bp-picker-preview"
+              value={previewSchedule}
+              onChange={setPreviewSchedule}
+              onClear={() => setPreviewSchedule(null)}
             />
           </div>
           <p className="text-xs text-muted-foreground">
@@ -305,11 +310,11 @@ export function DesignSystemPage() {
               })}
               <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <p aria-live="polite" className="text-sm text-muted-foreground">
-                  {selected === null ? 'No option selected' : 'One option selected'} · Demo only
+                  {selected === null ? 'No option selected' : 'One option selected'} · Example only
                 </p>
                 <Button
                   type="button"
-                  onClick={() => toast.info('Demo preview: answers are not submitted to the API.')}
+                  onClick={() => toast.info('Preview: answers are not submitted to the API.')}
                 >
                   Preview submit <CheckIcon />
                 </Button>

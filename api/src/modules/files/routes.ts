@@ -9,6 +9,7 @@ import {
   withTenantContext,
 } from '../../middleware/auth.js';
 import { env } from '../../config/env.js';
+import { listQuerySchema } from '../../lib/pagination.js';
 import { validate } from '../../middleware/validate.js';
 import * as service from './service.js';
 
@@ -59,6 +60,31 @@ filesRouter.get('/download', async (req: Request, res: Response, next: NextFunct
     next(err);
   }
 });
+
+const imageLibraryQuery = listQuerySchema.extend({
+  purpose: z.enum(['catalog', 'question']),
+});
+
+filesRouter.get(
+  '/images',
+  requireAuth,
+  requireUser,
+  withTenantContext,
+  requireOrgAccess('view'),
+  validate({ query: imageLibraryQuery }),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const actor = userActor(req);
+      const data = await service.listImages(
+        actor.organizationId,
+        req.query as unknown as z.infer<typeof imageLibraryQuery>,
+      );
+      res.json(data);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 const inlineParams = z.object({ id: z.string().uuid() });
 

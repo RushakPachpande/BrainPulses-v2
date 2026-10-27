@@ -127,12 +127,18 @@ function isMutationMethod(method: string | undefined): boolean {
   return m !== 'GET' && m !== 'HEAD';
 }
 
+export type RequestOptions = {
+  /** Skip the blocking overlay, e.g. for autosave while the student keeps working. */
+  background?: boolean;
+};
+
 async function request(
   path: string,
   init: RequestInit = {},
   extraHeaders?: Record<string, string>,
+  options: RequestOptions = {},
 ): Promise<Response> {
-  const trackOverlay = isMutationMethod(init.method);
+  const trackOverlay = !options.background && isMutationMethod(init.method);
   if (trackOverlay) trackLoading(1);
   try {
     const headers = new Headers(init.headers);
@@ -189,6 +195,7 @@ export async function apiPostData<T>(
   path: string,
   payload?: unknown,
   extraHeaders?: Record<string, string>,
+  options?: RequestOptions,
 ): Promise<T> {
   const res = await request(
     path,
@@ -197,6 +204,7 @@ export async function apiPostData<T>(
       body: payload === undefined ? undefined : JSON.stringify(payload),
     },
     extraHeaders,
+    options,
   );
   if (!res.ok) throw await parseApiError(res);
   const body = (await res.json()) as { data: T };

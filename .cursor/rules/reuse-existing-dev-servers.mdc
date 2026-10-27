@@ -1,25 +1,56 @@
 ---
-description: Never auto-start the admin dev server; reuse port 5173 if it is already listening
+description: Never kill or restart user servers; reuse API 3002, admin 5173, client 5174; ask before start or any process change
 alwaysApply: true
 ---
 
-# Reuse existing dev servers
+# Preserve running apps, ports, and processes
 
-Do not start `npm run dev` or `npm run dev:admin` on your own.
+## Non-negotiable
 
-1. Check whether **5173** is already listening (user terminal or a prior session).
-2. If it is, use `http://localhost:5173`. Do not start a second instance. Do not kill it.
-3. Start the server only when verification needs a live app **and** the port is free.
+NEVER kill, stop, terminate, restart, replace, or free a port held by an already-running app without the user’s **explicit** approval in this chat.
+
+A running process is intentional — including IDE terminals, background sessions, and processes from a prior session. Convenience, tests, “stale port,” or a general “fix it” request is **not** permission to stop a server. Silence is not approval.
+
+## Expected servers (user-managed)
+
+| App | URL | Port |
+|---|---|---|
+| API (Express) | `http://localhost:3002` | **3002** |
+| Admin (Vite) | `http://localhost:5173` | **5173** |
+| Client (Vite) | `http://localhost:5174` | **5174** |
+
+Treat these as persistent infrastructure. The user starts and keeps them in IDE terminals.
 
 ```powershell
-Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue
+Get-NetTCPConnection -LocalPort 3002,5173,5174 -State Listen -ErrorAction SilentlyContinue
 ```
+
+## Always reuse
+
+Before `dev`, browser tests, API calls, or integration checks:
+
+1. See if the needed port is already listening.
+2. If yes → reuse that URL. Do not start a second instance, alternate port, or takeover.
+3. If no → **ask** whether the agent should start it or the user will. Do not start silently.
+
+At the start of a relevant task, briefly report which of these ports are up and which URLs you will reuse.
 
 ```text
-❌ BAD — npm run dev:admin without checking; then kill the user's server
-✅ GOOD — detect the listener, then open that URL
+❌ BAD — kill 5173 to free it; start a duplicate on 5175; restart to “verify”
+✅ GOOD — detect listener → use http://localhost:5173 → ask before any start/stop
 ```
 
-From the repo root the script is `npm run dev:admin`. Inside `admin/` it is `npm run dev`. Vite will not move off 5173.
+## Ask before any process change
 
-Stop only servers you started in this chat. See `close-terminals-after-work`.
+Before kill/Stop-Process, restart, port change, cleanup scripts, or IDE stop of Express/Node/Vite: explain app + port, why it seems needed, impact, and a non-disruptive alternative — then **wait**.
+
+## Testing and port conflicts
+
+- Prefer existing servers and their URLs; then unit tests that need no restart.
+- Do not restart just to verify a change. If a restart is required, ask first.
+- Occupied port → identify and reuse if it is the expected app. If unclear, report and ask. Never auto-kill.
+- Isolated test server / other port only after approval.
+
+## Priority
+
+Inspect → reuse → ask before starting a missing service → explicit OK before stop/restart/kill/replace. This overrides convenience and default automation. Align cleanup with `close-terminals-after-work` (agent-started only).

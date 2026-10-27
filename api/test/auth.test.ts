@@ -56,7 +56,7 @@ describe('auth', () => {
   it('signs in student by Unique ID', async () => {
     const app = await getTestApp();
     const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
-      body: { code: 'BP-24101', organizationSlug: 'demo', replaceSession: true },
+      body: { code: 'BP-24101', organizationSlug: 'nextgeninnov8', replaceSession: true },
     });
     assert.equal(res.status, 200);
     const body = res.body as {
@@ -69,7 +69,7 @@ describe('auth', () => {
   it('rejects unknown Unique ID', async () => {
     const app = await getTestApp();
     const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
-      body: { code: 'BP-NOPE', organizationSlug: 'demo' },
+      body: { code: 'BP-NOPE', organizationSlug: 'nextgeninnov8' },
     });
     assert.equal(res.status, 401);
   });
@@ -77,7 +77,7 @@ describe('auth', () => {
   it('rejects invalid Unique ID format on sign-in-by-code', async () => {
     const app = await getTestApp();
     const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
-      body: { code: 'BP', organizationSlug: 'demo' },
+      body: { code: 'BP', organizationSlug: 'nextgeninnov8' },
     });
     assert.equal(res.status, 422);
     const body = res.body as { error: { code: string } };
@@ -90,7 +90,7 @@ describe('auth', () => {
       body: {
         countryCode: '+91',
         mobileNumber: '5876510000',
-        organizationSlug: 'demo',
+        organizationSlug: 'nextgeninnov8',
       },
     });
     assert.equal(res.status, 422);
@@ -104,7 +104,7 @@ describe('auth', () => {
       body: {
         countryCode: '+999',
         mobileNumber: '9876510000',
-        organizationSlug: 'demo',
+        organizationSlug: 'nextgeninnov8',
       },
     });
     assert.equal(res.status, 422);
@@ -115,7 +115,7 @@ describe('auth', () => {
     const phoneBody = {
       countryCode: '+91',
       mobileNumber: '9876510000',
-      organizationSlug: 'demo',
+      organizationSlug: 'nextgeninnov8',
     };
     const requestRes = await request(app, 'POST', '/api/auth/student/request-otp', {
       body: phoneBody,
@@ -147,7 +147,24 @@ describe('auth', () => {
       body: { email: 'viewer@brainpulses.com', password: 'Password123!' },
     });
     assert.equal(signIn.status, 200);
-    const cookies = cookieHeader(signIn.setCookie);
+    const signed = signIn.body as {
+      data: {
+        status: string;
+        selectionToken?: string;
+        organizations?: { id: string }[];
+      };
+    };
+    let cookies = cookieHeader(signIn.setCookie);
+    if (signed.data.status === 'select_organization') {
+      const selected = await request(app, 'POST', '/api/auth/select-organization', {
+        body: {
+          selectionToken: signed.data.selectionToken,
+          organizationId: signed.data.organizations?.[0]?.id,
+        },
+      });
+      assert.equal(selected.status, 200);
+      cookies = cookieHeader(selected.setCookie);
+    }
     assert.ok(cookies.includes('bp_refresh='));
 
     const refresh1 = await request(app, 'POST', '/api/auth/refresh', { cookies });

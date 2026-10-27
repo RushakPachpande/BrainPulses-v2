@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { prisma } from '../src/lib/prisma.js';
+import { ensureRoundAssessment } from './fixtures.js';
 import { getTestApp, request } from './helpers.js';
 
 function forbidKeys(value: unknown, banned: readonly string[], path = '$') {
@@ -20,7 +21,7 @@ async function studentToken() {
   const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
     body: {
       code: 'BP-24101',
-      organizationSlug: 'demo',
+      organizationSlug: 'nextgeninnov8',
       replaceSession: true,
     },
   });
@@ -33,13 +34,7 @@ describe('student attempt payloads', () => {
     const app = await getTestApp();
     const token = await studentToken();
     const headers = { authorization: `Bearer ${token}` };
-    const activity = await prisma.activity.findFirst({
-      where: { code: 'ASM-26001' },
-      include: { rounds: { orderBy: { sortOrder: 'asc' }, take: 1 } },
-    });
-    assert.ok(activity);
-    const round = activity.rounds[0];
-    assert.ok(round);
+    const { activity, round } = await ensureRoundAssessment();
     const student = await prisma.student.findFirst({ where: { email: 'student1@mail.com' } });
     assert.ok(student);
     await prisma.attemptResponse.deleteMany({

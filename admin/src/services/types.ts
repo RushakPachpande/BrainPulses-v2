@@ -102,6 +102,16 @@ export type Sponsor = {
   contests: number;
 };
 
+export type ImageLibraryPurpose = 'catalog' | 'question';
+
+export type LibraryImage = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+};
+
 export type Contest = {
   id: string;
   sponsorId: string;

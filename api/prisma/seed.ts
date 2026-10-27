@@ -5,13 +5,7 @@ import { crc32, deflateSync } from 'node:zlib';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { Pool } from 'pg';
-import {
-  PrismaClient,
-  type ActivityKind,
-  type FlowStatus,
-  type Prisma,
-  type ReleaseStatus,
-} from '#prisma';
+import { PrismaClient, type ActivityKind, type FlowStatus } from '#prisma';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
@@ -37,10 +31,6 @@ type StudentSeed = {
 };
 
 const day = 86_400_000;
-
-function hoursAgo(h: number) {
-  return new Date(Date.now() - h * 3_600_000);
-}
 
 function daysFromNow(d: number) {
   return new Date(Date.now() + d * day);
@@ -122,8 +112,8 @@ const quizBehaviourSettings = {
   },
 };
 
-/** Wipe demo-org domain rows so reseed refreshes content. Keeps users/memberships/orgs. */
-async function wipeDemoDomain(organizationId: string) {
+/** Clear one organization's content so a reseed can replace it. Keeps users, memberships, and the organization. */
+async function wipeOrganizationContent(organizationId: string) {
   await prisma.resultRevision.deleteMany({ where: { organizationId } });
   await prisma.result.deleteMany({ where: { organizationId } });
   await prisma.attemptResponse.deleteMany({ where: { organizationId } });
@@ -301,15 +291,6 @@ async function ensureBankWithQuestions(input: {
   return bank;
 }
 
-async function latestVersionIds(organizationId: string, bankId: string) {
-  const questions = await prisma.question.findMany({
-    where: { organizationId, bankId, isActive: true },
-    include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
-    orderBy: { code: 'asc' },
-  });
-  return questions.map((q) => q.versions[0]).filter((v): v is NonNullable<typeof v> => Boolean(v));
-}
-
 async function registerStudents(organizationId: string, activityId: string, studentIds: string[]) {
   for (const studentId of studentIds) {
     await prisma.registration.create({
@@ -324,375 +305,66 @@ async function registerStudents(organizationId: string, activityId: string, stud
   }
 }
 
-/** Build a submitted attempt with correct answers for `correctCount` questions (rest wrong). */
-async function seedSubmittedAttempt(input: {
-  organizationId: string;
-  activityId: string;
-  studentId: string;
-  roundId?: string;
-  versionIds: string[];
-  correctCount: number;
-  releaseStatus: ReleaseStatus;
-  submittedAt: Date;
-  startedAt: Date;
-  deadlineAt: Date;
-  disqualified?: boolean;
-  disqualifiedByUserId?: string;
-  isAuthoritative?: boolean;
-}) {
-  const versions = await prisma.questionVersion.findMany({
-    where: { organizationId: input.organizationId, id: { in: input.versionIds } },
-    include: { options: { orderBy: { sortOrder: 'asc' } } },
-  });
-  const byId = new Map(versions.map((v) => [v.id, v]));
-  const order = input.versionIds.filter((id) => byId.has(id));
-
-  let score = 0;
-  let maxScore = 0;
-  const responses: {
-    questionVersionId: string;
-    answer: Prisma.InputJsonValue;
-    revision: number;
-  }[] = [];
-
-  for (let i = 0; i < order.length; i += 1) {
-    const v = byId.get(order[i]!)!;
-    const pts = Number(v.points);
-    maxScore += pts;
-    const correctOpt = v.options.find((o) => o.isCorrect);
-    const wrongOpt = v.options.find((o) => !o.isCorrect);
-    const useCorrect = i < input.correctCount;
-    if (useCorrect) score += pts;
-    const label = useCorrect
-      ? (correctOpt?.label ?? 'A')
-      : (wrongOpt?.label ?? correctOpt?.label ?? 'B');
-    responses.push({
-      questionVersionId: v.id,
-      answer: { label },
-      revision: 1,
-    });
-  }
-
-  const percent = maxScore > 0 ? Math.round((score / maxScore) * 10000) / 100 : 0;
-  const passed = percent >= 40;
-  const disqualified = Boolean(input.disqualified);
-
-  const attempt = await prisma.attempt.create({
-    data: {
-      organizationId: input.organizationId,
-      activityId: input.activityId,
-      roundId: input.roundId ?? null,
-      studentId: input.studentId,
-      status: 'submitted',
-      revision: 1,
-      startedAt: input.startedAt,
-      deadlineAt: input.deadlineAt,
-      submittedAt: input.submittedAt,
-      submitIdempotencyKey: `seed-${input.activityId}-${input.studentId}-${input.roundId ?? 'flat'}`,
-      questionOrder: order,
-      optionOrders: {},
-      isAuthoritative: input.isAuthoritative ?? !disqualified,
-      disqualified,
-      disqualifiedAt: disqualified ? input.submittedAt : null,
-      disqualifiedByUserId: disqualified ? (input.disqualifiedByUserId ?? null) : null,
-      disqualifiedNote: disqualified ? 'Seed: flagged for review during invigilation.' : null,
-      responses: {
-        create: responses.map((r) => ({
-          organizationId: input.organizationId,
-          questionVersionId: r.questionVersionId,
-          answer: r.answer,
-          revision: r.revision,
-        })),
-      },
-    },
-  });
-
-  await prisma.result.create({
-    data: {
-      organizationId: input.organizationId,
-      attemptId: attempt.id,
-      activityId: input.activityId,
-      studentId: input.studentId,
-      score,
-      maxScore,
-      percent,
-      passed,
-      releaseStatus: input.releaseStatus,
-      publishedAt: input.releaseStatus === 'published' ? input.submittedAt : null,
-    },
-  });
-
-  return attempt;
-}
-
-/* ─── Question catalogs ─── */
-
-const physicsQuestions: McqSeed[] = [
-  {
-    code: 'PHY-01',
-    question: 'What is the SI unit of force?',
-    options: ['Joule', 'Newton', 'Watt', 'Pascal'],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-02',
-    question: 'Acceleration due to gravity near Earth’s surface is approximately:',
-    options: ['1.6 m/s²', '9.8 m/s²', '3.0×10⁸ m/s', '100 N/kg'],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-03',
-    question: 'In an isolated system with no external torque, which quantity is conserved?',
-    options: ['Linear momentum only', 'Angular momentum', 'Kinetic energy only', 'Temperature'],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-04',
-    question: 'Ohm’s law relating voltage V, current I, and resistance R is:',
-    options: ['V = I / R', 'V = I × R', 'V = I² × R', 'V = R / I'],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-05',
-    question: 'A body moving with constant velocity has:',
-    options: [
-      'Zero acceleration',
-      'Increasing kinetic energy',
-      'Non-zero net force',
-      'Changing momentum',
+const foundationQuestions: McqSeed[] = [
+  ['Q-01', 'What is the SI unit of force?', ['Joule', 'Newton', 'Watt', 'Pascal'], 1],
+  ['Q-02', 'Which planet is known as the Red Planet?', ['Venus', 'Mars', 'Jupiter', 'Saturn'], 1],
+  ['Q-03', 'What is 15% of 200?', ['20', '25', '30', '35'], 2],
+  ['Q-04', 'Water freezes at what temperature in Celsius?', ['0', '32', '100', '-10'], 0],
+  [
+    'Q-05',
+    'Which gas do plants absorb for photosynthesis?',
+    ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'],
+    2,
+  ],
+  ['Q-06', 'How many sides does a hexagon have?', ['5', '6', '7', '8'], 1],
+  ['Q-07', 'Who wrote the play Hamlet?', ['Dickens', 'Shakespeare', 'Austen', 'Tolstoy'], 1],
+  ['Q-08', 'What is the capital of Japan?', ['Seoul', 'Beijing', 'Tokyo', 'Bangkok'], 2],
+  [
+    'Q-09',
+    'Which blood cells help clotting?',
+    ['Red cells', 'White cells', 'Platelets', 'Plasma'],
+    2,
+  ],
+  ['Q-10', 'What is the square root of 144?', ['10', '11', '12', '14'], 2],
+  ['Q-11', 'Which ocean is the largest?', ['Atlantic', 'Indian', 'Arctic', 'Pacific'], 3],
+  [
+    'Q-12',
+    'What does CPU stand for?',
+    [
+      'Central Processing Unit',
+      'Computer Personal Unit',
+      'Central Program Utility',
+      'Control Processing User',
     ],
-    correctIndex: 0,
-  },
-  {
-    code: 'PHY-06',
-    question: 'The work done by a force is zero when the displacement is:',
-    options: [
-      'Parallel to the force',
-      'Perpendicular to the force',
-      'In the same direction as velocity',
-      'Along the gravitational field',
-    ],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-07',
-    question: 'Power is defined as:',
-    options: [
-      'Force × displacement',
-      'Work done per unit time',
-      'Mass × acceleration',
-      'Charge × potential',
-    ],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-08',
-    question: 'Which of the following is a scalar quantity?',
-    options: ['Velocity', 'Force', 'Momentum', 'Energy'],
-    correctIndex: 3,
-  },
-  {
-    code: 'PHY-09',
-    question: 'If mass is constant, Newton’s second law can be written as F =',
-    options: ['m / a', 'm × a', 'm × v', 'a / m'],
-    correctIndex: 1,
-  },
-  {
-    code: 'PHY-10',
-    question: 'The dimensional formula of pressure is the same as that of:',
-    options: ['Force', 'Energy density', 'Momentum', 'Power'],
-    correctIndex: 1,
-  },
-];
-
-const chemistryQuestions: McqSeed[] = [
-  {
-    code: 'CHM-01',
-    question: 'The chemical formula of water is:',
-    options: ['CO₂', 'H₂O', 'NaCl', 'O₂'],
-    correctIndex: 1,
-  },
-  {
-    code: 'CHM-02',
-    question: 'Atomic number of carbon is:',
-    options: ['4', '6', '8', '12'],
-    correctIndex: 1,
-  },
-  {
-    code: 'CHM-03',
-    question: 'pH of a neutral aqueous solution at 25 °C is approximately:',
-    options: ['0', '7', '14', '1'],
-    correctIndex: 1,
-  },
-  {
-    code: 'CHM-04',
-    question: 'Which gas is evolved when zinc reacts with dilute HCl?',
-    options: ['Oxygen', 'Hydrogen', 'Chlorine', 'Nitrogen'],
-    correctIndex: 1,
-  },
-  {
-    code: 'CHM-05',
-    question: 'Avogadro’s number is approximately:',
-    options: ['6.022 × 10²³', '3.0 × 10⁸', '1.6 × 10⁻¹⁹', '9.8'],
-    correctIndex: 0,
-  },
-  {
-    code: 'CHM-06',
-    question: 'An acid turns blue litmus:',
-    options: ['Blue', 'Red', 'Green', 'Colourless'],
-    correctIndex: 1,
-  },
-  {
-    code: 'CHM-07',
-    question: 'The most abundant gas in Earth’s atmosphere is:',
-    options: ['Oxygen', 'Carbon dioxide', 'Nitrogen', 'Argon'],
-    correctIndex: 2,
-  },
-  {
-    code: 'CHM-08',
-    question: 'NaCl is an example of a:',
-    options: ['Covalent compound', 'Ionic compound', 'Metallic alloy', 'Polymer'],
-    correctIndex: 1,
-  },
-];
-
-const roundLocalQuestions: McqSeed[] = [
-  {
-    code: 'LOC-01',
-    question:
-      'In this paper’s instructions, how many marks does each MCQ carry unless stated otherwise?',
-    options: ['0.5', '1', '2', '4'],
-    correctIndex: 1,
-  },
-  {
-    code: 'LOC-02',
-    question: 'Negative marking for this round is:',
-    options: ['−1 per wrong', '−0.25 per wrong', 'None (demo paper)', '−2 per wrong'],
-    correctIndex: 2,
-  },
-];
-
-const gkQuestions: McqSeed[] = [
-  {
-    code: 'GK-01',
-    question: 'Which planet is known as the Red Planet?',
-    options: ['Venus', 'Mars', 'Jupiter', 'Mercury'],
-    correctIndex: 1,
-  },
-  {
-    code: 'GK-02',
-    question: 'The capital of India is:',
-    options: ['Mumbai', 'Kolkata', 'New Delhi', 'Chennai'],
-    correctIndex: 2,
-  },
-  {
-    code: 'GK-03',
-    question: 'Which gas do plants primarily absorb during photosynthesis?',
-    options: ['Oxygen', 'Nitrogen', 'Carbon dioxide', 'Hydrogen'],
-    correctIndex: 2,
-  },
-  {
-    code: 'GK-04',
-    question: 'Who wrote the national anthem of India?',
-    options: [
-      'Bankim Chandra Chatterjee',
-      'Rabindranath Tagore',
-      'Sarojini Naidu',
-      'Subhas Chandra Bose',
-    ],
-    correctIndex: 1,
-  },
-  {
-    code: 'GK-05',
-    question: 'The largest desert in the world by area is the:',
-    options: ['Gobi', 'Sahara', 'Antarctic', 'Thar'],
-    correctIndex: 2,
-  },
-  {
-    code: 'GK-06',
-    question: 'Which Indian state is known as the “Land of Five Rivers”?',
-    options: ['Punjab', 'Kerala', 'Rajasthan', 'Assam'],
-    correctIndex: 0,
-  },
-  {
-    code: 'GK-07',
-    question: 'The currency of Japan is the:',
-    options: ['Yuan', 'Won', 'Yen', 'Ringgit'],
-    correctIndex: 2,
-  },
-  {
-    code: 'GK-08',
-    question: 'Which organ purifies blood in the human body?',
-    options: ['Heart', 'Liver', 'Kidney', 'Lungs'],
-    correctIndex: 2,
-  },
-];
-
-const quantQuestions: McqSeed[] = [
-  {
-    code: 'QNT-01',
-    question: 'What is 15% of 240?',
-    options: ['24', '30', '36', '40'],
-    correctIndex: 2,
-  },
-  {
-    code: 'QNT-02',
-    question: 'If 3x + 5 = 20, then x =',
-    options: ['3', '5', '7', '15'],
-    correctIndex: 1,
-  },
-  {
-    code: 'QNT-03',
-    question: 'The average of 4, 8, and 12 is:',
-    options: ['6', '8', '10', '12'],
-    correctIndex: 1,
-  },
-  {
-    code: 'QNT-04',
-    question: 'A train covers 120 km in 2 hours. Its average speed is:',
-    options: ['40 km/h', '50 km/h', '60 km/h', '80 km/h'],
-    correctIndex: 2,
-  },
-  {
-    code: 'QNT-05',
-    question: 'Simple interest on ₹1000 at 10% per annum for 2 years is:',
-    options: ['₹100', '₹150', '₹200', '₹250'],
-    correctIndex: 2,
-  },
-  {
-    code: 'QNT-06',
-    question: 'The next number in the series 2, 6, 12, 20, … is:',
-    options: ['24', '28', '30', '32'],
-    correctIndex: 2,
-  },
-  {
-    code: 'QNT-07',
-    question: 'If the ratio of boys to girls is 3:2 and there are 30 boys, girls =',
-    options: ['15', '20', '25', '45'],
-    correctIndex: 1,
-  },
-  {
-    code: 'QNT-08',
-    question: '√144 equals:',
-    options: ['10', '11', '12', '14'],
-    correctIndex: 2,
-  },
-];
-
-const draftQuizQuestions: McqSeed[] = [
-  {
-    code: 'DFT-01',
-    question: 'Which season follows summer across most of India?',
-    options: ['Spring', 'Monsoon', 'Winter', 'Autumn'],
-    correctIndex: 1,
-  },
-  {
-    code: 'DFT-02',
-    question: '2² equals:',
-    options: ['2', '3', '4', '8'],
-    correctIndex: 2,
-  },
-];
+    0,
+  ],
+  [
+    'Q-13',
+    'Which metal is liquid at room temperature?',
+    ['Iron', 'Mercury', 'Aluminium', 'Copper'],
+    1,
+  ],
+  ['Q-14', 'How many minutes are in 2.5 hours?', ['120', '135', '150', '180'], 2],
+  [
+    'Q-15',
+    'Which continent is the Sahara Desert on?',
+    ['Asia', 'Africa', 'Australia', 'Europe'],
+    1,
+  ],
+  ['Q-16', 'What is the chemical symbol for gold?', ['Ag', 'Au', 'Gd', 'Go'], 1],
+  ['Q-17', 'Which number is prime?', ['21', '27', '29', '33'], 2],
+  ['Q-18', 'Light travels fastest through which of these?', ['Water', 'Glass', 'Air', 'Vacuum'], 3],
+  ['Q-19', 'Which organ pumps blood?', ['Lungs', 'Liver', 'Heart', 'Kidney'], 2],
+  ['Q-20', 'What is 7 × 8?', ['54', '56', '58', '64'], 1],
+].map(
+  ([code, question, options, correctIndex]) =>
+    ({
+      code,
+      question,
+      options,
+      correctIndex,
+    }) as McqSeed,
+);
 
 const studentRoster: StudentSeed[] = [
   {
@@ -725,7 +397,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24104',
     name: 'Arjun Nair',
-    email: 'arjun.nair@northstar.demo',
+    email: 'arjun.nair@nextgeninnov8.com',
     phone: '+919876510003',
     course: 'JEE',
     city: 'Bengaluru',
@@ -734,7 +406,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24105',
     name: 'Ananya Iyer',
-    email: 'ananya.iyer@northstar.demo',
+    email: 'ananya.iyer@nextgeninnov8.com',
     phone: '+919876510004',
     course: 'NEET',
     city: 'Chennai',
@@ -743,7 +415,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24106',
     name: 'Kabir Singh',
-    email: 'kabir.singh@northstar.demo',
+    email: 'kabir.singh@nextgeninnov8.com',
     phone: '+919876510005',
     course: 'Foundation',
     city: 'Jaipur',
@@ -752,7 +424,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24107',
     name: 'Meera Desai',
-    email: 'meera.desai@northstar.demo',
+    email: 'meera.desai@nextgeninnov8.com',
     phone: '+919876510006',
     course: 'JEE',
     city: 'Ahmedabad',
@@ -761,7 +433,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24108',
     name: 'Ishaan Reddy',
-    email: 'ishaan.reddy@northstar.demo',
+    email: 'ishaan.reddy@nextgeninnov8.com',
     phone: '+919876510007',
     course: 'NEET',
     city: 'Hyderabad',
@@ -770,7 +442,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24109',
     name: 'Diya Sharma',
-    email: 'diya.sharma@northstar.demo',
+    email: 'diya.sharma@nextgeninnov8.com',
     phone: '+919876510008',
     course: 'Foundation',
     city: 'Lucknow',
@@ -779,7 +451,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24110',
     name: 'Vivaan Joshi',
-    email: 'vivaan.joshi@northstar.demo',
+    email: 'vivaan.joshi@nextgeninnov8.com',
     phone: '+919876510009',
     course: 'JEE',
     city: 'Indore',
@@ -788,7 +460,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24111',
     name: 'Aisha Begum',
-    email: 'aisha.begum@northstar.demo',
+    email: 'aisha.begum@nextgeninnov8.com',
     phone: '+919876510010',
     course: 'NEET',
     city: 'Kolkata',
@@ -797,7 +469,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24112',
     name: 'Neil Kapoor',
-    email: 'neil.kapoor@northstar.demo',
+    email: 'neil.kapoor@nextgeninnov8.com',
     phone: '+919876510011',
     course: 'JEE',
     city: 'Chandigarh',
@@ -805,648 +477,167 @@ const studentRoster: StudentSeed[] = [
   },
 ];
 
+async function membership(
+  organizationId: string,
+  userId: string,
+  role: 'super_admin' | 'admin',
+  access: 'full' | 'view',
+) {
+  await prisma.membership.upsert({
+    where: { organizationId_userId: { organizationId, userId } },
+    update: { role, assessmentAccess: access, quizAccess: access, isActive: true },
+    create: {
+      organizationId,
+      userId,
+      role,
+      assessmentAccess: access,
+      quizAccess: access,
+    },
+  });
+}
+
 async function main() {
   const passwordHash = await bcrypt.hash('Password123!', 12);
-
-  const org = await prisma.organization.upsert({
-    where: { slug: 'demo' },
-    update: { name: 'Northstar Prep', isActive: true },
-    create: {
-      name: 'Northstar Prep',
-      slug: 'demo',
-    },
+  const existing = await prisma.organization.findMany({ select: { id: true } });
+  for (const row of existing) {
+    await wipeOrganizationContent(row.id);
+  }
+  await prisma.organization.deleteMany({
+    where: { slug: { notIn: ['nextgeninnov8', 'greycaps'] } },
   });
 
-  const orgB = await prisma.organization.upsert({
-    where: { slug: 'other' },
-    update: {},
-    create: {
-      name: 'Other Org',
-      slug: 'other',
-    },
+  const nextgen = await prisma.organization.upsert({
+    where: { slug: 'nextgeninnov8' },
+    update: { name: 'NextGenInnov8', isActive: true },
+    create: { name: 'NextGenInnov8', slug: 'nextgeninnov8' },
+  });
+  const greycaps = await prisma.organization.upsert({
+    where: { slug: 'greycaps' },
+    update: { name: 'GreyCaps', isActive: true },
+    create: { name: 'GreyCaps', slug: 'greycaps' },
   });
 
+  const superAdmin = await prisma.user.upsert({
+    where: { email: 'superadmin@brainpulses.com' },
+    update: { passwordHash, name: 'Super Admin', isActive: true },
+    create: { email: 'superadmin@brainpulses.com', name: 'Super Admin', passwordHash },
+  });
   const admin = await prisma.user.upsert({
     where: { email: 'admin@brainpulses.com' },
-    update: { passwordHash, name: 'Super Admin', isActive: true },
-    create: {
-      email: 'admin@brainpulses.com',
-      name: 'Super Admin',
-      passwordHash,
-    },
+    update: { passwordHash, name: 'Meera Joshi', isActive: true },
+    create: { email: 'admin@brainpulses.com', name: 'Meera Joshi', passwordHash },
   });
-
-  const viewOnly = await prisma.user.upsert({
+  const viewer = await prisma.user.upsert({
     where: { email: 'viewer@brainpulses.com' },
     update: { passwordHash, name: 'Aryan Verma', isActive: true },
-    create: {
-      email: 'viewer@brainpulses.com',
-      name: 'Aryan Verma',
-      passwordHash,
-    },
+    create: { email: 'viewer@brainpulses.com', name: 'Aryan Verma', passwordHash },
   });
 
-  await prisma.membership.upsert({
-    where: {
-      organizationId_userId: { organizationId: org.id, userId: admin.id },
-    },
-    update: { role: 'super_admin', assessmentAccess: 'full', quizAccess: 'full', isActive: true },
-    create: {
-      organizationId: org.id,
-      userId: admin.id,
-      role: 'super_admin',
-      assessmentAccess: 'full',
-      quizAccess: 'full',
-    },
-  });
+  for (const organizationId of [nextgen.id, greycaps.id]) {
+    await membership(organizationId, superAdmin.id, 'super_admin', 'full');
+    await membership(organizationId, admin.id, 'admin', 'full');
+    await membership(organizationId, viewer.id, 'admin', 'view');
+  }
 
-  await prisma.membership.upsert({
-    where: {
-      organizationId_userId: { organizationId: orgB.id, userId: admin.id },
-    },
-    update: { role: 'admin', assessmentAccess: 'full', quizAccess: 'full', isActive: true },
-    create: {
-      organizationId: orgB.id,
-      userId: admin.id,
-      role: 'admin',
-      assessmentAccess: 'full',
-      quizAccess: 'full',
-    },
-  });
-
-  await prisma.membership.upsert({
-    where: {
-      organizationId_userId: { organizationId: org.id, userId: viewOnly.id },
-    },
-    update: { assessmentAccess: 'view', quizAccess: 'view', isActive: true },
-    create: {
-      organizationId: org.id,
-      userId: viewOnly.id,
-      role: 'admin',
-      assessmentAccess: 'view',
-      quizAccess: 'view',
-    },
-  });
-
-  await wipeDemoDomain(org.id);
-
-  const students = [];
-  for (const row of studentRoster) {
+  const students: { id: string }[] = [];
+  for (const [index, row] of studentRoster.entries()) {
     const student = await prisma.student.create({
       data: {
-        organizationId: org.id,
-        code: row.code,
-        name: row.name,
-        email: row.email,
-        phone: row.phone,
-        course: row.course,
-        city: row.city,
-        cohort: row.cohort,
+        organizationId: nextgen.id,
+        ...row,
         isActive: true,
-        lastLoginAt: row.code === 'BP-24101' ? hoursAgo(2) : daysAgo(1 + (students.length % 5)),
+        lastLoginAt: row.code === 'BP-24101' ? daysAgo(0) : daysAgo(1 + (index % 5)),
       },
     });
     students.push(student);
   }
-  const studentIds = students.map((s) => s.id);
-  const byCode = Object.fromEntries(students.map((s) => [s.code, s]));
 
-  const physicsBank = await ensureBankWithQuestions({
-    organizationId: org.id,
-    kind: 'assessment',
+  const bank = await ensureBankWithQuestions({
+    organizationId: nextgen.id,
+    kind: 'quiz',
     code: 'QB-26001',
-    name: 'Physics — Mechanics & Laws',
-    description: 'JEE-oriented mechanics, work–energy, and basic electricity MCQs.',
-    questions: physicsQuestions,
+    name: 'Foundation Question Bank',
+    description: 'Twenty single-choice questions used by Launch Quiz.',
+    questions: foundationQuestions,
+    status: 'active',
   });
 
-  const chemistryBank = await ensureBankWithQuestions({
-    organizationId: org.id,
-    kind: 'assessment',
-    code: 'QB-26003',
-    name: 'Chemistry — Foundations',
-    description: 'Stoichiometry, acids–bases, and everyday chemistry for NEET/JEE.',
-    questions: chemistryQuestions,
-  });
-
-  const gkBank = await ensureBankWithQuestions({
-    organizationId: org.id,
-    kind: 'quiz',
-    code: 'QB-26002',
-    name: 'Weekly General Knowledge',
-    description: 'Current affairs–style GK for weekly practice sessions.',
-    questions: gkQuestions,
-  });
-
-  const quantBank = await ensureBankWithQuestions({
-    organizationId: org.id,
-    kind: 'quiz',
-    code: 'QB-26004',
-    name: 'Quantitative Aptitude Sprint',
-    description: 'Percentages, averages, ratios, and number series.',
-    questions: quantQuestions,
-  });
-
-  // Draft bank is attached only to the draft quiz, never to a published activity.
-  const draftBank = await ensureBankWithQuestions({
-    organizationId: org.id,
-    kind: 'quiz',
-    code: 'QB-DRAFT',
-    name: 'Seasonal Warm-up',
-    description: 'Work-in-progress question bank for authoring demos.',
-    questions: draftQuizQuestions,
-    status: 'draft',
-  });
-
-  const horizonMark = await seedImage({
-    organizationId: org.id,
-    uploadedById: admin.id,
-    fileName: 'horizon-books.png',
+  const sponsorMark = await seedImage({
+    organizationId: nextgen.id,
+    uploadedById: superAdmin.id,
+    fileName: 'nextgen-sponsor.png',
     rgb: [37, 99, 235],
   });
-  const apexMark = await seedImage({
-    organizationId: org.id,
-    uploadedById: admin.id,
-    fileName: 'apex-academy.png',
-    rgb: [22, 163, 74],
-  });
-  const horizonCup = await seedImage({
-    organizationId: org.id,
-    uploadedById: admin.id,
-    fileName: 'week-16-knowledge-cup.png',
+  const contestMark = await seedImage({
+    organizationId: nextgen.id,
+    uploadedById: superAdmin.id,
+    fileName: 'nextgen-contest.png',
     rgb: [14, 165, 233],
   });
-  const sprintCup = await seedImage({
-    organizationId: org.id,
-    uploadedById: admin.id,
-    fileName: 'maths-sprint-cup.png',
-    rgb: [234, 88, 12],
+  const sponsor = await prisma.sponsor.create({
+    data: { organizationId: nextgen.id, name: 'NextGenInnov8', imageFileId: sponsorMark.id },
   });
-  const warmUpCup = await seedImage({
-    organizationId: org.id,
-    uploadedById: admin.id,
-    fileName: 'monsoon-warmup-cup.png',
-    rgb: [124, 58, 237],
-  });
-
-  const horizon = await prisma.sponsor.create({
+  const contest = await prisma.contest.create({
     data: {
-      organizationId: org.id,
-      name: 'Horizon Books',
-      imageFileId: horizonMark.id,
-    },
-  });
-  const apex = await prisma.sponsor.create({
-    data: {
-      organizationId: org.id,
-      name: 'Apex Academy',
-      imageFileId: apexMark.id,
+      organizationId: nextgen.id,
+      sponsorId: sponsor.id,
+      name: 'Launch Cup',
+      description: 'Opening contest for NextGenInnov8 students.',
+      imageFileId: contestMark.id,
     },
   });
 
-  const knowledgeCup = await prisma.contest.create({
+  const quiz = await prisma.activity.create({
     data: {
-      organizationId: org.id,
-      sponsorId: horizon.id,
-      name: 'Week 16 Knowledge Cup',
-      description: 'Weekly general-knowledge cup sponsored by Horizon Books.',
-      imageFileId: horizonCup.id,
-    },
-  });
-  const mathsCup = await prisma.contest.create({
-    data: {
-      organizationId: org.id,
-      sponsorId: apex.id,
-      name: 'Maths Sprint Cup',
-      description: 'Timed quantitative cup for the April practice cycle.',
-      imageFileId: sprintCup.id,
-    },
-  });
-  const monsoonCup = await prisma.contest.create({
-    data: {
-      organizationId: org.id,
-      sponsorId: horizon.id,
-      name: 'Monsoon Warm-up Cup',
-      description: 'Short seasonal cup. Still in draft with its question bank.',
-      imageFileId: warmUpCup.id,
-    },
-  });
-
-  const manualAssignment = {
-    assignmentRules: { mode: 'manual' as const, notes: 'Assigned from the Northstar roster.' },
-  };
-
-  // Assessment ASM-26001 — two rounds
-  const assessment = await prisma.activity.create({
-    data: {
-      organizationId: org.id,
-      kind: 'assessment',
-      code: 'ASM-26001',
-      name: 'Northstar JEE Mock — April Cycle',
-      subtitle: 'Engineering · Full mock with two timed rounds',
-      status: 'active',
-      startsAt: daysAgo(3),
-      endsAt: daysFromNow(21),
-      durationMinutes: 90,
-      durationMode: 'overall',
-      passingPercent: 40,
-      presentation: 'one_at_a_time',
-      settings: {
-        registrationForm: {
-          fields: [
-            { key: 'roll', label: 'Roll number', type: 'text', required: true },
-            { key: 'centre', label: 'Exam centre', type: 'text', required: false },
-          ],
-        },
-        ...manualAssignment,
-      },
-    },
-  });
-
-  const round1 = await prisma.activityRound.create({
-    data: {
-      organizationId: org.id,
-      activityId: assessment.id,
-      name: 'Round 1 — Physics',
-      sortOrder: 0,
-      durationMinutes: 45,
-    },
-  });
-  await prisma.activityRoundBank.create({
-    data: {
-      organizationId: org.id,
-      roundId: round1.id,
-      bankId: physicsBank.id,
-    },
-  });
-
-  const localBank = await ensureBankWithQuestions({
-    organizationId: org.id,
-    kind: 'assessment',
-    code: `RL-${assessment.code}-R2`,
-    name: 'Round 2 local instructions',
-    description: 'Round-local items for Chemistry paper.',
-    questions: roundLocalQuestions,
-    origin: 'round_local',
-  });
-
-  const round2 = await prisma.activityRound.create({
-    data: {
-      organizationId: org.id,
-      activityId: assessment.id,
-      name: 'Round 2 — Chemistry',
-      sortOrder: 1,
-      durationMinutes: 45,
-      localBankId: localBank.id,
-    },
-  });
-  await prisma.activityRoundBank.create({
-    data: {
-      organizationId: org.id,
-      roundId: round2.id,
-      bankId: chemistryBank.id,
-    },
-  });
-
-  await registerStudents(org.id, assessment.id, studentIds);
-
-  // Quiz QZ-26001 — weekly GK (active, boards on)
-  const weeklyGk = await prisma.activity.create({
-    data: {
-      organizationId: org.id,
+      organizationId: nextgen.id,
       kind: 'quiz',
       code: 'QZ-26001',
-      name: 'Weekly General Knowledge',
-      subtitle: 'General knowledge · Week 16 practice',
+      name: 'Launch Quiz',
+      subtitle: 'Twenty questions in twenty minutes',
       status: 'active',
-      startsAt: daysAgo(2),
-      endsAt: daysFromNow(12),
-      durationMinutes: 15,
-      durationMode: 'overall',
-      passingPercent: 50,
-      presentation: 'one_at_a_time',
-      sponsorId: horizon.id,
-      contestId: knowledgeCup.id,
-      settings: { ...quizBehaviourSettings, ...manualAssignment },
-    },
-  });
-  await prisma.activityBank.create({
-    data: { organizationId: org.id, activityId: weeklyGk.id, bankId: gkBank.id },
-  });
-  await registerStudents(org.id, weeklyGk.id, studentIds);
-
-  // Quiz QZ-26002 — quant (completed window)
-  const quantQuiz = await prisma.activity.create({
-    data: {
-      organizationId: org.id,
-      kind: 'quiz',
-      code: 'QZ-26002',
-      name: 'Maths Sprint #12',
-      subtitle: 'Quantitative aptitude · Timed quiz',
-      status: 'completed',
-      startsAt: daysAgo(14),
-      endsAt: daysAgo(1),
-      durationMinutes: null,
-      durationMode: 'per_question',
-      perQuestionSeconds: 90,
-      passingPercent: 50,
-      presentation: 'one_at_a_time',
-      sponsorId: apex.id,
-      contestId: mathsCup.id,
-      settings: {
-        quiz: {
-          ...quizBehaviourSettings.quiz,
-          scoreVisibleToStudent: true,
-          answersVisibleToStudent: false,
-        },
-        ...manualAssignment,
-      },
-    },
-  });
-  await prisma.activityBank.create({
-    data: { organizationId: org.id, activityId: quantQuiz.id, bankId: quantBank.id },
-  });
-  await registerStudents(org.id, quantQuiz.id, studentIds);
-
-  // Draft quiz for admin status filters only.
-  // Copy must not encode workflow status — `status` is the source of truth.
-  // Never register students: drafts must not appear in the student portal.
-  const draftQuiz = await prisma.activity.create({
-    data: {
-      organizationId: org.id,
-      kind: 'quiz',
-      code: 'QZ-DRAFT',
-      name: 'Monsoon Warm-up Quiz',
-      subtitle: 'Short seasonal warm-up · monsoon practice set',
-      status: 'draft',
-      startsAt: daysFromNow(7),
-      endsAt: daysFromNow(21),
-      durationMinutes: 10,
+      startsAt: daysAgo(1),
+      endsAt: daysFromNow(30),
+      durationMinutes: 20,
       durationMode: 'overall',
       passingPercent: 40,
       presentation: 'one_at_a_time',
-      sponsorId: horizon.id,
-      contestId: monsoonCup.id,
-      settings: { ...quizBehaviourSettings, ...manualAssignment },
+      sponsorId: sponsor.id,
+      contestId: contest.id,
+      settings: {
+        registrationForm: { fields: [] },
+        assignmentRules: { mode: 'manual', notes: 'Assigned to every NextGenInnov8 student.' },
+        quiz: quizBehaviourSettings.quiz,
+      },
+      activityBanks: {
+        create: { organizationId: nextgen.id, bankId: bank.id },
+      },
     },
   });
-  await prisma.activityBank.create({
-    data: { organizationId: org.id, activityId: draftQuiz.id, bankId: draftBank.id },
-  });
-  const draftRegs = await prisma.registration.count({ where: { activityId: draftQuiz.id } });
-  if (draftRegs > 0) {
-    throw new Error('Seed invariant: QZ-DRAFT must have zero student registrations.');
-  }
+  await registerStudents(
+    nextgen.id,
+    quiz.id,
+    students.map((student) => student.id),
+  );
 
-  // Archived assessment still keeps its paper, bank, and roster from the January window.
-  const archived = await prisma.activity.create({
-    data: {
-      organizationId: org.id,
-      kind: 'assessment',
-      code: 'ASM-ARCHIVE',
-      name: 'Foundation Checkpoint — Jan',
-      subtitle: 'January cycle · foundation checkpoint',
-      status: 'archived',
-      startsAt: daysAgo(60),
-      endsAt: daysAgo(45),
-      durationMinutes: 60,
-      durationMode: 'overall',
-      passingPercent: 35,
-      presentation: 'one_at_a_time',
-      settings: manualAssignment,
-    },
-  });
-  const archiveRound = await prisma.activityRound.create({
-    data: {
-      organizationId: org.id,
-      activityId: archived.id,
-      name: 'Foundation paper',
-      sortOrder: 0,
-      durationMinutes: 60,
-    },
-  });
-  await prisma.activityRoundBank.create({
-    data: {
-      organizationId: org.id,
-      roundId: archiveRound.id,
-      bankId: chemistryBank.id,
-    },
-  });
-  await registerStudents(org.id, archived.id, studentIds);
-
-  // ─── History: weekly GK results (skip BP-24101 so they can still start) ───
-  const gkVersions = await latestVersionIds(org.id, gkBank.id);
-  const gkIds = gkVersions.map((v) => v.id);
-
-  const gkHistory: {
-    code: string;
-    correct: number;
-    release: ReleaseStatus;
-    hoursAgoSubmit: number;
-    dq?: boolean;
-  }[] = [
-    { code: 'BP-24102', correct: 7, release: 'published', hoursAgoSubmit: 20 },
-    { code: 'BP-24103', correct: 5, release: 'published', hoursAgoSubmit: 18 },
-    { code: 'BP-24104', correct: 8, release: 'published', hoursAgoSubmit: 16 },
-    { code: 'BP-24105', correct: 4, release: 'published', hoursAgoSubmit: 14 },
-    { code: 'BP-24106', correct: 6, release: 'withheld', hoursAgoSubmit: 10 },
-    { code: 'BP-24107', correct: 3, release: 'published', hoursAgoSubmit: 8, dq: true },
-    { code: 'BP-24108', correct: 7, release: 'published', hoursAgoSubmit: 6 },
-    { code: 'BP-24109', correct: 5, release: 'published', hoursAgoSubmit: 4 },
-  ];
-
-  for (const row of gkHistory) {
-    const student = byCode[row.code]!;
-    const submittedAt = hoursAgo(row.hoursAgoSubmit);
-    await seedSubmittedAttempt({
-      organizationId: org.id,
-      activityId: weeklyGk.id,
-      studentId: student.id,
-      versionIds: gkIds,
-      correctCount: row.correct,
-      releaseStatus: row.release,
-      submittedAt,
-      startedAt: new Date(submittedAt.getTime() - 12 * 60_000),
-      deadlineAt: new Date(submittedAt.getTime() + 3 * 60_000),
-      disqualified: row.dq,
-      disqualifiedByUserId: row.dq ? admin.id : undefined,
-    });
-  }
-
-  await prisma.reattemptGrant.create({
-    data: {
-      organizationId: org.id,
-      activityId: weeklyGk.id,
-      studentId: byCode['BP-24105']!.id,
-      mode: 'restart',
-      note: 'Network dropout during last minute — restart granted.',
-      grantedByUserId: admin.id,
-    },
-  });
-
-  // Quant quiz history (completed activity)
-  const quantVersions = await latestVersionIds(org.id, quantBank.id);
-  const quantIds = quantVersions.map((v) => v.id);
-  const quantHistoryCodes = ['BP-24102', 'BP-24103', 'BP-24104', 'BP-24110', 'BP-24111'] as const;
-  for (let i = 0; i < quantHistoryCodes.length; i += 1) {
-    const code = quantHistoryCodes[i]!;
-    const student = byCode[code]!;
-    const submittedAt = daysAgo(3 - (i % 3));
-    await seedSubmittedAttempt({
-      organizationId: org.id,
-      activityId: quantQuiz.id,
-      studentId: student.id,
-      versionIds: quantIds,
-      correctCount: 4 + (i % 4),
-      releaseStatus: 'published',
-      submittedAt,
-      startedAt: new Date(submittedAt.getTime() - 10 * 60_000),
-      deadlineAt: new Date(submittedAt.getTime() + 2 * 60_000),
-    });
-  }
-
-  // Assessment: one student finished Round 1 (not Priya)
-  const physicsVersions = await latestVersionIds(org.id, physicsBank.id);
-  const physicsIds = physicsVersions.map((v) => v.id);
-  const round1Submit = daysAgo(1);
-  await seedSubmittedAttempt({
-    organizationId: org.id,
-    activityId: assessment.id,
-    studentId: byCode['BP-24102']!.id,
-    roundId: round1.id,
-    versionIds: physicsIds,
-    correctCount: 8,
-    releaseStatus: 'published',
-    submittedAt: round1Submit,
-    startedAt: new Date(round1Submit.getTime() - 40 * 60_000),
-    deadlineAt: new Date(round1Submit.getTime() + 5 * 60_000),
-  });
-
-  const chemistryVersions = await latestVersionIds(org.id, chemistryBank.id);
-  const archiveSubmit = daysAgo(50);
-  await seedSubmittedAttempt({
-    organizationId: org.id,
-    activityId: archived.id,
-    studentId: byCode['BP-24104']!.id,
-    roundId: archiveRound.id,
-    versionIds: chemistryVersions.map((version) => version.id),
-    correctCount: 6,
-    releaseStatus: 'published',
-    submittedAt: archiveSubmit,
-    startedAt: new Date(archiveSubmit.getTime() - 50 * 60_000),
-    deadlineAt: new Date(archiveSubmit.getTime() + 10 * 60_000),
-  });
-
-  // Org polish
   await prisma.setting.createMany({
     data: [
       {
-        organizationId: org.id,
+        organizationId: nextgen.id,
         group: 'general',
         key: 'orgDisplayName',
-        value: 'Northstar Prep',
+        value: 'NextGenInnov8',
       },
-      {
-        organizationId: org.id,
-        group: 'general',
-        key: 'organizationName',
-        value: 'Northstar Prep Learning Pvt. Ltd.',
-      },
-      {
-        organizationId: org.id,
-        group: 'system',
-        key: 'supportEmail',
-        value: 'support@northstar.demo',
-      },
-      {
-        organizationId: org.id,
-        group: 'notifications',
-        key: 'quizCompletion',
-        value: true,
-      },
+      { organizationId: greycaps.id, group: 'general', key: 'orgDisplayName', value: 'GreyCaps' },
     ],
   });
 
-  await prisma.notification.createMany({
-    data: [
-      {
-        organizationId: org.id,
-        eventType: 'quiz.completed',
-        title: 'Maths Sprint #12 closed',
-        body: 'Window ended. Results are available in Reports.',
-        createdAt: daysAgo(1),
-      },
-      {
-        organizationId: org.id,
-        eventType: 'assessment.published',
-        title: 'JEE Mock April cycle is live',
-        body: 'Students can start Round 1 — Physics.',
-        createdAt: daysAgo(3),
-      },
-      {
-        organizationId: org.id,
-        eventType: 'leaderboard.updated',
-        title: 'Weekly GK standings updated',
-        body: 'Cohort Alpha leads the group board after today’s submissions.',
-        createdAt: hoursAgo(4),
-      },
-    ],
-  });
-
-  await prisma.auditEvent.createMany({
-    data: [
-      {
-        organizationId: org.id,
-        actorType: 'user',
-        actorUserId: admin.id,
-        action: 'activity.publish',
-        targetType: 'activity',
-        targetId: weeklyGk.id,
-        metadata: { code: 'QZ-26001' },
-        createdAt: daysAgo(2),
-      },
-      {
-        organizationId: org.id,
-        actorType: 'user',
-        actorUserId: admin.id,
-        action: 'attempt.disqualify',
-        targetType: 'attempt',
-        metadata: { studentCode: 'BP-24107', note: 'Seed invigilation flag' },
-        createdAt: hoursAgo(8),
-      },
-      {
-        organizationId: org.id,
-        actorType: 'system',
-        action: 'seed.completed',
-        targetType: 'organization',
-        targetId: org.id,
-        metadata: { narrative: 'northstar-prep' },
-      },
-    ],
-  });
-
-  // Cross-tenant student for tenancy tests
-  await prisma.student.upsert({
-    where: {
-      organizationId_code: { organizationId: orgB.id, code: 'BP-99001' },
-    },
-    update: { isActive: true, name: 'Other Student', email: 'other.student@mail.com' },
-    create: {
-      organizationId: orgB.id,
-      code: 'BP-99001',
-      name: 'Other Student',
-      email: 'other.student@mail.com',
-    },
-  });
-
-  console.log('Seed complete — Northstar Prep (slug: demo).');
-  console.log('  admin@brainpulses.com / Password123!');
-  console.log('  viewer@brainpulses.com / Password123! (view-only)');
-  console.log('  Student Unique ID: BP-24101 (phone +91 / 9876510000)');
-  console.log('  Sponsors: Horizon Books, Apex Academy');
-  console.log('  Contests: Week 16 Knowledge Cup, Maths Sprint Cup, Monsoon Warm-up Cup');
-  console.log('  Activities: ASM-26001 (2 rounds), QZ-26001, QZ-26002, QZ-DRAFT, ASM-ARCHIVE');
-  console.log('  History: quiz results + 1 assessment round attempt (Priya has open path)');
+  console.log('Seed complete.');
+  console.log('  Organizations: NextGenInnov8 (nextgeninnov8), GreyCaps (greycaps)');
+  console.log('  superadmin@brainpulses.com / Password123! (both orgs)');
+  console.log('  admin@brainpulses.com / Password123! (both orgs)');
+  console.log('  viewer@brainpulses.com / Password123! (view only, both orgs)');
+  console.log('  Student Unique ID: BP-24101');
+  console.log('  Quiz: QZ-26001 Launch Quiz, bank QB-26001 (20 questions)');
 }
 
 main()

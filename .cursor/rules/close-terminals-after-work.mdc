@@ -1,5 +1,5 @@
 ---
-description: Stop only agent-started processes; free admin Vite port 5173 you bound — never kill a listener that was already up
+description: Stop only processes this chat started; never free 3002/5173/5174 if the user already owned them
 alwaysApply: true
 ---
 
@@ -9,21 +9,23 @@ Before the final reply, stop processes **you** started in this chat. Closing a t
 
 | Service | Port |
 |---|---|
-| Admin Vite (`admin/`) | **5173** (`strictPort`) |
+| API (Express) | **3002** |
+| Admin Vite (`admin/`) | **5173** |
+| Client Vite (`client/`) | **5174** |
 
-Free **5173** only when your process, or an orphan from this chat, still holds it.
+Free a port **only** when **your** process (or an orphan from this chat) still holds it. Never kill a listener the user already had running. Occupied port ≠ permission to stop it — see `reuse-existing-dev-servers`.
 
 ```powershell
-# Only when this chat bound 5173
-Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue |
+# Only for PIDs this chat started — never blanket-kill these ports
+Get-NetTCPConnection -LocalPort <port> -State Listen -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique |
   ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
 ```
 
 ```text
-❌ BAD — kill whatever is on 5173 because the turn ended
-✅ GOOD — leave the user's already-running dev:admin listener alone
+❌ BAD — kill whatever is on 3002/5173/5174 because the turn ended
+✅ GOOD — leave the user’s already-running API/admin/client alone
 ```
 
-- Prefer one-shot checks (`npm run typecheck`, `npm run lint`, `npm run build` in `admin/`) over a dev server you start.
-- Leave a process running only if the user asks.
+- Prefer one-shot checks (`typecheck`, `lint`, `build`) over starting a dev server.
+- Leave a process running only if the user asks, or if it was already running when you arrived.

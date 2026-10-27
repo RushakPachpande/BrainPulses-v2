@@ -142,19 +142,48 @@ export function ResultsPage() {
         </div>
       ) : !list.length ? (
         <div className="panel empty-state results-empty" role="status">
-          <div className="empty-icon">
-            <Trophy size={22} />
-          </div>
           {attempts.length === 0 ? (
             <>
-              <b>No results yet</b>
-              <span>
+              <div className="results-empty-icon" aria-hidden>
+                <Trophy size={26} />
+              </div>
+              <h3 className="results-empty-title">No results yet</h3>
+              <p className="results-empty-text">
                 Once you submit a quiz or assessment, your score and attempt details will appear
                 here.
-              </span>
-              <div className="empty-actions">
+              </p>
+              <ol className="results-empty-steps">
+                <li>
+                  <span className="results-empty-step-icon" aria-hidden>
+                    <BookOpen size={17} />
+                  </span>
+                  <span>
+                    <b>Pick an activity</b>
+                    <small>Choose a quiz or an assessment.</small>
+                  </span>
+                </li>
+                <li>
+                  <span className="results-empty-step-icon" aria-hidden>
+                    <CheckCircle2 size={17} />
+                  </span>
+                  <span>
+                    <b>Submit your attempt</b>
+                    <small>Answer every question, then submit.</small>
+                  </span>
+                </li>
+                <li>
+                  <span className="results-empty-step-icon" aria-hidden>
+                    <Trophy size={17} />
+                  </span>
+                  <span>
+                    <b>See your score</b>
+                    <small>Results show here once released.</small>
+                  </span>
+                </li>
+              </ol>
+              <div className="results-empty-actions">
                 <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
-                  Start a quiz <ArrowRight size={15} />
+                  Start a quiz <ArrowRight size={15} aria-hidden />
                 </button>
                 <button
                   className="btn outline"
@@ -167,6 +196,9 @@ export function ResultsPage() {
             </>
           ) : (
             <>
+              <div className="empty-icon" aria-hidden>
+                <Trophy size={22} />
+              </div>
               <b>No matching results</b>
               <span>Try a different filter to see your attempts.</span>
               <button className="btn outline" type="button" onClick={() => setFilter('All')}>
@@ -335,7 +367,7 @@ export function ResultDetailPage() {
             </span>
             <span>
               <FileText size={15} />
-              {attempt.review.length} questions
+              {attempt.questionCount ?? attempt.review.length} questions
             </span>
           </div>
           <button

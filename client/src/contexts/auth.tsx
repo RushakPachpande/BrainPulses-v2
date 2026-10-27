@@ -12,7 +12,7 @@ import type { StudentProfile } from '../services/types';
 import { clearClientQueryCache } from '../lib/query-client';
 import { AuthContext, SessionActiveError } from './auth-context';
 
-const DEFAULT_ORG_SLUG = 'demo';
+const DEFAULT_ORG_SLUG = 'nextgeninnov8';
 
 async function profileFromAuth(data: {
   student: { id: string; code: string; name: string; email: string };

@@ -44,6 +44,7 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [imageFileId, setImageFileId] = useState('');
+  const [initialImageFileId, setInitialImageFileId] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
@@ -68,6 +69,7 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
         setName(contest.name);
         setDescription(contest.description ?? '');
         setImageFileId(contest.imageFileId);
+        setInitialImageFileId(contest.imageFileId);
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : 'Could not load contest.');
         void navigate('/contests');
@@ -112,7 +114,7 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
           sponsorId,
           name: name.trim(),
           description: descriptionValue || null,
-          ...(file ? { imageFileId: nextImageId } : {}),
+          ...(file || nextImageId !== initialImageFileId ? { imageFileId: nextImageId } : {}),
         });
         toast.success('Contest updated.');
       }
@@ -221,6 +223,15 @@ export function ContestFormPage({ mode }: { mode: 'create' | 'edit' | 'view' }) 
                 disabled={readOnly}
                 required
                 onFile={setFile}
+                onPickExisting={(id) => {
+                  setFile(null);
+                  setImageFileId(id);
+                  setDirty(true);
+                }}
+                onClear={() => {
+                  setImageFileId('');
+                  setDirty(true);
+                }}
               />
               {!readOnly ? (
                 <div className="flex flex-wrap justify-end gap-2 border-t pt-4">

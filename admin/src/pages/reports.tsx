@@ -32,7 +32,6 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
   const orgId = useOrgId();
   const label = kind === 'quiz' ? 'Quiz' : 'Assessment';
   const reportsBase = kind === 'quiz' ? '/quizzes/reports' : '/assessments/reports';
-  const current = kind === 'quiz' ? 'Weekly GK Quiz' : 'JEE Mock Series 2026';
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
 
   const { data: resultsData, isPending: resultsLoading } = useQuery({
@@ -49,9 +48,24 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
   const summary = summaryData ?? EMPTY_SUMMARY;
   const loading = resultsLoading || summaryLoading;
 
-  const results = useMemo(() => {
+  const results = useMemo((): ResultRow[] => {
     return allResults.filter((row) => isDateInRange(parseFixtureDate(row.submitted), dateRange));
   }, [allResults, dateRange]);
+
+  const activityNames = useMemo(
+    () => [...new Set(allResults.map((row) => row.activity).filter(Boolean))],
+    [allResults],
+  );
+  const activityFilter = activityNames.length === 1 ? activityNames[0] : 'All';
+  const distribution = useMemo(() => {
+    const counts = [0, 0, 0, 0, 0];
+    for (const row of results) {
+      const pct = row.percent ?? row.score;
+      const index = pct >= 100 ? 4 : Math.max(0, Math.min(4, Math.floor(pct / 20)));
+      counts[index] += 1;
+    }
+    return counts;
+  }, [results]);
 
   const reportColumns: RecordColumn<ResultRow>[] = [
     {
@@ -81,7 +95,11 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
       placement: 'primary',
       sortable: false,
       tableClassName: 'tabular-nums',
-      render: (row) => <span className="tabular-nums">{row.score}/100</span>,
+      render: (row) => (
+        <span className="tabular-nums">
+          {row.maxScore != null ? `${row.score} / ${row.maxScore}` : row.score}
+        </span>
+      ),
     },
     {
       key: 'percent',
@@ -89,7 +107,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
       placement: 'primary',
       sortable: false,
       tableClassName: 'tabular-nums',
-      render: (row) => <span className="tabular-nums">{row.score}%</span>,
+      render: (row) => <span className="tabular-nums">{row.percent ?? row.score}%</span>,
     },
     {
       key: 'status',
@@ -111,7 +129,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
     return (
       <div className="flex flex-col gap-4">
         <Toolbar
-          filters={[`${label}: ${current}`, 'Student', 'Status']}
+          filters={[`${label}: ${activityFilter}`, 'Student', 'Status']}
           dateRange={<DateRangeFilter value={dateRange} onApply={setDateRange} />}
           actions={
             <>
@@ -131,7 +149,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
   return (
     <div className="flex flex-col gap-4">
       <Toolbar
-        filters={[`${label}: ${current}`, 'Student', 'Status']}
+        filters={[`${label}: ${activityFilter}`, 'Student', 'Status']}
         dateRange={<DateRangeFilter value={dateRange} onApply={setDateRange} />}
         actions={
           <>
@@ -147,9 +165,9 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,22rem)_1fr]">
         <BarChartCard
           title="Score distribution"
-          values={[20, 45, 90, 70, 35]}
+          values={distribution}
           color="var(--primary)"
-          caption="Most attempts fall between 40 and 60."
+          caption="Submitted scores grouped by percentage."
           labels={['0–20', '20–40', '40–60', '60–80', '80–100']}
           emphasizeLast={false}
         />

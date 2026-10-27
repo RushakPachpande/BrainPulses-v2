@@ -215,7 +215,8 @@ export function mapResultFromApi(row: {
   studentId?: string;
   disqualified?: boolean;
 }): ResultRow {
-  const score = Math.round(row.percent);
+  const percent = Math.round(row.percent);
+  const score = row.score != null ? row.score : percent;
   return {
     id: row.id,
     student: row.student,
@@ -226,7 +227,7 @@ export function mapResultFromApi(row: {
     status: row.status,
     releaseStatus: row.releaseStatus,
     maxScore: row.maxScore,
-    percent: score,
+    percent,
     activityKind: row.activityKind,
     studentCode: row.studentCode,
     attemptId: row.attemptId,
@@ -355,7 +356,9 @@ export function buildReportSummaryFromResults(rows: ResultRow[]) {
   const attempted = rows.length;
   const completed = rows.filter((r) => r.status === 'Passed' || r.status === 'Failed').length;
   const avg =
-    attempted === 0 ? 0 : Math.round(rows.reduce((sum, r) => sum + r.score, 0) / attempted);
+    attempted === 0
+      ? 0
+      : Math.round(rows.reduce((sum, r) => sum + (r.percent ?? r.score), 0) / attempted);
   return [
     ['Registered', String(attempted), '', 0],
     ['Assigned', String(attempted), '', 1],

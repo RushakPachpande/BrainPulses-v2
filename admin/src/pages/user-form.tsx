@@ -100,7 +100,7 @@ export function UserFormPage() {
               </Field>
               <Field>
                 <FieldLabel htmlFor="user-password">
-                  Temporary password <span className="text-destructive">*</span>
+                  Password <span className="text-destructive">*</span>
                 </FieldLabel>
                 <Input
                   id="user-password"

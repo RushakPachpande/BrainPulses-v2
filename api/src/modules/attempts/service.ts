@@ -130,6 +130,24 @@ async function presentQuestions(
     });
 }
 
+async function presentOpenQuizAttempt(attemptId: string, organizationId: string) {
+  const live = await prisma.attempt.findFirst({
+    where: { id: attemptId },
+    include: { responses: true },
+  });
+  if (!live) throw notFound('Attempt not found.');
+  const order =
+    live.questionOrder.length > 0
+      ? live.questionOrder
+      : live.responses.map((r) => r.questionVersionId);
+  const optionOrders = (live.optionOrders as OptionOrders | null) ?? null;
+  const questions = await presentQuestions(organizationId, order, optionOrders);
+  return {
+    attempt: mapAttempt(live, { activityKind: 'quiz', softProctoring: true }),
+    questions,
+  };
+}
+
 function buildShuffleOrders(
   versionIds: string[],
   optionsByVersion: Map<string, OptionRow[]>,
@@ -364,26 +382,12 @@ export async function startAttempt(
             where: { id: grantContinue.id },
             data: { consumedAt: new Date() },
           });
-          const live = await prisma.attempt.findFirst({
-            where: { id: open.id },
-            include: { responses: true },
-          });
-          if (!live) throw notFound('Attempt not found.');
-          const order =
-            live.questionOrder.length > 0
-              ? live.questionOrder
-              : live.responses.map((r) => r.questionVersionId);
-          const optionOrders = (live.optionOrders as OptionOrders | null) ?? null;
-          const questions = await presentQuestions(organizationId, order, optionOrders);
-          return {
-            attempt: mapAttempt(live, { activityKind: 'quiz', softProctoring: true }),
-            questions,
-          };
+          return presentOpenQuizAttempt(open.id, organizationId);
         }
       }
       const refreshed = await autoSubmitIfExpired(open);
       if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
-        throw conflict('An open attempt already exists. Resume it instead.');
+        return presentOpenQuizAttempt(open.id, organizationId);
       }
     }
 

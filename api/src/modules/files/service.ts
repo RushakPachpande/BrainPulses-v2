@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { Transform, type Readable } from 'node:stream';
 import { env } from '../../config/env.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
+import { buildPage, listEnvelope, prismaCursorArgs, type ListQuery } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { getRedis } from '../../lib/redis.js';
 import type { AccessLevel, MembershipRole } from '#prisma';
@@ -245,6 +246,32 @@ export async function assertCatalogImage(organizationId: string, fileId: string)
     throw badRequest(`Image must be ${formatMegabytes(CATALOG_IMAGE_MAX_BYTES)} or smaller.`);
   }
   return file;
+}
+
+const QUESTION_IMAGE_MIMES = new Set([...SPONSOR_IMAGE_MIMES, 'image/gif']);
+
+export async function listImages(
+  organizationId: string,
+  query: ListQuery & { purpose: 'catalog' | 'question' },
+) {
+  const catalog = query.purpose === 'catalog';
+  const where = {
+    organizationId,
+    finalizedAt: { not: null },
+    mimeType: { in: [...(catalog ? SPONSOR_IMAGE_MIMES : QUESTION_IMAGE_MIMES)] },
+    sizeBytes: { gt: 0, lte: catalog ? CATALOG_IMAGE_MAX_BYTES : QUESTION_IMAGE_MAX_BYTES },
+    ...(query.q ? { originalName: { contains: query.q, mode: 'insensitive' as const } } : {}),
+  };
+  const [total, rows] = await Promise.all([
+    prisma.fileObject.count({ where }),
+    prisma.fileObject.findMany({
+      where,
+      select: { id: true, originalName: true, mimeType: true, sizeBytes: true, createdAt: true },
+      ...prismaCursorArgs(query, 'createdAt'),
+    }),
+  ]);
+  const { items, page } = buildPage(rows, query.limit, total);
+  return listEnvelope(items, page);
 }
 
 export async function readInlineImage(organizationId: string, fileId: string) {

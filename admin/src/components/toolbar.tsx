@@ -103,7 +103,18 @@ export function Toolbar({
           ))}
       {dateRange ? <div className="w-full shrink-0 sm:w-56">{dateRange}</div> : null}
       {actions ? (
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none">
+        <div
+          className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none"
+          onClickCapture={(event) => {
+            const button = (event.target as HTMLElement | null)?.closest('button');
+            if (!button) return;
+            const label = button.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+            if (!/^Clear Filters$/i.test(label)) return;
+            // Clear the visible search immediately (including uncommitted debounce text).
+            setInputValue('');
+            if ((searchValue ?? '') !== '') onSearchChange?.('');
+          }}
+        >
           {actions}
         </div>
       ) : null}

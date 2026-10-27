@@ -328,8 +328,8 @@ export function LoginPage() {
                 {busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} aria-hidden />
               </button>
               {import.meta.env.DEV && (
-                <div className="demo-note">
-                  <span className="dot" /> Demo · Unique ID BP-24101
+                <div className="sign-in-hint">
+                  <span className="dot" /> Local sign-in · Unique ID BP-24101
                 </div>
               )}
             </div>
@@ -386,8 +386,8 @@ export function LoginPage() {
                 {busy ? 'Sending…' : 'Continue'} <ArrowRight size={16} aria-hidden />
               </button>
               {import.meta.env.DEV && (
-                <div className="demo-note">
-                  <span className="dot" /> Demo · +91 9876510000 (OTP in API log)
+                <div className="sign-in-hint">
+                  <span className="dot" /> Local sign-in · +91 9876510000 (OTP in the API log)
                 </div>
               )}
             </div>

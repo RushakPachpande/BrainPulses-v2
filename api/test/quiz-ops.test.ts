@@ -9,7 +9,7 @@ async function studentToken(code = 'BP-24101') {
   const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
     body: {
       code,
-      organizationSlug: 'demo',
+      organizationSlug: 'nextgeninnov8',
       replaceSession: true,
     },
   });
@@ -27,7 +27,7 @@ async function adminToken() {
     return (data.session as { accessToken: string }).accessToken;
   }
   const orgs = data.organizations as { id: string; slug: string }[];
-  const org = orgs.find((o) => o.slug === 'demo') ?? orgs[0]!;
+  const org = orgs.find((o) => o.slug === 'nextgeninnov8') ?? orgs[0]!;
   const selected = await request(app, 'POST', '/api/auth/select-organization', {
     body: { selectionToken: data.selectionToken, organizationId: org.id },
   });

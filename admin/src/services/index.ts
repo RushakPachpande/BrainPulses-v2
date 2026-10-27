@@ -7,6 +7,7 @@ import {
   apiPostData,
   apiPostFormData,
   apiRequest,
+  type ListEnvelope,
 } from '@/lib/api-client';
 import { invalidateAdmin } from '@/lib/query-client';
 import {
@@ -51,6 +52,8 @@ import type {
   ActivitySettings,
   AdminUser,
   Contest,
+  ImageLibraryPurpose,
+  LibraryImage,
   Sponsor,
   AuditLogRow,
   DashboardData,
@@ -73,6 +76,8 @@ export type {
   DurationMode,
   Sponsor,
   Contest,
+  ImageLibraryPurpose,
+  LibraryImage,
   Student,
   AdminUser,
   AccessUser,
@@ -138,7 +143,26 @@ async function uploadImageFile(
     headers: { 'Content-Type': file.type },
     body: file,
   });
+  invalidateAdmin(['imageLibrary']);
   return started.id;
+}
+
+export async function getImageLibraryPage(params: {
+  purpose: ImageLibraryPurpose;
+  q?: string;
+  cursor?: string;
+  limit?: number;
+}): Promise<ListEnvelope<LibraryImage>> {
+  if (useFixtures) {
+    return {
+      data: [],
+      page: { limit: params.limit ?? 24, nextCursor: null, hasMore: false, total: 0 },
+    };
+  }
+  const qs = new URLSearchParams({ purpose: params.purpose, limit: String(params.limit ?? 24) });
+  if (params.q) qs.set('q', params.q);
+  if (params.cursor) qs.set('cursor', params.cursor);
+  return apiRequest<ListEnvelope<LibraryImage>>(`/api/files/images?${qs.toString()}`);
 }
 
 export async function uploadCatalogImage(file: File): Promise<string> {

@@ -71,6 +71,7 @@ export type StudentResultDetail = {
   releaseStatus: string;
   answersVisible?: boolean;
   submittedAt: string;
+  questionCount?: number;
   review: {
     questionVersionId: string;
     question: string;

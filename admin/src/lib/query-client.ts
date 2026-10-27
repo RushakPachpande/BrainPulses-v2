@@ -71,6 +71,8 @@ export function invalidateAdmin(domains: Array<keyof typeof adminQueryKeys | 'al
     } else if (domain === 'results' || domain === 'resultsSummary') {
       void qc.invalidateQueries({ queryKey: ['admin', 'results'] });
       void qc.invalidateQueries({ queryKey: ['admin', 'results-summary'] });
+    } else if (domain === 'imageLibrary') {
+      void qc.invalidateQueries({ queryKey: ['admin', 'image-library'] });
     }
   }
 }

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import { UploadIcon } from 'lucide-react';
+import { ImagesIcon, UploadIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
+import { ImageLibraryDialog } from '@/components/image-library-dialog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,6 +56,7 @@ export function QuestionImageField({
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   async function onFile(file: File | undefined) {
     if (!file) return;
@@ -98,6 +100,15 @@ export function QuestionImageField({
             <UploadIcon data-icon="inline-start" />
             {uploading ? 'Uploading…' : 'Upload image'}
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={uploading}
+            onClick={() => setLibraryOpen(true)}
+          >
+            <ImagesIcon data-icon="inline-start" />
+            Choose existing
+          </Button>
           <p className="text-xs text-muted-foreground">
             PNG, JPEG, WebP, or GIF. {formatUploadMegabytes(QA_UPLOAD_IMAGE_SIZE_CAPPING)} maximum.
           </p>
@@ -108,6 +119,16 @@ export function QuestionImageField({
             className="sr-only"
             aria-label="Upload question or answer image"
             onChange={(event) => void onFile(event.target.files?.[0])}
+          />
+          <ImageLibraryDialog
+            open={libraryOpen}
+            onOpenChange={setLibraryOpen}
+            purpose="question"
+            selectedFileId={value.match(FILE_IMAGE)?.[1]}
+            onSelect={(fileId) => {
+              setError('');
+              onChange(`/api/files/${fileId}`);
+            }}
           />
         </div>
       )}

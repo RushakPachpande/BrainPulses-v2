@@ -7,7 +7,6 @@ import {
   LayoutDashboardIcon,
   ListIcon,
   LogOutIcon,
-  SearchIcon,
   SlidersHorizontalIcon,
   TrophyIcon,
   UserCogIcon,
@@ -30,7 +29,6 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group';
 import {
   Sidebar,
   SidebarContent,
@@ -368,17 +366,6 @@ export function AdminLayout() {
           <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
             <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
               <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
-              <InputGroup className="min-w-0 max-w-117.5 flex-1 bg-muted">
-                <InputGroupAddon align="inline-start">
-                  <SearchIcon />
-                </InputGroupAddon>
-                <InputGroupInput
-                  type="search"
-                  placeholder="Search"
-                  aria-label="Search"
-                  autoComplete="off"
-                />
-              </InputGroup>
               <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <ThemeToggle />
                 <NotificationsMenu />
@@ -388,6 +375,10 @@ export function AdminLayout() {
               <PageHeader title={meta.title} description={meta.description} crumbs={crumbs} />
               <Outlet />
             </div>
+            <footer className="flex flex-wrap justify-between gap-x-3 gap-y-1 border-t px-5 py-3.5 text-xs text-muted-foreground md:px-7">
+              <span>© 2026 BrainPulses</span>
+              <span>Learn steadily. Grow confidently.</span>
+            </footer>
           </SidebarInset>
         </PageHeaderProvider>
       </SidebarProvider>

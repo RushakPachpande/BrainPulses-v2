@@ -29,7 +29,7 @@ async function accessTokenFor(email: string, orgSlug: string) {
 describe('security hardening', () => {
   it('blocks view-only from bank create, student create, and settings patch', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('viewer@brainpulses.com', 'demo');
+    const token = await accessTokenFor('viewer@brainpulses.com', 'nextgeninnov8');
     const headers = { authorization: `Bearer ${token}` };
 
     const bank = await request(app, 'POST', '/api/banks', {
@@ -53,7 +53,7 @@ describe('security hardening', () => {
 
   it('blocks view-only from activity and bank mutations while allowing reads', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('viewer@brainpulses.com', 'demo');
+    const token = await accessTokenFor('viewer@brainpulses.com', 'nextgeninnov8');
     const headers = { authorization: `Bearer ${token}` };
 
     const activities = await request(app, 'GET', '/api/activities?kind=assessment&limit=10', {
@@ -61,7 +61,7 @@ describe('security hardening', () => {
     });
     assert.equal(activities.status, 200);
 
-    const activity = await prisma.activity.findFirst({ where: { code: 'ASM-26001' } });
+    const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
     assert.ok(activity);
     const patchActivity = await request(app, 'PATCH', `/api/activities/${activity.id}`, {
       headers,
@@ -85,7 +85,7 @@ describe('security hardening', () => {
 
   it('rejects unknown body fields (strict Zod)', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('admin@brainpulses.com', 'demo');
+    const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
     const res = await request(app, 'POST', '/api/students', {
       headers: { authorization: `Bearer ${token}` },
       body: { name: 'Strict', email: 'strict-test@example.com', role: 'super_admin' },
@@ -139,7 +139,7 @@ describe('security hardening', () => {
 
   it('rejects disallowed MIME on file initiate', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('admin@brainpulses.com', 'demo');
+    const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
     const res = await request(app, 'POST', '/api/files/initiate', {
       headers: { authorization: `Bearer ${token}` },
       body: {
@@ -153,8 +153,8 @@ describe('security hardening', () => {
 
   it('returns 404 for cross-tenant bank and activity', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('admin@brainpulses.com', 'demo');
-    const otherOrg = await prisma.organization.findFirst({ where: { slug: 'other' } });
+    const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
+    const otherOrg = await prisma.organization.findFirst({ where: { slug: 'greycaps' } });
     assert.ok(otherOrg);
 
     const foreignBank = await prisma.questionBank.create({

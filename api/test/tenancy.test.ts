@@ -31,9 +31,17 @@ describe('tenancy and access', () => {
 
   it('denies cross-tenant student read', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('admin@brainpulses.com', 'demo');
-    const other = await prisma.student.findFirst({
-      where: { code: 'BP-99001' },
+    const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
+    const grey = await prisma.organization.findUniqueOrThrow({ where: { slug: 'greycaps' } });
+    const other = await prisma.student.upsert({
+      where: { organizationId_code: { organizationId: grey.id, code: 'BP-99001' } },
+      update: { isActive: true },
+      create: {
+        organizationId: grey.id,
+        code: 'BP-99001',
+        name: 'Other Student',
+        email: 'other.student@greycaps.com',
+      },
     });
     assert.ok(other);
 
@@ -45,9 +53,9 @@ describe('tenancy and access', () => {
 
   it('blocks view-only admin from publishing', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('viewer@brainpulses.com', 'demo');
+    const token = await accessTokenFor('viewer@brainpulses.com', 'nextgeninnov8');
     const activity = await prisma.activity.findFirst({
-      where: { code: 'ASM-26001' },
+      where: { code: 'QZ-26001' },
     });
     assert.ok(activity);
 
@@ -81,7 +89,7 @@ describe('tenancy and access', () => {
 
   it('exposes option correctness on admin bank detail without raw answerKey', async () => {
     const app = await getTestApp();
-    const token = await accessTokenFor('admin@brainpulses.com', 'demo');
+    const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
     const bank = await prisma.questionBank.findFirst({ where: { code: 'QB-26001' } });
     assert.ok(bank);
 

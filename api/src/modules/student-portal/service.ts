@@ -453,6 +453,10 @@ export async function getMyResult(organizationId: string, studentId: string, res
     releaseStatus: result.releaseStatus,
     answersVisible: includeKeys,
     submittedAt: result.attempt.submittedAt ?? result.createdAt,
+    questionCount:
+      result.attempt.questionOrder.length > 0
+        ? result.attempt.questionOrder.length
+        : result.attempt.responses.length,
     review: includeKeys ? review : [],
   };
 }

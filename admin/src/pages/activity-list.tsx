@@ -61,30 +61,6 @@ const activityPlacement: Record<SortKey, RecordColumn<Activity>['placement']> = 
   end: 'details',
 };
 
-const assessmentMetrics = [
-  {
-    label: 'Total Assessments',
-    value: '24',
-    icon: ClipboardListIcon,
-    tone: 'bg-chart-2/15 text-chart-2',
-  },
-  { label: 'Active', value: '14', icon: CheckCircle2Icon, tone: 'bg-success/15 text-success' },
-  { label: 'Draft', value: '6', icon: CircleDashedIcon, tone: 'bg-warning/15 text-warning' },
-  { label: 'Completed', value: '4', icon: LayersIcon, tone: 'bg-primary/15 text-primary' },
-] as const;
-
-const quizMetrics = [
-  {
-    label: 'Total Quizzes',
-    value: '32',
-    icon: ClipboardListIcon,
-    tone: 'bg-chart-2/15 text-chart-2',
-  },
-  { label: 'Active', value: '26', icon: CheckCircle2Icon, tone: 'bg-success/15 text-success' },
-  { label: 'Draft', value: '4', icon: CircleDashedIcon, tone: 'bg-warning/15 text-warning' },
-  { label: 'Completed', value: '2', icon: LayersIcon, tone: 'bg-primary/15 text-primary' },
-] as const;
-
 function compareActivities(a: Activity, b: Activity, key: SortKey) {
   const left = a[key];
   const right = b[key];
@@ -109,7 +85,6 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const nameLabel = isQuiz ? 'Quiz Name' : 'Assessment Name';
   const listPath = isQuiz ? '/quizzes' : '/assessments';
   const createHref = isQuiz ? '/quizzes/new' : '/assessments/new';
-  const metrics = isQuiz ? quizMetrics : assessmentMetrics;
 
   const sortColumns: { key: SortKey; label: string }[] = isQuiz
     ? [
@@ -140,6 +115,33 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     enabled: Boolean(orgId),
   });
   const activities = data ?? EMPTY_ACTIVITIES;
+  const statusCount = (value: string) => activities.filter((item) => item.status === value).length;
+  const metrics = [
+    {
+      label: isQuiz ? 'Total Quizzes' : 'Total Assessments',
+      value: String(activities.length),
+      icon: ClipboardListIcon,
+      tone: 'bg-chart-2/15 text-chart-2',
+    },
+    {
+      label: 'Active',
+      value: String(statusCount('Active')),
+      icon: CheckCircle2Icon,
+      tone: 'bg-success/15 text-success',
+    },
+    {
+      label: 'Draft',
+      value: String(statusCount('Draft')),
+      icon: CircleDashedIcon,
+      tone: 'bg-warning/15 text-warning',
+    },
+    {
+      label: 'Completed',
+      value: String(statusCount('Completed')),
+      icon: LayersIcon,
+      tone: 'bg-primary/15 text-primary',
+    },
+  ];
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
