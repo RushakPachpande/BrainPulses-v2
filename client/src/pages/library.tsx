@@ -7,6 +7,7 @@ import {
   Search,
   ShieldCheck,
   Target,
+  Timer,
   Trophy,
   X,
 } from 'lucide-react';
@@ -14,7 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { LibraryStatsSkeleton } from '../components/skeletons';
-import { ActivityCover, ActivityCredit } from '../components/activity-images';
+import { ActivityCardMedia, ActivityOrganizer } from '../components/activity-images';
 import { Heading, KindIcon, Status } from '../components/ui-bits';
 import { useAuth } from '../contexts/auth-context';
 import { useDebouncedValue } from '../hooks/use-debounced-value';
@@ -182,60 +183,60 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
         ) : filtered.length ? (
           filtered.map((x) => (
             <article className="activity-card" key={x.activityId}>
-              <ActivityCover
-                item={x}
-                className="activity-card-media"
-                imgClassName="activity-card-photo"
-              />
+              <ActivityCardMedia item={x}>
+                <span className="activity-card-kind">
+                  <KindIcon kind={x.kind} /> {formatKind(x.kind)}
+                </span>
+                <Status
+                  value={
+                    x.attemptState === 'submitted'
+                      ? 'Completed'
+                      : x.attemptState === 'in_progress'
+                        ? 'In progress'
+                        : x.canAttempt === false
+                          ? 'Closed'
+                          : 'Available'
+                  }
+                />
+              </ActivityCardMedia>
               <div className="activity-card-body">
-                <div className="activity-card-top">
-                  <span className={`type-tag ${x.kind === 'quiz' ? 'quiz-tag' : 'assessment-tag'}`}>
-                    <KindIcon kind={x.kind} /> {formatKind(x.kind)}
-                  </span>
-                  <Status
-                    value={
-                      x.attemptState === 'submitted'
-                        ? 'Completed'
-                        : x.attemptState === 'in_progress'
-                          ? 'In progress'
-                          : x.canAttempt === false
-                            ? 'Closed'
-                            : 'Available'
-                    }
-                  />
-                </div>
+                <ActivityOrganizer item={x} />
                 <h3>{x.name}</h3>
-                <ActivityCredit item={x} />
-                <p>{x.subtitle ?? 'Assigned activity'}</p>
+                <p className="activity-card-summary">{x.subtitle ?? 'Assigned activity'}</p>
                 <div className="activity-card-meta">
-                  <span>
-                    <Clock3 size={15} />
-                    {formatDuration(x.durationMinutes)}
-                  </span>
+                  {x.durationMinutes != null ? (
+                    <span>
+                      <Clock3 size={15} />
+                      {formatDuration(x.durationMinutes)}
+                    </span>
+                  ) : null}
                   <span>
                     <FileText size={15} />
                     {x.questionCount} questions
                   </span>
-                  <span className="mode-label">Timed</span>
+                  <span>
+                    <Timer size={15} />
+                    Timed
+                  </span>
                 </div>
-                <div className="activity-card-bottom">
-                  <div className="due-label">
-                    <CalendarDays size={14} />
-                    <span>{x.endsAt ? `Due ${formatDateLabel(x.endsAt)}` : 'Open window'}</span>
-                  </div>
-                  <button
-                    className={`btn ${x.attemptState === 'submitted' ? 'outline' : 'primary'} small`}
-                    type="button"
-                    onClick={() => begin(x)}
-                  >
-                    {x.attemptState === 'submitted'
-                      ? 'View results'
-                      : x.attemptState === 'in_progress'
-                        ? 'Continue'
-                        : 'View details'}{' '}
-                    <ArrowRight size={15} />
-                  </button>
+              </div>
+              <div className="activity-card-bottom">
+                <div className="due-label">
+                  <CalendarDays size={14} />
+                  <span>{x.endsAt ? `Due ${formatDateLabel(x.endsAt)}` : 'Open window'}</span>
                 </div>
+                <button
+                  className={`btn ${x.attemptState === 'submitted' ? 'outline' : 'primary'} small activity-card-action`}
+                  type="button"
+                  onClick={() => begin(x)}
+                >
+                  {x.attemptState === 'submitted'
+                    ? 'View results'
+                    : x.attemptState === 'in_progress'
+                      ? 'Continue'
+                      : 'View details'}{' '}
+                  <ArrowRight size={15} />
+                </button>
               </div>
             </article>
           ))

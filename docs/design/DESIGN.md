@@ -115,8 +115,9 @@ Import primitives from `@/components/ui`. `admin/components.json` uses shadcn wi
 | Confirmation          | `Dialog`                                                                                                             |
 | Mobile side panel     | `Sheet`                                                                                                              |
 | Alert / toast         | `Alert` / Sonner                                                                                                     |
-| List table            | `ResponsiveRecords`: shadcn `Table` inside `Card` at 720px and wider, stacked panels below                            |
+| List table            | `ResponsiveRecords`: shadcn `Table` inside `Card` at 720px and wider, stacked panels below                           |
 | Compact results table | `ResponsiveRecords` on report pages                                                                                  |
+| Media card grid       | `MediaCardGrid` + `MediaCard` + `ListPager` for image-led catalogs (Sponsors, Contests)                              |
 | Status                | `StatusPill` and the account, flow, assignment, and attempt wrappers                                                 |
 | Sort                  | `SortHeader`                                                                                                         |
 | Section tabs          | `ModuleNav`                                                                                                          |
@@ -149,6 +150,8 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 **Shell.** Skip link, collapsible sidebar, sticky top bar (sidebar toggle, global search, theme, notifications, identity), then the content column.
 
 **List.** Meta title and description in `admin/src/routes/meta.ts` → breadcrumb → title and `PageHeaderActions` → `ModuleNav` when the section has one → optional flat KPI row → `Toolbar` (search, filters, Clear Filters, and Sort while panels are showing) → card table or record panels → footer. Create, upload, and download stay in the page header.
+
+**Media card grid.** Only for image-led catalogs (Sponsors, Contests). Match the student client library activity cards (`activity-card` in `client/src/styles.css`), not the flat admin table panels. Same header, KPI row, and `Toolbar` as a list, then `MediaCardGrid` (`repeat(auto-fill, minmax(min(100%, 340px), 1fr))`, 22px gap). Each card: full-bleed cover (`object-cover`, ~2.15∶1), overlay kind pill (+ optional badge), body with optional organizer row, title, two-line summary, meta chips, and a bottom bar (muted label + primary View CTA with stretched hit area; Edit outline sits above the stretch when mutate is allowed). Hover lifts the card; keyboard focus outlines the card. No selection. Sort is always a toolbar select. Pager: “Showing X to Y of Z”, cards per page 12 / 24 / 48. Empty state is one muted sentence in a card.
 
 **Settings.** `ModuleNav` → grouped cards (icon tile, title, description, fields) → sticky bar with a status line, Reset, and Save. Two columns only from `xl` when the aside is a real second group.
 

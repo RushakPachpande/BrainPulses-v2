@@ -365,7 +365,7 @@ export function AdminLayout() {
         <PageHeaderProvider>
           <SidebarInset id="main" tabIndex={-1} className="min-w-0 overflow-x-hidden">
             <header className="sticky top-0 z-20 flex min-h-18 min-w-0 items-center gap-2 border-b bg-card px-3.5 md:gap-4 md:px-7">
-              <SidebarTrigger aria-label="Toggle sidebar" title="Toggle sidebar" />
+              <SidebarTrigger />
               <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <ThemeToggle />
                 <NotificationsMenu />
