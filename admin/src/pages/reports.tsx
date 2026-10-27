@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { DownloadIcon } from 'lucide-react';
 import { BarChartCard } from '@/components/bar-chart-card';
 import { DateRangeFilter } from '@/components/date-range-filter';
@@ -27,6 +27,7 @@ const EMPTY_RESULTS: ResultRow[] = [];
 const EMPTY_SUMMARY: ReportSummaryRow[] = [];
 
 export function ReportsPage({ kind }: { kind: ActivityKind }) {
+  const navigate = useNavigate();
   const { narrow, ref } = useContainerNarrow();
   const orgId = useOrgId();
   const label = kind === 'quiz' ? 'Quiz' : 'Assessment';
@@ -167,6 +168,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
                   <Link to={`${reportsBase}/${row.id}`}>View result</Link>
                 </Button>
               )}
+              onRowOpen={(row) => navigate(`${reportsBase}/${row.id}`)}
             />
           </CardContent>
         </Card>

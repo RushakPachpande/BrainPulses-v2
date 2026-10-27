@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   CheckCircle2Icon,
@@ -85,6 +85,7 @@ function renderRegistrationCell(key: SortKey, row: Registration) {
 }
 
 export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
+  const navigate = useNavigate();
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
@@ -422,6 +423,13 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                 }
               />
             )}
+            onRowOpen={(row) =>
+              navigate(
+                isQuiz
+                  ? `/quizzes/registrations/${row.registrationId}`
+                  : `/assessments/registrations/${row.registrationId}`,
+              )
+            }
           />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

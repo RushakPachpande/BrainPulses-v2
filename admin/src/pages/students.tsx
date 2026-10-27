@@ -464,6 +464,7 @@ export function StudentsPage() {
                   edit={canMutate ? { onClick: () => setEditor(student.id) } : undefined}
                 />
               )}
+              onRowOpen={(student) => setViewId(student.id)}
             />
 
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

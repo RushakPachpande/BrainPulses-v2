@@ -472,6 +472,9 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
                 }
               />
             )}
+            onRowOpen={(row) =>
+              navigate(isQuiz ? `/quizzes/banks/${row.id}` : `/assessments/banks/${row.id}`)
+            }
           />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeftIcon,
@@ -84,6 +84,7 @@ function compareUsers(a: User, b: User, key: SortKey) {
 }
 
 export function UsersPage() {
+  const navigate = useNavigate();
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
@@ -274,6 +275,9 @@ export function UsersPage() {
                 edit={canManage && user.id ? { to: `/users/${user.id}/edit` } : undefined}
               />
             )}
+            onRowOpen={(user) => {
+              if (user.id) navigate(`/users/${user.id}`);
+            }}
           />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">

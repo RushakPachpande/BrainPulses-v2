@@ -74,6 +74,14 @@ function fieldSpan(placement: RecordPlacement): 'wide' | 'half' | null {
   return null;
 }
 
+function clickOpensRow(event: { target: EventTarget | null }) {
+  const target = event.target;
+  if (!(target instanceof Element)) return false;
+  return !target.closest(
+    'a, button, input, textarea, select, label, [role="checkbox"], [data-slot="record-actions"]',
+  );
+}
+
 function cardValue<Row>(column: RecordColumn<Row>, row: Row) {
   return column.card ? column.card(row) : column.render(row);
 }
@@ -106,12 +114,14 @@ function RecordPanel<Row>({
   columns,
   selection,
   renderActions,
+  onRowOpen,
 }: {
   row: Row;
   id: string;
   columns: RecordColumn<Row>[];
   selection?: RecordSelection<Row>;
   renderActions?: (row: Row) => ReactNode;
+  onRowOpen?: (row: Row) => void;
 }) {
   const title = fieldsWith(columns, 'title');
   const identity = fieldsWith(columns, 'identity');
@@ -122,7 +132,18 @@ function RecordPanel<Row>({
   const selected = selection?.selected.has(id) ?? false;
 
   return (
-    <li data-slot="record-panel" data-state={selected ? 'selected' : undefined} className="p-3.5">
+    <li
+      data-slot="record-panel"
+      data-state={selected ? 'selected' : undefined}
+      className={cn('p-3.5', onRowOpen && 'cursor-pointer')}
+      onClick={
+        onRowOpen
+          ? (event) => {
+              if (clickOpensRow(event)) onRowOpen(row);
+            }
+          : undefined
+      }
+    >
       <div className="flex items-start gap-2.5">
         {lead.map((column) => (
           <div
@@ -247,6 +268,7 @@ export function ResponsiveRecords<Row>({
   narrow,
   selection,
   sort,
+  onRowOpen,
 }: {
   caption: string;
   captionClassName?: string;
@@ -260,6 +282,7 @@ export function ResponsiveRecords<Row>({
   narrow: boolean;
   selection?: RecordSelection<Row>;
   sort?: RecordSort;
+  onRowOpen?: (row: Row) => void;
 }) {
   const columnCount = columns.length + (selection ? 1 : 0) + (renderActions ? 1 : 0);
   const captionHidden = captionClassName.includes('sr-only');
@@ -285,6 +308,7 @@ export function ResponsiveRecords<Row>({
                 columns={columns}
                 selection={selection}
                 renderActions={renderActions}
+                onRowOpen={onRowOpen}
               />
             ))}
           </ul>
@@ -364,6 +388,14 @@ export function ResponsiveRecords<Row>({
                 <TableRow
                   key={id}
                   data-state={selection?.selected.has(id) ? 'selected' : undefined}
+                  className={onRowOpen ? 'cursor-pointer' : undefined}
+                  onClick={
+                    onRowOpen
+                      ? (event) => {
+                          if (clickOpensRow(event)) onRowOpen(row);
+                        }
+                      : undefined
+                  }
                 >
                   {selection ? (
                     <TableCell>

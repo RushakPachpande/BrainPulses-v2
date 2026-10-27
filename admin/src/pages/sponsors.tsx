@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
@@ -51,6 +51,7 @@ const sponsorSortColumns = sponsorColumns.filter((column) => column.sortable !==
 type SortKey = 'name';
 
 export function SponsorsPage() {
+  const navigate = useNavigate();
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
@@ -207,6 +208,7 @@ export function SponsorsPage() {
                 edit={canMutate ? { to: `/sponsors/${sponsor.id}/edit` } : undefined}
               />
             )}
+            onRowOpen={(sponsor) => navigate(`/sponsors/${sponsor.id}`)}
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">

@@ -541,7 +541,23 @@ export function BankFormPage({
                       </TableRow>
                     ) : (
                       filteredQuestions.map((item) => (
-                        <TableRow key={item.id}>
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer"
+                          onClick={(event) => {
+                            const target = event.target;
+                            if (
+                              target instanceof Element &&
+                              target.closest(
+                                'a, button, input, label, [data-slot="record-actions"]',
+                              )
+                            ) {
+                              return;
+                            }
+                            if (readOnly) openView(item);
+                            else openEdit(item);
+                          }}
+                        >
                           <TableCell className="whitespace-nowrap font-medium">
                             {item.code || '—'}
                           </TableCell>

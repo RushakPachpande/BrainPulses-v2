@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
@@ -61,6 +61,7 @@ const contestColumns: RecordColumn<Contest>[] = [
 const contestSortColumns = contestColumns.filter((column) => column.sortable !== false);
 
 export function ContestsPage() {
+  const navigate = useNavigate();
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
@@ -222,6 +223,7 @@ export function ContestsPage() {
                 edit={canMutate ? { to: `/contests/${contest.id}/edit` } : undefined}
               />
             )}
+            onRowOpen={(contest) => navigate(`/contests/${contest.id}`)}
           />
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
