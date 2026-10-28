@@ -4,7 +4,7 @@ import { KindIcon } from './ui-bits';
 import type { StudentActivity } from '../services/types';
 
 function coverOf(item: StudentActivity) {
-  const fileId = item.contestImageFileId || item.sponsorImageFileId;
+  const fileId = item.imageFileId || item.contestImageFileId || item.sponsorImageFileId;
   if (!fileId) return null;
   return {
     fileId,

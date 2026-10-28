@@ -144,6 +144,13 @@ export function createApp() {
 
   app.use('/api', apiLimiter);
   app.use('/api', requestTimeout);
+  // Prevent browsers from serving stale authenticated JSON after hard reload.
+  app.use('/api', (req, res, next) => {
+    if (!req.path.startsWith('/files')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+    next();
+  });
   app.use('/api/auth', authLimiter, authRouter);
   app.use('/api/student', studentPortalRouter);
   app.use('/api/students', studentsRouter);

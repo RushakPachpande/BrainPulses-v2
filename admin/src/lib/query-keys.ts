@@ -1,5 +1,7 @@
-export const STALE_MS = 5 * 60_000;
-export const GC_MS = 30 * 60_000;
+/** Lists are always treated as stale so mounts/focus refetch from the API. */
+export const STALE_MS = 0;
+/** Keep unused query results in memory briefly for back-navigation. */
+export const GC_MS = 5 * 60_000;
 
 export const adminQueryKeys = {
   all: ['admin'] as const,
@@ -18,6 +20,9 @@ export const adminQueryKeys = {
     ['admin', 'image-library', orgId, purpose, q] as const,
 };
 
+/** Legacy sessionStorage key prefix from PersistQueryClient (no longer written). */
+export const ADMIN_PERSIST_PREFIX = 'bp-aq:';
+
 export function adminPersistKey(orgId: string) {
-  return `bp-aq:${orgId}`;
+  return `${ADMIN_PERSIST_PREFIX}${orgId}`;
 }

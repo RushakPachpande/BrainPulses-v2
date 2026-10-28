@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { scoreObjective } from '../src/modules/attempts/scoring.js';
+import {
+  applyNegativeMarking,
+  clampScore,
+  hasSubmittedAnswer,
+  scoreObjective,
+} from '../src/modules/attempts/scoring.js';
 
 describe('scoreObjective', () => {
   it('scores single_mcq by label', () => {
@@ -48,5 +53,48 @@ describe('scoreObjective', () => {
   it('returns null for text without reference so maxScore can skip', () => {
     assert.equal(scoreObjective('short_text', {}, { text: 'anything' }, 1), null);
     assert.equal(scoreObjective('long_text', { value: '' }, { text: 'x' }, 1), null);
+  });
+});
+
+describe('negative marking helpers', () => {
+  it('detects submitted vs empty answers', () => {
+    assert.equal(hasSubmittedAnswer('single_mcq', { label: 'A' }), true);
+    assert.equal(hasSubmittedAnswer('single_mcq', { label: '' }), false);
+    assert.equal(hasSubmittedAnswer('multiple_mcq', { labels: ['A'] }), true);
+    assert.equal(hasSubmittedAnswer('multiple_mcq', { labels: [] }), false);
+    assert.equal(hasSubmittedAnswer('numeric', { value: 3 }), true);
+    assert.equal(hasSubmittedAnswer('short_text', { text: '' }), false);
+  });
+
+  it('deducts only for wrong answered items and clamps at zero', () => {
+    let score = 0;
+    score = applyNegativeMarking(score, {
+      enabled: true,
+      penalty: 0.25,
+      earned: 1,
+      answered: true,
+    });
+    assert.equal(score, 1);
+    score = applyNegativeMarking(score, {
+      enabled: true,
+      penalty: 0.25,
+      earned: 0,
+      answered: true,
+    });
+    assert.equal(score, 0.75);
+    score = applyNegativeMarking(score, {
+      enabled: true,
+      penalty: 0.25,
+      earned: 0,
+      answered: false,
+    });
+    assert.equal(score, 0.75);
+    score = applyNegativeMarking(score, {
+      enabled: true,
+      penalty: 2,
+      earned: 0,
+      answered: true,
+    });
+    assert.equal(clampScore(score), 0);
   });
 });

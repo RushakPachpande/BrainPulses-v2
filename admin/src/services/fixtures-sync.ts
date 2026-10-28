@@ -120,6 +120,8 @@ export function fixturesGetRegistrations(kind: ActivityKind) {
     bank: bankNames[i],
     assignment: assignmentStatuses[i],
     attempt: attemptStatuses[i],
+    attemptId: attemptStatuses[i] === 'Not Started' ? null : `fixture-attempt-${kind}-${i}`,
+    resultId: attemptStatuses[i] === 'Completed' ? `fixture-result-${kind}-${i}` : null,
     city: studentCities[i],
     course: studentCourses[i],
     cohort: i % 2 === 0 ? 'Alpha' : 'Beta',

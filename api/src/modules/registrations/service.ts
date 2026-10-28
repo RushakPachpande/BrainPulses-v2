@@ -39,9 +39,15 @@ function mapRegistration(r: {
     course: string | null;
   };
   activity: { id: string; name: string; kind: string; code: string };
-  studentAttempts?: { status: string }[];
+  studentAttempts?: { id: string; status: string; resultId: string | null }[];
 }) {
-  const attempt = r.studentAttempts?.[0];
+  const statuses = r.studentAttempts ?? [];
+  const primary =
+    statuses.find((a) => a.status === 'in_progress') ??
+    statuses.find((a) => a.status === 'submitted' || a.status === 'auto_submitted') ??
+    statuses[0] ??
+    null;
+  const attemptStatus = primary?.status ?? 'not_started';
   return {
     id: r.id,
     studentId: r.student.id,
@@ -56,7 +62,9 @@ function mapRegistration(r: {
     activityKind: r.activity.kind,
     assignment: r.status === 'assigned' ? 'Assigned' : 'Unassigned',
     statusKey: r.status,
-    attempt: attempt?.status ?? 'Not started',
+    attempt: attemptStatus,
+    attemptId: primary?.id ?? null,
+    resultId: primary?.resultId ?? null,
     registered: r.createdAt,
     assignedAt: r.assignedAt,
   };
@@ -102,20 +110,30 @@ export async function listRegistrations(
     }),
   ]);
 
-  const attemptMap = new Map<string, { status: string }[]>();
+  const attemptMap = new Map<string, { id: string; status: string; resultId: string | null }[]>();
   if (rows.length > 0) {
     const attempts = await prisma.attempt.findMany({
       where: {
         organizationId,
         OR: rows.map((r) => ({ activityId: r.activityId, studentId: r.studentId })),
       },
-      select: { activityId: true, studentId: true, status: true },
+      select: {
+        id: true,
+        activityId: true,
+        studentId: true,
+        status: true,
+        result: { select: { id: true } },
+      },
       orderBy: { createdAt: 'desc' },
     });
     for (const a of attempts) {
       const key = `${a.activityId}:${a.studentId}`;
       if (!attemptMap.has(key)) attemptMap.set(key, []);
-      attemptMap.get(key)!.push({ status: a.status });
+      attemptMap.get(key)!.push({
+        id: a.id,
+        status: a.status,
+        resultId: a.result?.id ?? null,
+      });
     }
   }
 

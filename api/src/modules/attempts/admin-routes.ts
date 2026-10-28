@@ -32,6 +32,13 @@ adminAttemptsRouter.post(
   controller.requalify,
 );
 
+adminAttemptsRouter.delete(
+  '/:id',
+  requireOrgAccess('full'),
+  validate({ params: attemptIdParamSchema }),
+  controller.remove,
+);
+
 export const activityReattemptsRouter = Router({ mergeParams: true });
 
 activityReattemptsRouter.get(

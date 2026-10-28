@@ -33,6 +33,8 @@ export type StudentActivity = {
   latestResultId: string | null;
   latestPercent: number | null;
   leaderboardAvailable?: boolean;
+  instructions?: string | null;
+  imageFileId?: string | null;
   sponsorName?: string | null;
   sponsorImageFileId?: string | null;
   contestName?: string | null;
@@ -100,7 +102,7 @@ export type AttemptQuestion = {
   questionImageUrl?: string;
 };
 
-export type AttemptPresentation = 'one_at_a_time' | 'all_on_page' | 'timed_card';
+export type AttemptPresentation = 'one_at_a_time' | 'all_on_page';
 
 export type AttemptState = {
   id: string;
@@ -119,6 +121,9 @@ export type AttemptState = {
   presentation?: AttemptPresentation;
   durationMode?: 'overall' | 'per_question';
   perQuestionSeconds?: number | null;
+  allowPrevious?: boolean;
+  showQuestionPanel?: boolean;
+  forwardOnly?: boolean;
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
 };
 

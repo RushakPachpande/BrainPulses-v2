@@ -296,11 +296,16 @@ export function rowToCreatePayload(
   const allowed = authorableTypesForKind(kind);
   let type: QuestionTypeValue;
   if (kind === 'quiz') {
-    // Quiz sheets omit type; blank or single_mcq both mean single choice.
-    if (typeRaw && typeRaw !== 'single_mcq' && typeRaw !== 'image_mcq') {
-      throw new Error(`Quiz banks only support single-choice questions. Got “${row.type.trim()}”.`);
+    // Quiz sheets: blank defaults to single_mcq; multiple_mcq / image_mcq allowed when set.
+    if (!typeRaw || typeRaw === 'single_mcq') {
+      type = 'single_mcq';
+    } else if (typeRaw === 'multiple_mcq' || typeRaw === 'image_mcq') {
+      type = typeRaw;
+    } else {
+      throw new Error(
+        `Quiz banks only support single-choice or multiple-choice questions. Got “${row.type.trim()}”.`,
+      );
     }
-    type = 'single_mcq';
   } else {
     if (!typeRaw) throw new Error('type is required');
     if (!allowed.has(typeRaw)) {

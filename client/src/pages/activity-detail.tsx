@@ -36,6 +36,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   const [item, setItem] = useState<StudentActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [instructionsAck, setInstructionsAck] = useState(false);
   const libraryPath = kind === 'quiz' ? '/quizzes' : '/assessments';
   const isAssessment = kind === 'assessment';
 
@@ -50,6 +51,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
         if (!cancelled) {
           if (!found) setError('Activity not found or not assigned to you.');
           setItem(found);
+          setInstructionsAck(false);
         }
       } catch {
         if (!cancelled) {
@@ -104,6 +106,10 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
 
   const startBlocked =
     !!item && item.attemptState !== 'submitted' && !item.openAttemptId && item.canAttempt === false;
+  const instructionsText = item?.instructions?.trim() ?? '';
+  const needsInstructionsAck =
+    Boolean(instructionsText) && !!item && item.attemptState !== 'submitted' && !item.openAttemptId;
+  const startDisabled = startBlocked || (needsInstructionsAck && !instructionsAck);
 
   return (
     <div className="page-stack">
@@ -200,6 +206,23 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
               </div>
             ) : null}
 
+            {instructionsText ? (
+              <div className="activity-detail-instructions">
+                <h3 className="activity-detail-rounds-title">Instructions</h3>
+                <p className="activity-detail-instructions-body">{instructionsText}</p>
+                {needsInstructionsAck ? (
+                  <label className="activity-detail-ack">
+                    <input
+                      type="checkbox"
+                      checked={instructionsAck}
+                      onChange={(e) => setInstructionsAck(e.target.checked)}
+                    />
+                    <span>I have read the instructions</span>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="activity-detail-notes">
               <p>
                 <span className="activity-detail-code">
@@ -275,9 +298,9 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
             ) : (
               <div className="activity-detail-actions">
                 <button
-                  className={`btn ${item.attemptState === 'submitted' || startBlocked ? 'outline' : 'primary'}`}
+                  className={`btn ${item.attemptState === 'submitted' || startDisabled ? 'outline' : 'primary'}`}
                   type="button"
-                  disabled={startBlocked}
+                  disabled={startDisabled}
                   onClick={startOrResumeQuiz}
                 >
                   {item.attemptState === 'submitted'

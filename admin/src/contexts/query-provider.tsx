@@ -1,27 +1,26 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { useAuth } from '@/contexts/auth-context';
 import {
   clearAdminQueryCache,
-  createAdminPersister,
   createAdminQueryClient,
+  purgeLegacyAdminQueryPersistence,
   setAppQueryClient,
 } from '@/lib/query-client';
-import { GC_MS } from '@/lib/query-keys';
 
 export function AdminQueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => createAdminQueryClient());
 
   useEffect(() => {
+    purgeLegacyAdminQueryPersistence();
     setAppQueryClient(client);
     return () => setAppQueryClient(null);
   }, [client]);
 
-  return <AdminQueryPersist client={client}>{children}</AdminQueryPersist>;
+  return <AdminQueryScope client={client}>{children}</AdminQueryScope>;
 }
 
-function AdminQueryPersist({
+function AdminQueryScope({
   client,
   children,
 }: {
@@ -30,33 +29,11 @@ function AdminQueryPersist({
 }) {
   const auth = useAuth();
   const orgId = auth.status === 'authenticated' ? auth.organization.id : null;
-  const prevOrgRef = useMemo(() => ({ id: null as string | null }), []);
 
   useEffect(() => {
-    if (prevOrgRef.id && prevOrgRef.id !== orgId) {
-      clearAdminQueryCache(prevOrgRef.id);
-    }
-    prevOrgRef.id = orgId;
-  }, [orgId, prevOrgRef]);
+    // Org switch / logout: never keep another tenant's list data in memory.
+    clearAdminQueryCache(orgId);
+  }, [orgId]);
 
-  const persister = useMemo(() => (orgId ? createAdminPersister(orgId) : null), [orgId]);
-
-  if (!persister) {
-    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
-  }
-
-  return (
-    <PersistQueryClientProvider
-      client={client}
-      persistOptions={{
-        persister,
-        maxAge: GC_MS,
-        dehydrateOptions: {
-          shouldDehydrateQuery: (query) => query.state.status === 'success',
-        },
-      }}
-    >
-      {children}
-    </PersistQueryClientProvider>
-  );
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

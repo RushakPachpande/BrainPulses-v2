@@ -18,6 +18,7 @@ import {
   TrashIcon,
   UsersIcon,
 } from 'lucide-react';
+import { CatalogImageField } from '@/components/catalog-image-field';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { QuestionImageField } from '@/components/question-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
@@ -41,13 +42,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/auth-context';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { ApiError } from '@/lib/api-client';
-import { canEditKind } from '@/lib/access';
+import { canEditKind, canFullKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import {
   archiveActivity,
   assignRegistrations,
   createActivity,
   createRoundQuestion,
+  deleteActivity,
   deleteRoundQuestion,
   getActivity,
   getContests,
@@ -56,6 +58,7 @@ import {
   getStudents,
   publishActivity,
   updateActivity,
+  uploadCatalogImage,
   type ActivityKind,
   type ActivityRegistrationField,
   type ActivityRoundLocalQuestion,
@@ -74,6 +77,10 @@ const defaultQuizSettings = (): QuizActivitySettings => ({
   overallGroupLeaderboardVisible: true,
   countsForGroupLeaderboard: true,
   leaderboardReleasedAt: null,
+  allowPrevious: true,
+  showQuestionPanel: true,
+  negativeMarkingEnabled: false,
+  negativeMarkPoints: 0.25,
 });
 
 type RoundDraft = {
@@ -102,10 +109,9 @@ const emptyField = (): FieldDraft => ({
   required: false,
 });
 
-const PRESENTATION_LABELS: Record<'one_at_a_time' | 'all_on_page' | 'timed_card', string> = {
+const PRESENTATION_LABELS: Record<'one_at_a_time' | 'all_on_page', string> = {
   one_at_a_time: 'One question at a time',
   all_on_page: 'All on one page',
-  timed_card: 'Timed card',
 };
 
 function statusLabel(statusKey: string) {
@@ -143,7 +149,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const confirm = useConfirm();
   const params = useParams();
   const auth = useAuth();
-  const canEdit = canEditKind(auth.status === 'authenticated' ? auth.membership : null, kind);
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canEdit = canEditKind(membership, kind);
+  const canFull = canFullKind(membership, kind);
   const activityIdParam = params.activityId ?? '';
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'Quiz' : 'Assessment';
@@ -202,9 +210,12 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [assignNotes, setAssignNotes] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [passingPercent, setPassingPercent] = useState('40');
-  const [presentation, setPresentation] = useState<'one_at_a_time' | 'all_on_page' | 'timed_card'>(
+  const [presentation, setPresentation] = useState<'one_at_a_time' | 'all_on_page'>(
     'one_at_a_time',
   );
+  const [instructions, setInstructions] = useState('');
+  const [imageFileId, setImageFileId] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [quizSettings, setQuizSettings] = useState<QuizActivitySettings>(defaultQuizSettings);
   const [leaderboardReleaseLocal, setLeaderboardReleaseLocal] = useState('');
   const [baselineFp, setBaselineFp] = useState<string | null>(null);
@@ -215,6 +226,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       JSON.stringify({
         name,
         description,
+        instructions,
+        imageFileId,
+        imageFileName: imageFile?.name ?? null,
         code,
         sponsorId,
         contestId,
@@ -241,6 +255,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     [
       name,
       description,
+      instructions,
+      imageFileId,
+      imageFile,
       code,
       sponsorId,
       contestId,
@@ -354,13 +371,25 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             : String(activity.durationMinutes ?? 60),
         );
         setPassingPercent(String(activity.passingPercent ?? 40));
-        setPresentation(activity.presentation);
+        const loadedPerQuestion =
+          activity.kind === 'quiz' && activity.durationMode === 'per_question';
+        setPresentation(
+          loadedPerQuestion
+            ? 'one_at_a_time'
+            : activity.presentation === 'all_on_page'
+              ? 'all_on_page'
+              : 'one_at_a_time',
+        );
+        setInstructions(activity.instructions ?? '');
+        setImageFileId(activity.imageFileId ?? '');
+        setImageFile(null);
         const settings = activity.settings;
         setRegFields(settings?.registrationForm?.fields ?? []);
         setAssignMode(settings?.assignmentRules?.mode ?? 'manual');
         setAssignNotes(settings?.assignmentRules?.notes ?? '');
         if (activity.kind === 'quiz') {
           const q = { ...defaultQuizSettings(), ...settings?.quiz };
+          if (loadedPerQuestion) q.allowPrevious = false;
           setQuizSettings(q);
           setLeaderboardReleaseLocal(
             q.leaderboardReleasedAt
@@ -401,6 +430,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         ? {
             quiz: {
               ...quizSettings,
+              allowPrevious: durationMode === 'per_question' ? false : quizSettings.allowPrevious,
+              negativeMarkPoints: quizSettings.negativeMarkingEnabled
+                ? quizSettings.negativeMarkPoints
+                : 0,
               leaderboardReleasedAt: leaderboardReleaseLocal
                 ? new Date(leaderboardReleaseLocal).toISOString()
                 : null,
@@ -408,7 +441,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           }
         : {}),
     };
-  }, [assignMode, assignNotes, isQuiz, leaderboardReleaseLocal, quizSettings, regFields]);
+  }, [
+    assignMode,
+    assignNotes,
+    durationMode,
+    isQuiz,
+    leaderboardReleaseLocal,
+    quizSettings,
+    regFields,
+  ]);
 
   async function syncRoundsFromServer(id: string): Promise<RoundDraft[]> {
     const activity = await getActivity(id);
@@ -463,13 +504,21 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     setSaving(true);
     try {
       const passing = Number(passingPercent);
+      let nextImageFileId: string | null = imageFileId || null;
+      if (imageFile) {
+        nextImageFileId = await uploadCatalogImage(imageFile);
+        setImageFileId(nextImageFileId);
+        setImageFile(null);
+      }
       const payload = {
         name: name.trim(),
         subtitle: description.trim() || undefined,
+        instructions: instructions.trim() || null,
+        imageFileId: nextImageFileId,
         startsAt: startDate,
         endsAt: endDate,
         passingPercent: Number.isFinite(passing) ? passing : undefined,
-        presentation,
+        presentation: isQuiz && durationMode === 'per_question' ? 'one_at_a_time' : presentation,
         ...(isQuiz
           ? {
               bankIds,
@@ -632,6 +681,29 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     }
   }
 
+  async function handleDeleteQuiz() {
+    if (!isQuiz || !canFull || !activityId) return;
+    const ok = await confirm({
+      title: `Delete this ${noun.toLowerCase()}?`,
+      description:
+        'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
+      confirmLabel: 'Delete quiz',
+      destructive: true,
+    });
+    if (!ok) return;
+    setSaving(true);
+    try {
+      await deleteActivity(activityId);
+      toast.success('Quiz deleted.');
+      allowLeave();
+      void navigate(listPath);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete quiz.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function goNext() {
     if (readOnly) {
       setStep((s) => Math.min(s + 1, steps.length - 1));
@@ -746,6 +818,40 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 />
                 <FieldDescription>Students see this on the start screen.</FieldDescription>
               </Field>
+              {isQuiz ? (
+                <>
+                  <CatalogImageField
+                    id="quiz-image"
+                    label="Quiz image"
+                    fileId={imageFileId}
+                    alt={name.trim() || 'Quiz cover'}
+                    disabled={readOnly}
+                    required={false}
+                    onFile={setImageFile}
+                    onPickExisting={(id) => {
+                      setImageFileId(id);
+                      setImageFile(null);
+                    }}
+                    onClear={() => {
+                      setImageFileId('');
+                      setImageFile(null);
+                    }}
+                  />
+                  <Field>
+                    <FieldLabel htmlFor="activity-instructions">Instructions</FieldLabel>
+                    <Textarea
+                      id="activity-instructions"
+                      value={instructions}
+                      onChange={(e) => setInstructions(e.target.value)}
+                      disabled={readOnly}
+                      rows={5}
+                    />
+                    <FieldDescription>
+                      Shown before students start. If set, they must confirm they have read them.
+                    </FieldDescription>
+                  </Field>
+                </>
+              ) : null}
               {isQuiz ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <Field>
@@ -1322,9 +1428,14 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       <Select
                         value={durationMode}
                         disabled={readOnly}
-                        onValueChange={(value) =>
-                          setDurationMode(value as 'overall' | 'per_question')
-                        }
+                        onValueChange={(value) => {
+                          const next = value as 'overall' | 'per_question';
+                          setDurationMode(next);
+                          if (next === 'per_question') {
+                            setPresentation('one_at_a_time');
+                            setQuizSettings((prev) => ({ ...prev, allowPrevious: false }));
+                          }
+                        }}
                       >
                         <SelectTrigger id="duration-mode" className="w-full">
                           <SelectValue />
@@ -1391,8 +1502,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 <Field>
                   <FieldLabel htmlFor="presentation">Presentation</FieldLabel>
                   <Select
-                    value={presentation}
-                    disabled={readOnly}
+                    value={
+                      isQuiz && durationMode === 'per_question' ? 'one_at_a_time' : presentation
+                    }
+                    disabled={readOnly || (isQuiz && durationMode === 'per_question')}
                     onValueChange={(v) => setPresentation(v as typeof presentation)}
                   >
                     <SelectTrigger id="presentation" className="w-full">
@@ -1401,57 +1514,162 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     <SelectContent>
                       <SelectGroup>
                         <SelectItem value="one_at_a_time">One question at a time</SelectItem>
-                        <SelectItem value="all_on_page">All on one page</SelectItem>
-                        <SelectItem value="timed_card">Timed card</SelectItem>
+                        <SelectItem
+                          value="all_on_page"
+                          disabled={isQuiz && durationMode === 'per_question'}
+                        >
+                          All on one page
+                        </SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  {isQuiz && durationMode === 'per_question' ? (
+                    <FieldDescription>
+                      Per-question timer requires one question at a time.
+                    </FieldDescription>
+                  ) : null}
                 </Field>
               </div>
               {isQuiz ? (
-                <div className="flex flex-col gap-4 border-t border-border pt-4">
+                <div className="flex flex-col gap-3 border-t border-border pt-4">
                   <p className="text-sm font-medium">Quiz behaviour</p>
-                  {(
-                    [
-                      ['shuffleQuestions', 'Shuffle questions'],
-                      ['shuffleOptions', 'Shuffle options'],
-                      ['scoreVisibleToStudent', 'Show scores to students (when published)'],
-                      ['answersVisibleToStudent', 'Show answers to students (when published)'],
-                      ['dailyLeaderboardVisible', 'Daily individual leaderboard'],
-                      ['overallLeaderboardVisible', 'Overall individual leaderboard'],
-                      ['dailyGroupLeaderboardVisible', 'Daily group leaderboard'],
-                      ['overallGroupLeaderboardVisible', 'Overall group leaderboard'],
-                      ['countsForGroupLeaderboard', 'Count toward group leaderboards'],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <div
-                      key={key}
-                      className="flex min-h-(--control-h) items-center justify-between gap-3"
-                    >
-                      <FieldLabel htmlFor={`quiz-${key}`}>{label}</FieldLabel>
-                      <Switch
-                        id={`quiz-${key}`}
-                        checked={quizSettings[key]}
-                        disabled={readOnly}
-                        onCheckedChange={(checked) =>
-                          setQuizSettings((prev) => ({ ...prev, [key]: checked }))
-                        }
-                      />
+                  <div className="overflow-hidden rounded-xl border border-border">
+                    <div className="grid grid-cols-1 md:grid-cols-2">
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5 md:border-r">
+                        <div className="min-w-0">
+                          <FieldLabel htmlFor="quiz-allowPrevious">Allow Previous</FieldLabel>
+                          <FieldDescription>
+                            {durationMode === 'per_question'
+                              ? 'Per-question timer always blocks going back.'
+                              : 'When off, students cannot return to earlier questions.'}
+                          </FieldDescription>
+                        </div>
+                        <Switch
+                          id="quiz-allowPrevious"
+                          checked={
+                            durationMode === 'per_question' ? false : quizSettings.allowPrevious
+                          }
+                          disabled={readOnly || durationMode === 'per_question'}
+                          onCheckedChange={(checked) =>
+                            setQuizSettings((prev) => ({ ...prev, allowPrevious: checked }))
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-col gap-3 border-b border-border p-3.5">
+                        <div className="flex min-h-(--control-h) items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <FieldLabel htmlFor="quiz-negativeMarking">Negative marking</FieldLabel>
+                            <FieldDescription>
+                              Deduct marks for incorrect answered questions (not unanswered).
+                            </FieldDescription>
+                          </div>
+                          <Switch
+                            id="quiz-negativeMarking"
+                            checked={quizSettings.negativeMarkingEnabled}
+                            disabled={readOnly}
+                            onCheckedChange={(checked) =>
+                              setQuizSettings((prev) => ({
+                                ...prev,
+                                negativeMarkingEnabled: checked,
+                                negativeMarkPoints:
+                                  checked && prev.negativeMarkPoints <= 0
+                                    ? 0.25
+                                    : prev.negativeMarkPoints,
+                              }))
+                            }
+                          />
+                        </div>
+                        {quizSettings.negativeMarkingEnabled ? (
+                          <Field>
+                            <FieldLabel htmlFor="quiz-negative-points">
+                              Marks deducted per wrong answer
+                            </FieldLabel>
+                            <Input
+                              id="quiz-negative-points"
+                              type="number"
+                              min={0.01}
+                              step={0.01}
+                              value={quizSettings.negativeMarkPoints}
+                              disabled={readOnly}
+                              onChange={(e) =>
+                                setQuizSettings((prev) => ({
+                                  ...prev,
+                                  negativeMarkPoints: Number(e.target.value) || 0,
+                                }))
+                              }
+                            />
+                          </Field>
+                        ) : null}
+                      </div>
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5 md:border-r">
+                        <div className="min-w-0">
+                          <FieldLabel htmlFor="quiz-showQuestionPanel">
+                            Question overview panel
+                          </FieldLabel>
+                          <FieldDescription>
+                            When off, students do not see the numbered question panel beside the
+                            attempt.
+                          </FieldDescription>
+                        </div>
+                        <Switch
+                          id="quiz-showQuestionPanel"
+                          checked={quizSettings.showQuestionPanel}
+                          disabled={readOnly}
+                          onCheckedChange={(checked) =>
+                            setQuizSettings((prev) => ({ ...prev, showQuestionPanel: checked }))
+                          }
+                        />
+                      </div>
+                      {(
+                        [
+                          ['shuffleQuestions', 'Shuffle questions'],
+                          ['shuffleOptions', 'Shuffle options'],
+                          ['scoreVisibleToStudent', 'Show scores to students (when published)'],
+                          ['answersVisibleToStudent', 'Show answers to students (when published)'],
+                          ['dailyLeaderboardVisible', 'Daily individual leaderboard'],
+                          ['overallLeaderboardVisible', 'Overall individual leaderboard'],
+                          ['dailyGroupLeaderboardVisible', 'Daily group leaderboard'],
+                          ['overallGroupLeaderboardVisible', 'Overall group leaderboard'],
+                          ['countsForGroupLeaderboard', 'Count toward group leaderboards'],
+                        ] as const
+                      ).map(([key, label], index) => {
+                        // Show-panel occupies the left cell; list items start on the right.
+                        const leftCol = (1 + index) % 2 === 0;
+                        return (
+                          <div
+                            key={key}
+                            className={cn(
+                              'flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5',
+                              leftCol ? 'md:border-r' : null,
+                            )}
+                          >
+                            <FieldLabel htmlFor={`quiz-${key}`}>{label}</FieldLabel>
+                            <Switch
+                              id={`quiz-${key}`}
+                              checked={quizSettings[key]}
+                              disabled={readOnly}
+                              onCheckedChange={(checked) =>
+                                setQuizSettings((prev) => ({ ...prev, [key]: checked }))
+                              }
+                            />
+                          </div>
+                        );
+                      })}
+                      <Field className="p-3.5 md:col-span-2">
+                        <FieldLabel htmlFor="lb-release">Leaderboard release (optional)</FieldLabel>
+                        <Input
+                          id="lb-release"
+                          type="datetime-local"
+                          value={leaderboardReleaseLocal}
+                          disabled={readOnly}
+                          onChange={(e) => setLeaderboardReleaseLocal(e.target.value)}
+                        />
+                        <FieldDescription>
+                          Students see boards only at/after this time when set.
+                        </FieldDescription>
+                      </Field>
                     </div>
-                  ))}
-                  <Field>
-                    <FieldLabel htmlFor="lb-release">Leaderboard release (optional)</FieldLabel>
-                    <Input
-                      id="lb-release"
-                      type="datetime-local"
-                      value={leaderboardReleaseLocal}
-                      disabled={readOnly}
-                      onChange={(e) => setLeaderboardReleaseLocal(e.target.value)}
-                    />
-                    <FieldDescription>
-                      Students see boards only at/after this time when set.
-                    </FieldDescription>
-                  </Field>
+                  </div>
                 </div>
               ) : null}
             </FieldGroup>
@@ -1495,6 +1713,20 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       }}
                     >
                       Archive
+                    </Button>
+                  ) : null}
+                  {isQuiz && canFull && activityId ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={saving}
+                      aria-busy={saving}
+                      onClick={() => void handleDeleteQuiz()}
+                    >
+                      <TrashIcon data-icon="inline-start" />
+                      Delete
                     </Button>
                   ) : null}
                 </div>
@@ -1634,17 +1866,33 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   Next
                 </Button>
               ) : step < steps.length - 1 ? (
-                <Button
-                  type="button"
-                  disabled={saving}
-                  aria-busy={saving}
-                  onClick={() => void goNext()}
-                >
-                  {saving ? (
-                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                <>
+                  {statusKey === 'draft' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={saving}
+                      aria-busy={saving}
+                      onClick={() => void persist({ stay: true })}
+                    >
+                      {saving ? (
+                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                      ) : null}
+                      {saving ? 'Saving…' : 'Save draft'}
+                    </Button>
                   ) : null}
-                  {saving ? 'Saving…' : 'Save & continue'}
-                </Button>
+                  <Button
+                    type="button"
+                    disabled={saving}
+                    aria-busy={saving}
+                    onClick={() => void goNext()}
+                  >
+                    {saving ? (
+                      <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                    ) : null}
+                    {saving ? 'Saving…' : 'Save & continue'}
+                  </Button>
+                </>
               ) : statusKey === 'active' ? (
                 <Button
                   type="button"

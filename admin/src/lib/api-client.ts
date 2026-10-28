@@ -131,6 +131,7 @@ export async function refreshAuthSession(): Promise<RefreshedSession | null> {
         const res = await fetch(`${apiBaseUrl()}/api/auth/refresh`, {
           method: 'POST',
           credentials: 'include',
+          cache: 'no-store',
           signal,
         });
         if (res.status === 204) return null;
@@ -199,6 +200,7 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
         ...init,
         headers,
         credentials: 'include',
+        cache: 'no-store',
         signal,
       });
     } catch (err) {

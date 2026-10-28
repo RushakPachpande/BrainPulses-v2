@@ -37,3 +37,9 @@ resultsRouter.post(
   validate({ params: idParamSchema, body: regradeSchema }),
   controller.regrade,
 );
+resultsRouter.delete(
+  '/:id',
+  requireOrgAccess('full'),
+  validate({ params: idParamSchema }),
+  controller.remove,
+);

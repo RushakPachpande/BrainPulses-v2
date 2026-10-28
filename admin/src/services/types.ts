@@ -61,6 +61,10 @@ export type QuizActivitySettings = {
   overallGroupLeaderboardVisible: boolean;
   countsForGroupLeaderboard: boolean;
   leaderboardReleasedAt: string | null;
+  allowPrevious: boolean;
+  showQuestionPanel: boolean;
+  negativeMarkingEnabled: boolean;
+  negativeMarkPoints: number;
 };
 
 export type ActivitySettings = {
@@ -127,13 +131,16 @@ export type ActivityDetail = Activity & {
   code: string;
   kind: ActivityKind;
   statusKey: string;
+  statusDisplay?: string;
   startsAt: string | null;
   endsAt: string | null;
   durationMinutes: number | null;
   durationMode: DurationMode;
   perQuestionSeconds: number | null;
   passingPercent: number | null;
-  presentation: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+  presentation: 'one_at_a_time' | 'all_on_page';
+  instructions: string | null;
+  imageFileId: string | null;
   bankIds: string[];
   sponsorId: string | null;
   contestId: string | null;
@@ -168,6 +175,10 @@ export type RegistrationRow = {
   bank: string;
   assignment: string;
   attempt: string;
+  /** Present when the student has an open or completed attempt. */
+  attemptId?: string | null;
+  /** Present when the primary attempt has a submitted result. */
+  resultId?: string | null;
   city: string;
   course: string;
 };

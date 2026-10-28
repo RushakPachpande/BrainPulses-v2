@@ -268,6 +268,8 @@ export async function listMyActivities(
         latestResultId: latestCompleted?.result?.id ?? null,
         latestPercent: latestCompleted?.result ? toNumber(latestCompleted.result.percent) : null,
         leaderboardAvailable,
+        instructions: activity.instructions ?? null,
+        imageFileId: activity.imageFileId ?? null,
         sponsorName: activity.sponsor?.name ?? null,
         sponsorImageFileId: activity.sponsor?.imageFileId ?? null,
         contestName: activity.contest?.name ?? null,

@@ -47,11 +47,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [marked, setMarked] = useState<number[]>([]);
   const [presentation, setPresentation] = useState<AttemptPresentation>('one_at_a_time');
-  const [perQuestionSeconds, setPerQuestionSeconds] = useState<number | null>(null);
-  const [cardSeconds, setCardSeconds] = useState(0);
+  const [forwardOnly, setForwardOnly] = useState(false);
+  const [showQuestionPanel, setShowQuestionPanel] = useState(true);
+  const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
+  /** Pending destination index when confirming leave of an unanswered question. */
+  const [skipConfirmIndex, setSkipConfirmIndex] = useState<number | null>(null);
   const [allowLeave, setAllowLeave] = useState(false);
   const [error, setError] = useState('');
   const [proctorWarn, setProctorWarn] = useState('');
@@ -78,8 +81,17 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       attemptIdRef.current = data.attempt.id;
       setAttempt(data.attempt);
       setQuestions(data.questions);
-      setPresentation(data.attempt.presentation ?? 'one_at_a_time');
-      setPerQuestionSeconds(data.attempt.perQuestionSeconds ?? null);
+      setPresentation(
+        data.attempt.presentation === 'all_on_page' ? 'all_on_page' : 'one_at_a_time',
+      );
+      const fo =
+        data.attempt.forwardOnly === true ||
+        data.attempt.durationMode === 'per_question' ||
+        data.attempt.allowPrevious === false;
+      setForwardOnly(fo);
+      setShowQuestionPanel(data.attempt.showQuestionPanel !== false);
+      setMaxVisitedIndex(0);
+      setQIndex(0);
       revisionRef.current = data.attempt.revision;
       const mapped: AnswerMap = {};
       for (const r of data.attempt.responses) {
@@ -296,28 +308,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     return () => window.clearInterval(t);
   }, [attempt, busy]);
 
-  const timedCard = presentation === 'timed_card';
   const allOnPage = presentation === 'all_on_page';
-  const cardTimed = timedCard && Boolean(perQuestionSeconds && perQuestionSeconds > 0);
 
   useEffect(() => {
-    if (!cardTimed || !perQuestionSeconds) return;
-    setCardSeconds(perQuestionSeconds);
-  }, [cardTimed, perQuestionSeconds, qIndex]);
-
-  useEffect(() => {
-    if (!cardTimed || busy || submitting) return;
-    if (cardSeconds > 0) {
-      const t = window.setTimeout(() => setCardSeconds((s) => Math.max(0, s - 1)), 1000);
-      return () => window.clearTimeout(t);
-    }
-    if (questions.length === 0) return;
-    if (qIndex < questions.length - 1) {
-      setQIndex((i) => i + 1);
-      return;
-    }
-    // Last card expired — leave overall timer / submit rules to handle unfinished work.
-  }, [busy, cardSeconds, cardTimed, qIndex, questions.length, submitting]);
+    setMaxVisitedIndex((prev) => Math.max(prev, qIndex));
+  }, [qIndex]);
 
   const doSubmit = useCallback(
     async (force = false) => {
@@ -394,7 +389,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     queueSave(next);
   }
 
-  function goToQuestion(index: number) {
+  function advanceToQuestion(index: number) {
     if (allOnPage) {
       document.getElementById(`attempt-q-${index}`)?.scrollIntoView({
         behavior: 'smooth',
@@ -404,14 +399,48 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     setQIndex(index);
   }
 
-  function advanceAfterSingleSelect() {
-    if (!timedCard) return;
-    window.setTimeout(() => {
-      setQIndex((i) => {
-        if (i >= questions.length - 1) return i;
-        return i + 1;
-      });
-    }, 280);
+  function shouldWarnBeforeLeavingUnanswered() {
+    const current = questions[qIndex];
+    if (!current) return false;
+    if (isAnswered(answers[current.questionVersionId])) return false;
+    // One-at-a-time, or forward-only (Previous / earlier overview locked).
+    return !allOnPage || forwardOnly;
+  }
+
+  function goToQuestion(index: number) {
+    if (forwardOnly) {
+      // One-at-a-time: no sidebar jumps — only Next / Previous chrome advances.
+      if (!allOnPage && index !== qIndex) return;
+      // All-on-page: may jump forward, never back past farthest visited.
+      if (allOnPage && index < maxVisitedIndex) return;
+    }
+    if (index === qIndex) {
+      advanceToQuestion(index);
+      return;
+    }
+    // Warn when moving ahead past an unanswered question they may not return to.
+    if (index > qIndex && shouldWarnBeforeLeavingUnanswered()) {
+      setSkipConfirmIndex(index);
+      return;
+    }
+    advanceToQuestion(index);
+  }
+
+  function confirmSkipUnanswered() {
+    if (skipConfirmIndex == null) return;
+    const next = skipConfirmIndex;
+    setSkipConfirmIndex(null);
+    advanceToQuestion(next);
+  }
+
+  function requestNext() {
+    const next = qIndex + 1;
+    if (next >= questions.length) return;
+    if (shouldWarnBeforeLeavingUnanswered()) {
+      setSkipConfirmIndex(next);
+      return;
+    }
+    advanceToQuestion(next);
   }
 
   function exitDestination() {
@@ -492,14 +521,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         </button>
         <div className="exam-activity-title">
           <span>Attempt</span>
-          <b>{allOnPage ? 'All on one page' : timedCard ? 'Timed card' : 'In progress'}</b>
+          <b>{allOnPage ? 'All on one page' : 'In progress'}</b>
         </div>
-        {cardTimed ? (
-          <div className={`card-timer ${cardSeconds < 6 ? 'warning' : ''}`} role="status">
-            <Clock3 size={14} aria-hidden />
-            Card {timeRemaining(cardSeconds)}
-          </div>
-        ) : null}
         <div className={`exam-timer ${seconds < 300 ? 'timer-warning' : ''}`}>
           <Clock3 size={17} />
           <div>
@@ -524,7 +547,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           {proctorWarn}
         </div>
       )}
-      <div className={`exam-layout ${allOnPage ? 'all-on-page' : ''}`}>
+      <div
+        className={`exam-layout ${allOnPage ? 'all-on-page' : ''} ${showQuestionPanel ? '' : 'no-question-panel'}`.trim()}
+      >
         <section className="question-column">
           {allOnPage ? (
             questions.map((question, i) => (
@@ -557,11 +582,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                   p.includes(qIndex) ? p.filter((idx) => idx !== qIndex) : [...p, qIndex],
                 )
               }
-              onSingleSelect={advanceAfterSingleSelect}
             />
           ) : null}
           <div className="question-footer">
-            {allOnPage || timedCard ? (
+            {allOnPage || forwardOnly ? (
               <span />
             ) : (
               <button
@@ -589,80 +613,96 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 Submit attempt <Check size={16} />
               </button>
             ) : (
-              <button className="btn primary" type="button" onClick={() => setQIndex(qIndex + 1)}>
+              <button className="btn primary" type="button" onClick={requestNext}>
                 Next question <ArrowRight size={15} />
               </button>
             )}
           </div>
         </section>
-        <aside className="question-sidebar">
-          <div className="question-sidebar-head">
-            <div>
-              <h2>Question overview</h2>
-              <p>
-                {allOnPage ? 'Jump to any question on the page.' : 'Navigate through your attempt.'}
-              </p>
+        {showQuestionPanel ? (
+          <aside className="question-sidebar">
+            <div className="question-sidebar-head">
+              <div>
+                <h2>Question overview</h2>
+                <p>
+                  {forwardOnly && !allOnPage
+                    ? 'Use Next to move ahead. Other questions are locked in the overview.'
+                    : forwardOnly
+                      ? 'Earlier questions are locked. Move forward only.'
+                      : allOnPage
+                        ? 'Jump to any question on the page.'
+                        : 'Navigate through your attempt.'}
+                </p>
+              </div>
+              <span className="question-counter">
+                {answeredCount}/{questions.length}
+              </span>
             </div>
-            <span className="question-counter">
-              {answeredCount}/{questions.length}
-            </span>
-          </div>
-          <div className="legend">
-            <span>
-              <i className="legend-answered" />
-              Answered
-            </span>
-            <span>
-              <i className="legend-marked" />
-              Review
-            </span>
-            <span>
-              <i className="legend-empty" />
-              Unanswered
-            </span>
-          </div>
-          <div className="question-grid">
-            {questions.map((question, i) => (
+            <div className="legend">
+              <span>
+                <i className="legend-answered" />
+                Answered
+              </span>
+              <span>
+                <i className="legend-marked" />
+                Review
+              </span>
+              <span>
+                <i className="legend-empty" />
+                Unanswered
+              </span>
+            </div>
+            <div className="question-grid">
+              {questions.map((question, i) => {
+                const locked = forwardOnly
+                  ? allOnPage
+                    ? i < maxVisitedIndex
+                    : i !== qIndex
+                  : false;
+                return (
+                  <button
+                    key={question.questionVersionId}
+                    type="button"
+                    disabled={locked}
+                    className={`question-number ${!allOnPage && qIndex === i ? 'current' : ''} ${isAnswered(answers[question.questionVersionId]) ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''} ${locked ? 'is-locked' : ''}`}
+                    onClick={() => goToQuestion(i)}
+                    aria-label={locked ? `Question ${i + 1} locked` : `Go to question ${i + 1}`}
+                  >
+                    {i + 1}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="sidebar-divider" />
+            <div className="attempt-summary">
+              <div>
+                <span>Answered</span>
+                <b>{answeredCount}</b>
+              </div>
+              <div>
+                <span>Unanswered</span>
+                <b>{questions.length - answeredCount}</b>
+              </div>
+              <div>
+                <span>Marked for review</span>
+                <b>{marked.length}</b>
+              </div>
+            </div>
+            {allAnswered ? (
               <button
-                key={question.questionVersionId}
+                className="btn primary full"
                 type="button"
-                className={`question-number ${!allOnPage && qIndex === i ? 'current' : ''} ${isAnswered(answers[question.questionVersionId]) ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''}`}
-                onClick={() => goToQuestion(i)}
-                aria-label={`Go to question ${i + 1}`}
+                disabled={submitting}
+                onClick={requestSubmit}
               >
-                {i + 1}
+                Submit attempt <ArrowRight size={15} />
               </button>
-            ))}
-          </div>
-          <div className="sidebar-divider" />
-          <div className="attempt-summary">
-            <div>
-              <span>Answered</span>
-              <b>{answeredCount}</b>
-            </div>
-            <div>
-              <span>Unanswered</span>
-              <b>{questions.length - answeredCount}</b>
-            </div>
-            <div>
-              <span>Marked for review</span>
-              <b>{marked.length}</b>
-            </div>
-          </div>
-          {allAnswered ? (
-            <button
-              className="btn primary full"
-              type="button"
-              disabled={submitting}
-              onClick={requestSubmit}
-            >
-              Submit attempt <ArrowRight size={15} />
-            </button>
-          ) : null}
-          <p className="autosave-note">
-            <ShieldCheck size={14} /> Answers are saved to the server as you go.
-          </p>
-        </aside>
+            ) : null}
+            <p className="autosave-note">
+              <ShieldCheck size={14} /> Answers are saved to the server as you go.
+            </p>
+          </aside>
+        ) : null}
       </div>
       {confirm && (
         <div className="modal-backdrop">
@@ -750,6 +790,47 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               </button>
               <button className="btn primary" type="button" onClick={() => void confirmExit()}>
                 Leave attempt
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {skipConfirmIndex != null && (
+        <div className="modal-backdrop">
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="skip-unanswered-title"
+            aria-describedby="skip-unanswered-desc"
+          >
+            <div className="modal-icon warning">
+              <TriangleAlert size={22} />
+            </div>
+            <button
+              className="modal-close icon-btn"
+              type="button"
+              onClick={() => setSkipConfirmIndex(null)}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+            <h2 id="skip-unanswered-title">Leave this question unanswered?</h2>
+            <p id="skip-unanswered-desc">
+              {forwardOnly
+                ? 'You have not answered this question. You cannot go back to it after you leave. Continue anyway?'
+                : 'You have not answered this question. Continue to the next question?'}
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn outline"
+                type="button"
+                onClick={() => setSkipConfirmIndex(null)}
+              >
+                Stay and answer
+              </button>
+              <button className="btn primary" type="button" onClick={confirmSkipUnanswered}>
+                Continue without answering
               </button>
             </div>
           </div>

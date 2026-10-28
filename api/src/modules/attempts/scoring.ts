@@ -84,6 +84,51 @@ export function scoreObjective(
   return scoreLabelSet(type, correct, selected, points);
 }
 
+/** True when the student submitted a non-empty answer (used for negative marking). */
+export function hasSubmittedAnswer(type: string, answer: unknown): boolean {
+  if (answer == null) return false;
+  if (type === 'short_text' || type === 'long_text') {
+    if (typeof answer === 'string') return answer.trim().length > 0;
+    if (typeof answer === 'object' && 'text' in (answer as object)) {
+      return String((answer as { text: unknown }).text ?? '').trim().length > 0;
+    }
+    return false;
+  }
+  if (type === 'numeric') {
+    if (typeof answer === 'number' && Number.isFinite(answer)) return true;
+    if (typeof answer === 'object' && 'value' in (answer as object)) {
+      const v = (answer as { value: unknown }).value;
+      return typeof v === 'number' && Number.isFinite(v);
+    }
+    return false;
+  }
+  if (type === 'multiple_mcq' || type === 'image_selection') {
+    return selectedLabels(answer).length > 0;
+  }
+  const labels = selectedLabels(answer);
+  return labels.length === 1 && labels[0]!.trim().length > 0;
+}
+
+/**
+ * Apply quiz negative marking: wrong answered items deduct `penalty`; unanswered do not.
+ * Clamps the final score at 0.
+ */
+export function applyNegativeMarking(
+  score: number,
+  opts: { enabled: boolean; penalty: number; earned: number | null; answered: boolean },
+): number {
+  if (opts.earned === null) return score;
+  if (opts.earned > 0) return score + opts.earned;
+  if (opts.enabled && opts.answered && opts.penalty > 0) {
+    return score - opts.penalty;
+  }
+  return score;
+}
+
+export function clampScore(score: number): number {
+  return Math.max(0, score);
+}
+
 export function toNumber(d: Prisma.Decimal | number): number {
   return typeof d === 'number' ? d : Number(d);
 }

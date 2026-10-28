@@ -11,6 +11,10 @@ export type QuizSettings = {
   overallGroupLeaderboardVisible: boolean;
   countsForGroupLeaderboard: boolean;
   leaderboardReleasedAt: string | null;
+  allowPrevious: boolean;
+  showQuestionPanel: boolean;
+  negativeMarkingEnabled: boolean;
+  negativeMarkPoints: number;
 };
 
 export const defaultQuizSettings: QuizSettings = {
@@ -24,6 +28,10 @@ export const defaultQuizSettings: QuizSettings = {
   overallGroupLeaderboardVisible: true,
   countsForGroupLeaderboard: true,
   leaderboardReleasedAt: null,
+  allowPrevious: true,
+  showQuestionPanel: true,
+  negativeMarkingEnabled: false,
+  negativeMarkPoints: 0,
 };
 
 export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined): QuizSettings {
@@ -76,6 +84,22 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
         : q.leaderboardReleasedAt === null
           ? null
           : defaultQuizSettings.leaderboardReleasedAt,
+    allowPrevious:
+      typeof q.allowPrevious === 'boolean' ? q.allowPrevious : defaultQuizSettings.allowPrevious,
+    showQuestionPanel:
+      typeof q.showQuestionPanel === 'boolean'
+        ? q.showQuestionPanel
+        : defaultQuizSettings.showQuestionPanel,
+    negativeMarkingEnabled:
+      typeof q.negativeMarkingEnabled === 'boolean'
+        ? q.negativeMarkingEnabled
+        : defaultQuizSettings.negativeMarkingEnabled,
+    negativeMarkPoints:
+      typeof q.negativeMarkPoints === 'number' &&
+      Number.isFinite(q.negativeMarkPoints) &&
+      q.negativeMarkPoints >= 0
+        ? q.negativeMarkPoints
+        : defaultQuizSettings.negativeMarkPoints,
   };
 }
 

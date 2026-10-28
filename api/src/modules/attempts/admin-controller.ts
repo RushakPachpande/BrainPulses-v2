@@ -57,3 +57,17 @@ export async function listReattempts(req: Request, res: Response, next: NextFunc
     next(err);
   }
 }
+
+export async function remove(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.deleteAttemptAdmin(
+      actor.organizationId,
+      actor,
+      req.params.id as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}

@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { ArrowLeftIcon } from 'lucide-react';
+import { ArrowLeftIcon, Loader2Icon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { useConfirm } from '@/components/use-confirm';
-import { AccountStatusPill } from '@/components/status-pill';
+import { AccountStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { ApiError } from '@/lib/api-client';
+import { useAuth } from '@/contexts/auth-context';
+import { canFullKind } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { getRegistration, unassignRegistrations, type ActivityKind } from '@/services';
+import {
+  deleteAttempt,
+  getRegistration,
+  unassignRegistrations,
+  type ActivityKind,
+} from '@/services';
 import type { RegistrationRow } from '@/services/types';
 
 export function RegistrationDetailPage({
@@ -21,8 +28,12 @@ export function RegistrationDetailPage({
   const { registrationId = '' } = useParams();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const base = isQuiz ? '/quizzes/registrations' : '/assessments/registrations';
+  const reportsBase = isQuiz ? '/quizzes/reports' : '/assessments/reports';
   const [row, setRow] = useState<RegistrationRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,6 +72,31 @@ export function RegistrationDetailPage({
       void navigate(base);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not unassign.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onDeleteAttempt() {
+    if (!row?.attemptId) return;
+    const inProgress = row.attempt === 'In Progress';
+    const ok = await confirm({
+      title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
+      description: inProgress
+        ? 'Removes the open attempt so the student can start again as if they never began. This cannot be undone.'
+        : "Removes the student's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
+      confirmLabel: 'Delete attempt',
+      destructive: true,
+    });
+    if (!ok) return;
+    setSaving(true);
+    try {
+      await deleteAttempt(row.attemptId);
+      toast.success('Attempt deleted.');
+      const found = await getRegistration(kind, registrationId);
+      setRow(found);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete attempt.');
     } finally {
       setSaving(false);
     }
@@ -120,7 +156,7 @@ export function RegistrationDetailPage({
           </div>
           <div>
             <p className="text-muted-foreground">Attempt</p>
-            <p className="font-medium">{row.attempt}</p>
+            <AttemptStatusPill value={row.attempt} />
           </div>
           <div>
             <p className="text-muted-foreground">Course / City</p>
@@ -128,6 +164,29 @@ export function RegistrationDetailPage({
               {row.course} · {row.city}
             </p>
           </div>
+          {canFull && (row.attemptId || row.resultId) ? (
+            <div className="col-span-full flex flex-wrap gap-2 border-t pt-4">
+              {row.resultId ? (
+                <Button asChild variant="outline">
+                  <Link to={`${reportsBase}/${row.resultId}`}>View result</Link>
+                </Button>
+              ) : null}
+              {row.attemptId ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={saving}
+                  aria-busy={saving}
+                  onClick={() => void onDeleteAttempt()}
+                >
+                  {saving ? (
+                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                  ) : null}
+                  Delete attempt
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
           {mode === 'edit' ? (
             <div className="col-span-full flex flex-wrap justify-end gap-2 border-t pt-4">
               <Button type="button" variant="outline" onClick={() => void navigate(base)}>

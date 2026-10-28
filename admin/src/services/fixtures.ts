@@ -80,7 +80,7 @@ export const presentationTypes = [
   'One at a time',
   'All on page',
   'One at a time',
-  'Timed card',
+  'All on page',
   'One at a time',
   'All on page',
 ];

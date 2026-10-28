@@ -1,4 +1,5 @@
 import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
+import { activityStatusDisplay } from '../../lib/activity-status.js';
 import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
 import { nextHumanCode } from '../../lib/codes.js';
@@ -100,6 +101,7 @@ function mapActivity(a: {
   code: string;
   name: string;
   subtitle: string | null;
+  instructions?: string | null;
   kind: string;
   status: string;
   startsAt: Date | null;
@@ -109,6 +111,7 @@ function mapActivity(a: {
   perQuestionSeconds?: number | null;
   passingPercent: Prisma.Decimal | null;
   presentation: string;
+  imageFileId?: string | null;
   sponsorId?: string | null;
   contestId?: string | null;
   sponsor?: { id: string; name: string } | null;
@@ -139,14 +142,17 @@ function mapActivity(a: {
         }, 0)
       : (a._count?.activityBanks ?? 0);
   const rounds = fullRounds;
+  const statusDisplay = activityStatusDisplay(a.status, a.startsAt, a.endsAt);
   const row = {
     id: a.id,
     code: a.code,
     name: a.name,
     subtitle: a.subtitle,
+    instructions: a.instructions ?? null,
     kind: a.kind,
-    status: a.status.charAt(0).toUpperCase() + a.status.slice(1),
+    status: statusDisplay,
     statusKey: a.status,
+    statusDisplay,
     startsAt: a.startsAt,
     endsAt: a.endsAt,
     durationMinutes: a.durationMinutes,
@@ -154,6 +160,7 @@ function mapActivity(a: {
     perQuestionSeconds: a.perQuestionSeconds ?? null,
     passingPercent: a.passingPercent ? Number(a.passingPercent) : null,
     presentation: a.presentation,
+    imageFileId: a.imageFileId ?? null,
     sponsorId: a.sponsorId ?? null,
     contestId: a.contestId ?? null,
     sponsor: a.sponsor ? { id: a.sponsor.id, name: a.sponsor.name } : null,
@@ -184,10 +191,28 @@ export async function listActivities(
   organizationId: string,
   query: z.infer<typeof activityListQuerySchema>,
 ) {
+  const now = new Date();
+  let statusWhere: Prisma.ActivityWhereInput = {};
+  if (query.status === 'scheduled') {
+    statusWhere = { status: 'active', startsAt: { gt: now } };
+  } else if (query.status === 'expired') {
+    statusWhere = { status: 'active', endsAt: { lt: now } };
+  } else if (query.status === 'active') {
+    statusWhere = {
+      status: 'active',
+      AND: [
+        { OR: [{ startsAt: null }, { startsAt: { lte: now } }] },
+        { OR: [{ endsAt: null }, { endsAt: { gte: now } }] },
+      ],
+    };
+  } else if (query.status !== 'all') {
+    statusWhere = { status: query.status };
+  }
+
   const where: Prisma.ActivityWhereInput = {
     organizationId,
     kind: query.kind,
-    ...(query.status !== 'all' ? { status: query.status } : {}),
+    ...statusWhere,
     ...(query.q
       ? {
           OR: [
@@ -450,6 +475,8 @@ export async function createActivity(
           code,
           name: input.name,
           subtitle: input.subtitle,
+          instructions: input.instructions?.trim() || null,
+          imageFileId: input.imageFileId ?? null,
           startsAt: input.startsAt,
           endsAt: input.endsAt,
           durationMinutes: timing.durationMinutes,
@@ -458,7 +485,8 @@ export async function createActivity(
           sponsorId: input.sponsorId,
           contestId: input.contestId,
           passingPercent: input.passingPercent,
-          presentation: input.presentation,
+          presentation:
+            timing.durationMode === 'per_question' ? 'one_at_a_time' : input.presentation,
           settings: input.settings ?? undefined,
           activityBanks: {
             create: input.bankIds.map((bankId) => ({
@@ -498,6 +526,8 @@ export async function createActivity(
         code,
         name: input.name,
         subtitle: input.subtitle,
+        instructions: input.instructions?.trim() || null,
+        imageFileId: input.imageFileId ?? null,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
         durationMinutes: input.durationMinutes,
@@ -619,13 +649,21 @@ export async function updateActivity(
       data: {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
+        ...(input.instructions !== undefined
+          ? { instructions: input.instructions?.trim() || null }
+          : {}),
+        ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
         ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
         ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
         ...(existing.kind === 'assessment' && input.durationMinutes !== undefined
           ? { durationMinutes: input.durationMinutes }
           : {}),
         ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
-        ...(input.presentation !== undefined ? { presentation: input.presentation } : {}),
+        ...(quizPatch?.durationMode === 'per_question'
+          ? { presentation: 'one_at_a_time' as const }
+          : input.presentation !== undefined
+            ? { presentation: input.presentation }
+            : {}),
         ...(existing.kind === 'assessment' && input.code !== undefined ? { code: input.code } : {}),
         ...(quizPatch
           ? {
@@ -784,6 +822,49 @@ export async function archiveActivity(
   });
   await invalidateDashboard(organizationId);
   return mapActivity(activity);
+}
+
+/**
+ * Permanently deletes a quiz and all related student data (attempts, results,
+ * registrations, reattempt grants, bank links). Shared question banks are kept.
+ */
+export async function deleteActivity(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  id: string,
+) {
+  const existing = await prisma.activity.findFirst({
+    where: { organizationId, id },
+    select: { id: true, kind: true },
+  });
+  if (!existing) throw notFound('Activity not found.');
+  assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, existing.kind, 'full');
+  if (existing.kind !== 'quiz') {
+    throw badRequest('Only quizzes can be permanently deleted.');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Attempts first: round FK is Restrict; responses/results cascade from attempt.
+    await tx.attempt.deleteMany({ where: { organizationId, activityId: id } });
+    await tx.result.deleteMany({ where: { organizationId, activityId: id } });
+    await tx.reattemptGrant.deleteMany({ where: { organizationId, activityId: id } });
+    await tx.registration.deleteMany({ where: { organizationId, activityId: id } });
+    // Cascades activityBanks / rounds / round banks.
+    await tx.activity.delete({ where: { id } });
+  });
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'activity.delete',
+    targetType: 'activity',
+    targetId: id,
+    metadata: { kind: 'quiz' },
+  });
+  await invalidateDashboard(organizationId);
+  return { id, deleted: true as const };
 }
 
 async function ensureRoundLocalBank(

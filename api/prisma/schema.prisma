@@ -48,7 +48,6 @@ enum QuestionType {
 enum PresentationMode {
   one_at_a_time
   all_on_page
-  timed_card
 }
 
 enum DurationMode {
@@ -290,6 +289,7 @@ model Activity {
   code           String
   name           String
   subtitle       String?
+  instructions   String?          @db.Text
   status         FlowStatus       @default(draft)
   startsAt       DateTime?        @map("starts_at") @db.Timestamptz(3)
   endsAt         DateTime?        @map("ends_at") @db.Timestamptz(3)
@@ -299,12 +299,14 @@ model Activity {
   passingPercent Decimal?         @map("passing_percent") @db.Decimal(5, 2)
   presentation   PresentationMode @default(one_at_a_time)
   settings       Json?            @db.JsonB
+  imageFileId    String?          @map("image_file_id") @db.Uuid
   sponsorId      String?          @map("sponsor_id") @db.Uuid
   contestId      String?          @map("contest_id") @db.Uuid
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  image           FileObject?      @relation("ActivityImage", fields: [imageFileId], references: [id], onDelete: SetNull)
   sponsor         Sponsor?         @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
   contest         Contest?         @relation(fields: [contestId], references: [id], onDelete: Restrict)
   activityBanks   ActivityBank[]
@@ -318,6 +320,7 @@ model Activity {
   @@index([organizationId, kind, status])
   @@index([organizationId, sponsorId])
   @@index([organizationId, contestId])
+  @@index([organizationId, imageFileId])
   @@map("activities")
 }
 
@@ -618,6 +621,7 @@ model FileObject {
   uploadedBy    User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   sponsorImages Sponsor[]    @relation("SponsorImage")
   contestImages Contest[]    @relation("ContestImage")
+  activityImages Activity[]  @relation("ActivityImage")
 
   @@index([organizationId, createdAt])
   @@map("file_objects")

@@ -14,6 +14,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
+  deleteResult,
   disqualifyAttempt,
   getResult,
   grantReattempt,
@@ -188,6 +189,28 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     }
   }
 
+  async function onDeleteResponse() {
+    const ok = await confirm({
+      title: 'Delete this response?',
+      description:
+        "Removes the student's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
+      confirmLabel: 'Delete response',
+      destructive: true,
+    });
+    if (!ok) return;
+    setSaving(true);
+    try {
+      await deleteResult(resultId);
+      toast.success('Response deleted.');
+      setDirty(false);
+      void navigate(base);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete response.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading || !row) return <FormPageSkeleton fields={5} />;
 
   return (
@@ -243,19 +266,33 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
           ) : null}
           {canFull ? (
             <div className="col-span-full flex flex-col gap-3 border-t pt-4">
-              {row.releaseStatus !== 'published' ? (
+              <div className="flex flex-wrap gap-2">
+                {row.releaseStatus !== 'published' ? (
+                  <Button
+                    type="button"
+                    disabled={saving}
+                    aria-busy={saving}
+                    onClick={() => void onPublish()}
+                  >
+                    {saving ? (
+                      <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                    ) : null}
+                    Publish result
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
+                  variant="destructive"
                   disabled={saving}
                   aria-busy={saving}
-                  onClick={() => void onPublish()}
+                  onClick={() => void onDeleteResponse()}
                 >
                   {saving ? (
                     <Loader2Icon data-icon="inline-start" className="animate-spin" />
                   ) : null}
-                  Publish result
+                  Delete response
                 </Button>
-              ) : null}
+              </div>
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="regrade-score">Regrade score</FieldLabel>

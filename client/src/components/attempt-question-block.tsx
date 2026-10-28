@@ -20,8 +20,6 @@ type Props = {
   onAnswer: (answer: AttemptAnswerValue) => void;
   onClear: () => void;
   onToggleMarked: () => void;
-  /** Called after a single-choice selection (timed-card auto-advance). */
-  onSingleSelect?: () => void;
 };
 
 export function AttemptQuestionBlock({
@@ -35,7 +33,6 @@ export function AttemptQuestionBlock({
   onAnswer,
   onClear,
   onToggleMarked,
-  onSingleSelect,
 }: Props) {
   const singleChosen = answer && 'label' in answer ? answer.label : null;
   const multiChosen = answer && 'labels' in answer ? new Set(answer.labels) : new Set<string>();
@@ -87,7 +84,6 @@ export function AttemptQuestionBlock({
                       onAnswer({ labels: [...next] });
                     } else {
                       onAnswer({ label: op.label });
-                      onSingleSelect?.();
                     }
                   }}
                 >

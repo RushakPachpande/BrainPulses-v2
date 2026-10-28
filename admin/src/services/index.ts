@@ -356,13 +356,15 @@ type ActivityWritePayload = {
   kind?: ActivityKind;
   name?: string;
   subtitle?: string;
+  instructions?: string | null;
+  imageFileId?: string | null;
   startsAt?: Date | null;
   endsAt?: Date | null;
   durationMinutes?: number | null;
   durationMode?: 'overall' | 'per_question';
   perQuestionSeconds?: number | null;
   passingPercent?: number | null;
-  presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+  presentation?: 'one_at_a_time' | 'all_on_page';
   bankIds?: string[];
   rounds?: ActivityRoundWrite[];
   code?: string;
@@ -393,12 +395,15 @@ function mapActivityDetail(
   row: ApiActivityRow & {
     kind: ActivityKind;
     statusKey?: string;
+    statusDisplay?: string;
     code?: string;
     durationMinutes?: number | null;
     durationMode?: 'overall' | 'per_question';
     perQuestionSeconds?: number | null;
     passingPercent?: number | null;
     presentation?: string;
+    instructions?: string | null;
+    imageFileId?: string | null;
     bankIds?: string[];
     sponsorId?: string | null;
     contestId?: string | null;
@@ -416,6 +421,7 @@ function mapActivityDetail(
     code: row.kind === 'quiz' ? '' : (row.code ?? ''),
     kind: row.kind,
     statusKey: row.statusKey ?? row.status.toLowerCase(),
+    statusDisplay: row.statusDisplay ?? row.status,
     startsAt: row.startsAt ? new Date(row.startsAt).toISOString() : null,
     endsAt: row.endsAt ? new Date(row.endsAt).toISOString() : null,
     durationMinutes: row.durationMinutes ?? null,
@@ -423,6 +429,8 @@ function mapActivityDetail(
     perQuestionSeconds: row.perQuestionSeconds ?? null,
     passingPercent: row.passingPercent ?? null,
     presentation: (row.presentation as ActivityDetail['presentation']) ?? 'one_at_a_time',
+    instructions: row.instructions ?? null,
+    imageFileId: row.imageFileId ?? null,
     bankIds: row.bankIds ?? [],
     sponsorId: row.sponsorId ?? null,
     contestId: row.contestId ?? null,
@@ -466,6 +474,8 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
       perQuestionSeconds: null,
       passingPercent: 40,
       presentation: 'one_at_a_time',
+      instructions: null,
+      imageFileId: null,
       bankIds: [],
       sponsorId: null,
       contestId: null,
@@ -629,6 +639,20 @@ export async function archiveActivity(activityId: string, idempotencyKey?: strin
   return data;
 }
 
+/** Permanently deletes a quiz and all related attempts, results, and registrations. */
+export async function deleteActivity(activityId: string) {
+  if (useFixtures) {
+    invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
+    return { id: activityId, deleted: true as const };
+  }
+  const data = await apiRequest<{ data: { id: string; deleted: true } }>(
+    `/api/activities/${activityId}`,
+    { method: 'DELETE' },
+  );
+  invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
+  return data.data;
+}
+
 export async function createStudent(payload: {
   name: string;
   email: string;
@@ -784,7 +808,7 @@ export async function createQuestionBank(payload: {
   kind: ActivityKind;
   name: string;
   description?: string;
-  presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+  presentation?: 'one_at_a_time' | 'all_on_page';
   code?: string;
 }) {
   if (useFixtures) {
@@ -801,7 +825,7 @@ export async function updateQuestionBank(
   payload: {
     name?: string;
     description?: string;
-    presentation?: 'one_at_a_time' | 'all_on_page' | 'timed_card';
+    presentation?: 'one_at_a_time' | 'all_on_page';
     status?: 'draft' | 'active' | 'completed' | 'archived';
   },
 ) {
@@ -1002,6 +1026,35 @@ export async function publishResult(resultId: string, idempotencyKey?: string) {
 export async function regradeResult(resultId: string, score: number, reason: string) {
   if (useFixtures) return { id: resultId };
   return apiPostData(`/api/results/${resultId}/regrade`, { score, reason });
+}
+
+export async function deleteResult(resultId: string) {
+  if (useFixtures) {
+    invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
+    return { id: resultId, deleted: true as const };
+  }
+  const data = await apiRequest<{ data: { id: string; deleted: true } }>(
+    `/api/results/${resultId}`,
+    {
+      method: 'DELETE',
+    },
+  );
+  invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
+  return data.data;
+}
+
+/** Deletes an attempt of any status (including in_progress). */
+export async function deleteAttempt(attemptId: string) {
+  if (useFixtures) {
+    invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
+    return { id: attemptId, deleted: true as const };
+  }
+  const data = await apiRequest<{ data: { id: string; deleted: true } }>(
+    `/api/admin/attempts/${attemptId}`,
+    { method: 'DELETE' },
+  );
+  invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
+  return data.data;
 }
 
 export async function getResult(id: string): Promise<ResultDetail> {

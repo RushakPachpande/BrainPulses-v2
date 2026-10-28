@@ -1,6 +1,11 @@
 import { QueryClient } from '@tanstack/react-query';
-import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { adminPersistKey, GC_MS, STALE_MS, adminQueryKeys } from '@/lib/query-keys';
+import {
+  ADMIN_PERSIST_PREFIX,
+  GC_MS,
+  STALE_MS,
+  adminPersistKey,
+  adminQueryKeys,
+} from '@/lib/query-keys';
 
 let appQueryClient: QueryClient | null = null;
 
@@ -10,7 +15,9 @@ export function createAdminQueryClient() {
       queries: {
         staleTime: STALE_MS,
         gcTime: GC_MS,
-        refetchOnWindowFocus: false,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
+        refetchOnReconnect: true,
         retry: 1,
       },
     },
@@ -25,13 +32,20 @@ export function getAppQueryClient() {
   return appQueryClient;
 }
 
-export function createAdminPersister(orgId: string) {
-  return createSyncStoragePersister({
-    storage: window.sessionStorage,
-    key: adminPersistKey(orgId),
-  });
+function removeSessionKeysWithPrefix(prefix: string) {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < sessionStorage.length; i += 1) {
+      const key = sessionStorage.key(i);
+      if (key?.startsWith(prefix)) keys.push(key);
+    }
+    for (const key of keys) sessionStorage.removeItem(key);
+  } catch {
+    /* Storage can be disabled by browser policy. */
+  }
 }
 
+/** Drop in-memory queries and any legacy persisted query blobs. */
 export function clearAdminQueryCache(orgId?: string | null) {
   appQueryClient?.clear();
   if (orgId) {
@@ -41,6 +55,12 @@ export function clearAdminQueryCache(orgId?: string | null) {
       /* ignore */
     }
   }
+  removeSessionKeysWithPrefix(ADMIN_PERSIST_PREFIX);
+}
+
+/** Call once on app boot so hard-reloads never revive stale list data. */
+export function purgeLegacyAdminQueryPersistence() {
+  removeSessionKeysWithPrefix(ADMIN_PERSIST_PREFIX);
 }
 
 /** Invalidate domains after successful mutations. */

@@ -27,8 +27,21 @@ export const quizSettingsSchema = z
     overallGroupLeaderboardVisible: z.boolean().default(true),
     countsForGroupLeaderboard: z.boolean().default(true),
     leaderboardReleasedAt: z.string().datetime().nullable().optional(),
+    allowPrevious: z.boolean().default(true),
+    showQuestionPanel: z.boolean().default(true),
+    negativeMarkingEnabled: z.boolean().default(false),
+    negativeMarkPoints: z.number().min(0).max(1000).default(0),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.negativeMarkingEnabled && !(val.negativeMarkPoints > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter marks to deduct when negative marking is on.',
+        path: ['negativeMarkPoints'],
+      });
+    }
+  });
 
 export const activitySettingsSchema = z
   .object({
@@ -59,9 +72,14 @@ export const activityRoundInputSchema = z
   })
   .strict();
 
+export const activityListStatusSchema = flowStatusSchema
+  .or(z.literal('all'))
+  .or(z.literal('scheduled'))
+  .or(z.literal('expired'));
+
 export const activityListQuerySchema = listQuerySchema.extend({
   kind: kindSchema,
-  status: flowStatusSchema.or(z.literal('all')).default('all'),
+  status: activityListStatusSchema.default('all'),
   sort: z.enum(['name', 'code', 'createdAt', 'startsAt']).optional(),
 });
 
@@ -70,13 +88,15 @@ export const createActivitySchema = z
     kind: kindSchema,
     name: z.string().trim().min(1).max(200),
     subtitle: z.string().trim().max(300).optional(),
+    instructions: z.string().trim().max(10_000).optional().nullable(),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),
     durationMinutes: z.number().int().positive().nullable().optional(),
     durationMode: durationModeSchema.optional(),
     perQuestionSeconds: z.number().int().positive().max(86_400).nullable().optional(),
     passingPercent: z.number().min(0).max(100).optional(),
-    presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).default('one_at_a_time'),
+    presentation: z.enum(['one_at_a_time', 'all_on_page']).default('one_at_a_time'),
+    imageFileId: z.string().uuid().optional().nullable(),
     bankIds: z.array(z.string().uuid()).default([]),
     rounds: z.array(activityRoundInputSchema).max(40).optional(),
     code: z.string().trim().min(1).max(40).optional(),
@@ -159,13 +179,15 @@ export const updateActivitySchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
     subtitle: z.string().trim().max(300).optional().nullable(),
+    instructions: z.string().trim().max(10_000).optional().nullable(),
     startsAt: z.coerce.date().optional().nullable(),
     endsAt: z.coerce.date().optional().nullable(),
     durationMinutes: z.number().int().positive().optional().nullable(),
     durationMode: durationModeSchema.optional(),
     perQuestionSeconds: z.number().int().positive().max(86_400).optional().nullable(),
     passingPercent: z.number().min(0).max(100).optional().nullable(),
-    presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).optional(),
+    presentation: z.enum(['one_at_a_time', 'all_on_page']).optional(),
+    imageFileId: z.string().uuid().optional().nullable(),
     bankIds: z.array(z.string().uuid()).optional(),
     rounds: z.array(activityRoundInputSchema).max(40).optional(),
     code: z.string().trim().min(1).max(40).optional(),

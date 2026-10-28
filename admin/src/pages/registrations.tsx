@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -18,6 +19,7 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { RowActions } from '@/components/row-actions';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -33,10 +35,11 @@ import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
-import { canEditKind } from '@/lib/access';
+import { ApiError } from '@/lib/api-client';
+import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { getRegistrations, type ActivityKind } from '@/services';
+import { deleteAttempt, getRegistrations, type ActivityKind } from '@/services';
 import { assessmentNames, quizNames, studentCities, studentCourses } from '@/services/fixtures';
 import type { RegistrationRow as Registration } from '@/services/types';
 
@@ -86,10 +89,13 @@ function renderRegistrationCell(key: SortKey, row: Registration) {
 
 export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
+  const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
   const attemptLabel = isQuiz ? 'Attempt Status' : 'Student Status';
@@ -124,6 +130,28 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     enabled: Boolean(orgId),
   });
   const rows = data ?? EMPTY_ROWS;
+
+  async function onDeleteAttempt(row: Registration) {
+    if (!row.attemptId) return;
+    const inProgress = row.attempt === 'In Progress';
+    const ok = await confirm({
+      title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
+      description: inProgress
+        ? 'Removes the open attempt so the student can start again as if they never began. This cannot be undone.'
+        : "Removes the student's attempt and score. They can start again as if they never attempted.",
+      confirmLabel: 'Delete attempt',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteAttempt(row.attemptId);
+      toast.success('Attempt deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete attempt.');
+    }
+  }
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState('All');
   const [city, setCity] = useState('All');
@@ -418,6 +446,16 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                         to: isQuiz
                           ? `/quizzes/registrations/${row.registrationId}/edit`
                           : `/assessments/registrations/${row.registrationId}/edit`,
+                      }
+                    : undefined
+                }
+                remove={
+                  canFull && row.attemptId
+                    ? {
+                        label: 'Delete attempt',
+                        onClick: () => {
+                          void onDeleteAttempt(row);
+                        },
                       }
                     : undefined
                 }

@@ -48,17 +48,20 @@ describe('quiz ops', () => {
     const defaults = parseQuizSettings(null);
     assert.equal(defaults.shuffleQuestions, true);
     assert.equal(defaults.scoreVisibleToStudent, false);
+    assert.equal(defaults.showQuestionPanel, true);
 
     const custom = parseQuizSettings({
       quiz: {
         shuffleQuestions: false,
         scoreVisibleToStudent: true,
         answersVisibleToStudent: true,
+        showQuestionPanel: false,
       },
     });
     assert.equal(custom.shuffleQuestions, false);
     assert.equal(custom.scoreVisibleToStudent, true);
     assert.equal(custom.answersVisibleToStudent, true);
+    assert.equal(custom.showQuestionPanel, false);
   });
 
   it('freezes question order across resume and excludes disqualified from boards', async () => {

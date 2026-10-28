@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { BanIcon, EyeIcon, PencilIcon } from 'lucide-react';
+import { BanIcon, EyeIcon, PencilIcon, TrashIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type RowActionTarget = {
@@ -41,10 +41,12 @@ export function RowActions({
   view,
   edit,
   deactivate,
+  remove,
 }: {
   view?: RowActionTarget;
   edit?: RowActionTarget;
   deactivate?: { onClick: () => void };
+  remove?: { label?: string; onClick: () => void };
 }) {
   return (
     <div className="flex w-max shrink-0 flex-nowrap items-center gap-2">
@@ -52,6 +54,14 @@ export function RowActions({
       {edit ? <ActionButton label="Edit" icon={PencilIcon} target={edit} /> : null}
       {deactivate ? (
         <ActionButton label="Deactivate" icon={BanIcon} target={deactivate} destructive />
+      ) : null}
+      {remove ? (
+        <ActionButton
+          label={remove.label ?? 'Delete'}
+          icon={TrashIcon}
+          target={remove}
+          destructive
+        />
       ) : null}
     </div>
   );

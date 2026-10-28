@@ -15,7 +15,10 @@ export type BankAuthorType = (typeof BANK_QUESTION_TYPES)[number]['value'];
 
 export type BankKind = 'quiz' | 'assessment';
 
-const QUIZ_TYPES = [{ value: 'single_mcq' as const, label: 'Single choice' }];
+const QUIZ_TYPES = [
+  { value: 'single_mcq' as const, label: 'Single choice' },
+  { value: 'multiple_mcq' as const, label: 'Multiple choice' },
+];
 
 const CHOICE_MEDIA_TYPES = new Set<string>([
   'single_mcq',
@@ -48,9 +51,9 @@ export function supportsChoiceMedia(type: string): boolean {
   return CHOICE_MEDIA_TYPES.has(type);
 }
 
-/** Quiz banks may only author single_mcq; legacy image_mcq is readable until coerced on save. */
+/** Quiz banks may author single/multiple choice; legacy image_mcq is readable until coerced on save. */
 export function isQuizAllowedType(type: string): boolean {
-  return type === 'single_mcq' || type === 'image_mcq';
+  return type === 'single_mcq' || type === 'multiple_mcq' || type === 'image_mcq';
 }
 
 export function isOptionFilled(o: { body?: string; imageUrl?: string }): boolean {

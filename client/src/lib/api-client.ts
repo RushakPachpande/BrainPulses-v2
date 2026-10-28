@@ -152,7 +152,12 @@ async function request(
 
     const { signal, timedOut } = withRequestTimeout(init.signal);
     try {
-      return await fetch(`${apiBaseUrl()}${path}`, { ...init, headers, signal });
+      return await fetch(`${apiBaseUrl()}${path}`, {
+        ...init,
+        headers,
+        cache: 'no-store',
+        signal,
+      });
     } catch (err) {
       if (isAbortError(err) && timedOut()) throw timeoutError();
       throw err;

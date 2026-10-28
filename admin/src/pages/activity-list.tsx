@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -18,6 +19,7 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { RowActions } from '@/components/row-actions';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import {
   ALL_DATE_RANGE,
   isDateInRange,
@@ -39,10 +41,11 @@ import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
-import { canEditKind } from '@/lib/access';
+import { ApiError } from '@/lib/api-client';
+import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { getActivities, type ActivityKind } from '@/services';
+import { deleteActivity, getActivities, type ActivityKind } from '@/services';
 import type { Activity } from '@/services/types';
 
 const EMPTY_ACTIVITIES: Activity[] = [];
@@ -75,10 +78,13 @@ function attemptPercent(activity: Activity) {
 
 export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
+  const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'quizzes' : 'assessments';
   const nounSingular = isQuiz ? 'quiz' : 'assessment';
@@ -115,6 +121,29 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     enabled: Boolean(orgId),
   });
   const activities = data ?? EMPTY_ACTIVITIES;
+
+  async function onDeleteQuiz(item: Activity) {
+    if (!isQuiz || !canFull) return;
+    const ok = await confirm({
+      title: `Delete “${item.name}”?`,
+      description:
+        'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
+      confirmLabel: 'Delete quiz',
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await deleteActivity(item.id);
+      toast.success('Quiz deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'activities'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete quiz.');
+    }
+  }
+
   const statusCount = (value: string) => activities.filter((item) => item.status === value).length;
   const metrics = [
     {
@@ -130,16 +159,16 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
       tone: 'bg-success/15 text-success',
     },
     {
-      label: 'Draft',
-      value: String(statusCount('Draft')),
+      label: 'Scheduled',
+      value: String(statusCount('Scheduled')),
       icon: CircleDashedIcon,
       tone: 'bg-warning/15 text-warning',
     },
     {
-      label: 'Completed',
-      value: String(statusCount('Completed')),
+      label: 'Expired',
+      value: String(statusCount('Expired')),
       icon: LayersIcon,
-      tone: 'bg-primary/15 text-primary',
+      tone: 'bg-muted text-muted-foreground',
     },
   ];
   const [search, setSearch] = useState('');
@@ -153,7 +182,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const filters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['All', 'Active', 'Draft', 'Completed'],
+      options: ['All', 'Active', 'Scheduled', 'Expired', 'Draft', 'Completed', 'Archived'],
       value: status,
       onValueChange: (value) => {
         setStatus(value);
@@ -395,6 +424,11 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
               <RowActions
                 view={{ to: `${listPath}/${item.id}` }}
                 edit={canEdit ? { to: `${listPath}/${item.id}/edit` } : undefined}
+                remove={
+                  isQuiz && canFull
+                    ? { label: 'Delete', onClick: () => void onDeleteQuiz(item) }
+                    : undefined
+                }
               />
             )}
             onRowOpen={(item) => navigate(`${listPath}/${item.id}`)}

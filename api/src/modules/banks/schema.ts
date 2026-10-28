@@ -24,10 +24,14 @@ export const questionTypeSchema = z.enum([
 export type QuestionTypeValue = z.infer<typeof questionTypeSchema>;
 
 /** Types that may be newly authored into a quiz bank. */
-export const QUIZ_AUTHORABLE_TYPES = new Set<string>(['single_mcq']);
+export const QUIZ_AUTHORABLE_TYPES = new Set<string>(['single_mcq', 'multiple_mcq']);
 
 /** Types allowed when attaching an existing quiz bank to a quiz activity (includes legacy). */
-export const QUIZ_ATTACH_ALLOWED_TYPES = new Set<string>(['single_mcq', 'image_mcq']);
+export const QUIZ_ATTACH_ALLOWED_TYPES = new Set<string>([
+  'single_mcq',
+  'multiple_mcq',
+  'image_mcq',
+]);
 
 export const ASSESSMENT_AUTHORABLE_TYPES = new Set<string>([
   'single_mcq',
@@ -46,7 +50,7 @@ export function authorableTypesForKind(kind: BankKind): Set<string> {
 }
 
 /**
- * Enforce quiz = single_mcq only for new authoring.
+ * Enforce quiz authoring types (single / multiple choice).
  * Legacy `image_mcq` on quiz banks is not creatable; updates coerce via service.
  */
 export function assertTypeAllowedForKind(kind: BankKind, type: string): void {
@@ -54,7 +58,7 @@ export function assertTypeAllowedForKind(kind: BankKind, type: string): void {
   if (!allowed.has(type)) {
     if (kind === 'quiz') {
       throw unprocessable(
-        `Quiz banks only support single-choice questions (single_mcq). Got “${type}”.`,
+        `Quiz banks only support single-choice or multiple-choice questions. Got “${type}”.`,
       );
     }
     throw unprocessable(`Type “${type}” is not allowed for assessment banks.`);
@@ -91,7 +95,7 @@ export const createBankSchema = z
     kind: kindSchema,
     name: z.string().trim().min(1).max(200),
     description: z.string().trim().max(1000).optional(),
-    presentation: z.enum(['one_at_a_time', 'all_on_page', 'timed_card']).default('one_at_a_time'),
+    presentation: z.enum(['one_at_a_time', 'all_on_page']).default('one_at_a_time'),
     code: z.string().trim().min(1).max(40).optional(),
   })
   .strict();

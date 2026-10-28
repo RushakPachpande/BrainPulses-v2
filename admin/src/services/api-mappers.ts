@@ -31,7 +31,6 @@ function formatPresentation(value: string): string {
   const map: Record<string, string> = {
     one_at_a_time: 'One at a time',
     all_on_page: 'All on one page',
-    timed_card: 'Timed card',
   };
   return map[value] ?? value.replaceAll('_', ' ');
 }
@@ -178,6 +177,8 @@ export function mapRegistrationFromApi(row: {
   activity: string;
   assignment: string;
   attempt: string;
+  attemptId?: string | null;
+  resultId?: string | null;
   registered: string | Date;
 }): RegistrationRow {
   return {
@@ -193,6 +194,8 @@ export function mapRegistrationFromApi(row: {
     bank: '—',
     assignment: formatAssignment(row.assignment),
     attempt: formatAttemptStatus(row.attempt),
+    attemptId: row.attemptId ?? null,
+    resultId: row.resultId ?? null,
     city: row.city ?? '—',
     course: row.course ?? '—',
   };

@@ -61,6 +61,12 @@ activitiesRouter.post(
   validate({ params: idParamSchema }),
   controller.archive,
 );
+activitiesRouter.delete(
+  '/:id',
+  requireOrgAccess('full'),
+  validate({ params: idParamSchema }),
+  controller.remove,
+);
 
 const roundQuestionParamsSchema = roundIdParamSchema.extend({
   questionId: z.string().uuid(),

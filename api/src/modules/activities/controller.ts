@@ -79,6 +79,21 @@ export async function archive(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function remove(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.deleteActivity(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listRoundQuestions(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);

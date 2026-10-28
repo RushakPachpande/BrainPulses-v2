@@ -4,7 +4,14 @@ import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
-import { scoreObjective, toNumber } from './scoring.js';
+import {
+  applyNegativeMarking,
+  clampScore,
+  hasSubmittedAnswer,
+  scoreObjective,
+  toNumber,
+} from './scoring.js';
+import { assertCanWipeActivity, wipeStudentActivityAttempts, type WipeActor } from './wipe.js';
 
 type OptionRow = {
   id: string;
@@ -33,7 +40,7 @@ async function autoSubmitIfExpired(attempt: {
   });
 }
 
-type AttemptPresentation = 'one_at_a_time' | 'all_on_page' | 'timed_card';
+type AttemptPresentation = 'one_at_a_time' | 'all_on_page';
 
 type AttemptMapExtras = {
   activityKind?: string;
@@ -41,6 +48,8 @@ type AttemptMapExtras = {
   presentation?: AttemptPresentation | string | null;
   durationMode?: 'overall' | 'per_question' | string | null;
   perQuestionSeconds?: number | null;
+  allowPrevious?: boolean;
+  settings?: Prisma.JsonValue | null;
 };
 
 function mapAttempt(
@@ -64,10 +73,17 @@ function mapAttempt(
   },
   extras?: AttemptMapExtras,
 ) {
-  const presentation =
-    extras?.presentation === 'all_on_page' || extras?.presentation === 'timed_card'
-      ? extras.presentation
-      : 'one_at_a_time';
+  const presentation: AttemptPresentation =
+    extras?.presentation === 'all_on_page' ? 'all_on_page' : 'one_at_a_time';
+  const durationMode = extras?.durationMode === 'per_question' ? 'per_question' : 'overall';
+  const quizSettings = extras?.activityKind === 'quiz' ? parseQuizSettings(extras.settings) : null;
+  const allowPrevious =
+    extras?.allowPrevious !== undefined
+      ? extras.allowPrevious
+      : (quizSettings?.allowPrevious ?? true);
+  const forwardOnly = durationMode === 'per_question' || allowPrevious === false;
+  const showQuestionPanel =
+    extras?.activityKind === 'quiz' ? (quizSettings?.showQuestionPanel ?? true) : true;
   return {
     id: a.id,
     status: a.status,
@@ -83,11 +99,14 @@ function mapAttempt(
     activityKind: extras?.activityKind ?? null,
     softProctoring: extras?.softProctoring ?? false,
     presentation,
-    durationMode: extras?.durationMode === 'per_question' ? 'per_question' : 'overall',
+    durationMode,
     perQuestionSeconds:
       typeof extras?.perQuestionSeconds === 'number' && extras.perQuestionSeconds > 0
         ? extras.perQuestionSeconds
         : null,
+    allowPrevious,
+    showQuestionPanel,
+    forwardOnly,
     responses: (a.responses ?? []).map((r) => ({
       questionVersionId: r.questionVersionId,
       answer: r.answer,
@@ -101,6 +120,7 @@ function extrasFromActivity(activity: {
   presentation?: string | null;
   durationMode?: string | null;
   perQuestionSeconds?: number | null;
+  settings?: Prisma.JsonValue | null;
 }): AttemptMapExtras {
   return {
     activityKind: activity.kind,
@@ -108,6 +128,7 @@ function extrasFromActivity(activity: {
     presentation: activity.presentation,
     durationMode: activity.durationMode,
     perQuestionSeconds: activity.perQuestionSeconds ?? null,
+    settings: activity.settings ?? null,
   };
 }
 
@@ -171,7 +192,13 @@ async function presentOpenQuizAttempt(attemptId: string, organizationId: string)
     include: {
       responses: true,
       activity: {
-        select: { kind: true, presentation: true, durationMode: true, perQuestionSeconds: true },
+        select: {
+          kind: true,
+          presentation: true,
+          durationMode: true,
+          perQuestionSeconds: true,
+          settings: true,
+        },
       },
     },
   });
@@ -503,6 +530,17 @@ export async function startAttempt(
     optionOrders = built.optionOrders;
   }
 
+  // Last-chance guard against duplicate open quiz attempts (e.g. double Start).
+  if (activity.kind === 'quiz') {
+    const stillOpen = await prisma.attempt.findFirst({
+      where: { organizationId, activityId, studentId, status: 'in_progress' },
+      orderBy: { startedAt: 'desc' },
+    });
+    if (stillOpen) {
+      return presentOpenQuizAttempt(stillOpen.id, organizationId);
+    }
+  }
+
   const attempt = await prisma.attempt.create({
     data: {
       organizationId,
@@ -757,6 +795,12 @@ async function submitAttemptInternal(
   });
   const byId = new Map(versions.map((v) => [v.id, v]));
 
+  const negativeEnabled = Boolean(quizSettings?.negativeMarkingEnabled);
+  const negativePenalty =
+    negativeEnabled && quizSettings && quizSettings.negativeMarkPoints > 0
+      ? quizSettings.negativeMarkPoints
+      : 0;
+
   let score = 0;
   let maxScore = 0;
   for (const response of attempt.responses) {
@@ -766,8 +810,14 @@ async function submitAttemptInternal(
     const earned = scoreObjective(version.type, version.answerKey, response.answer, pts);
     if (earned === null) continue;
     maxScore += pts;
-    score += earned;
+    score = applyNegativeMarking(score, {
+      enabled: negativeEnabled,
+      penalty: negativePenalty,
+      earned,
+      answered: hasSubmittedAnswer(version.type, response.answer),
+    });
   }
+  score = clampScore(score);
 
   const percent = maxScore > 0 ? (score / maxScore) * 100 : 0;
   const passing = attempt.activity.passingPercent
@@ -1017,4 +1067,58 @@ export async function listReattemptGrants(organizationId: string, activityId: st
     student: g.student,
     grantedBy: g.grantedBy,
   }));
+}
+
+/**
+ * Admin delete for any attempt status (including in_progress). Clears the
+ * student's attempts for that quiz/round as if they never started.
+ */
+export async function deleteAttemptAdmin(
+  organizationId: string,
+  actor: WipeActor,
+  attemptId: string,
+) {
+  const existing = await prisma.attempt.findFirst({
+    where: { organizationId, id: attemptId },
+    include: {
+      activity: { select: { id: true, kind: true, name: true } },
+      student: { select: { id: true, name: true, code: true } },
+      result: { select: { id: true } },
+    },
+  });
+  if (!existing) throw notFound('Attempt not found.');
+  assertCanWipeActivity(actor, existing.activity.kind);
+
+  const attemptsRemoved = await prisma.$transaction(async (tx) =>
+    wipeStudentActivityAttempts(tx, {
+      organizationId,
+      activityId: existing.activityId,
+      studentId: existing.studentId,
+      attemptId: existing.id,
+      roundId: existing.roundId,
+      activityKind: existing.activity.kind,
+      resultId: existing.result?.id ?? null,
+    }),
+  );
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'attempt.delete',
+    targetType: 'attempt',
+    targetId: attemptId,
+    metadata: {
+      activityId: existing.activityId,
+      studentId: existing.studentId,
+      roundId: existing.roundId,
+      status: existing.status,
+      attemptsRemoved,
+      studentName: existing.student.name,
+      activityName: existing.activity.name,
+    },
+  });
+  await invalidateDashboard(organizationId);
+
+  return { id: attemptId, deleted: true as const, attemptsRemoved };
 }

@@ -1,9 +1,11 @@
 import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
+import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { assertActivityAccess } from '../activities/service.js';
+import { assertCanWipeActivity, wipeStudentActivityAttempts } from '../attempts/wipe.js';
 import type { z } from 'zod';
 import type { resultListQuerySchema } from './schema.js';
 
@@ -236,4 +238,58 @@ export async function regradeResult(
   });
 
   return getResult(organizationId, actor, id);
+}
+
+/**
+ * Removes the student's attempt(s) for this activity (and round, when set)
+ * so they can start again as if they never attempted. Cascades responses,
+ * this result, and revisions. Also clears open attempts so Resume is gone.
+ */
+export async function deleteResult(organizationId: string, actor: ResultsActor, id: string) {
+  const existing = await prisma.result.findFirst({
+    where: { organizationId, id },
+    include: {
+      activity: { select: { id: true, kind: true, name: true } },
+      attempt: { select: { id: true, roundId: true } },
+      student: { select: { id: true, name: true, code: true } },
+    },
+  });
+  if (!existing) throw notFound('Result not found.');
+  assertCanWipeActivity(actor, existing.activity.kind);
+
+  const { studentId, activityId } = existing;
+  const roundId = existing.attempt.roundId;
+
+  const deleted = await prisma.$transaction(async (tx) =>
+    wipeStudentActivityAttempts(tx, {
+      organizationId,
+      activityId,
+      studentId,
+      attemptId: existing.attempt.id,
+      roundId,
+      activityKind: existing.activity.kind,
+      resultId: id,
+    }),
+  );
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'result.delete',
+    targetType: 'result',
+    targetId: id,
+    metadata: {
+      activityId,
+      studentId,
+      attemptId: existing.attempt.id,
+      roundId,
+      attemptsRemoved: deleted,
+      studentName: existing.student.name,
+      activityName: existing.activity.name,
+    },
+  });
+  await invalidateDashboard(organizationId);
+
+  return { id, deleted: true as const, attemptsRemoved: deleted };
 }

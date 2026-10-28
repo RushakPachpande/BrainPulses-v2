@@ -1,14 +1,16 @@
-import { useEffect, useRef, useState, type DragEvent, type SyntheticEvent } from 'react';
+import { useEffect, useId, useRef, useState, type DragEvent } from 'react';
 import { ImageIcon, ImagesIcon, UploadIcon, XIcon } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
 import { ImageLibraryDialog } from '@/components/image-library-dialog';
 import { AspectRatio } from '@/components/ui/aspect-ratio';
 import { Button } from '@/components/ui/button';
-import { Field, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { UPLOAD_IMAGE_SIZE_CAPPING, formatUploadMegabytes } from '@/lib/upload-limits';
-import { cn } from 'cn';
+import { cn } from '@/lib/utils';
 
 const ACCEPTED_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
+const ACCEPT_ATTR = 'image/png,image/jpeg,image/webp';
+const FORMAT_HINT = `PNG, JPEG, or WebP · ${formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} max`;
 
 export function CatalogImageField({
   id,
@@ -35,20 +37,11 @@ export function CatalogImageField({
   compact?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const statusId = useId();
   const [file, setFile] = useState<File | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
-  const [ratio, setRatio] = useState(16 / 9);
-
-  function rememberRatio(image: HTMLImageElement) {
-    const { naturalWidth, naturalHeight } = image;
-    if (naturalWidth > 0 && naturalHeight > 0) setRatio(naturalWidth / naturalHeight);
-  }
-
-  function onPreviewLoad(event: SyntheticEvent<HTMLImageElement>) {
-    rememberRatio(event.currentTarget);
-  }
 
   function choose(next: File | null) {
     setFile(next);
@@ -57,7 +50,6 @@ export function CatalogImageField({
 
   function clear() {
     if (inputRef.current) inputRef.current.value = '';
-    setRatio(16 / 9);
     choose(null);
     onClear?.();
   }
@@ -94,119 +86,111 @@ export function CatalogImageField({
 
   const hasImage = Boolean(file || fileId);
   const fileName = file?.name ?? null;
-  const frameRatio = hasImage ? ratio : 16 / 9;
-  const frameMaxWidth = Math.min(320, 180 * frameRatio);
-  const statusLabel = fileName ?? (fileId ? 'Current image' : 'No image chosen');
+  const statusLabel = fileName ?? (fileId ? 'Image selected' : 'No image yet');
+
+  function openFilePicker() {
+    inputRef.current?.click();
+  }
 
   return (
     <Field>
       <FieldLabel htmlFor={id}>
         {label} {required ? <span className="text-destructive">*</span> : null}
       </FieldLabel>
+
       <div
         className={cn(
-          'overflow-hidden rounded-xl border border-border/70 bg-card',
-          compact ? 'flex flex-col' : 'flex flex-col md:flex-row md:items-stretch',
+          'overflow-hidden rounded-xl border border-border bg-card',
+          dragging && 'border-primary ring-2 ring-primary/20',
         )}
       >
-        <div
-          className={cn(
-            'relative min-w-0',
-            compact ? 'w-full' : 'w-full md:w-64 md:shrink-0',
-          )}
-          style={compact ? undefined : { maxWidth: `min(100%, ${frameMaxWidth}px)` }}
-        >
+        <div className={cn('relative', compact ? 'max-w-full' : 'mx-auto w-full max-w-xl')}>
           <AspectRatio
-            ratio={compact && !hasImage ? 16 / 9 : frameRatio}
+            ratio={16 / 9}
             className={cn(
               'bg-muted transition-colors',
-              !hasImage && 'border-b border-dashed border-border md:border-b-0 md:border-r',
-              compact && !hasImage && 'border-b border-dashed border-border',
+              !hasImage && 'border-b border-dashed border-border',
               dragging && 'bg-accent',
             )}
             {...dropHandlers}
           >
             {preview ? (
-              <img
-                src={preview}
-                alt={alt}
-                className="size-full object-contain"
-                onLoad={onPreviewLoad}
-              />
+              <img src={preview} alt={alt} className="size-full object-contain p-2" />
             ) : fileId ? (
               <AuthImage
                 fileId={fileId}
                 alt={alt}
-                className="size-full rounded-none object-contain"
-                onLoad={rememberRatio}
+                className="size-full rounded-none object-contain p-2"
               />
             ) : disabled ? (
-              <div className="flex size-full items-center justify-center text-muted-foreground">
-                <ImageIcon aria-hidden className="size-5" />
+              <div className="flex size-full flex-col items-center justify-center gap-2 text-muted-foreground">
+                <span className="flex size-11 items-center justify-center rounded-full bg-background ring-1 ring-border">
+                  <ImageIcon aria-hidden className="size-5" />
+                </span>
+                <span className="text-sm">No image</span>
               </div>
             ) : (
               <button
                 type="button"
                 aria-label={`Choose ${label.toLowerCase()} file`}
-                className="flex size-full cursor-pointer flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                onClick={() => inputRef.current?.click()}
+                aria-describedby={statusId}
+                className="flex size-full cursor-pointer flex-col items-center justify-center gap-3 px-4 py-6 text-center outline-none transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                onClick={openFilePicker}
               >
-                <span className="flex size-9 items-center justify-center rounded-full bg-background ring-1 ring-border">
-                  <UploadIcon aria-hidden className="size-4" />
+                <span className="flex size-12 items-center justify-center rounded-full bg-background text-primary ring-1 ring-border">
+                  <UploadIcon aria-hidden className="size-5" />
                 </span>
-                <span className="text-sm font-medium text-foreground">
-                  {dragging ? 'Drop to upload' : 'Click or drop an image'}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  PNG, JPEG, or WebP · {formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} max
+                <span className="flex flex-col gap-1">
+                  <span className="text-sm font-medium text-foreground">
+                    {dragging ? 'Drop to upload' : 'Drop an image here, or click to browse'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{FORMAT_HINT}</span>
                 </span>
               </button>
             )}
           </AspectRatio>
+
           {!disabled && hasImage && onClear ? (
             <Button
               type="button"
               variant="secondary"
-              size="icon-sm"
-              className="absolute top-1.5 right-1.5 size-9! h-9! max-h-9! min-h-9! w-9! min-w-9! border-border/50 bg-background/65 text-foreground shadow-sm backdrop-blur-sm hover:bg-background/85 hover:text-foreground"
-              aria-label="Clear image"
+              size="icon"
+              className="absolute top-2.5 right-2.5 border border-border bg-background text-foreground shadow-sm"
+              aria-label="Remove image"
               onClick={clear}
             >
-              <XIcon className="size-3.5" />
+              <XIcon className="size-4" />
             </Button>
           ) : null}
         </div>
 
         <div
           className={cn(
-            'flex min-w-0 flex-1 flex-col justify-center gap-2.5 p-3',
-            !compact && 'md:gap-3 md:p-4',
+            'flex flex-col gap-3 border-t border-border bg-muted/40 px-3.5 py-3',
+            !compact && 'sm:flex-row sm:items-center sm:justify-between sm:gap-4',
           )}
         >
-          {hasImage || disabled ? (
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{statusLabel}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                PNG, JPEG, or WebP · {formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} max
-              </p>
-            </div>
-          ) : null}
+          <div className="min-w-0" id={statusId} aria-live="polite">
+            <p className="truncate text-sm font-medium text-foreground">{statusLabel}</p>
+            <FieldDescription className="mt-0.5">{FORMAT_HINT}</FieldDescription>
+          </div>
 
           {disabled ? null : (
             <div
               className={cn(
-                'grid gap-2',
+                'grid shrink-0 gap-2',
                 onPickExisting ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+                !compact && onPickExisting && 'sm:w-auto sm:min-w-[280px]',
               )}
             >
               <Button
                 type="button"
                 variant={hasImage ? 'outline' : 'default'}
                 className="w-full justify-center"
-                onClick={() => inputRef.current?.click()}
+                onClick={openFilePicker}
               >
                 <UploadIcon data-icon="inline-start" />
-                {hasImage ? 'Upload new' : 'Upload image'}
+                {hasImage ? 'Replace' : 'Upload'}
               </Button>
               {onPickExisting ? (
                 <Button
@@ -216,7 +200,7 @@ export function CatalogImageField({
                   onClick={() => setLibraryOpen(true)}
                 >
                   <ImagesIcon data-icon="inline-start" />
-                  From library
+                  Library
                 </Button>
               ) : null}
             </div>
@@ -228,7 +212,7 @@ export function CatalogImageField({
             ref={inputRef}
             id={id}
             type="file"
-            accept="image/png,image/jpeg,image/webp"
+            accept={ACCEPT_ATTR}
             required={required && !fileId}
             className="sr-only"
             onChange={(event) => choose(event.target.files?.[0] ?? null)}
