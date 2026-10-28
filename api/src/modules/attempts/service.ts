@@ -33,6 +33,16 @@ async function autoSubmitIfExpired(attempt: {
   });
 }
 
+type AttemptPresentation = 'one_at_a_time' | 'all_on_page' | 'timed_card';
+
+type AttemptMapExtras = {
+  activityKind?: string;
+  softProctoring?: boolean;
+  presentation?: AttemptPresentation | string | null;
+  durationMode?: 'overall' | 'per_question' | string | null;
+  perQuestionSeconds?: number | null;
+};
+
 function mapAttempt(
   a: {
     id: string;
@@ -52,8 +62,12 @@ function mapAttempt(
       revision: number;
     }[];
   },
-  extras?: { activityKind?: string; softProctoring?: boolean },
+  extras?: AttemptMapExtras,
 ) {
+  const presentation =
+    extras?.presentation === 'all_on_page' || extras?.presentation === 'timed_card'
+      ? extras.presentation
+      : 'one_at_a_time';
   return {
     id: a.id,
     status: a.status,
@@ -68,11 +82,32 @@ function mapAttempt(
     isAuthoritative: a.isAuthoritative ?? true,
     activityKind: extras?.activityKind ?? null,
     softProctoring: extras?.softProctoring ?? false,
+    presentation,
+    durationMode: extras?.durationMode === 'per_question' ? 'per_question' : 'overall',
+    perQuestionSeconds:
+      typeof extras?.perQuestionSeconds === 'number' && extras.perQuestionSeconds > 0
+        ? extras.perQuestionSeconds
+        : null,
     responses: (a.responses ?? []).map((r) => ({
       questionVersionId: r.questionVersionId,
       answer: r.answer,
       revision: r.revision,
     })),
+  };
+}
+
+function extrasFromActivity(activity: {
+  kind: string;
+  presentation?: string | null;
+  durationMode?: string | null;
+  perQuestionSeconds?: number | null;
+}): AttemptMapExtras {
+  return {
+    activityKind: activity.kind,
+    softProctoring: activity.kind === 'quiz',
+    presentation: activity.presentation,
+    durationMode: activity.durationMode,
+    perQuestionSeconds: activity.perQuestionSeconds ?? null,
   };
 }
 
@@ -133,7 +168,12 @@ async function presentQuestions(
 async function presentOpenQuizAttempt(attemptId: string, organizationId: string) {
   const live = await prisma.attempt.findFirst({
     where: { id: attemptId },
-    include: { responses: true },
+    include: {
+      responses: true,
+      activity: {
+        select: { kind: true, presentation: true, durationMode: true, perQuestionSeconds: true },
+      },
+    },
   });
   if (!live) throw notFound('Attempt not found.');
   const order =
@@ -143,7 +183,7 @@ async function presentOpenQuizAttempt(attemptId: string, organizationId: string)
   const optionOrders = (live.optionOrders as OptionOrders | null) ?? null;
   const questions = await presentQuestions(organizationId, order, optionOrders);
   return {
-    attempt: mapAttempt(live, { activityKind: 'quiz', softProctoring: true }),
+    attempt: mapAttempt(live, extrasFromActivity(live.activity)),
     questions,
   };
 }
@@ -496,10 +536,7 @@ export async function startAttempt(
   );
 
   return {
-    attempt: mapAttempt(attempt, {
-      activityKind: activity.kind,
-      softProctoring: activity.kind === 'quiz',
-    }),
+    attempt: mapAttempt(attempt, extrasFromActivity(activity)),
     questions,
   };
 }
@@ -507,20 +544,31 @@ export async function startAttempt(
 export async function resumeAttempt(organizationId: string, studentId: string, attemptId: string) {
   const attempt = await prisma.attempt.findFirst({
     where: { organizationId, id: attemptId, studentId },
-    include: { responses: true, activity: { select: { kind: true, settings: true } } },
+    include: {
+      responses: true,
+      activity: {
+        select: {
+          kind: true,
+          settings: true,
+          presentation: true,
+          durationMode: true,
+          perQuestionSeconds: true,
+        },
+      },
+    },
   });
   if (!attempt) throw notFound('Attempt not found.');
 
   const quizSettings =
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
+  const activityExtras = extrasFromActivity(attempt.activity);
 
   const maybe = await autoSubmitIfExpired(attempt);
   if (maybe && 'result' in maybe) {
     return {
       attempt: {
         ...maybe.attempt,
-        activityKind: attempt.activity.kind,
-        softProctoring: attempt.activity.kind === 'quiz',
+        ...activityExtras,
       },
       submitted: true,
       result: mapStudentResult(maybe.result as never, {
@@ -546,10 +594,7 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
   const questions = await presentQuestions(organizationId, versionIds, optionOrders);
 
   return {
-    attempt: mapAttempt(live, {
-      activityKind: attempt.activity.kind,
-      softProctoring: attempt.activity.kind === 'quiz',
-    }),
+    attempt: mapAttempt(live, activityExtras),
     questions,
     submitted: false,
   };

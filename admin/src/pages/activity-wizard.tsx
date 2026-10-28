@@ -5,13 +5,23 @@ import {
   ArrowDownIcon,
   ArrowLeftIcon,
   ArrowUpIcon,
+  Building2Icon,
+  CalendarRangeIcon,
+  ClipboardListIcon,
+  Clock3Icon,
+  LayoutListIcon,
+  LibraryIcon,
   Loader2Icon,
+  PercentIcon,
   PlusIcon,
+  TargetIcon,
   TrashIcon,
+  UsersIcon,
 } from 'lucide-react';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { QuestionImageField } from '@/components/question-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { FlowStatusPill } from '@/components/status-pill';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -91,6 +101,42 @@ const emptyField = (): FieldDraft => ({
   type: 'text',
   required: false,
 });
+
+const PRESENTATION_LABELS: Record<'one_at_a_time' | 'all_on_page' | 'timed_card', string> = {
+  one_at_a_time: 'One question at a time',
+  all_on_page: 'All on one page',
+  timed_card: 'Timed card',
+};
+
+function statusLabel(statusKey: string) {
+  if (!statusKey) return 'Draft';
+  return statusKey.charAt(0).toUpperCase() + statusKey.slice(1);
+}
+
+function ReviewFact({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Clock3Icon;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 gap-3 rounded-xl border border-border/80 bg-muted/40 p-3.5">
+      <span
+        className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-primary"
+        aria-hidden
+      >
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">{label}</p>
+        <p className="mt-0.5 truncate text-sm font-semibold text-foreground">{value}</p>
+      </div>
+    </div>
+  );
+}
 
 export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: WizardMode }) {
   const navigate = useNavigate();
@@ -1342,26 +1388,26 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     onChange={(e) => setPassingPercent(e.target.value)}
                   />
                 </Field>
+                <Field>
+                  <FieldLabel htmlFor="presentation">Presentation</FieldLabel>
+                  <Select
+                    value={presentation}
+                    disabled={readOnly}
+                    onValueChange={(v) => setPresentation(v as typeof presentation)}
+                  >
+                    <SelectTrigger id="presentation" className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectItem value="one_at_a_time">One question at a time</SelectItem>
+                        <SelectItem value="all_on_page">All on one page</SelectItem>
+                        <SelectItem value="timed_card">Timed card</SelectItem>
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
               </div>
-              <Field>
-                <FieldLabel>Presentation</FieldLabel>
-                <Select
-                  value={presentation}
-                  disabled={readOnly}
-                  onValueChange={(v) => setPresentation(v as typeof presentation)}
-                >
-                  <SelectTrigger className="w-full sm:max-w-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="one_at_a_time">One question at a time</SelectItem>
-                      <SelectItem value="all_on_page">All on one page</SelectItem>
-                      <SelectItem value="timed_card">Timed card</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
               {isQuiz ? (
                 <div className="flex flex-col gap-4 border-t border-border pt-4">
                   <p className="text-sm font-medium">Quiz behaviour</p>
@@ -1412,65 +1458,160 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           ) : null}
 
           {step === 5 ? (
-            <div className="space-y-3 text-sm">
-              <p>
-                <span className="text-muted-foreground">Name:</span> {name || '—'}
-              </p>
-              {isQuiz ? (
-                <>
-                  <p>
-                    <span className="text-muted-foreground">Sponsor:</span>{' '}
-                    {sponsors.find((row) => row.id === sponsorId)?.name || '—'}
+            <div className="flex flex-col gap-5">
+              <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    {noun} summary
                   </p>
-                  <p>
-                    <span className="text-muted-foreground">Contest:</span>{' '}
-                    {contests.find((row) => row.id === contestId)?.name || '—'}
+                  <h3 className="mt-1 truncate text-lg font-semibold tracking-tight text-foreground">
+                    {name.trim() || `Untitled ${noun.toLowerCase()}`}
+                  </h3>
+                  {description.trim() ? (
+                    <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{description}</p>
+                  ) : null}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <FlowStatusPill status={statusLabel(statusKey)} />
+                  {!readOnly && statusKey === 'active' ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      disabled={saving}
+                      aria-busy={saving}
+                      onClick={() => {
+                        void (async () => {
+                          const ok = await confirm({
+                            title: `Archive this ${noun.toLowerCase()}?`,
+                            description: 'Students will no longer be able to start it.',
+                            confirmLabel: 'Archive',
+                            destructive: true,
+                          });
+                          if (!ok) return;
+                          await persist({ archive: true });
+                        })();
+                      }}
+                    >
+                      Archive
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {isQuiz ? (
+                  <>
+                    <ReviewFact
+                      icon={Building2Icon}
+                      label="Sponsor"
+                      value={sponsors.find((row) => row.id === sponsorId)?.name || '—'}
+                    />
+                    <ReviewFact
+                      icon={TargetIcon}
+                      label="Contest"
+                      value={contests.find((row) => row.id === contestId)?.name || '—'}
+                    />
+                    <ReviewFact
+                      icon={LibraryIcon}
+                      label="Question banks"
+                      value={
+                        bankIds.length === 0
+                          ? 'None selected'
+                          : banks
+                              .filter((b) => bankIds.includes(b.id))
+                              .map((b) => b.name)
+                              .join(', ')
+                      }
+                    />
+                  </>
+                ) : (
+                  <>
+                    <ReviewFact icon={ClipboardListIcon} label="Code" value={code || 'Auto'} />
+                    <ReviewFact
+                      icon={LibraryIcon}
+                      label="Rounds"
+                      value={
+                        rounds.length === 0
+                          ? 'None'
+                          : rounds
+                              .map(
+                                (r, i) =>
+                                  `${r.name || `Round ${i + 1}`} (${r.bankIds.length} bank${
+                                    r.bankIds.length === 1 ? '' : 's'
+                                  }, ${r.localQuestions.length} manual)`,
+                              )
+                              .join(' · ')
+                      }
+                    />
+                  </>
+                )}
+                <ReviewFact
+                  icon={UsersIcon}
+                  label="Assignment"
+                  value={assignMode === 'manual' ? 'Manual selection' : 'All active students'}
+                />
+                <ReviewFact
+                  icon={Clock3Icon}
+                  label="Duration"
+                  value={
+                    isQuiz && durationMode === 'per_question'
+                      ? `${perQuestionSeconds || '—'} sec per question`
+                      : `${durationMinutes || '—'} min overall`
+                  }
+                />
+                <ReviewFact
+                  icon={PercentIcon}
+                  label="Passing score"
+                  value={`${passingPercent || '—'}%`}
+                />
+                <ReviewFact
+                  icon={LayoutListIcon}
+                  label="Presentation"
+                  value={PRESENTATION_LABELS[presentation]}
+                />
+                <ReviewFact
+                  icon={ClipboardListIcon}
+                  label="Registration fields"
+                  value={String(regFields.filter((f) => f.label.trim()).length)}
+                />
+                {(startDate || endDate) && (
+                  <ReviewFact
+                    icon={CalendarRangeIcon}
+                    label="Window"
+                    value={[
+                      startDate ? `Opens ${startDate.toLocaleString()}` : null,
+                      endDate ? `Due ${endDate.toLocaleString()}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  />
+                )}
+              </div>
+
+              {!isQuiz && rounds.length > 0 ? (
+                <div className="rounded-xl border border-border p-4">
+                  <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Round detail
                   </p>
-                </>
-              ) : (
-                <p>
-                  <span className="text-muted-foreground">Code:</span> {code || 'Auto'}
-                </p>
-              )}
-              {isQuiz ? (
-                <p>
-                  <span className="text-muted-foreground">Banks:</span>{' '}
-                  {bankIds.length === 0
-                    ? 'None'
-                    : banks
-                        .filter((b) => bankIds.includes(b.id))
-                        .map((b) => b.name)
-                        .join(', ')}
-                </p>
-              ) : (
-                <div>
-                  <p className="text-muted-foreground">Rounds:</p>
-                  <ul className="mt-1 list-inside list-disc space-y-1">
+                  <ul className="mt-3 space-y-2">
                     {rounds.map((r, i) => (
-                      <li key={r.key}>
-                        {r.name || `Round ${i + 1}`} — {r.bankIds.length} bank
-                        {r.bankIds.length === 1 ? '' : 's'}, {r.localQuestions.length} manual
-                        question{r.localQuestions.length === 1 ? '' : 's'}
+                      <li
+                        key={r.key}
+                        className="flex flex-col gap-0.5 rounded-lg border border-border/70 bg-card px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <span className="font-medium">{r.name || `Round ${i + 1}`}</span>
+                        <span className="text-muted-foreground">
+                          {r.bankIds.length} bank{r.bankIds.length === 1 ? '' : 's'} ·{' '}
+                          {r.localQuestions.length} manual question
+                          {r.localQuestions.length === 1 ? '' : 's'}
+                        </span>
                       </li>
                     ))}
                   </ul>
                 </div>
-              )}
-              <p>
-                <span className="text-muted-foreground">Assignment:</span>{' '}
-                {assignMode === 'manual' ? 'Manual' : 'All active students'}
-              </p>
-              <p>
-                <span className="text-muted-foreground">Duration:</span>{' '}
-                {isQuiz && durationMode === 'per_question'
-                  ? `${perQuestionSeconds || '—'} sec per question`
-                  : `${durationMinutes || '—'} min`}{' '}
-                · Pass {passingPercent || '—'}%
-              </p>
-              <p>
-                <span className="text-muted-foreground">Registration fields:</span>{' '}
-                {regFields.filter((f) => f.label.trim()).length}
-              </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -1504,6 +1645,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   ) : null}
                   {saving ? 'Saving…' : 'Save & continue'}
                 </Button>
+              ) : statusKey === 'active' ? (
+                <Button
+                  type="button"
+                  disabled={saving}
+                  aria-busy={saving}
+                  onClick={() => void persist()}
+                >
+                  {saving ? (
+                    <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                  ) : null}
+                  {saving ? 'Saving…' : 'Save changes'}
+                </Button>
               ) : (
                 <>
                   <Button
@@ -1516,55 +1669,29 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     {saving ? (
                       <Loader2Icon data-icon="inline-start" className="animate-spin" />
                     ) : null}
-                    {saving ? 'Saving…' : 'Save draft'}
+                    {saving ? 'Saving…' : statusKey === 'draft' ? 'Save draft' : 'Save changes'}
                   </Button>
-                  {statusKey === 'active' ? (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={saving}
-                      aria-busy={saving}
-                      onClick={() => {
-                        void (async () => {
-                          const ok = await confirm({
-                            title: `Archive this ${noun.toLowerCase()}?`,
-                            description: 'Students will no longer be able to start it.',
-                            confirmLabel: 'Archive',
-                            destructive: true,
-                          });
-                          if (!ok) return;
-                          await persist({ archive: true });
-                        })();
-                      }}
-                    >
-                      {saving ? (
-                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
-                      ) : null}
-                      Archive
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      disabled={saving}
-                      aria-busy={saving}
-                      onClick={() => {
-                        void (async () => {
-                          const ok = await confirm({
-                            title: `Publish this ${noun.toLowerCase()}?`,
-                            description: 'Assigned students can start it.',
-                            confirmLabel: 'Publish',
-                          });
-                          if (!ok) return;
-                          await persist({ publish: true });
-                        })();
-                      }}
-                    >
-                      {saving ? (
-                        <Loader2Icon data-icon="inline-start" className="animate-spin" />
-                      ) : null}
-                      Publish
-                    </Button>
-                  )}
+                  <Button
+                    type="button"
+                    disabled={saving}
+                    aria-busy={saving}
+                    onClick={() => {
+                      void (async () => {
+                        const ok = await confirm({
+                          title: `Publish this ${noun.toLowerCase()}?`,
+                          description: 'Assigned students can start it.',
+                          confirmLabel: 'Publish',
+                        });
+                        if (!ok) return;
+                        await persist({ publish: true });
+                      })();
+                    }}
+                  >
+                    {saving ? (
+                      <Loader2Icon data-icon="inline-start" className="animate-spin" />
+                    ) : null}
+                    Publish
+                  </Button>
                 </>
               )}
             </div>

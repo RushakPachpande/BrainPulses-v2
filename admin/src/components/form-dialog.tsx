@@ -61,7 +61,7 @@ export function FormDialog({
     >
       <DialogContent
         className={cn(
-          'flex max-h-[min(40rem,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0',
+          'flex max-h-[min(40rem,calc(100dvh-2rem))] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:p-0',
           sizeClass[size],
           contentClassName,
         )}
@@ -72,11 +72,11 @@ export function FormDialog({
           if (busy) event.preventDefault();
         }}
       >
-        <DialogHeader className="shrink-0 border-b border-border px-3.5 pt-3 pb-2.5 sm:px-4 sm:pt-3.5 sm:pb-3">
+        <DialogHeader className="shrink-0 border-b border-border px-3 pt-2.5 pb-2 sm:px-3.5 sm:pt-3 sm:pb-2.5">
           <div className="flex items-start gap-2.5 pr-8">
             {Icon ? (
               <span
-                className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary"
                 aria-hidden
               >
                 <Icon className="size-4" />
@@ -90,10 +90,10 @@ export function FormDialog({
             </div>
           </div>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 py-3 sm:px-4 sm:py-3.5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5 sm:px-3.5 sm:py-3">
           {children}
         </div>
-        <DialogFooter className="shrink-0 border-t border-border bg-popover px-3.5 py-2.5 sm:px-4 sm:py-3">
+        <DialogFooter className="shrink-0 gap-2 border-t border-border bg-popover px-3 py-2 sm:px-3.5 sm:py-2.5">
           {footer}
         </DialogFooter>
       </DialogContent>

@@ -3,7 +3,6 @@ import {
   ArrowRight,
   Check,
   Clock3,
-  Eraser,
   Flag,
   LogOut,
   ShieldCheck,
@@ -13,16 +12,13 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { AttemptQuestionBlock } from '../components/attempt-question-block';
 import { ExamShellSkeleton } from '../components/skeletons';
-import { StoredImage } from '../components/stored-image';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
 import { ApiError } from '../lib/api-client';
 import {
   answerFromResponse,
-  instructionForType,
   isAnswered,
-  isMultiSelectType,
-  isSingleSelectType,
   type AnswerMap,
   type AttemptAnswerValue,
 } from '../lib/attempt-answers';
@@ -38,7 +34,7 @@ import {
   submitAttempt,
   submitIdempotencyKeyFor,
 } from '../services/api';
-import type { AttemptQuestion, AttemptState } from '../services/types';
+import type { AttemptPresentation, AttemptQuestion, AttemptState } from '../services/types';
 
 export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const { id = '' } = useParams();
@@ -50,6 +46,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [qIndex, setQIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [marked, setMarked] = useState<number[]>([]);
+  const [presentation, setPresentation] = useState<AttemptPresentation>('one_at_a_time');
+  const [perQuestionSeconds, setPerQuestionSeconds] = useState<number | null>(null);
+  const [cardSeconds, setCardSeconds] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
   const [exitConfirm, setExitConfirm] = useState(false);
@@ -74,6 +73,30 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     !allowLeave && (Boolean(attempt && !busy) || submitting || savingInFlight || pendingSave),
   );
 
+  const applyLoadedAttempt = useCallback(
+    (data: { attempt: AttemptState; questions: AttemptQuestion[] }) => {
+      attemptIdRef.current = data.attempt.id;
+      setAttempt(data.attempt);
+      setQuestions(data.questions);
+      setPresentation(data.attempt.presentation ?? 'one_at_a_time');
+      setPerQuestionSeconds(data.attempt.perQuestionSeconds ?? null);
+      revisionRef.current = data.attempt.revision;
+      const mapped: AnswerMap = {};
+      for (const r of data.attempt.responses) {
+        const parsed = answerFromResponse(r.answer);
+        if (parsed) mapped[r.questionVersionId] = parsed;
+      }
+      setAnswers(mapped);
+      answersRef.current = mapped;
+      const remaining = Math.max(
+        0,
+        Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
+      );
+      setSeconds(remaining);
+    },
+    [],
+  );
+
   const load = useCallback(async () => {
     setBusy(true);
     setError('');
@@ -96,22 +119,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           if (!openId) throw err;
           data = await resumeAttempt(openId);
         }
-        attemptIdRef.current = data.attempt.id;
-        setAttempt(data.attempt);
-        setQuestions(data.questions);
-        revisionRef.current = data.attempt.revision;
-        const mapped: AnswerMap = {};
-        for (const r of data.attempt.responses) {
-          const parsed = answerFromResponse(r.answer);
-          if (parsed) mapped[r.questionVersionId] = parsed;
-        }
-        setAnswers(mapped);
-        answersRef.current = mapped;
-        const remaining = Math.max(
-          0,
-          Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
-        );
-        setSeconds(remaining);
+        applyLoadedAttempt(data);
       } else {
         const data = await resumeAttempt(id);
         if (data.submitted && data.result) {
@@ -123,29 +131,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           }
           return;
         }
-        attemptIdRef.current = data.attempt.id;
-        setAttempt(data.attempt);
-        setQuestions(data.questions);
-        revisionRef.current = data.attempt.revision;
-        const mapped: AnswerMap = {};
-        for (const r of data.attempt.responses) {
-          const parsed = answerFromResponse(r.answer);
-          if (parsed) mapped[r.questionVersionId] = parsed;
-        }
-        setAnswers(mapped);
-        answersRef.current = mapped;
-        const remaining = Math.max(
-          0,
-          Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
-        );
-        setSeconds(remaining);
+        applyLoadedAttempt(data);
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to open attempt.');
     } finally {
       setBusy(false);
     }
-  }, [id, mode, navigate, roundIdParam]);
+  }, [applyLoadedAttempt, id, mode, navigate, roundIdParam]);
 
   useEffect(() => {
     void load();
@@ -303,6 +296,29 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     return () => window.clearInterval(t);
   }, [attempt, busy]);
 
+  const timedCard = presentation === 'timed_card';
+  const allOnPage = presentation === 'all_on_page';
+  const cardTimed = timedCard && Boolean(perQuestionSeconds && perQuestionSeconds > 0);
+
+  useEffect(() => {
+    if (!cardTimed || !perQuestionSeconds) return;
+    setCardSeconds(perQuestionSeconds);
+  }, [cardTimed, perQuestionSeconds, qIndex]);
+
+  useEffect(() => {
+    if (!cardTimed || busy || submitting) return;
+    if (cardSeconds > 0) {
+      const t = window.setTimeout(() => setCardSeconds((s) => Math.max(0, s - 1)), 1000);
+      return () => window.clearTimeout(t);
+    }
+    if (questions.length === 0) return;
+    if (qIndex < questions.length - 1) {
+      setQIndex((i) => i + 1);
+      return;
+    }
+    // Last card expired — leave overall timer / submit rules to handle unfinished work.
+  }, [busy, cardSeconds, cardTimed, qIndex, questions.length, submitting]);
+
   const doSubmit = useCallback(
     async (force = false) => {
       if (!attempt || submitting) return;
@@ -371,6 +387,33 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     queueSave(next);
   }
 
+  function clearAnswer(questionVersionId: string) {
+    const next = { ...answers };
+    delete next[questionVersionId];
+    setAnswers(next);
+    queueSave(next);
+  }
+
+  function goToQuestion(index: number) {
+    if (allOnPage) {
+      document.getElementById(`attempt-q-${index}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+    setQIndex(index);
+  }
+
+  function advanceAfterSingleSelect() {
+    if (!timedCard) return;
+    window.setTimeout(() => {
+      setQIndex((i) => {
+        if (i >= questions.length - 1) return i;
+        return i + 1;
+      });
+    }, 280);
+  }
+
   function exitDestination() {
     if (!attempt) return '/dashboard';
     if (attempt.roundId || attempt.activityKind === 'assessment') {
@@ -433,26 +476,12 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     );
   }
 
-  if (!attempt || !q) return null;
+  if (!attempt || questions.length === 0 || (!allOnPage && !q)) return null;
 
-  const current = answers[q.questionVersionId];
-  const singleChosen = current && 'label' in current ? current.label : null;
-  const multiChosen = current && 'labels' in current ? new Set(current.labels) : new Set<string>();
-  const numericValue =
-    current && 'value' in current && Number.isFinite(current.value) ? String(current.value) : '';
-  const textValue = current && 'text' in current ? current.text : '';
-  const isChoice = isSingleSelectType(q.type) || isMultiSelectType(q.type);
-  const isMarked = marked.includes(qIndex);
   const saving = savingInFlight || pendingSave;
-
-  function toggleMarked() {
-    setMarked((p) => (p.includes(qIndex) ? p.filter((i) => i !== qIndex) : [...p, qIndex]));
-  }
-
-  function clearSelection() {
-    if (!q) return;
-    setAnswer(q.questionVersionId, isMultiSelectType(q.type) ? { labels: [] } : { label: '' });
-  }
+  const progressRatio = allOnPage
+    ? answeredCount / questions.length
+    : (qIndex + 1) / questions.length;
 
   return (
     <div className="exam-page">
@@ -463,8 +492,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         </button>
         <div className="exam-activity-title">
           <span>Attempt</span>
-          <b>In progress</b>
+          <b>{allOnPage ? 'All on one page' : timedCard ? 'Timed card' : 'In progress'}</b>
         </div>
+        {cardTimed ? (
+          <div className={`card-timer ${cardSeconds < 6 ? 'warning' : ''}`} role="status">
+            <Clock3 size={14} aria-hidden />
+            Card {timeRemaining(cardSeconds)}
+          </div>
+        ) : null}
         <div className={`exam-timer ${seconds < 300 ? 'timer-warning' : ''}`}>
           <Clock3 size={17} />
           <div>
@@ -477,7 +512,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         </button>
       </header>
       <div className="exam-progress">
-        <div style={{ width: `${((qIndex + 1) / questions.length) * 100}%` }} />
+        <div style={{ width: `${progressRatio * 100}%` }} />
       </div>
       {error && (
         <div className="error-text" style={{ padding: '8px 16px' }}>
@@ -489,197 +524,61 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           {proctorWarn}
         </div>
       )}
-      <div className="exam-layout">
+      <div className={`exam-layout ${allOnPage ? 'all-on-page' : ''}`}>
         <section className="question-column">
-          <div className="question-topline">
-            <span>
-              QUESTION {String(qIndex + 1).padStart(2, '0')}{' '}
-              <span className="question-total">/ {String(questions.length).padStart(2, '0')}</span>
-            </span>
-            {isMarked ? (
-              <span className="review-chip">
-                <Flag size={13} aria-hidden /> Marked for review
-              </span>
-            ) : null}
-          </div>
-          <div className="question-card">
-            <div className="question-context">ASSESSMENT QUESTION</div>
-            {q.passageText ? (
-              <div
-                className="question-passage"
-                style={{
-                  marginBottom: 16,
-                  padding: 12,
-                  borderRadius: 12,
-                  border: '1px solid var(--border, #e5e7eb)',
-                  whiteSpace: 'pre-wrap',
-                  maxHeight: 220,
-                  overflow: 'auto',
-                }}
-              >
-                {q.passageText}
-              </div>
-            ) : null}
-            {q.questionImageUrl ? (
-              <StoredImage
-                src={q.questionImageUrl}
-                alt=""
-                style={{
-                  display: 'block',
-                  maxWidth: '100%',
-                  maxHeight: 220,
-                  marginBottom: 12,
-                  borderRadius: 12,
-                  objectFit: 'contain',
-                }}
+          {allOnPage ? (
+            questions.map((question, i) => (
+              <AttemptQuestionBlock
+                key={question.questionVersionId}
+                id={`attempt-q-${i}`}
+                question={question}
+                index={i}
+                total={questions.length}
+                answer={answers[question.questionVersionId]}
+                marked={marked.includes(i)}
+                onAnswer={(value) => setAnswer(question.questionVersionId, value)}
+                onClear={() => clearAnswer(question.questionVersionId)}
+                onToggleMarked={() =>
+                  setMarked((p) => (p.includes(i) ? p.filter((idx) => idx !== i) : [...p, i]))
+                }
               />
-            ) : null}
-            <h1>{q.question}</h1>
-            <p className="question-instruction">{instructionForType(q.type)}</p>
-
-            {isSingleSelectType(q.type) || isMultiSelectType(q.type) ? (
-              <div className="option-list">
-                {q.options.map((op) => {
-                  const chosen = isMultiSelectType(q.type)
-                    ? multiChosen.has(op.label)
-                    : singleChosen === op.label;
-                  return (
-                    <button
-                      key={op.id}
-                      type="button"
-                      className={`answer-option ${chosen ? 'chosen' : ''}`}
-                      onClick={() => {
-                        if (isMultiSelectType(q.type)) {
-                          const next = new Set(multiChosen);
-                          if (next.has(op.label)) next.delete(op.label);
-                          else next.add(op.label);
-                          setAnswer(q.questionVersionId, { labels: [...next] });
-                        } else {
-                          setAnswer(q.questionVersionId, { label: op.label });
-                        }
-                      }}
-                    >
-                      <span className="option-letter">{op.label}</span>
-                      <span
-                        style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}
-                      >
-                        {op.imageUrl ? (
-                          <StoredImage
-                            src={op.imageUrl}
-                            alt=""
-                            style={{
-                              maxWidth: '100%',
-                              maxHeight: 140,
-                              borderRadius: 8,
-                              objectFit: 'contain',
-                            }}
-                          />
-                        ) : null}
-                        <span>{op.body}</span>
-                      </span>
-                      {chosen && <Check size={17} className="option-check" />}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {q.type === 'numeric' ? (
-              <div className="option-list">
-                <label className="answer-option" style={{ cursor: 'default' }}>
-                  <span className="option-letter">#</span>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={numericValue}
-                    aria-label="Numeric answer"
-                    style={{
-                      flex: 1,
-                      minWidth: 0,
-                      border: 'none',
-                      background: 'transparent',
-                      font: 'inherit',
-                      outline: 'none',
-                    }}
-                    onChange={(e) => {
-                      const raw = e.target.value;
-                      if (raw.trim() === '') {
-                        const next = { ...answers };
-                        delete next[q.questionVersionId];
-                        setAnswers(next);
-                        queueSave(next);
-                        return;
-                      }
-                      const num = Number(raw);
-                      if (!Number.isNaN(num)) setAnswer(q.questionVersionId, { value: num });
-                    }}
-                  />
-                </label>
-              </div>
-            ) : null}
-
-            {q.type === 'short_text' || q.type === 'long_text' ? (
-              <div className="option-list">
-                <textarea
-                  aria-label="Text answer"
-                  rows={q.type === 'long_text' ? 6 : 3}
-                  value={textValue}
-                  style={{
-                    width: '100%',
-                    minHeight: q.type === 'long_text' ? 140 : 88,
-                    resize: 'vertical',
-                    borderRadius: 12,
-                    border: '1px solid var(--border, #e5e7eb)',
-                    padding: 12,
-                    font: 'inherit',
-                  }}
-                  onChange={(e) => setAnswer(q.questionVersionId, { text: e.target.value })}
-                />
-              </div>
-            ) : null}
-          </div>
-          <div className="question-actions">
-            <button
-              className={`btn outline review-toggle ${isMarked ? 'is-marked' : ''}`}
-              type="button"
-              aria-pressed={isMarked}
-              onClick={toggleMarked}
-            >
-              <Flag size={15} aria-hidden />
-              {isMarked ? 'Unmark review' : 'Mark for review'}
-            </button>
-            {isChoice ? (
+            ))
+          ) : q ? (
+            <AttemptQuestionBlock
+              question={q}
+              index={qIndex}
+              total={questions.length}
+              answer={answers[q.questionVersionId]}
+              marked={marked.includes(qIndex)}
+              onAnswer={(value) => setAnswer(q.questionVersionId, value)}
+              onClear={() => clearAnswer(q.questionVersionId)}
+              onToggleMarked={() =>
+                setMarked((p) =>
+                  p.includes(qIndex) ? p.filter((idx) => idx !== qIndex) : [...p, qIndex],
+                )
+              }
+              onSingleSelect={advanceAfterSingleSelect}
+            />
+          ) : null}
+          <div className="question-footer">
+            {allOnPage || timedCard ? (
+              <span />
+            ) : (
               <button
                 className="btn outline"
                 type="button"
-                disabled={!isAnswered(current)}
-                onClick={clearSelection}
+                disabled={qIndex === 0}
+                onClick={() => setQIndex(qIndex - 1)}
               >
-                <Eraser size={15} aria-hidden /> Clear selection
+                <ArrowLeft size={15} /> Previous
               </button>
-            ) : null}
-          </div>
-          <div className="question-footer">
-            <button
-              className="btn outline"
-              type="button"
-              disabled={qIndex === 0}
-              onClick={() => setQIndex(qIndex - 1)}
-            >
-              <ArrowLeft size={15} /> Previous
-            </button>
+            )}
             <div className="question-footer-status" id="attempt-submit-status">
               {answeredCount} of {questions.length} answered
               {saving ? ' · Saving…' : ''}
-              {!allAnswered && qIndex === questions.length - 1
-                ? ' · Answer every question to submit'
-                : ''}
+              {!allAnswered ? ' · Answer every question to submit' : ''}
             </div>
-            {qIndex < questions.length - 1 ? (
-              <button className="btn primary" type="button" onClick={() => setQIndex(qIndex + 1)}>
-                Next question <ArrowRight size={15} />
-              </button>
-            ) : (
+            {allOnPage || qIndex >= questions.length - 1 ? (
               <button
                 className="btn primary"
                 type="button"
@@ -689,6 +588,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               >
                 Submit attempt <Check size={16} />
               </button>
+            ) : (
+              <button className="btn primary" type="button" onClick={() => setQIndex(qIndex + 1)}>
+                Next question <ArrowRight size={15} />
+              </button>
             )}
           </div>
         </section>
@@ -696,7 +599,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           <div className="question-sidebar-head">
             <div>
               <h2>Question overview</h2>
-              <p>Navigate through your attempt.</p>
+              <p>
+                {allOnPage ? 'Jump to any question on the page.' : 'Navigate through your attempt.'}
+              </p>
             </div>
             <span className="question-counter">
               {answeredCount}/{questions.length}
@@ -721,8 +626,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               <button
                 key={question.questionVersionId}
                 type="button"
-                className={`question-number ${qIndex === i ? 'current' : ''} ${isAnswered(answers[question.questionVersionId]) ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''}`}
-                onClick={() => setQIndex(i)}
+                className={`question-number ${!allOnPage && qIndex === i ? 'current' : ''} ${isAnswered(answers[question.questionVersionId]) ? 'answered' : ''} ${marked.includes(i) ? 'marked' : ''}`}
+                onClick={() => goToQuestion(i)}
                 aria-label={`Go to question ${i + 1}`}
               >
                 {i + 1}

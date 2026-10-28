@@ -100,6 +100,8 @@ export type AttemptQuestion = {
   questionImageUrl?: string;
 };
 
+export type AttemptPresentation = 'one_at_a_time' | 'all_on_page' | 'timed_card';
+
 export type AttemptState = {
   id: string;
   status: string;
@@ -114,6 +116,9 @@ export type AttemptState = {
   softProctoring?: boolean;
   disqualified?: boolean;
   isAuthoritative?: boolean;
+  presentation?: AttemptPresentation;
+  durationMode?: 'overall' | 'per_question';
+  perQuestionSeconds?: number | null;
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
 };
 

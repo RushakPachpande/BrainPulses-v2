@@ -96,6 +96,7 @@ export function CatalogImageField({
   const fileName = file?.name ?? null;
   const frameRatio = hasImage ? ratio : 16 / 9;
   const frameMaxWidth = Math.min(320, 180 * frameRatio);
+  const statusLabel = fileName ?? (fileId ? 'Current image' : 'No image chosen');
 
   return (
     <Field>
@@ -104,20 +105,24 @@ export function CatalogImageField({
       </FieldLabel>
       <div
         className={cn(
-          'flex min-w-0 flex-col gap-3 rounded-lg border border-border/70 p-3 sm:p-4',
-          !compact && 'md:flex-row md:items-center md:gap-6',
+          'overflow-hidden rounded-xl border border-border/70 bg-card',
+          compact ? 'flex flex-col' : 'flex flex-col md:flex-row md:items-stretch',
         )}
       >
         <div
-          className={cn('w-full', !compact && 'md:w-64 md:shrink-0')}
-          style={{ maxWidth: compact ? '100%' : `min(100%, ${frameMaxWidth}px)` }}
+          className={cn(
+            'relative min-w-0',
+            compact ? 'w-full' : 'w-full md:w-64 md:shrink-0',
+          )}
+          style={compact ? undefined : { maxWidth: `min(100%, ${frameMaxWidth}px)` }}
         >
           <AspectRatio
-            ratio={frameRatio}
+            ratio={compact && !hasImage ? 16 / 9 : frameRatio}
             className={cn(
-              'overflow-hidden rounded-xl border border-border bg-muted transition-colors',
-              !hasImage && (compact ? 'border-dashed' : 'md:border-dashed'),
-              dragging && 'border-primary bg-accent',
+              'bg-muted transition-colors',
+              !hasImage && 'border-b border-dashed border-border md:border-b-0 md:border-r',
+              compact && !hasImage && 'border-b border-dashed border-border',
+              dragging && 'bg-accent',
             )}
             {...dropHandlers}
           >
@@ -137,82 +142,87 @@ export function CatalogImageField({
               />
             ) : disabled ? (
               <div className="flex size-full items-center justify-center text-muted-foreground">
-                <ImageIcon aria-hidden />
+                <ImageIcon aria-hidden className="size-5" />
               </div>
             ) : (
               <button
                 type="button"
                 aria-label={`Choose ${label.toLowerCase()} file`}
-                className="flex size-full cursor-pointer flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground transition-colors outline-none hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                className="flex size-full cursor-pointer flex-col items-center justify-center gap-2 p-4 text-center text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 onClick={() => inputRef.current?.click()}
               >
-                <span className="flex size-10 items-center justify-center rounded-full bg-background ring-1 ring-border">
+                <span className="flex size-9 items-center justify-center rounded-full bg-background ring-1 ring-border">
                   <UploadIcon aria-hidden className="size-4" />
                 </span>
-                <span
-                  className={cn(
-                    'text-sm font-medium text-foreground',
-                    !compact && 'hidden md:block',
-                  )}
-                >
+                <span className="text-sm font-medium text-foreground">
                   {dragging ? 'Drop to upload' : 'Click or drop an image'}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  PNG, JPEG, or WebP · {formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} max
                 </span>
               </button>
             )}
           </AspectRatio>
+          {!disabled && hasImage && onClear ? (
+            <Button
+              type="button"
+              variant="secondary"
+              size="icon-sm"
+              className="absolute top-1.5 right-1.5 size-9! h-9! max-h-9! min-h-9! w-9! min-w-9! border-border/50 bg-background/65 text-foreground shadow-sm backdrop-blur-sm hover:bg-background/85 hover:text-foreground"
+              aria-label="Clear image"
+              onClick={clear}
+            >
+              <XIcon className="size-3.5" />
+            </Button>
+          ) : null}
         </div>
+
         <div
           className={cn(
-            'flex min-w-0 flex-col gap-3',
-            compact
-              ? 'sm:flex-row sm:items-center sm:justify-between'
-              : 'sm:flex-row sm:items-center sm:justify-between md:flex-1 md:flex-col md:items-start md:justify-center',
+            'flex min-w-0 flex-1 flex-col justify-center gap-2.5 p-3',
+            !compact && 'md:gap-3 md:p-4',
           )}
         >
-          <div className="min-w-0 max-w-full">
-            <p className="truncate text-sm font-medium">
-              {fileName ?? (fileId ? 'Current image' : 'No image chosen')}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              PNG, JPEG, or WebP. {formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} maximum.
-            </p>
-          </div>
+          {hasImage || disabled ? (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{statusLabel}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                PNG, JPEG, or WebP · {formatUploadMegabytes(UPLOAD_IMAGE_SIZE_CAPPING)} max
+              </p>
+            </div>
+          ) : null}
+
           {disabled ? null : (
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <div
+              className={cn(
+                'grid gap-2',
+                onPickExisting ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1',
+              )}
+            >
               <Button
                 type="button"
-                variant="outline"
-                className="min-w-0 flex-1 sm:flex-none"
+                variant={hasImage ? 'outline' : 'default'}
+                className="w-full justify-center"
                 onClick={() => inputRef.current?.click()}
               >
                 <UploadIcon data-icon="inline-start" />
-                {hasImage ? 'Change' : 'Choose image'}
+                {hasImage ? 'Upload new' : 'Upload image'}
               </Button>
               {onPickExisting ? (
                 <Button
                   type="button"
                   variant="outline"
-                  className="min-w-0 flex-1 sm:flex-none"
+                  className="w-full justify-center"
                   onClick={() => setLibraryOpen(true)}
                 >
                   <ImagesIcon data-icon="inline-start" />
-                  Choose existing
-                </Button>
-              ) : null}
-              {hasImage && onClear ? (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="min-w-0 sm:flex-none"
-                  onClick={clear}
-                >
-                  <XIcon data-icon="inline-start" />
-                  Clear
+                  From library
                 </Button>
               ) : null}
             </div>
           )}
         </div>
+
         {disabled ? null : (
           <input
             ref={inputRef}
