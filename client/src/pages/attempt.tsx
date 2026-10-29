@@ -56,6 +56,8 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [maxVisitedIndex, setMaxVisitedIndex] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [confirm, setConfirm] = useState(false);
+  /** Unanswered submit guard: overall count vs single last question. */
+  const [submitUnansweredKind, setSubmitUnansweredKind] = useState<'overall' | 'last' | null>(null);
   const [exitConfirm, setExitConfirm] = useState(false);
   /** Pending destination index when confirming leave of an unanswered question. */
   const [skipConfirmIndex, setSkipConfirmIndex] = useState<number | null>(null);
@@ -483,12 +485,21 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     setQIndex(index);
   }
 
+  const questionsCompulsory = attempt?.questionsCompulsory !== false;
+
+  function currentQuestionAnswered() {
+    const current = questions[qIndex];
+    if (!current) return true;
+    return isAnswered(answers[current.questionVersionId]);
+  }
+
   function shouldWarnBeforeLeavingUnanswered() {
+    if (questionsCompulsory) return false;
     const current = questions[qIndex];
     if (!current) return false;
     if (isAnswered(answers[current.questionVersionId])) return false;
-    // One-at-a-time, or forward-only (Previous / earlier overview locked).
-    return !allOnPage || forwardOnly;
+    // Warn only when they cannot return (per-question or Allow Previous off).
+    return forwardOnly;
   }
 
   function goToQuestion(index: number) {
@@ -524,6 +535,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   function requestNext() {
     const next = qIndex + 1;
     if (next >= questions.length) return;
+    if (questionsCompulsory && !currentQuestionAnswered()) return;
     if (attempt?.durationMode === 'per_question') {
       if (shouldWarnBeforeLeavingUnanswered()) {
         setSkipConfirmIndex(next);
@@ -570,11 +582,27 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     [answers],
   );
   const allAnswered = questions.length > 0 && answeredCount === questions.length;
+  const unansweredCount = Math.max(0, questions.length - answeredCount);
   const markedSorted = useMemo(() => [...marked].sort((a, b) => a - b), [marked]);
   const q = questions[qIndex];
+  const currentAnswered = q ? isAnswered(answers[q.questionVersionId]) : true;
+  const nextDisabled = questionsCompulsory && !allOnPage && !currentAnswered;
+  const submitDisabled =
+    submitting ||
+    (questionsCompulsory && (allOnPage || qIndex >= questions.length - 1 ? !allAnswered : false));
 
   function requestSubmit() {
-    if (!allAnswered || submitting) return;
+    if (submitting) return;
+    if (questionsCompulsory) {
+      if (!allAnswered) return;
+      void doSubmit(false);
+      return;
+    }
+    if (!allAnswered) {
+      const onLastOneAtATime = !allOnPage && qIndex >= questions.length - 1;
+      setSubmitUnansweredKind(onLastOneAtATime && !currentAnswered ? 'last' : 'overall');
+      return;
+    }
     void doSubmit(false);
   }
 
@@ -704,20 +732,25 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             <div className="question-footer-status" id="attempt-submit-status">
               {answeredCount} of {questions.length} answered
               {saving ? ' · Saving…' : ''}
-              {!allAnswered ? ' · Answer every question to submit' : ''}
+              {questionsCompulsory && !allAnswered ? ' · Answer every question to submit' : ''}
             </div>
             {allOnPage || qIndex >= questions.length - 1 ? (
               <button
                 className="btn primary"
                 type="button"
-                disabled={submitting || !allAnswered}
+                disabled={submitDisabled}
                 aria-describedby="attempt-submit-status"
                 onClick={requestSubmit}
               >
                 Submit attempt <Check size={16} />
               </button>
             ) : (
-              <button className="btn primary" type="button" onClick={requestNext}>
+              <button
+                className="btn primary"
+                type="button"
+                disabled={nextDisabled}
+                onClick={requestNext}
+              >
                 Next question <ArrowRight size={15} />
               </button>
             )}
@@ -792,11 +825,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 <b>{marked.length}</b>
               </div>
             </div>
-            {allAnswered ? (
+            {!questionsCompulsory || allAnswered ? (
               <button
                 className="btn primary full"
                 type="button"
-                disabled={submitting}
+                disabled={submitDisabled}
                 onClick={requestSubmit}
               >
                 Submit attempt <ArrowRight size={15} />
@@ -899,6 +932,55 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           </div>
         </div>
       )}
+      {submitUnansweredKind != null && (
+        <div className="modal-backdrop">
+          <div
+            className="confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="submit-unanswered-title"
+            aria-describedby="submit-unanswered-desc"
+          >
+            <div className="modal-icon warning">
+              <TriangleAlert size={22} />
+            </div>
+            <button
+              className="modal-close icon-btn"
+              type="button"
+              onClick={() => setSubmitUnansweredKind(null)}
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+            <h2 id="submit-unanswered-title">Submit with unanswered questions?</h2>
+            <p id="submit-unanswered-desc">
+              {submitUnansweredKind === 'last'
+                ? 'You have not answered this question. Once submitted, you cannot change your answers. Do you want to submit anyway?'
+                : `You have ${unansweredCount} unanswered ${unansweredCount === 1 ? 'question' : 'questions'}. Once submitted, you cannot change your answers. Do you want to submit anyway?`}
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn outline"
+                type="button"
+                onClick={() => setSubmitUnansweredKind(null)}
+              >
+                Go back
+              </button>
+              <button
+                className="btn primary"
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  setSubmitUnansweredKind(null);
+                  void doSubmit(true);
+                }}
+              >
+                Submit anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {skipConfirmIndex != null && (
         <div className="modal-backdrop">
           <div
@@ -919,11 +1001,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             >
               <X size={18} />
             </button>
-            <h2 id="skip-unanswered-title">Leave this question unanswered?</h2>
+            <h2 id="skip-unanswered-title">Continue without answering?</h2>
             <p id="skip-unanswered-desc">
-              {forwardOnly
-                ? 'You have not answered this question. You cannot go back to it after you leave. Continue anyway?'
-                : 'You have not answered this question. Continue to the next question?'}
+              You have not answered this question. You cannot return to it after moving on. Do you
+              want to continue?
             </p>
             <div className="modal-actions">
               <button
@@ -931,10 +1012,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 type="button"
                 onClick={() => setSkipConfirmIndex(null)}
               >
-                Stay and answer
+                Stay here
               </button>
               <button className="btn primary" type="button" onClick={confirmSkipUnanswered}>
-                Continue without answering
+                Continue
               </button>
             </div>
           </div>

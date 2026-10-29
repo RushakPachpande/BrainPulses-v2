@@ -132,6 +132,9 @@ function mapAttempt(
       : extras?.activityKind === 'quiz'
         ? (quizSettings?.showQuestionPanel ?? true)
         : true;
+  /** Assessments always require answers; quizzes use settings (default true). */
+  const questionsCompulsory =
+    extras?.activityKind === 'quiz' ? (quizSettings?.questionsCompulsory ?? true) : true;
   return {
     id: a.id,
     status: a.status,
@@ -154,6 +157,7 @@ function mapAttempt(
         : null,
     allowPrevious,
     showQuestionPanel,
+    questionsCompulsory,
     forwardOnly,
     responses: (a.responses ?? []).map((r) => ({
       questionVersionId: r.questionVersionId,

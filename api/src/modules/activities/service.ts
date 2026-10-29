@@ -649,54 +649,57 @@ export async function updateActivity(
     quizPatch = { sponsorId, contestId, startsAt, endsAt, ...timing };
   }
 
-  const activity = await prisma.$transaction(async (tx) => {
-    if (existing.kind === 'assessment') {
-      const rounds = normalizeAssessmentRounds(input);
-      if (rounds !== undefined) {
-        await replaceRounds(tx, organizationId, id, rounds);
+  const activity = await prisma.$transaction(
+    async (tx) => {
+      if (existing.kind === 'assessment') {
+        const rounds = normalizeAssessmentRounds(input);
+        if (rounds !== undefined) {
+          await replaceRounds(tx, organizationId, id, rounds);
+        }
       }
-    }
 
-    return tx.activity.update({
-      where: { id },
-      data: {
-        ...(input.name !== undefined ? { name: input.name } : {}),
-        ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
-        ...(input.instructions !== undefined
-          ? { instructions: input.instructions?.trim() || null }
-          : {}),
-        ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
-        ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
-        ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
-        ...(existing.kind === 'assessment' && input.durationMinutes !== undefined
-          ? { durationMinutes: input.durationMinutes }
-          : {}),
-        ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
-        ...(quizPatch?.durationMode === 'per_question'
-          ? { presentation: 'one_at_a_time' as const }
-          : input.presentation !== undefined
-            ? { presentation: input.presentation }
+      return tx.activity.update({
+        where: { id },
+        data: {
+          ...(input.name !== undefined ? { name: input.name } : {}),
+          ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
+          ...(input.instructions !== undefined
+            ? { instructions: input.instructions?.trim() || null }
             : {}),
-        ...(existing.kind === 'assessment' && input.code !== undefined ? { code: input.code } : {}),
-        ...(quizPatch
-          ? {
-              sponsorId: quizPatch.sponsorId,
-              contestId: quizPatch.contestId,
-              startsAt: quizPatch.startsAt,
-              endsAt: quizPatch.endsAt,
-              durationMode: quizPatch.durationMode,
-              durationMinutes: quizPatch.durationMinutes,
-              perQuestionSeconds: quizPatch.perQuestionSeconds,
-            }
-          : {}),
-        ...(input.settings !== undefined ? { settings: input.settings } : {}),
-      },
-      include: {
-        ...listInclude,
-        rounds: { include: roundInclude, orderBy: { sortOrder: 'asc' } },
-      },
-    });
-  });
+          ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
+          ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
+          ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
+          ...(existing.kind === 'assessment' && input.durationMinutes !== undefined
+            ? { durationMinutes: input.durationMinutes }
+            : {}),
+          ...(input.passingPercent !== undefined ? { passingPercent: input.passingPercent } : {}),
+          ...(quizPatch?.durationMode === 'per_question'
+            ? { presentation: 'one_at_a_time' as const }
+            : input.presentation !== undefined
+              ? { presentation: input.presentation }
+              : {}),
+          ...(existing.kind === 'assessment' && input.code !== undefined ? { code: input.code } : {}),
+          ...(quizPatch
+            ? {
+                sponsorId: quizPatch.sponsorId,
+                contestId: quizPatch.contestId,
+                startsAt: quizPatch.startsAt,
+                endsAt: quizPatch.endsAt,
+                durationMode: quizPatch.durationMode,
+                durationMinutes: quizPatch.durationMinutes,
+                perQuestionSeconds: quizPatch.perQuestionSeconds,
+              }
+            : {}),
+          ...(input.settings !== undefined ? { settings: input.settings } : {}),
+        },
+        include: {
+          ...listInclude,
+          rounds: { include: roundInclude, orderBy: { sortOrder: 'asc' } },
+        },
+      });
+    },
+    { timeout: 20_000 },
+  );
 
   if (existing.kind === 'quiz') {
     await ensureQuizLocalBank(organizationId, id, input.name ?? existing.name);

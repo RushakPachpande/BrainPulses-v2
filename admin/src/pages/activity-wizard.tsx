@@ -78,6 +78,7 @@ const defaultQuizSettings = (): QuizActivitySettings => ({
   answersVisibleToStudent: false,
   allowPrevious: true,
   showQuestionPanel: true,
+  questionsCompulsory: true,
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0.25,
   maxAttempts: 1,
@@ -396,7 +397,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         setImageFileId(activity.imageFileId ?? '');
         setImageFile(null);
         const settings = activity.settings;
-        setRegFields(settings?.registrationForm?.fields ?? []);
+        const rawFields = settings?.registrationForm?.fields;
+        setRegFields(Array.isArray(rawFields) ? rawFields : []);
         setAssignMode(settings?.assignmentRules?.mode ?? 'manual');
         setAssignNotes(settings?.assignmentRules?.notes ?? '');
         if (activity.kind === 'quiz') {
@@ -1510,7 +1512,29 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           }
                         />
                       </div>
-                      <div className="flex flex-col gap-3 border-b border-border p-3.5">
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5">
+                        <div className="min-w-0">
+                          <FieldLabel htmlFor="quiz-questionsCompulsory">
+                            Questions are compulsory
+                          </FieldLabel>
+                          <FieldDescription>
+                            When on, students must answer before they can go to the next question or
+                            submit. When off, they can skip with a confirmation.
+                          </FieldDescription>
+                        </div>
+                        <Switch
+                          id="quiz-questionsCompulsory"
+                          checked={quizSettings.questionsCompulsory}
+                          disabled={readOnly}
+                          onCheckedChange={(checked) =>
+                            setQuizSettings((prev) => ({
+                              ...prev,
+                              questionsCompulsory: checked,
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-col gap-3 border-b border-border p-3.5 md:border-r">
                         <div className="flex min-h-(--control-h) items-center justify-between gap-3">
                           <div className="min-w-0">
                             <FieldLabel htmlFor="quiz-negativeMarking">Negative marking</FieldLabel>
@@ -1556,7 +1580,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           </Field>
                         ) : null}
                       </div>
-                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5 md:border-r">
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5">
                         <div className="min-w-0">
                           <FieldLabel htmlFor="quiz-showQuestionPanel">
                             Question overview panel

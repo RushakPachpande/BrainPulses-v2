@@ -23,6 +23,7 @@ export const quizSettingsSchema = z
     answersVisibleToStudent: z.boolean().default(false),
     allowPrevious: z.boolean().default(true),
     showQuestionPanel: z.boolean().default(true),
+    questionsCompulsory: z.boolean().default(true),
     negativeMarkingEnabled: z.boolean().default(false),
     negativeMarkPoints: z.number().min(0).max(1000).default(0),
     maxAttempts: z.number().int().min(1).max(100).nullable().default(1),

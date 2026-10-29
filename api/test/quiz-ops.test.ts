@@ -51,6 +51,7 @@ describe('quiz ops', () => {
     assert.equal(defaults.scoreRelease, 'after_submit');
     assert.equal(defaults.maxAttempts, 1);
     assert.equal(defaults.showQuestionPanel, true);
+    assert.equal(defaults.questionsCompulsory, true);
 
     const custom = parseQuizSettings({
       quiz: {

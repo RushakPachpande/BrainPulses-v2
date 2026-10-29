@@ -57,6 +57,8 @@ export type QuizActivitySettings = {
   answersVisibleToStudent: boolean;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
+  /** When true, students must answer before Next/Submit. */
+  questionsCompulsory: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
   /** Null means unlimited submissions. */

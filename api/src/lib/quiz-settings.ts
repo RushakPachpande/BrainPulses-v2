@@ -9,6 +9,8 @@ export type QuizSettings = {
   answersVisibleToStudent: boolean;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
+  /** When true, students must answer before Next/Submit. */
+  questionsCompulsory: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
   /** Null means unlimited submissions. */
@@ -22,6 +24,7 @@ export const defaultQuizSettings: QuizSettings = {
   answersVisibleToStudent: false,
   allowPrevious: true,
   showQuestionPanel: true,
+  questionsCompulsory: true,
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0,
   maxAttempts: 1,
@@ -70,6 +73,10 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
       typeof q.showQuestionPanel === 'boolean'
         ? q.showQuestionPanel
         : defaultQuizSettings.showQuestionPanel,
+    questionsCompulsory:
+      typeof q.questionsCompulsory === 'boolean'
+        ? q.questionsCompulsory
+        : defaultQuizSettings.questionsCompulsory,
     negativeMarkingEnabled:
       typeof q.negativeMarkingEnabled === 'boolean'
         ? q.negativeMarkingEnabled

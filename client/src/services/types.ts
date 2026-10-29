@@ -130,6 +130,8 @@ export type AttemptState = {
   perQuestionSeconds?: number | null;
   allowPrevious?: boolean;
   showQuestionPanel?: boolean;
+  /** When true (default), Next/Submit stay disabled until answered. */
+  questionsCompulsory?: boolean;
   forwardOnly?: boolean;
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
 };
