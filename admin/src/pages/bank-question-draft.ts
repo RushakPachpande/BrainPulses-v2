@@ -2,6 +2,9 @@ import type { BankQuestionItem, BankQuestionOption } from '@/services';
 import type { BankAuthorType } from './bank-question-types';
 import { isBankAuthorType, isOptionFilled } from './bank-question-types';
 
+/** How the stem or each option is authored (quiz dialog). */
+export type ContentMode = 'text' | 'image' | 'text_image';
+
 export type OptionDraft = {
   label: string;
   body: string;
@@ -18,9 +21,25 @@ export type QuestionDraft = {
   questionImageUrl: string;
   referenceValue: string;
   numericTolerance: string;
+  /** Quiz: Text / Image / Text + Image for the stem. */
+  questionContentMode: ContentMode;
+  /** Quiz: Text / Image / Text + Image for every option. */
+  optionContentMode: ContentMode;
 };
 
 const LETTERS = ['A', 'B', 'C', 'D'] as const;
+
+export const CONTENT_MODE_OPTIONS: { value: ContentMode; label: string }[] = [
+  { value: 'text', label: 'Text' },
+  { value: 'image', label: 'Image' },
+  { value: 'text_image', label: 'Text + Image' },
+];
+
+export function inferContentMode(hasText: boolean, hasImage: boolean): ContentMode {
+  if (hasText && hasImage) return 'text_image';
+  if (hasImage) return 'image';
+  return 'text';
+}
 
 export function emptyOptions(count = 4, multiCorrect = false): OptionDraft[] {
   return LETTERS.slice(0, count).map((label, i) => ({
@@ -49,6 +68,8 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
       questionImageUrl: '',
       referenceValue: '',
       numericTolerance: '0',
+      questionContentMode: 'text',
+      optionContentMode: 'text',
     };
   }
   if (type === 'multiple_mcq' || type === 'image_selection') {
@@ -61,6 +82,8 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
       questionImageUrl: '',
       referenceValue: '',
       numericTolerance: '0',
+      questionContentMode: 'text',
+      optionContentMode: 'text',
     };
   }
   if (type === 'numeric' || type === 'short_text' || type === 'long_text') {
@@ -73,6 +96,8 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
       questionImageUrl: '',
       referenceValue: '',
       numericTolerance: '0',
+      questionContentMode: 'text',
+      optionContentMode: 'text',
     };
   }
   return {
@@ -84,6 +109,8 @@ export function emptyDraft(type: BankAuthorType = 'single_mcq'): QuestionDraft {
     questionImageUrl: '',
     referenceValue: '',
     numericTolerance: '0',
+    questionContentMode: 'text',
+    optionContentMode: 'text',
   };
 }
 
@@ -101,6 +128,7 @@ export function draftFromItem(item: BankQuestionItem): QuestionDraft {
       if (existing) {
         o.body = existing.body || o.body;
         o.isCorrect = Boolean(existing.isCorrect) || correctFromKey.has(o.label);
+        o.imageUrl = existing.imageUrl ?? '';
       } else {
         o.isCorrect = correctFromKey.has(o.label);
       }
@@ -139,6 +167,12 @@ export function draftFromItem(item: BankQuestionItem): QuestionDraft {
       ? String(item.referenceValue)
       : '';
 
+  const questionText = (item.question ?? '').trim();
+  const questionImage = (item.questionImageUrl ?? '').trim();
+  const filledOpts = options.filter((o) => isOptionFilled(o));
+  const anyOptText = filledOpts.some((o) => o.body.trim());
+  const anyOptImage = filledOpts.some((o) => o.imageUrl.trim());
+
   return {
     type,
     question: item.question,
@@ -148,6 +182,8 @@ export function draftFromItem(item: BankQuestionItem): QuestionDraft {
     questionImageUrl: item.questionImageUrl ?? '',
     referenceValue: ref,
     numericTolerance: item.numericTolerance !== undefined ? String(item.numericTolerance) : '0',
+    questionContentMode: inferContentMode(Boolean(questionText), Boolean(questionImage)),
+    optionContentMode: inferContentMode(anyOptText, anyOptImage),
   };
 }
 
@@ -172,11 +208,36 @@ function normalizeCorrectFlags(options: OptionDraft[], multi: boolean) {
   }
 }
 
-export function validateDraft(draft: QuestionDraft): string | null {
-  if (!draft.question.trim()) return 'Question is required.';
+export function validateDraft(
+  draft: QuestionDraft,
+  kind: 'quiz' | 'assessment' = 'assessment',
+): string | null {
+  const qMode = kind === 'quiz' ? draft.questionContentMode : 'text_image';
+  const oMode = kind === 'quiz' ? draft.optionContentMode : 'text_image';
+  const hasQuestionText = Boolean(draft.question.trim());
+  const hasQuestionImage = Boolean(draft.questionImageUrl.trim());
+
+  if (kind === 'quiz') {
+    if (qMode === 'text' && !hasQuestionText) return 'Question text is required.';
+    if (qMode === 'image' && !hasQuestionImage) return 'Question image is required.';
+    if (qMode === 'text_image') {
+      if (!hasQuestionText) return 'Question text is required.';
+      if (!hasQuestionImage) return 'Question image is required.';
+    }
+  } else if (!hasQuestionText) {
+    return 'Question is required.';
+  }
+
   if (draft.points < 1) return 'Points must be at least 1.';
 
-  const filled = draft.options.filter((o) => isOptionFilled(o));
+  const filled = draft.options.filter((o) => {
+    if (kind !== 'quiz') return isOptionFilled(o);
+    const hasText = Boolean(o.body.trim());
+    const hasImage = Boolean(o.imageUrl.trim());
+    if (oMode === 'text') return hasText;
+    if (oMode === 'image') return hasImage;
+    return hasText && hasImage;
+  });
   const correct = filled.filter((o) => o.isCorrect);
 
   switch (draft.type) {
@@ -212,7 +273,20 @@ export function validateDraft(draft: QuestionDraft): string | null {
     default:
       break;
   }
+
   return null;
+}
+
+/** Apply quiz content modes so hidden fields are not persisted. */
+export function applyQuizContentModes(draft: QuestionDraft): QuestionDraft {
+  const question = draft.questionContentMode === 'image' ? '' : draft.question;
+  const questionImageUrl = draft.questionContentMode === 'text' ? '' : draft.questionImageUrl;
+  const options = draft.options.map((o) => ({
+    ...o,
+    body: draft.optionContentMode === 'image' ? '' : o.body,
+    imageUrl: draft.optionContentMode === 'text' ? '' : o.imageUrl,
+  }));
+  return { ...draft, question, questionImageUrl, options };
 }
 
 export function draftToPayload(draft: QuestionDraft): {
@@ -267,7 +341,8 @@ export function draftToPayloadForKind(
   draft: QuestionDraft,
   kind: 'quiz' | 'assessment',
 ): ReturnType<typeof draftToPayload> {
-  const payload = draftToPayload(draft);
+  const prepared = kind === 'quiz' ? applyQuizContentModes(draft) : draft;
+  const payload = draftToPayload(prepared);
   if (kind === 'quiz' && payload.type === 'image_mcq') {
     return { ...payload, type: 'single_mcq' };
   }

@@ -16,13 +16,15 @@ import {
 } from '@/components/import-result';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { RowActions } from '@/components/row-actions';
+import { AccountStatusPill } from '@/components/status-pill';
 import { useConfirm } from '@/components/use-confirm';
-import { Toolbar } from '@/components/toolbar';
+import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -41,6 +43,7 @@ import {
   exportBankQuestions,
   getQuestionBank,
   importBankQuestions,
+  setBankQuestionsActive,
   updateBankQuestion,
   updateQuestionBank,
   type ActivityKind,
@@ -64,6 +67,10 @@ type DialogMode =
   | { kind: 'edit'; questionId: string }
   | { kind: 'view'; questionId: string };
 
+function isQuestionActive(item: BankQuestionItem) {
+  return item.isActive !== false;
+}
+
 export function BankFormPage({
   kind,
   mode = 'create',
@@ -85,6 +92,9 @@ export function BankFormPage({
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState<BankQuestionItem[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [bulkAction, setBulkAction] = useState<'activate' | 'deactivate' | null>(null);
   const [savingMeta, setSavingMeta] = useState(false);
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -100,6 +110,7 @@ export function BankFormPage({
     setName(bank.name);
     setDescription(bank.description);
     setQuestions(bank.items);
+    setSelected(new Set());
     return bank;
   }
 
@@ -135,14 +146,33 @@ export function BankFormPage({
 
   const filteredQuestions = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return questions;
-    return questions.filter(
-      (item) =>
+    return questions.filter((item) => {
+      if (statusFilter === 'Active' && !isQuestionActive(item)) return false;
+      if (statusFilter === 'Inactive' && isQuestionActive(item)) return false;
+      if (!q) return true;
+      return (
         item.question.toLowerCase().includes(q) ||
         item.code.toLowerCase().includes(q) ||
-        item.type.toLowerCase().includes(q),
-    );
-  }, [questions, search]);
+        item.type.toLowerCase().includes(q)
+      );
+    });
+  }, [questions, search, statusFilter]);
+
+  const filteredIds = filteredQuestions.map((item) => item.id);
+  const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
+  const someFilteredSelected = filteredIds.some((id) => selected.has(id));
+  const selectedRows = filteredQuestions.filter((item) => selected.has(item.id));
+  const activeIds = selectedRows.filter((item) => isQuestionActive(item)).map((item) => item.id);
+  const inactiveIds = selectedRows.filter((item) => !isQuestionActive(item)).map((item) => item.id);
+
+  const questionFilters: ToolbarFilter[] = [
+    {
+      name: 'Status',
+      options: ['All', 'Active', 'Inactive'],
+      value: statusFilter,
+      onValueChange: setStatusFilter,
+    },
+  ];
 
   const hasDisallowedQuizTypes = useMemo(
     () => isQuiz && questions.some((q) => !isQuizAllowedType(q.type)),
@@ -211,7 +241,7 @@ export function BankFormPage({
 
   async function onSaveQuestion() {
     if (readOnly || !bankId || !dialog || dialog.kind === 'view') return;
-    const error = validateDraft(draft);
+    const error = validateDraft(draft, kind);
     if (error) {
       toast.error(error);
       return;
@@ -235,25 +265,74 @@ export function BankFormPage({
     }
   }
 
-  async function onDeactivate(item: BankQuestionItem) {
+  async function setOneActive(item: BankQuestionItem, isActive: boolean) {
     if (readOnly || !bankId) return;
     const ok = await confirm({
-      title: 'Deactivate this question?',
-      description: 'It will no longer appear in new attempts.',
-      confirmLabel: 'Deactivate',
-      destructive: true,
+      title: isActive ? 'Activate this question?' : 'Deactivate this question?',
+      description: isActive
+        ? 'It will appear in new attempts again.'
+        : 'It will no longer appear in new attempts.',
+      confirmLabel: isActive ? 'Activate' : 'Deactivate',
+      destructive: !isActive,
     });
     if (!ok) return;
     setSavingQuestion(true);
     try {
-      await updateBankQuestion(bankId, item.id, { isActive: false });
-      toast.success('Question deactivated.');
+      await updateBankQuestion(bankId, item.id, { isActive });
+      toast.success(isActive ? 'Question activated.' : 'Question deactivated.');
       if (dialog && 'questionId' in dialog && dialog.questionId === item.id) closeDialog();
       await reloadBank(bankId);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not deactivate question.');
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : isActive
+            ? 'Could not activate question.'
+            : 'Could not deactivate question.',
+      );
     } finally {
       setSavingQuestion(false);
+    }
+  }
+
+  async function changeSelectedStatus(kind: 'activate' | 'deactivate') {
+    if (!bankId || readOnly || bulkAction) return;
+    const activating = kind === 'activate';
+    const ids = activating ? inactiveIds : activeIds;
+    if (ids.length === 0) return;
+    const ok = await confirm({
+      title:
+        ids.length === 1
+          ? activating
+            ? 'Activate 1 question?'
+            : 'Deactivate 1 question?'
+          : activating
+            ? `Activate ${ids.length} questions?`
+            : `Deactivate ${ids.length} questions?`,
+      description: activating
+        ? 'They will appear in new attempts again.'
+        : 'They will no longer appear in new attempts.',
+      confirmLabel: activating ? 'Activate' : 'Deactivate',
+      destructive: !activating,
+    });
+    if (!ok) return;
+    setBulkAction(kind);
+    try {
+      const result = await setBankQuestionsActive(bankId, ids, activating);
+      toast.success(
+        result.updated === 1
+          ? activating
+            ? 'Question activated.'
+            : 'Question deactivated.'
+          : activating
+            ? `${result.updated} questions activated.`
+            : `${result.updated} questions deactivated.`,
+      );
+      await reloadBank(bankId);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not update questions.');
+    } finally {
+      setBulkAction(null);
     }
   }
 
@@ -390,6 +469,9 @@ export function BankFormPage({
                 <CardTitle>Questions</CardTitle>
                 <CardDescription>
                   {questions.length} question{questions.length === 1 ? '' : 's'}
+                  {questions.length > 0
+                    ? ` (${questions.filter((q) => isQuestionActive(q)).length} active)`
+                    : ''}
                   {isQuiz ? ' · MCQ (one option) or MSQ (multiple options)' : ''}
                 </CardDescription>
               </div>
@@ -461,86 +543,171 @@ export function BankFormPage({
                 </AlertDescription>
               </Alert>
             ) : null}
-            {questions.length > 8 ? (
-              <Toolbar
-                filters={[]}
-                searchPlaceholder="Search question or code"
-                searchValue={search}
-                onSearchChange={setSearch}
-              />
-            ) : null}
-
             {questions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No questions yet.
                 {!readOnly ? ' Use Add question, or Import from Sample Excel.' : null}
               </p>
             ) : (
-              <div className="overflow-x-auto rounded-lg border border-border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Code</TableHead>
-                      <TableHead>Question</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Points</TableHead>
-                      <TableHead className="w-12">
-                        <span className="sr-only">Actions</span>
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredQuestions.length === 0 ? (
+              <>
+                <Toolbar
+                  filters={questionFilters}
+                  searchPlaceholder="Search question or code"
+                  searchValue={search}
+                  onSearchChange={setSearch}
+                  actions={
+                    !readOnly && selected.size > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {inactiveIds.length > 0 ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={Boolean(bulkAction)}
+                            onClick={() => void changeSelectedStatus('activate')}
+                          >
+                            Activate{inactiveIds.length > 1 ? ` (${inactiveIds.length})` : ''}
+                          </Button>
+                        ) : null}
+                        {activeIds.length > 0 ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={Boolean(bulkAction)}
+                            onClick={() => void changeSelectedStatus('deactivate')}
+                          >
+                            Deactivate{activeIds.length > 1 ? ` (${activeIds.length})` : ''}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : undefined
+                  }
+                />
+                <div className="overflow-x-auto rounded-lg border border-border">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={5} className="text-muted-foreground">
-                          No questions match this search.
-                        </TableCell>
+                        {!readOnly ? (
+                          <TableHead className="w-10">
+                            <Checkbox
+                              checked={
+                                allFilteredSelected
+                                  ? true
+                                  : someFilteredSelected
+                                    ? 'indeterminate'
+                                    : false
+                              }
+                              onCheckedChange={(value) => {
+                                const checked = value === true;
+                                setSelected((prev) => {
+                                  const next = new Set(prev);
+                                  for (const id of filteredIds) {
+                                    if (checked) next.add(id);
+                                    else next.delete(id);
+                                  }
+                                  return next;
+                                });
+                              }}
+                              aria-label="Select all questions on this list"
+                            />
+                          </TableHead>
+                        ) : null}
+                        <TableHead>Code</TableHead>
+                        <TableHead>Question</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Points</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="w-12">
+                          <span className="sr-only">Actions</span>
+                        </TableHead>
                       </TableRow>
-                    ) : (
-                      filteredQuestions.map((item) => (
-                        <TableRow
-                          key={item.id}
-                          className="cursor-pointer"
-                          onClick={(event) => {
-                            const target = event.target;
-                            if (
-                              target instanceof Element &&
-                              target.closest(
-                                'a, button, input, label, [data-slot="record-actions"]',
-                              )
-                            ) {
-                              return;
-                            }
-                            if (readOnly) openView(item);
-                            else openEdit(item);
-                          }}
-                        >
-                          <TableCell className="whitespace-nowrap font-medium">
-                            {item.code || '—'}
-                          </TableCell>
-                          <TableCell className="max-w-md">
-                            <span className="line-clamp-2 font-medium">{item.question}</span>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {bankQuestionTypeLabel(item.type)}
-                          </TableCell>
-                          <TableCell>{item.points}</TableCell>
-                          <TableCell>
-                            {readOnly ? (
-                              <RowActions view={{ onClick: () => openView(item) }} />
-                            ) : (
-                              <RowActions
-                                edit={{ onClick: () => openEdit(item) }}
-                                deactivate={{ onClick: () => void onDeactivate(item) }}
-                              />
-                            )}
+                    </TableHeader>
+                    <TableBody>
+                      {filteredQuestions.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={readOnly ? 6 : 7} className="text-muted-foreground">
+                            No questions match this filter.
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                      ) : (
+                        filteredQuestions.map((item) => {
+                          const active = isQuestionActive(item);
+                          return (
+                            <TableRow
+                              key={item.id}
+                              className="cursor-pointer"
+                              onClick={(event) => {
+                                const target = event.target;
+                                if (
+                                  target instanceof Element &&
+                                  target.closest(
+                                    'a, button, input, label, [data-slot="record-actions"]',
+                                  )
+                                ) {
+                                  return;
+                                }
+                                if (readOnly) openView(item);
+                                else openEdit(item);
+                              }}
+                            >
+                              {!readOnly ? (
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selected.has(item.id)}
+                                    onCheckedChange={(value) => {
+                                      const checked = value === true;
+                                      setSelected((prev) => {
+                                        const next = new Set(prev);
+                                        if (checked) next.add(item.id);
+                                        else next.delete(item.id);
+                                        return next;
+                                      });
+                                    }}
+                                    aria-label={`Select question ${item.code || item.id}`}
+                                  />
+                                </TableCell>
+                              ) : null}
+                              <TableCell className="whitespace-nowrap font-medium">
+                                {item.code || '—'}
+                              </TableCell>
+                              <TableCell className="max-w-md">
+                                <span className="line-clamp-2 font-medium">
+                                  {item.question.trim() || '(Image question)'}
+                                </span>
+                              </TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                {bankQuestionTypeLabel(item.type)}
+                              </TableCell>
+                              <TableCell>{item.points}</TableCell>
+                              <TableCell>
+                                <AccountStatusPill value={active ? 'Active' : 'Inactive'} />
+                              </TableCell>
+                              <TableCell>
+                                {readOnly ? (
+                                  <RowActions view={{ onClick: () => openView(item) }} />
+                                ) : (
+                                  <RowActions
+                                    edit={{ onClick: () => openEdit(item) }}
+                                    activate={
+                                      active
+                                        ? undefined
+                                        : { onClick: () => void setOneActive(item, true) }
+                                    }
+                                    deactivate={
+                                      active
+                                        ? { onClick: () => void setOneActive(item, false) }
+                                        : undefined
+                                    }
+                                  />
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

@@ -22,9 +22,11 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import type { BankQuestionItem } from '@/services';
 import {
+  CONTENT_MODE_OPTIONS,
   emptyDraft,
   emptyOptions,
   trueFalseOptions,
+  type ContentMode,
   type OptionDraft,
   type QuestionDraft,
 } from './bank-question-draft';
@@ -36,15 +38,52 @@ import {
   type BankKind,
 } from './bank-question-types';
 
+function ContentModeToggle({
+  id,
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  id: string;
+  label: string;
+  value: ContentMode;
+  disabled?: boolean;
+  onChange: (mode: ContentMode) => void;
+}) {
+  return (
+    <Field>
+      <FieldLabel id={`${id}-label`}>{label}</FieldLabel>
+      <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`${id}-label`}>
+        {CONTENT_MODE_OPTIONS.map((opt) => (
+          <Button
+            key={opt.value}
+            type="button"
+            size="sm"
+            variant={value === opt.value ? 'default' : 'outline'}
+            disabled={disabled}
+            aria-pressed={value === opt.value}
+            onClick={() => onChange(opt.value)}
+          >
+            {opt.label}
+          </Button>
+        ))}
+      </div>
+    </Field>
+  );
+}
+
 function OptionRows({
   options,
   multi,
+  showBody,
   showImageUrl,
   readOnly,
   onChange,
 }: {
   options: OptionDraft[];
   multi: boolean;
+  showBody: boolean;
   showImageUrl: boolean;
   readOnly: boolean;
   onChange: (next: OptionDraft[]) => void;
@@ -81,15 +120,17 @@ function OptionRows({
                 {opt.label}
               </label>
             )}
-            <Input
-              value={opt.body}
-              placeholder={`Option ${opt.label}`}
-              disabled={readOnly}
-              onChange={(e) => {
-                const value = e.target.value;
-                onChange(options.map((o, i) => (i === oi ? { ...o, body: value } : o)));
-              }}
-            />
+            {showBody ? (
+              <Input
+                value={opt.body}
+                placeholder={`Option ${opt.label}`}
+                disabled={readOnly}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  onChange(options.map((o, i) => (i === oi ? { ...o, body: value } : o)));
+                }}
+              />
+            ) : null}
           </div>
           {showImageUrl ? (
             <QuestionImageField
@@ -131,10 +172,16 @@ export function BankQuestionDialog({
   onSave: () => void;
 }) {
   const readOnly = mode === 'view';
+  const isQuiz = kind === 'quiz';
   const title =
     mode === 'add' ? 'Add question' : mode === 'edit' ? 'Edit question' : 'View question';
   const typeOptions = typesForKind(kind);
   const showMedia = supportsChoiceMedia(draft.type);
+
+  const showQuestionText = !isQuiz || draft.questionContentMode !== 'image';
+  const showQuestionImage = isQuiz ? draft.questionContentMode !== 'text' : showMedia;
+  const showOptionBody = !isQuiz || draft.optionContentMode !== 'image';
+  const showOptionImage = isQuiz ? draft.optionContentMode !== 'text' : showMedia;
 
   function setType(type: BankAuthorType) {
     const next = emptyDraft(type);
@@ -143,6 +190,8 @@ export function BankQuestionDialog({
       question: draft.question,
       points: draft.points,
       questionImageUrl: draft.questionImageUrl,
+      questionContentMode: draft.questionContentMode,
+      optionContentMode: draft.optionContentMode,
       passageText: type === 'comprehension_mcq' ? draft.passageText : '',
     });
   }
@@ -165,8 +214,8 @@ export function BankQuestionDialog({
           <DialogDescription>
             {readOnly
               ? bankQuestionTypeLabel(draft.type)
-              : kind === 'quiz'
-                ? 'MCQ has one correct option. MSQ has one or more. Options may be text, an image URL, or both.'
+              : isQuiz
+                ? 'MCQ has one correct option. MSQ has one or more. Choose text, image, or both for the question and answers.'
                 : 'Choose a type, then fill in the question and answers.'}
           </DialogDescription>
         </DialogHeader>
@@ -217,22 +266,44 @@ export function BankQuestionDialog({
             </Field>
           ) : null}
 
-          <Field>
-            <FieldLabel htmlFor="bank-q-question">
-              Question <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Textarea
-              id="bank-q-question"
-              value={draft.question}
+          {isQuiz && showOptions ? (
+            <ContentModeToggle
+              id="bank-q-content"
+              label="Question content"
+              value={draft.questionContentMode}
               disabled={readOnly}
-              rows={3}
-              onChange={(e) => onDraftChange({ ...draft, question: e.target.value })}
+              onChange={(questionContentMode) => onDraftChange({ ...draft, questionContentMode })}
             />
-          </Field>
+          ) : null}
 
-          {showMedia ? (
+          {showQuestionText ? (
             <Field>
-              <FieldLabel htmlFor="bank-q-question-image">Question image (optional)</FieldLabel>
+              <FieldLabel htmlFor="bank-q-question">
+                Question{' '}
+                {isQuiz && draft.questionContentMode === 'image' ? null : (
+                  <span className="text-destructive">*</span>
+                )}
+              </FieldLabel>
+              <Textarea
+                id="bank-q-question"
+                value={draft.question}
+                disabled={readOnly}
+                rows={3}
+                onChange={(e) => onDraftChange({ ...draft, question: e.target.value })}
+              />
+            </Field>
+          ) : null}
+
+          {showQuestionImage ? (
+            <Field>
+              <FieldLabel htmlFor="bank-q-question-image">
+                Question image
+                {isQuiz && draft.questionContentMode !== 'text' ? (
+                  <span className="text-destructive"> *</span>
+                ) : (
+                  ' (optional)'
+                )}
+              </FieldLabel>
               <QuestionImageField
                 id="bank-q-question-image"
                 value={draft.questionImageUrl}
@@ -317,17 +388,36 @@ export function BankQuestionDialog({
 
           {showOptions ? (
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium">Options</p>
-              {!readOnly && showMedia ? (
+              {isQuiz ? (
+                <ContentModeToggle
+                  id="bank-q-option-content"
+                  label="Option content"
+                  value={draft.optionContentMode}
+                  disabled={readOnly}
+                  onChange={(optionContentMode) => onDraftChange({ ...draft, optionContentMode })}
+                />
+              ) : (
+                <p className="text-sm font-medium">Options</p>
+              )}
+              {!readOnly ? (
                 <p className="text-xs text-muted-foreground">
-                  Each option needs text, an image URL, or both.
-                  {multi ? ' Mark at least one correct.' : ' Mark exactly one correct.'}
+                  {isQuiz
+                    ? draft.optionContentMode === 'text'
+                      ? 'Each option needs text.'
+                      : draft.optionContentMode === 'image'
+                        ? 'Each option needs an image.'
+                        : 'Each option needs text and an image.'
+                    : showMedia
+                      ? 'Each option needs text, an image URL, or both.'
+                      : null}{' '}
+                  {multi ? 'Mark at least one correct.' : 'Mark exactly one correct.'}
                 </p>
               ) : null}
               <OptionRows
                 options={draft.options}
                 multi={multi}
-                showImageUrl={showMedia}
+                showBody={showOptionBody}
+                showImageUrl={showOptionImage}
                 readOnly={readOnly}
                 onChange={(options) => onDraftChange({ ...draft, options })}
               />
@@ -395,7 +485,7 @@ export function BankQuestionDialog({
 export function BankQuestionReadOnlySummary({ item }: { item: BankQuestionItem }) {
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <p className="font-medium">{item.question}</p>
+      {item.question.trim() ? <p className="font-medium">{item.question}</p> : null}
       {item.questionImageUrl ? (
         <QuestionImagePreview src={item.questionImageUrl} alt="Question image" />
       ) : null}

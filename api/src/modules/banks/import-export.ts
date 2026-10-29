@@ -319,14 +319,19 @@ export function rowToCreatePayload(
   if (!type && kind !== 'quiz') throw new Error('type is required');
 
   const question = readImportedText(row.question);
-  if (!question) throw new Error('question is required');
+  const stemImageUrl = readImportedText(row.stemImageUrl);
+  if (!question && !stemImageUrl) {
+    throw new Error('question is required (or set stemImageUrl for an image-only question)');
+  }
+  if (!question && kind !== 'quiz') {
+    throw new Error('question is required');
+  }
 
   const pointsRaw = row.points.trim();
   const points = pointsRaw === '' ? 1 : Number(pointsRaw);
   if (!Number.isFinite(points) || points <= 0) throw new Error('points must be a positive number');
   if (points >= MAX_POINTS) throw new Error('points must be less than 100000000');
 
-  const stemImageUrl = readImportedText(row.stemImageUrl);
   let options = collectOptions(row);
   const answerKey: Record<string, unknown> = {};
 
@@ -448,16 +453,30 @@ function sampleDataRows(kind: BankKind = 'assessment'): Record<BankImportHeader,
   }
 
   if (kind === 'quiz') {
-    const r = blank();
-    r.type = 'multiple_mcq';
-    r.question = 'Select all prime numbers.';
-    r.points = '2';
-    r.optionA = '2';
-    r.optionB = '3';
-    r.optionC = '4';
-    r.optionD = '5';
-    r.correct = 'A,B,D';
-    rows.push(r);
+    {
+      const r = blank();
+      r.type = 'single_mcq';
+      r.question = '';
+      r.points = '1';
+      r.stemImageUrl = 'https://example.com/quiz-stem-only.png';
+      r.optionA = 'Option one';
+      r.optionB = 'Option two';
+      r.optionC = 'Option three';
+      r.correct = 'B';
+      rows.push(r);
+    }
+    {
+      const r = blank();
+      r.type = 'multiple_mcq';
+      r.question = 'Select all prime numbers.';
+      r.points = '2';
+      r.optionA = '2';
+      r.optionB = '3';
+      r.optionC = '4';
+      r.optionD = '5';
+      r.correct = 'A,B,D';
+      rows.push(r);
+    }
     return rows;
   }
 
@@ -602,6 +621,9 @@ export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promis
     ]);
     instructions.addRow([
       '7. If type is blank, one correct answer becomes single_mcq and two or more become multiple_mcq.',
+    ]);
+    instructions.addRow([
+      '8. Questions and options may be text, an image URL (stemImageUrl / optionA_imageUrl…), or both. Question text may be blank only when stemImageUrl is set.',
     ]);
   } else {
     instructions.addRow([

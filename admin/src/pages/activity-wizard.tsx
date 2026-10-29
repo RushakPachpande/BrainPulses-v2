@@ -351,7 +351,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           if (nextBankId) {
             try {
               const bank = await getQuestionBank(nextBankId);
-              if (!cancelled) setQuizQuestionCount(bank.items.length);
+              if (!cancelled) {
+                setQuizQuestionCount(bank.items.filter((item) => item.isActive !== false).length);
+              }
             } catch {
               if (!cancelled) setQuizQuestionCount(0);
             }

@@ -63,7 +63,7 @@ export function AttemptQuestionBlock({
         {q.questionImageUrl ? (
           <StoredImage src={q.questionImageUrl} alt="" className="question-stem-image" />
         ) : null}
-        <h2 className="question-stem">{q.question}</h2>
+        {q.question.trim() ? <h2 className="question-stem">{q.question}</h2> : null}
         <p className="question-instruction">{instructionForType(q.type)}</p>
 
         {isSingleSelectType(q.type) || isMultiSelectType(q.type) ? (

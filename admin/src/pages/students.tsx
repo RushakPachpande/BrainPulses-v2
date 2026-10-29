@@ -146,7 +146,7 @@ export function StudentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
-  const [bulkAction, setBulkAction] = useState<'disable' | 'enable' | null>(null);
+  const [bulkAction, setBulkAction] = useState<'deactivate' | 'activate' | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const { data, isPending: loading } = useQuery({
@@ -339,38 +339,38 @@ export function StudentsPage() {
     .filter((student) => student.status !== 'Active')
     .map((student) => student.id);
 
-  async function changeSelectedStatus(kind: 'disable' | 'enable') {
-    const enabling = kind === 'enable';
-    const ids = enabling ? inactiveIds : activeIds;
+  async function changeSelectedStatus(kind: 'activate' | 'deactivate') {
+    const activating = kind === 'activate';
+    const ids = activating ? inactiveIds : activeIds;
     if (ids.length === 0 || bulkAction) return;
     const ok = await confirm({
       title:
         ids.length === 1
-          ? enabling
-            ? 'Enable 1 student?'
-            : 'Disable 1 student?'
-          : enabling
-            ? `Enable ${ids.length} students?`
-            : `Disable ${ids.length} students?`,
-      description: enabling
+          ? activating
+            ? 'Activate 1 student?'
+            : 'Deactivate 1 student?'
+          : activating
+            ? `Activate ${ids.length} students?`
+            : `Deactivate ${ids.length} students?`,
+      description: activating
         ? 'They will be marked Active and can sign in.'
         : 'They will be marked Inactive and cannot sign in.',
-      confirmLabel: enabling ? 'Enable' : 'Disable',
-      destructive: !enabling,
+      confirmLabel: activating ? 'Activate' : 'Deactivate',
+      destructive: !activating,
     });
     if (!ok) return;
     setBulkAction(kind);
     try {
-      if (enabling) await activateStudents(ids);
+      if (activating) await activateStudents(ids);
       else await deactivateStudents(ids);
       toast.success(
         ids.length === 1
-          ? enabling
-            ? 'Student enabled.'
-            : 'Student disabled.'
-          : enabling
-            ? `${ids.length} students enabled.`
-            : `${ids.length} students disabled.`,
+          ? activating
+            ? 'Student activated.'
+            : 'Student deactivated.'
+          : activating
+            ? `${ids.length} students activated.`
+            : `${ids.length} students deactivated.`,
       );
       records.onClear();
     } catch (err) {
@@ -526,20 +526,20 @@ export function StudentsPage() {
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => void changeSelectedStatus('enable')}
+                          onClick={() => void changeSelectedStatus('activate')}
                           disabled={bulkAction !== null}
                         >
-                          {bulkAction === 'enable' ? 'Enabling…' : 'Enable'}
+                          {bulkAction === 'activate' ? 'Activating…' : 'Activate'}
                         </Button>
                       ) : null}
                       {activeIds.length > 0 ? (
                         <Button
                           type="button"
                           variant="outline"
-                          onClick={() => void changeSelectedStatus('disable')}
+                          onClick={() => void changeSelectedStatus('deactivate')}
                           disabled={bulkAction !== null}
                         >
-                          {bulkAction === 'disable' ? 'Disabling…' : 'Disable'}
+                          {bulkAction === 'deactivate' ? 'Deactivating…' : 'Deactivate'}
                         </Button>
                       ) : null}
                     </>

@@ -893,7 +893,7 @@ export type BankQuestionItem = {
   type: string;
   question: string;
   points: number;
-  isActive?: boolean;
+  isActive: boolean;
   version?: number;
   correctLabels?: string[];
   options: BankQuestionOption[];
@@ -919,6 +919,7 @@ export async function getQuestionBank(
     items: (row.items ?? []).map((item) => ({
       ...item,
       code: item.code ?? '',
+      isActive: item.isActive !== false,
       options: (item.options ?? []).map((o) => ({
         ...o,
         isCorrect: Boolean(o.isCorrect),
@@ -971,6 +972,27 @@ export async function updateBankQuestion(
 ) {
   if (useFixtures) return { id: questionId, ...payload };
   return apiPatchData(`/api/banks/${bankId}/questions/${questionId}`, payload);
+}
+
+/** Bulk activate or deactivate questions in a bank. */
+export async function setBankQuestionsActive(
+  bankId: string,
+  ids: string[],
+  isActive: boolean,
+): Promise<{ updated: number }> {
+  if (useFixtures) {
+    invalidateAdmin(['banks']);
+    return { updated: ids.length };
+  }
+  const data = await apiPostData<{ updated: number }>(
+    `/api/banks/${bankId}/questions/bulk-status`,
+    {
+      ids,
+      isActive,
+    },
+  );
+  invalidateAdmin(['banks']);
+  return data;
 }
 
 export type BankImportIssue = { row: number; message: string };

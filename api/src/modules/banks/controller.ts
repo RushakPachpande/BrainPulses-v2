@@ -82,6 +82,22 @@ export async function updateQuestion(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function setQuestionsActive(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.setBankQuestionsActive(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+      req.body,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function importQuestions(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
