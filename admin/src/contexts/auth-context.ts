@@ -24,6 +24,7 @@ export type OrgOption = {
   name: string;
   slug: string;
   role: string;
+  displayName: string;
 };
 
 export type SessionPayload = {

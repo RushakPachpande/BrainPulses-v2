@@ -32,7 +32,6 @@ function fallbackPath(gate: AccessGate, pathname: string): string {
     return `/${gate.kind}s`;
   }
   if (gate.type === 'manageUsersOrSettings') {
-    if (pathname.startsWith('/settings')) return '/settings';
     return '/users';
   }
   return '/students';

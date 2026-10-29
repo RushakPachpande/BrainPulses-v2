@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const groupParamSchema = z.object({
-  group: z.enum(['general', 'access', 'notifications', 'system']),
+  group: z.enum(['general']),
 });
 
 export const patchSettingsSchema = z

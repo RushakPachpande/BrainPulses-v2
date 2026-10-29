@@ -50,16 +50,13 @@ import type { Activity } from '@/services/types';
 
 const EMPTY_ACTIVITIES: Activity[] = [];
 
-type SortKey =
-  'name' | 'status' | 'registered' | 'assigned' | 'banks' | 'attempts' | 'start' | 'end';
+type SortKey = 'name' | 'status' | 'registered' | 'attempts' | 'start' | 'end';
 
 const activityPlacement: Record<SortKey, RecordColumn<Activity>['placement']> = {
   name: 'title',
   status: 'status',
   registered: 'primary',
-  assigned: 'primary',
   attempts: 'primary',
-  banks: 'details',
   start: 'details',
   end: 'details',
 };
@@ -92,27 +89,14 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const listPath = isQuiz ? '/quizzes' : '/assessments';
   const createHref = isQuiz ? '/quizzes/new' : '/assessments/new';
 
-  const sortColumns: { key: SortKey; label: string }[] = isQuiz
-    ? [
-        { key: 'name', label: nameLabel },
-        { key: 'status', label: 'Status' },
-        { key: 'banks', label: 'Question Banks' },
-        { key: 'registered', label: 'Registered Students' },
-        { key: 'assigned', label: 'Assigned Students' },
-        { key: 'attempts', label: 'Attempts' },
-        { key: 'start', label: 'Start Date' },
-        { key: 'end', label: 'End Date' },
-      ]
-    : [
-        { key: 'name', label: nameLabel },
-        { key: 'status', label: 'Status' },
-        { key: 'registered', label: 'Registered Students' },
-        { key: 'assigned', label: 'Assigned Students' },
-        { key: 'banks', label: 'Question Banks' },
-        { key: 'attempts', label: 'Attempts' },
-        { key: 'start', label: 'Start Date' },
-        { key: 'end', label: 'End Date' },
-      ];
+  const sortColumns: { key: SortKey; label: string }[] = [
+    { key: 'name', label: nameLabel },
+    { key: 'status', label: 'Status' },
+    { key: 'registered', label: 'Registered Students' },
+    { key: 'attempts', label: 'Attempts' },
+    { key: 'start', label: 'Start Date' },
+    { key: 'end', label: 'End Date' },
+  ];
 
   const orgId = useOrgId();
   const { data, isPending: loading } = useQuery({
@@ -124,16 +108,17 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
 
   async function onDeleteQuiz(item: Activity) {
     if (!isQuiz || !canFull) return;
-    const ok = await confirm({
+    const password = await confirm({
       title: `Delete “${item.name}”?`,
       description:
         'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
       confirmLabel: 'Delete quiz',
       destructive: true,
+      requirePassword: true,
     });
-    if (!ok) return;
+    if (!password) return;
     try {
-      await deleteActivity(item.id);
+      await deleteActivity(item.id, password);
       toast.success('Quiz deleted.');
       await queryClient.invalidateQueries({ queryKey: ['admin', 'activities'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
@@ -261,9 +246,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
       case 'status':
         return <FlowStatusPill status={item.status} />;
       case 'registered':
-      case 'assigned':
-      case 'banks':
-        return <span className="tabular-nums">{item[column]}</span>;
+        return <span className="tabular-nums">{item.registered}</span>;
       case 'attempts': {
         const percent = attemptPercent(item);
         return (
@@ -320,7 +303,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
             </Button>
           </PageHeaderActions>
         ) : null}
-        <ListPageSkeleton columns={isQuiz ? 7 : 8} />
+        <ListPageSkeleton columns={6} />
       </div>
     );
   }

@@ -22,10 +22,7 @@ settingsRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const actor = userActor(req);
-      const data = await service.getSettings(
-        actor.organizationId,
-        req.params.group as 'general' | 'access' | 'notifications' | 'system',
-      );
+      const data = await service.getSettings(actor.organizationId, req.params.group as 'general');
       res.json({ data });
     } catch (err) {
       next(err);
@@ -43,7 +40,7 @@ settingsRouter.patch(
       const data = await service.patchSettings(
         actor.organizationId,
         actor.userId,
-        req.params.group as 'general' | 'access' | 'notifications' | 'system',
+        req.params.group as 'general',
         req.body.values,
       );
       res.json({ data });

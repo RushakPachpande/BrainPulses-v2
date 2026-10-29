@@ -78,22 +78,15 @@ export const pageMeta: Record<string, PageMeta> = {
   },
   '/quizzes/reports': { crumb: 'BrainPulses / Quiz / Reports', title: 'Quiz Reports & Results' },
   '/settings': { crumb: 'BrainPulses / Settings / General Settings', title: 'General Settings' },
-  '/settings/access': {
-    crumb: 'BrainPulses / Settings / User & Access',
-    title: 'User & Access Settings',
-  },
-  '/settings/notifications': {
-    crumb: 'BrainPulses / Settings / Notification',
-    title: 'Notification Settings',
+  '/settings/student-portal': {
+    crumb: 'BrainPulses / Settings / Student Portal',
+    title: 'Student Portal Pages',
+    description: 'Choose which pages appear in the student portal navigation.',
   },
   '/settings/design-system': {
     crumb: 'BrainPulses / Settings / Design System',
     title: 'Design System',
     description: 'The BrainPulses brand, shared design tokens, and interactive UI patterns.',
-  },
-  '/settings/system': {
-    crumb: 'BrainPulses / Settings / System Settings',
-    title: 'System Settings',
   },
 };
 

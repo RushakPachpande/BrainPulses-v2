@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import { writeAudit } from '../../lib/audit.js';
-import { notFound } from '../../lib/errors.js';
+import { conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { assertCatalogImage } from '../files/service.js';
@@ -105,4 +105,32 @@ export async function updateSponsor(
     targetId: id,
   });
   return mapSponsor(row);
+}
+
+export async function deleteSponsor(organizationId: string, actorUserId: string, id: string) {
+  const existing = await prisma.sponsor.findFirst({
+    where: { organizationId, id },
+    include: { _count: { select: { contests: true, activities: true } } },
+  });
+  if (!existing) throw notFound('Sponsor not found.');
+
+  const contests = existing._count.contests;
+  const activities = existing._count.activities;
+  if (contests > 0 || activities > 0) {
+    throw conflict(
+      `Cannot delete this sponsor while ${contests} contest${contests === 1 ? '' : 's'} and ${activities} activit${activities === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
+    );
+  }
+
+  await prisma.sponsor.delete({ where: { id } });
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'sponsor.delete',
+    targetType: 'sponsor',
+    targetId: id,
+    metadata: { name: existing.name },
+  });
+  return { deleted: true, name: existing.name };
 }

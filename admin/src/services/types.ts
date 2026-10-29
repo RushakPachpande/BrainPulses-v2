@@ -33,8 +33,6 @@ export type Activity = {
   iconTone: number;
   status: string;
   registered: number;
-  assigned: number;
-  banks: number;
   attempts: number;
   start: string;
   end: string;
@@ -203,27 +201,6 @@ export type ResultRow = {
 export type ResultDetail = ResultRow & {
   revisions?: { id: string; score: number; maxScore: number; percent: number }[];
 };
-
-export type AccessUser = {
-  membershipId?: string;
-  name: string;
-  email: string;
-  role: string;
-  assessment: boolean;
-  quiz: boolean;
-  enabled: boolean;
-};
-
-export type PermissionRow = {
-  name: string;
-  superAdmin: string;
-  admin: string;
-};
-
-export type NotificationPreference = readonly [string, string, boolean];
-
-/** [id, display text, relative time] */
-export type AuditLogRow = readonly [string, string, string];
 
 export type ReportSummaryRow = readonly [string, string, string, number];
 

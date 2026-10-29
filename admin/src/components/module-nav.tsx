@@ -1,12 +1,10 @@
 import { NavLink } from 'react-router';
 import {
   BarChart3Icon,
-  BellIcon,
   ClipboardListIcon,
   FolderOpenIcon,
+  PanelsTopLeftIcon,
   SettingsIcon,
-  ShieldIcon,
-  ServerIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -44,9 +42,12 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
     label: 'Settings',
     links: [
       { to: '/settings', label: 'General', icon: SettingsIcon, end: true },
-      { to: '/settings/access', label: 'User & Access', icon: ShieldIcon, end: true },
-      { to: '/settings/notifications', label: 'Notifications', icon: BellIcon, end: true },
-      { to: '/settings/system', label: 'System', icon: ServerIcon, end: true },
+      {
+        to: '/settings/student-portal',
+        label: 'Student portal',
+        icon: PanelsTopLeftIcon,
+        end: true,
+      },
     ],
   },
 ];

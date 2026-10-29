@@ -8,24 +8,21 @@ import {
   PlusIcon,
   UploadIcon,
 } from 'lucide-react';
+import { ImportResultDialog } from '@/components/import-result-dialog';
+import {
+  importResultFromCounts,
+  importResultFromError,
+  type ImportResultView,
+} from '@/components/import-result';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { RowActions } from '@/components/row-actions';
 import { useConfirm } from '@/components/use-confirm';
 import { Toolbar } from '@/components/toolbar';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -66,15 +63,6 @@ type DialogMode =
   | { kind: 'add' }
   | { kind: 'edit'; questionId: string }
   | { kind: 'view'; questionId: string };
-
-type ImportResultView = {
-  kind: 'success' | 'warning' | 'error';
-  title: string;
-  summary: string;
-  created: number;
-  issues: string[];
-  tip?: string;
-};
 
 export function BankFormPage({
   kind,
@@ -270,43 +258,19 @@ export function BankFormPage({
   }
 
   function showImportResult(result: BankImportResult) {
-    const issueLines = result.issues.map((i) => `Row ${i.row}: ${i.message}`);
-    if (result.created === 0 && issueLines.length > 0) {
-      setImportResult({
-        kind: 'error',
-        title: 'Import failed',
-        summary: 'No questions were created.',
-        created: 0,
-        issues: issueLines,
-        tip: 'Fix the listed rows in your sheet and import again.',
-      });
-      return;
-    }
-    if (issueLines.length > 0) {
-      setImportResult({
-        kind: 'warning',
-        title: 'Import finished with issues',
-        summary: `${result.created} question${result.created === 1 ? '' : 's'} created; some rows were skipped.`,
-        created: result.created,
-        issues: issueLines,
-        tip: 'Review skipped rows, fix them, and re-import only the failed rows if needed.',
-      });
-      return;
-    }
-    setImportResult({
-      kind: 'success',
-      title: 'Import complete',
-      summary: `${result.created} question${result.created === 1 ? '' : 's'} created.`,
-      created: result.created,
-      issues: [],
-      tip: 'You can edit any question from the list below.',
-    });
+    setImportResult(
+      importResultFromCounts(
+        result.created,
+        result.issues.map((i) => i.message),
+        'question',
+      ),
+    );
   }
 
   async function onSampleDownload() {
     if (!bankId) return;
     try {
-      await downloadBankQuestionsSample(bankId, 'xlsx');
+      await downloadBankQuestionsSample(bankId);
       toast.success('Sample Excel downloaded.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
@@ -335,14 +299,7 @@ export function BankFormPage({
       showImportResult(result);
       if (result.created > 0) await reloadBank(bankId);
     } catch (err) {
-      setImportResult({
-        kind: 'error',
-        title: 'Import failed',
-        summary: err instanceof Error ? err.message : 'Could not import file.',
-        created: 0,
-        issues: [],
-        tip: 'Use Sample Excel for the expected columns, then try again.',
-      });
+      setImportResult(importResultFromError(err));
     } finally {
       setImporting(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -442,7 +399,7 @@ export function BankFormPage({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       className="sr-only"
                       aria-hidden
                       tabIndex={-1}
@@ -609,49 +566,12 @@ export function BankFormPage({
         />
       ) : null}
 
-      <Dialog
-        open={importResult != null}
+      <ImportResultDialog
+        result={importResult}
         onOpenChange={(open) => {
           if (!open) setImportResult(null);
         }}
-      >
-        <DialogContent className="sm:max-w-lg" showCloseButton>
-          <DialogHeader>
-            <DialogTitle>{importResult?.title ?? 'Import'}</DialogTitle>
-            <DialogDescription>{importResult?.summary}</DialogDescription>
-          </DialogHeader>
-          {importResult ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-wrap gap-2">
-                <Badge variant={importResult.kind === 'error' ? 'destructive' : 'secondary'}>
-                  {importResult.created} created
-                </Badge>
-                {importResult.issues.length > 0 ? (
-                  <Badge variant="outline">{importResult.issues.length} issues</Badge>
-                ) : null}
-              </div>
-              {importResult.issues.length > 0 ? (
-                <ul className="max-h-48 list-decimal space-y-1 overflow-y-auto pl-5 text-sm text-muted-foreground">
-                  {importResult.issues.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              ) : null}
-              {importResult.tip ? (
-                <p className="text-sm text-muted-foreground">
-                  <span className="font-medium text-foreground">Next: </span>
-                  {importResult.tip}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-          <DialogFooter>
-            <Button type="button" onClick={() => setImportResult(null)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
     </div>
   );
 }

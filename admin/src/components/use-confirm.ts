@@ -5,9 +5,19 @@ export type ConfirmOptions = {
   description: string;
   confirmLabel: string;
   destructive?: boolean;
+  /** When true, the dialog collects the admin password and resolves to that string. */
+  requirePassword?: boolean;
+  passwordLabel?: string;
+  passwordPlaceholder?: string;
 };
 
-export type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
+type ConfirmFnOverload = {
+  (options: ConfirmOptions & { requirePassword: true }): Promise<string | false>;
+  (options: ConfirmOptions & { requirePassword?: false }): Promise<boolean>;
+  (options: ConfirmOptions): Promise<boolean | string>;
+};
+
+export type ConfirmFn = ConfirmFnOverload;
 
 export const ConfirmContext = createContext<ConfirmFn | null>(null);
 

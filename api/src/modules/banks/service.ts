@@ -5,13 +5,13 @@ import { conflict, forbidden, notFound, unprocessable } from '../../lib/errors.j
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
+import { formatImportIssue } from '../../lib/spreadsheet-import.js';
 import {
   buildExportCsv,
   buildExportWorkbook,
   buildSampleCsv,
   buildSampleWorkbook,
   newImportQuestionCode,
-  parseBankQuestionsCsv,
   parseBankQuestionsFile,
   rowToCreatePayload,
   type BankImportRow,
@@ -647,13 +647,32 @@ export async function updateQuestion(
   });
 }
 
-function importRowMessage(err: unknown): string {
+function importRowMessage(sheetRow: number, err: unknown): string {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
-    if (err.code === 'P2002') return 'This row duplicates an existing question code.';
-    return 'Could not save this row.';
+    if (err.code === 'P2002') {
+      return formatImportIssue({
+        sheetRow,
+        problem: 'this row duplicates an existing question code in the bank',
+        expected: 'a unique question, or omit the duplicate row',
+      });
+    }
+    return formatImportIssue({
+      sheetRow,
+      problem: 'the row could not be saved',
+      expected: 'valid question fields matching the sample Excel',
+    });
   }
-  if (err instanceof Error && err.message) return err.message;
-  return 'Failed to import row';
+  if (err instanceof Error && err.message) {
+    return formatImportIssue({
+      sheetRow,
+      problem: err.message.replace(/\.$/, ''),
+    });
+  }
+  return formatImportIssue({
+    sheetRow,
+    problem: 'the row could not be imported',
+    expected: 'fix the listed columns using Sample Excel as a guide',
+  });
 }
 
 async function importFromRows(
@@ -709,7 +728,7 @@ async function importFromRows(
     } catch (err) {
       issues.push({
         row: row.sheetRow,
-        message: importRowMessage(err),
+        message: importRowMessage(row.sheetRow, err),
       });
     }
   }
@@ -725,25 +744,6 @@ async function importFromRows(
     metadata: { idempotencyKey, result },
   });
   return result;
-}
-
-/** Legacy JSON body `{ csv }` and multipart file share this result shape. */
-export async function importQuestions(
-  organizationId: string,
-  actorUserId: string,
-  actor: AccessActor,
-  bankId: string,
-  csv: string,
-  idempotencyKey?: string,
-) {
-  return importFromRows(
-    organizationId,
-    actorUserId,
-    actor,
-    bankId,
-    parseBankQuestionsCsv(csv),
-    idempotencyKey,
-  );
 }
 
 export async function importQuestionsFile(

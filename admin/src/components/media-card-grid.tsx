@@ -6,6 +6,7 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   PencilIcon,
+  TrashIcon,
   TrophyIcon,
 } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
@@ -67,6 +68,7 @@ export function MediaCard({
   footerLabel,
   editTo,
   onEdit,
+  onDelete,
 }: {
   to?: string;
   onView?: () => void;
@@ -80,6 +82,7 @@ export function MediaCard({
   footerLabel?: ReactNode;
   editTo?: string;
   onEdit?: () => void;
+  onDelete?: () => void;
 }) {
   const KindIcon = kind === 'sponsor' ? Building2Icon : TrophyIcon;
   const kindLabel = kind === 'sponsor' ? 'Sponsor' : 'Contest';
@@ -151,6 +154,18 @@ export function MediaCard({
       <div className="media-catalog-card-bottom">
         <div className="media-catalog-card-foot">{footerLabel}</div>
         <div className="media-catalog-card-actions">
+          {onDelete ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              aria-label={`Delete ${title}`}
+              onClick={onDelete}
+            >
+              <TrashIcon data-icon="inline-start" />
+              Delete
+            </Button>
+          ) : null}
           {onEdit ? (
             <Button
               type="button"

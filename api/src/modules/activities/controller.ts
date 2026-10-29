@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { verifyActingUserPassword } from '../../lib/verify-acting-password.js';
 import { userActor } from '../../middleware/auth.js';
 import * as service from './service.js';
 
@@ -82,6 +83,7 @@ export async function archive(req: Request, res: Response, next: NextFunction) {
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
+    await verifyActingUserPassword(actor.userId, req.body.password as string);
     const data = await service.deleteActivity(
       actor.organizationId,
       actor.userId,
@@ -129,6 +131,7 @@ export async function createRoundQuestion(req: Request, res: Response, next: Nex
 export async function deleteRoundQuestion(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
+    await verifyActingUserPassword(actor.userId, req.body.password as string);
     await service.deleteRoundQuestion(
       actor.organizationId,
       actor.userId,

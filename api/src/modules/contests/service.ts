@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import { writeAudit } from '../../lib/audit.js';
-import { badRequest, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { assertCatalogImage } from '../files/service.js';
@@ -135,4 +135,33 @@ export async function updateContest(
     targetId: id,
   });
   return mapContest(row);
+}
+
+export async function deleteContest(organizationId: string, actorUserId: string, id: string) {
+  const existing = await prisma.contest.findFirst({
+    where: { organizationId, id },
+    select: { id: true, name: true },
+  });
+  if (!existing) throw notFound('Contest not found.');
+
+  const activities = await prisma.activity.count({
+    where: { organizationId, contestId: id },
+  });
+  if (activities > 0) {
+    throw conflict(
+      `Cannot delete this contest while ${activities} activit${activities === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
+    );
+  }
+
+  await prisma.contest.delete({ where: { id } });
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'contest.delete',
+    targetType: 'contest',
+    targetId: id,
+    metadata: { name: existing.name },
+  });
+  return { deleted: true, name: existing.name };
 }

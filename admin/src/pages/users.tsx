@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeftIcon,
   ChevronRightIcon,
+  FileSpreadsheetIcon,
   PlusIcon,
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ImportResultDialog } from '@/components/import-result-dialog';
+import {
+  importResultFromCounts,
+  importResultFromError,
+  type ImportResultView,
+} from '@/components/import-result';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
@@ -16,6 +23,7 @@ import { RowActions } from '@/components/row-actions';
 import { StatusBadge } from '@/components/status-badge';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -31,11 +39,18 @@ import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
+import { ApiError } from '@/lib/api-client';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { UserEditorDialog } from '@/pages/user-editor-dialog';
 import { UserViewDialog } from '@/pages/user-view-dialog';
-import { getUsers, type AdminUser as User } from '@/services';
+import {
+  deleteUserCompletely,
+  downloadUsersSample,
+  getUsers,
+  importUsers,
+  type AdminUser as User,
+} from '@/services';
 
 const EMPTY_USERS: User[] = [];
 
@@ -90,17 +105,78 @@ export function UsersPage() {
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canManage = canManageUsersOrSettings(membership);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.users(orgId),
     queryFn: () => getUsers(),
     enabled: Boolean(orgId),
   });
   const users = data ?? EMPTY_USERS;
+
+  async function onSampleDownload() {
+    try {
+      await downloadUsersSample();
+      toast.success('Sample Excel downloaded.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
+    }
+  }
+
+  async function onImportFile(file: File | undefined) {
+    if (!file || !canManage) return;
+    setImporting(true);
+    try {
+      const result = await importUsers(file);
+      setImportResult(
+        importResultFromCounts(
+          result.created,
+          result.issues.map((issue) => issue.message),
+          'user',
+        ),
+      );
+      if (result.created > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      }
+    } catch (err) {
+      setImportResult(importResultFromError(err));
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
+  async function onDeleteUser(user: User) {
+    if (!canManage || !user.id) return;
+    const password = await confirm({
+      title: `Delete “${user.name}”?`,
+      description:
+        'Permanently removes this account and all organization memberships. They cannot sign in again. This cannot be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteUserCompletely(user.id, password);
+      toast.success('User deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      if (viewId === user.id) setViewId(null);
+      if (editor === user.id) setEditor(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete user.');
+    }
+  }
   const [search, setSearch] = useState('');
   const [role, setRole] = useState('All');
   const [status, setStatus] = useState('All');
@@ -234,29 +310,55 @@ export function UsersPage() {
         onOpenChange={(open) => {
           if (!open) setEditor(null);
         }}
+        onSaved={() => {
+          void queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
+          void queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+        }}
       />
     ) : null;
+
+  const uploadActions = canManage ? (
+    <PageHeaderActions>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="sr-only"
+        aria-label="Import users Excel file"
+        onChange={(e) => void onImportFile(e.target.files?.[0])}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={importing}
+        onClick={() => void onSampleDownload()}
+      >
+        <FileSpreadsheetIcon data-icon="inline-start" />
+        Sample Excel
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={importing}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <UploadIcon data-icon="inline-start" />
+        {importing ? 'Importing…' : 'Upload Users'}
+      </Button>
+      <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
+        <PlusIcon data-icon="inline-start" />
+        Add User
+      </Button>
+    </PageHeaderActions>
+  ) : null;
 
   if (loading) {
     return (
       <>
         <div className="flex flex-col gap-4">
-          {canManage ? (
-            <PageHeaderActions>
-              <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-                <UploadIcon data-icon="inline-start" />
-                Upload Users
-              </Button>
-              <Button
-                type="button"
-                className="w-full sm:w-auto"
-                onClick={() => setEditor('create')}
-              >
-                <PlusIcon data-icon="inline-start" />
-                Add User
-              </Button>
-            </PageHeaderActions>
-          ) : null}
+          {uploadActions}
           <ListPageSkeleton columns={6} kpiCount={0} />
         </div>
         {viewDialog}
@@ -268,18 +370,7 @@ export function UsersPage() {
   return (
     <>
       <div ref={ref} className="flex flex-col gap-4">
-        {canManage ? (
-          <PageHeaderActions>
-            <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-              <UploadIcon data-icon="inline-start" />
-              Upload Users
-            </Button>
-            <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
-              <PlusIcon data-icon="inline-start" />
-              Add User
-            </Button>
-          </PageHeaderActions>
-        ) : null}
+        {uploadActions}
 
         <Toolbar
           filters={filters}
@@ -345,6 +436,14 @@ export function UsersPage() {
                       canManage && id
                         ? {
                             onClick: () => setEditor(id),
+                          }
+                        : undefined
+                    }
+                    remove={
+                      canManage && id
+                        ? {
+                            label: 'Delete',
+                            onClick: () => void onDeleteUser(user),
                           }
                         : undefined
                     }
@@ -418,6 +517,12 @@ export function UsersPage() {
       </div>
       {viewDialog}
       {editorDialog}
+      <ImportResultDialog
+        result={importResult}
+        onOpenChange={(open) => {
+          if (!open) setImportResult(null);
+        }}
+      />
     </>
   );
 }

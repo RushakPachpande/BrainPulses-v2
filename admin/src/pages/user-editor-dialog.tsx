@@ -16,7 +16,13 @@ import {
 import { useConfirm } from '@/components/use-confirm';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { ApiError } from '@/lib/api-client';
-import { deactivateMembership, getUser, inviteUser, updateMembershipAccess } from '@/services';
+import {
+  deactivateMembership,
+  deleteUserCompletely,
+  getUser,
+  inviteUser,
+  updateMembershipAccess,
+} from '@/services';
 
 type AccessLevel = 'full' | 'edit' | 'view' | 'none';
 
@@ -181,6 +187,32 @@ export function UserEditorDialog({
     }
   }
 
+  async function onDelete() {
+    if (!userId || saving) return;
+    const password = await confirm({
+      title: `Delete “${name || 'this user'}”?`,
+      description:
+        'Permanently removes this account and all organization memberships. They cannot sign in again. This cannot be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    setSaving(true);
+    try {
+      await deleteUserCompletely(userId, password);
+      toast.success('User deleted.');
+      allowLeave();
+      setDirty(false);
+      onSaved?.();
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete user.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const title = mode === 'create' ? 'Invite User' : 'Edit User';
   const description =
     mode === 'create'
@@ -209,11 +241,21 @@ export function UserEditorDialog({
           {mode === 'edit' && status === 'Active' ? (
             <Button
               type="button"
-              variant="destructive"
+              variant="outline"
               disabled={saving || loading}
               onClick={() => void onDeactivate()}
             >
               Deactivate
+            </Button>
+          ) : null}
+          {mode === 'edit' ? (
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={saving || loading}
+              onClick={() => void onDelete()}
+            >
+              Delete
             </Button>
           ) : null}
           <SaveButton form={formId} pending={saving} disabled={loading}>

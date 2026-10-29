@@ -80,18 +80,19 @@ export function RegistrationDetailPage({
   async function onDeleteAttempt() {
     if (!row?.attemptId) return;
     const inProgress = row.attempt === 'In Progress';
-    const ok = await confirm({
+    const password = await confirm({
       title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
       description: inProgress
         ? 'Removes the open attempt so the student can start again as if they never began. This cannot be undone.'
         : "Removes the student's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete attempt',
       destructive: true,
+      requirePassword: true,
     });
-    if (!ok) return;
+    if (!password) return;
     setSaving(true);
     try {
-      await deleteAttempt(row.attemptId);
+      await deleteAttempt(row.attemptId, password);
       toast.success('Attempt deleted.');
       const found = await getRegistration(kind, registrationId);
       setRow(found);

@@ -63,6 +63,9 @@ export function LoginPage() {
   }
 
   const selectingOrg = auth.status === 'select_organization';
+  const orgOptions = selectingOrg ? auth.organizations : [];
+  const selectedOrg = orgOptions.find((org) => org.id === organizationId) ?? orgOptions[0];
+  const platformBrand = selectedOrg?.displayName?.trim() || 'BrainPulses';
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-background px-4 py-8">
@@ -74,7 +77,7 @@ export function LoginPage() {
           <CardTitle>{selectingOrg ? 'Choose organization' : 'Sign in'}</CardTitle>
           <CardDescription>
             {selectingOrg
-              ? 'Select the organization you want to manage.'
+              ? `${platformBrand} — select the organization you want to manage.`
               : 'BrainPulses admin — use your organization account.'}
           </CardDescription>
         </CardHeader>
@@ -90,9 +93,9 @@ export function LoginPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        {auth.organizations.map((org) => (
+                        {orgOptions.map((org) => (
                           <SelectItem key={org.id} value={org.id}>
-                            {org.name}
+                            {(org.displayName?.trim() || 'BrainPulses') + ' | ' + org.name}
                           </SelectItem>
                         ))}
                       </SelectGroup>

@@ -1,18 +1,25 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
+  FileSpreadsheetIcon,
   MailIcon,
   PhoneIcon,
   PlusIcon,
   RotateCcwIcon,
   UploadIcon,
 } from 'lucide-react';
+import { ImportResultDialog } from '@/components/import-result-dialog';
+import {
+  importResultFromCounts,
+  importResultFromError,
+  type ImportResultView,
+} from '@/components/import-result';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
@@ -38,7 +45,15 @@ import { useOrgId } from '@/hooks/use-org-id';
 import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
-import { activateStudents, deactivateStudents, getStudents, type Student } from '@/services';
+import {
+  activateStudents,
+  deactivateStudents,
+  deleteStudent,
+  downloadStudentsSample,
+  getStudents,
+  importStudents,
+  type Student,
+} from '@/services';
 import { StudentEditorDialog } from '@/pages/student-editor-dialog';
 import { StudentViewDialog } from '@/pages/student-view-dialog';
 import { studentCities, studentCourses } from '@/services/fixtures';
@@ -121,20 +136,81 @@ export function StudentsPage() {
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
+  const queryClient = useQueryClient();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const canBulkStatus = canManageUsersOrSettings(membership);
+  const canDelete = canManageUsersOrSettings(membership);
   const confirm = useConfirm();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [bulkAction, setBulkAction] = useState<'disable' | 'enable' | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.students(orgId),
     queryFn: () => getStudents(),
     enabled: Boolean(orgId),
   });
   const students = data ?? EMPTY_STUDENTS;
+
+  async function onDeleteStudent(student: Student) {
+    if (!canDelete) return;
+    const password = await confirm({
+      title: `Delete “${student.name}”?`,
+      description:
+        'Permanently removes this student and their registrations, attempts, and results. This cannot be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteStudent(student.id, password);
+      toast.success('Student deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'students'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      if (viewId === student.id) setViewId(null);
+      if (editor === student.id) setEditor(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete student.');
+    }
+  }
+
+  async function onSampleDownload() {
+    try {
+      await downloadStudentsSample();
+      toast.success('Sample Excel downloaded.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
+    }
+  }
+
+  async function onImportFile(file: File | undefined) {
+    if (!file || !canMutate) return;
+    setImporting(true);
+    try {
+      const result = await importStudents(file);
+      setImportResult(
+        importResultFromCounts(
+          result.created,
+          result.issues.map((issue) => issue.message),
+          'student',
+        ),
+      );
+      if (result.created > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'students'] });
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      }
+    } catch (err) {
+      setImportResult(importResultFromError(err));
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [course, setCourse] = useState('All');
@@ -340,26 +416,48 @@ export function StudentsPage() {
       />
     ) : null;
 
+  const uploadActions = canMutate ? (
+    <PageHeaderActions>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="sr-only"
+        aria-label="Import students Excel file"
+        onChange={(e) => void onImportFile(e.target.files?.[0])}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={importing}
+        onClick={() => void onSampleDownload()}
+      >
+        <FileSpreadsheetIcon data-icon="inline-start" />
+        Sample Excel
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={importing}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <UploadIcon data-icon="inline-start" />
+        {importing ? 'Importing…' : 'Upload Students'}
+      </Button>
+      <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
+        <PlusIcon data-icon="inline-start" />
+        Add Student
+      </Button>
+    </PageHeaderActions>
+  ) : null;
+
   if (loading) {
     return (
       <>
         <div className="flex flex-col gap-4">
-          {canMutate ? (
-            <PageHeaderActions>
-              <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-                <UploadIcon data-icon="inline-start" />
-                Upload Students
-              </Button>
-              <Button
-                type="button"
-                className="w-full sm:w-auto"
-                onClick={() => setEditor('create')}
-              >
-                <PlusIcon data-icon="inline-start" />
-                Add Student
-              </Button>
-            </PageHeaderActions>
-          ) : null}
+          {uploadActions}
           <ListPageSkeleton columns={8} />
         </div>
         {viewDialog}
@@ -371,18 +469,7 @@ export function StudentsPage() {
   return (
     <>
       <div ref={ref} className="flex flex-col gap-4">
-        {canMutate ? (
-          <PageHeaderActions>
-            <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-              <UploadIcon data-icon="inline-start" />
-              Upload Students
-            </Button>
-            <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
-              <PlusIcon data-icon="inline-start" />
-              Add Student
-            </Button>
-          </PageHeaderActions>
-        ) : null}
+        {uploadActions}
 
         <Toolbar
           filters={filters}
@@ -462,6 +549,7 @@ export function StudentsPage() {
                 <RowActions
                   view={{ onClick: () => setViewId(student.id) }}
                   edit={canMutate ? { onClick: () => setEditor(student.id) } : undefined}
+                  remove={canDelete ? { onClick: () => void onDeleteStudent(student) } : undefined}
                 />
               )}
               onRowOpen={(student) => setViewId(student.id)}
@@ -530,6 +618,12 @@ export function StudentsPage() {
       </div>
       {viewDialog}
       {editorDialog}
+      <ImportResultDialog
+        result={importResult}
+        onOpenChange={(open) => {
+          if (!open) setImportResult(null);
+        }}
+      />
     </>
   );
 }

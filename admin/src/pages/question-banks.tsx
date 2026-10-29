@@ -552,8 +552,8 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
           <DialogHeader>
             <DialogTitle>Bulk upload questions</DialogTitle>
             <DialogDescription>
-              Choose a question bank to import into. You will pick the CSV or Excel file on the next
-              screen.
+              Choose a question bank to import into. You will pick the Excel (.xlsx) file on the
+              next screen.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">

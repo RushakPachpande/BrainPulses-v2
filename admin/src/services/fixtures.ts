@@ -86,8 +86,6 @@ export const presentationTypes = [
 ];
 
 export const registeredCounts = [420, 312, 880, 150, 265, 98];
-export const assignedCounts = [400, 298, 850, 140, 240, 90];
-export const bankCounts = [3, 2, 4, 1, 2, 3];
 export const attemptCounts = [356, 201, 640, 98, 0, 0];
 export const questionCounts = [120, 200, 90, 150, 80, 300];
 export const usedInCounts = [3, 5, 2, 1, 4, 6];
@@ -127,16 +125,6 @@ export const activityEndTimes = [
   '07:30 PM',
 ];
 export const resultScores = [82, 64, 47, 91];
-
-export const accessPeople = ['Meera Joshi', 'Karan Desai', 'Sana Khan', 'Rahul Nair'];
-export const permissions = [
-  'Manage users',
-  'Create assessments',
-  'Create quizzes',
-  'View reports',
-  'Export data',
-  'System settings',
-];
 
 export function personName(i: number) {
   return names[i % names.length];

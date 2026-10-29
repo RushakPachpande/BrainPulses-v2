@@ -6,6 +6,7 @@ import {
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
+import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
 import * as controller from './controller.js';
 import {
   createSponsorSchema,
@@ -41,4 +42,10 @@ sponsorsRouter.patch(
   requireOrgAccess('edit'),
   validate({ params: idParamSchema, body: updateSponsorSchema }),
   controller.update,
+);
+sponsorsRouter.delete(
+  '/:id',
+  requireOrgAccess('full'),
+  validate({ params: idParamSchema, body: confirmPasswordSchema }),
+  controller.remove,
 );

@@ -5,6 +5,7 @@ import {
   isAnswered,
   isMultiSelectType,
   isSingleSelectType,
+  optionLetterAt,
   type AttemptAnswerValue,
 } from '../lib/attempt-answers';
 import type { AttemptQuestion } from '../services/types';
@@ -67,7 +68,7 @@ export function AttemptQuestionBlock({
 
         {isSingleSelectType(q.type) || isMultiSelectType(q.type) ? (
           <div className="option-list">
-            {q.options.map((op) => {
+            {q.options.map((op, optionIndex) => {
               const chosen = isMultiSelectType(q.type)
                 ? multiChosen.has(op.label)
                 : singleChosen === op.label;
@@ -87,7 +88,7 @@ export function AttemptQuestionBlock({
                     }
                   }}
                 >
-                  <span className="option-letter">{op.label}</span>
+                  <span className="option-letter">{optionLetterAt(optionIndex)}</span>
                   <span className="option-body">
                     {op.imageUrl ? (
                       <StoredImage src={op.imageUrl} alt="" className="option-image" />

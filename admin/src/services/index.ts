@@ -17,26 +17,18 @@ import {
 } from '@/lib/upload-limits';
 import {
   buildReportSummaryFromResults,
-  mapAccessUserFromApi,
   mapActivityFromApi,
-  mapAuditLogsFromApi,
   mapBankFromApi,
   mapDashboardFromApi,
-  mapNotificationsFromSettings,
   mapRegistrationFromApi,
   mapResultFromApi,
   mapStudentFromApi,
   mapUserFromApi,
-  notificationValuesFromPreferences,
 } from './api-mappers';
 import {
-  fixturesGetAccessUsers,
   fixturesGetActivities,
-  fixturesGetAuditLogs,
   fixturesGetDashboard,
   fixturesGetMonths,
-  fixturesGetNotifications,
-  fixturesGetPermissions,
   fixturesGetQuestionBanks,
   fixturesGetRegistrations,
   fixturesGetReportSummary,
@@ -45,7 +37,6 @@ import {
   fixturesGetUsers,
 } from './fixtures-sync';
 import type {
-  AccessUser,
   ActivityDetail,
   ActivityKind,
   ActivityRoundLocalQuestion,
@@ -55,10 +46,7 @@ import type {
   ImageLibraryPurpose,
   LibraryImage,
   Sponsor,
-  AuditLogRow,
   DashboardData,
-  NotificationPreference,
-  PermissionRow,
   QuestionBank,
   ReportSummaryRow,
   ResultDetail,
@@ -80,7 +68,6 @@ export type {
   LibraryImage,
   Student,
   AdminUser,
-  AccessUser,
   DashboardData,
   ResultDetail,
   ResultRow,
@@ -94,7 +81,6 @@ type ApiActivityRow = Parameters<typeof mapActivityFromApi>[0];
 type ApiBankRow = Parameters<typeof mapBankFromApi>[0];
 type ApiRegistrationRow = Parameters<typeof mapRegistrationFromApi>[0];
 type ApiResultRow = Parameters<typeof mapResultFromApi>[0];
-type ApiAccessRow = Parameters<typeof mapAccessUserFromApi>[0];
 type ApiDashboardSummary = Parameters<typeof mapDashboardFromApi>[0];
 
 export async function getStudents(): Promise<Student[]> {
@@ -307,37 +293,6 @@ export async function getDashboard(): Promise<DashboardData> {
   return mapDashboardFromApi(summary);
 }
 
-export async function getAccessUsers(): Promise<AccessUser[]> {
-  if (useFixtures) return fixturesGetAccessUsers();
-  const rows = await apiGetList<ApiAccessRow>('/api/users', {
-    limit: 100,
-  });
-  return rows.map(mapAccessUserFromApi);
-}
-
-export async function getPermissions(): Promise<PermissionRow[]> {
-  return fixturesGetPermissions();
-}
-
-export async function getNotifications(): Promise<NotificationPreference[]> {
-  if (useFixtures) return [...fixturesGetNotifications()];
-  const settings = await apiGetData<{ group: string; values: Record<string, unknown> }>(
-    '/api/settings/notifications',
-  );
-  return mapNotificationsFromSettings(settings.values);
-}
-
-export async function getAuditLogs(): Promise<AuditLogRow[]> {
-  if (useFixtures) return [...fixturesGetAuditLogs()];
-  const rows = await apiGetList<{
-    id: string;
-    actor: string;
-    action: string;
-    createdAt: string;
-  }>('/api/audit', { limit: 10 });
-  return mapAuditLogsFromApi(rows);
-}
-
 export async function getReportSummary(kind: ActivityKind): Promise<ReportSummaryRow[]> {
   if (useFixtures) return [...fixturesGetReportSummary()];
   const results = await getResults(kind);
@@ -548,10 +503,16 @@ export async function createRoundQuestion(
   );
 }
 
-export async function deleteRoundQuestion(activityId: string, roundId: string, questionId: string) {
+export async function deleteRoundQuestion(
+  activityId: string,
+  roundId: string,
+  questionId: string,
+  password: string,
+) {
   if (useFixtures) return;
   await apiRequest(`/api/activities/${activityId}/rounds/${roundId}/questions/${questionId}`, {
     method: 'DELETE',
+    body: JSON.stringify({ password }),
   });
 }
 
@@ -565,26 +526,17 @@ export async function updateActivity(id: string, payload: ActivityWritePayload) 
   return data;
 }
 
-export async function getSettingsGroup(group: 'general' | 'access' | 'notifications' | 'system') {
+export async function getSettingsGroup(group: 'general') {
   if (useFixtures) return { group, values: {} as Record<string, unknown> };
   return apiGetData<{ group: string; values: Record<string, unknown> }>(`/api/settings/${group}`);
 }
 
-export async function patchSettingsGroup(
-  group: 'general' | 'access' | 'notifications' | 'system',
-  values: Record<string, unknown>,
-) {
+export async function patchSettingsGroup(group: 'general', values: Record<string, unknown>) {
   if (useFixtures) return { group, values };
   return apiPatchData<{ group: string; values: Record<string, unknown> }>(
     `/api/settings/${group}`,
     { values },
   );
-}
-
-export async function saveNotificationPreferences(
-  prefs: { title: string; hint: string; enabled: boolean }[],
-) {
-  return patchSettingsGroup('notifications', notificationValuesFromPreferences(prefs));
 }
 
 export async function updateMembershipAccess(
@@ -640,14 +592,14 @@ export async function archiveActivity(activityId: string, idempotencyKey?: strin
 }
 
 /** Permanently deletes a quiz and all related attempts, results, and registrations. */
-export async function deleteActivity(activityId: string) {
+export async function deleteActivity(activityId: string, password: string) {
   if (useFixtures) {
     invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
     return { id: activityId, deleted: true as const };
   }
   const data = await apiRequest<{ data: { id: string; deleted: true } }>(
     `/api/activities/${activityId}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', body: JSON.stringify({ password }) },
   );
   invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
   return data.data;
@@ -776,6 +728,120 @@ export async function deactivateMembership(membershipId: string) {
   const data = await apiPostData(`/api/users/${membershipId}/deactivate`);
   invalidateAdmin(['users']);
   return data;
+}
+
+/** Permanently deletes the user account and all org memberships. */
+export async function deleteUserCompletely(membershipId: string, password: string) {
+  if (useFixtures) {
+    invalidateAdmin(['users', 'dashboard']);
+    return { deleted: true as const, email: '' };
+  }
+  const body = await apiRequest<{ data: { deleted: true; email: string } }>(
+    `/api/users/${membershipId}`,
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+  );
+  invalidateAdmin(['users', 'dashboard']);
+  return body.data;
+}
+
+export type SpreadsheetImportResult = {
+  created: number;
+  issues: { row: number; message: string }[];
+  ignoredColumns?: string[];
+};
+
+const XLSX_IMPORT_MAX_BYTES = 10 * 1024 * 1024;
+
+function assertXlsxImportFile(file: File) {
+  if (!/\.xlsx$/i.test(file.name) || /\.xlsx\./i.test(file.name)) {
+    throw new Error(
+      'Upload an Excel (.xlsx) file only. Download Sample Excel for the correct template.',
+    );
+  }
+  if (file.size > XLSX_IMPORT_MAX_BYTES) {
+    throw new Error('File is too large (max 10 MB).');
+  }
+}
+
+export async function importStudents(file: File): Promise<SpreadsheetImportResult> {
+  assertXlsxImportFile(file);
+  if (useFixtures) {
+    return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
+  }
+  const form = new FormData();
+  form.append('file', file);
+  const data = await apiPostFormData<SpreadsheetImportResult>(
+    '/api/students/import',
+    form,
+    idempotencyHeaders(),
+  );
+  invalidateAdmin(['students', 'dashboard']);
+  return data;
+}
+
+export async function downloadStudentsSample(): Promise<void> {
+  if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
+  await apiDownloadBlob('/api/students/sample.xlsx', 'brainpulses-students-sample.xlsx');
+}
+
+export async function deleteStudent(studentId: string, password: string) {
+  if (useFixtures) {
+    invalidateAdmin(['students', 'dashboard']);
+    return { deleted: true as const, email: '' };
+  }
+  const body = await apiRequest<{ data: { deleted: true; email: string } }>(
+    `/api/students/${studentId}`,
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+  );
+  invalidateAdmin(['students', 'dashboard']);
+  return body.data;
+}
+
+export async function importUsers(file: File): Promise<SpreadsheetImportResult> {
+  assertXlsxImportFile(file);
+  if (useFixtures) {
+    return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
+  }
+  const form = new FormData();
+  form.append('file', file);
+  const data = await apiPostFormData<SpreadsheetImportResult>(
+    '/api/users/import',
+    form,
+    idempotencyHeaders(),
+  );
+  invalidateAdmin(['users', 'dashboard']);
+  return data;
+}
+
+export async function downloadUsersSample(): Promise<void> {
+  if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
+  await apiDownloadBlob('/api/users/sample.xlsx', 'brainpulses-users-sample.xlsx');
+}
+
+export async function deleteSponsor(sponsorId: string, password: string) {
+  if (useFixtures) {
+    invalidateAdmin(['sponsors']);
+    return { deleted: true as const, name: '' };
+  }
+  const body = await apiRequest<{ data: { deleted: true; name: string } }>(
+    `/api/sponsors/${sponsorId}`,
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+  );
+  invalidateAdmin(['sponsors']);
+  return body.data;
+}
+
+export async function deleteContest(contestId: string, password: string) {
+  if (useFixtures) {
+    invalidateAdmin(['contests']);
+    return { deleted: true as const, name: '' };
+  }
+  const body = await apiRequest<{ data: { deleted: true; name: string } }>(
+    `/api/contests/${contestId}`,
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+  );
+  invalidateAdmin(['contests']);
+  return body.data;
 }
 
 export async function createQuestionBank(payload: {
@@ -914,15 +980,8 @@ export type BankImportResult = {
   issues: BankImportIssue[];
 };
 
-const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
-
 export async function importBankQuestions(bankId: string, file: File): Promise<BankImportResult> {
-  if (!/\.(csv|xlsx)$/i.test(file.name)) {
-    throw new Error('Upload a .csv or .xlsx file. Legacy .xls is not supported.');
-  }
-  if (file.size > IMPORT_MAX_BYTES) {
-    throw new Error('File is too large (max 10 MB).');
-  }
+  assertXlsxImportFile(file);
   if (useFixtures) {
     return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
   }
@@ -937,14 +996,11 @@ export async function importBankQuestions(bankId: string, file: File): Promise<B
   return data;
 }
 
-export async function downloadBankQuestionsSample(
-  bankId: string,
-  format: 'xlsx' | 'csv' = 'xlsx',
-): Promise<void> {
+export async function downloadBankQuestionsSample(bankId: string): Promise<void> {
   if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
   await apiDownloadBlob(
-    `/api/banks/${bankId}/questions/sample.${format}`,
-    `brainpulses-question-sample.${format}`,
+    `/api/banks/${bankId}/questions/sample.xlsx`,
+    'brainpulses-question-sample.xlsx',
   );
 }
 
@@ -1006,7 +1062,7 @@ export async function regradeResult(resultId: string, score: number, reason: str
   return apiPostData(`/api/results/${resultId}/regrade`, { score, reason });
 }
 
-export async function deleteResult(resultId: string) {
+export async function deleteResult(resultId: string, password: string) {
   if (useFixtures) {
     invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
     return { id: resultId, deleted: true as const };
@@ -1015,6 +1071,7 @@ export async function deleteResult(resultId: string) {
     `/api/results/${resultId}`,
     {
       method: 'DELETE',
+      body: JSON.stringify({ password }),
     },
   );
   invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
@@ -1022,14 +1079,14 @@ export async function deleteResult(resultId: string) {
 }
 
 /** Deletes an attempt of any status (including in_progress). */
-export async function deleteAttempt(attemptId: string) {
+export async function deleteAttempt(attemptId: string, password: string) {
   if (useFixtures) {
     invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
     return { id: attemptId, deleted: true as const };
   }
   const data = await apiRequest<{ data: { id: string; deleted: true } }>(
     `/api/admin/attempts/${attemptId}`,
-    { method: 'DELETE' },
+    { method: 'DELETE', body: JSON.stringify({ password }) },
   );
   invalidateAdmin(['results', 'resultsSummary', 'registrations', 'dashboard']);
   return data.data;

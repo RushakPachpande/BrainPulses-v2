@@ -282,9 +282,3 @@ export const bankQuestionParamsSchema = z.object({
   id: z.string().uuid(),
   questionId: z.string().uuid(),
 });
-
-export const importBodySchema = z
-  .object({
-    csv: z.string().min(1),
-  })
-  .strict();

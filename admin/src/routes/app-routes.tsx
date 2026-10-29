@@ -46,22 +46,16 @@ const ReportsPage = lazy(() => import('@/pages/reports').then((m) => ({ default:
 const ResultDetailPage = lazy(() =>
   import('@/pages/result-detail').then((m) => ({ default: m.ResultDetailPage })),
 );
-const AccessSettingsPage = lazy(() =>
-  import('@/pages/settings-access').then((m) => ({ default: m.AccessSettingsPage })),
-);
 const GeneralSettingsPage = lazy(() =>
   import('@/pages/settings-general').then((m) => ({ default: m.GeneralSettingsPage })),
 );
-const NotificationSettingsPage = lazy(() =>
-  import('@/pages/settings-notifications').then((m) => ({
-    default: m.NotificationSettingsPage,
+const StudentPortalSettingsPage = lazy(() =>
+  import('@/pages/settings-student-portal').then((m) => ({
+    default: m.StudentPortalSettingsPage,
   })),
 );
 const DesignSystemPage = lazy(() =>
   import('@/pages/design-system').then((m) => ({ default: m.DesignSystemPage })),
-);
-const SystemSettingsPage = lazy(() =>
-  import('@/pages/settings-system').then((m) => ({ default: m.SystemSettingsPage })),
 );
 
 function SuspenseOutlet() {
@@ -208,11 +202,7 @@ export function AppRoutes() {
           </Route>
 
           <Route path="settings" element={<GeneralSettingsPage />} />
-          <Route element={<RequireAccess gate={{ type: 'manageUsersOrSettings' }} />}>
-            <Route path="settings/access" element={<AccessSettingsPage />} />
-          </Route>
-          <Route path="settings/notifications" element={<NotificationSettingsPage />} />
-          <Route path="settings/system" element={<SystemSettingsPage />} />
+          <Route path="settings/student-portal" element={<StudentPortalSettingsPage />} />
           <Route path="settings/design-system" element={<DesignSystemPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

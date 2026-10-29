@@ -1,22 +1,18 @@
 import {
-  accessPeople,
   activityCounts,
   activityEndTimes,
   activityStartTimes,
   admins,
   assessmentNames,
   assessmentSubtitles,
-  assignedCounts,
   assignmentStatuses,
   attemptCounts,
   attemptStatuses,
-  bankCounts,
   bankDescriptions,
   bankNames,
   flow,
   mail,
   months,
-  permissions,
   personName,
   phone,
   presentationTypes,
@@ -80,8 +76,6 @@ export function fixturesGetActivities(kind: ActivityKind) {
     iconTone: i % 6,
     status: flow[i],
     registered: registeredCounts[i],
-    assigned: assignedCounts[i],
-    banks: bankCounts[i],
     attempts: attemptCounts[i],
     start: when(i),
     end: when(i + 6, 10),
@@ -177,44 +171,6 @@ export function fixturesGetDashboard() {
       ['dash-5', '45 students bulk-uploaded', '52 min ago'],
     ] as const,
   };
-}
-
-export function fixturesGetAccessUsers() {
-  return accessPeople.map((name, i) => ({
-    name,
-    email: name.toLowerCase().split(' ')[0] + '@brainpulses.com',
-    role: i ? 'Admin' : 'Super Admin',
-    assessment: i !== 3,
-    quiz: i !== 2,
-    enabled: i !== 3,
-  }));
-}
-
-export function fixturesGetPermissions() {
-  return permissions.map((name, i) => ({
-    name,
-    superAdmin: 'Yes',
-    admin: i === 5 ? 'No' : i < 2 ? 'Per access' : 'Yes',
-  }));
-}
-
-export function fixturesGetNotifications() {
-  return [
-    ['Student Registration', 'Notify admins when a student registers', true],
-    ['Assessment Completion', 'Alert when a student completes an assessment', true],
-    ['Quiz Completion', 'Alert when a student completes a quiz', true],
-    ['Admin Notifications', 'Account, role, and access changes', true],
-    ['Email Notifications', 'Send summaries to admin email', true],
-    ['Daily Digest', 'Daily 8:00 AM activity summary', false],
-  ] as const;
-}
-
-export function fixturesGetAuditLogs() {
-  return [
-    ['audit-1', 'Meera Joshi published Weekly GK Quiz', '1h ago'],
-    ['audit-2', 'Karan Desai changed role: Sana Khan', '2h ago'],
-    ['audit-3', 'Super Admin exported student data', '3h ago'],
-  ] as const;
 }
 
 export function fixturesGetReportSummary() {

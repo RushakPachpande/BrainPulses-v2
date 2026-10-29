@@ -5,12 +5,9 @@ import {
   formatRelativeTime,
 } from '@/lib/format-datetime';
 import type {
-  AccessUser,
   Activity,
   AdminUser,
-  AuditLogRow,
   DashboardData,
-  NotificationPreference,
   QuestionBank,
   RegistrationRow,
   ResultRow,
@@ -115,8 +112,6 @@ export function mapActivityFromApi(
     subtitle: string | null;
     status: string;
     registered: number;
-    assigned: number;
-    banks: number;
     attempts: number;
     startsAt: string | Date | null;
     endsAt: string | Date | null;
@@ -130,8 +125,6 @@ export function mapActivityFromApi(
     iconTone: index % 6,
     status: row.status,
     registered: row.registered,
-    assigned: row.assigned,
-    banks: row.banks,
     attempts: row.attempts,
     start: formatAdminDate(row.startsAt),
     end: formatAdminDate(row.endsAt),
@@ -238,89 +231,6 @@ export function mapResultFromApi(row: {
     studentId: row.studentId,
     disqualified: row.disqualified,
   };
-}
-
-export function mapAccessUserFromApi(row: {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  assessmentAccess: string;
-  quizAccess: string;
-  isActive: boolean;
-}): AccessUser {
-  return {
-    membershipId: row.id,
-    name: row.name,
-    email: row.email,
-    role: row.role,
-    assessment: row.assessmentAccess !== 'none',
-    quiz: row.quizAccess !== 'none',
-    enabled: row.isActive,
-  };
-}
-
-const notificationMeta: { title: string; hint: string; key: string }[] = [
-  {
-    title: 'Student Registration',
-    hint: 'Notify admins when a student registers',
-    key: 'studentRegistration',
-  },
-  {
-    title: 'Assessment Completion',
-    hint: 'Alert when a student completes an assessment',
-    key: 'assessmentCompletion',
-  },
-  {
-    title: 'Quiz Completion',
-    hint: 'Alert when a student completes a quiz',
-    key: 'quizCompletion',
-  },
-  {
-    title: 'Admin Notifications',
-    hint: 'Account, role, and access changes',
-    key: 'adminChanges',
-  },
-  {
-    title: 'Email Notifications',
-    hint: 'Send summaries to admin email',
-    key: 'emailSummaries',
-  },
-  {
-    title: 'Daily Digest',
-    hint: 'Daily 8:00 AM activity summary',
-    key: 'dailyDigest',
-  },
-];
-
-export function mapNotificationsFromSettings(
-  values: Record<string, unknown>,
-): NotificationPreference[] {
-  return notificationMeta.map((item) => [
-    item.title,
-    item.hint,
-    Boolean(values[item.key]),
-  ]) as NotificationPreference[];
-}
-
-export function notificationValuesFromPreferences(
-  prefs: { enabled: boolean }[],
-): Record<string, boolean> {
-  const out: Record<string, boolean> = {};
-  notificationMeta.forEach((item, index) => {
-    out[item.key] = prefs[index]?.enabled ?? false;
-  });
-  return out;
-}
-
-export function mapAuditLogsFromApi(
-  rows: { id: string; actor: string; action: string; createdAt: string | Date }[],
-): AuditLogRow[] {
-  return rows.map((row) => [
-    row.id,
-    `${row.actor} ${row.action}`,
-    formatRelativeTime(row.createdAt),
-  ]) as AuditLogRow[];
 }
 
 export function mapDashboardFromApi(summary: {

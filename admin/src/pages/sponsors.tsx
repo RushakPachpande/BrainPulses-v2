@@ -1,22 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarDaysIcon, PlusIcon, RotateCcwIcon, TrophyIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { ListPager, MediaCard, MediaCardGrid } from '@/components/media-card-grid';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { Toolbar } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useOrgId } from '@/hooks/use-org-id';
-import { canMutateOrg } from '@/lib/access';
+import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { SponsorEditorDialog } from '@/pages/sponsor-editor-dialog';
 import { SponsorViewDialog } from '@/pages/sponsor-view-dialog';
-import { getSponsors, type Sponsor } from '@/services';
+import { deleteSponsor, getSponsors, type Sponsor } from '@/services';
 
 const EMPTY: Sponsor[] = [];
 
@@ -33,8 +35,11 @@ function contestCount(count: number) {
 export function SponsorsPage() {
   const auth = useAuth();
   const orgId = useOrgId();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
+  const canDelete = canManageUsersOrSettings(membership);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -44,6 +49,28 @@ export function SponsorsPage() {
     enabled: Boolean(orgId),
   });
   const sponsors = data ?? EMPTY;
+
+  async function onDeleteSponsor(sponsor: Sponsor) {
+    if (!canDelete) return;
+    const password = await confirm({
+      title: `Delete “${sponsor.name}”?`,
+      description:
+        'Permanently removes this sponsor. Contests and quizzes that still use it must be unlinked first. This cannot be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteSponsor(sponsor.id, password);
+      toast.success('Sponsor deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'sponsors'] });
+      if (viewId === sponsor.id) setViewId(null);
+      if (editor === sponsor.id) setEditor(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete sponsor.');
+    }
+  }
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -210,6 +237,7 @@ export function SponsorsPage() {
               kind="sponsor"
               onView={() => setViewId(sponsor.id)}
               onEdit={canMutate ? () => setEditor(sponsor.id) : undefined}
+              onDelete={canDelete ? () => void onDeleteSponsor(sponsor) : undefined}
               title={sponsor.name}
               imageFileId={sponsor.imageFileId}
               badge={contestCount(sponsor.contests)}

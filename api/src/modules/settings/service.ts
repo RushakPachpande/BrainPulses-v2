@@ -17,27 +17,6 @@ const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
     studentPageProfile: true,
     studentPageHelp: true,
   },
-  access: {
-    allowStudentSelfRegister: false,
-    sessionTimeoutMinutes: 15,
-  },
-  notifications: {
-    studentRegistration: true,
-    assessmentCompletion: true,
-    quizCompletion: true,
-    adminChanges: true,
-    emailSummaries: true,
-    dailyDigest: false,
-  },
-  system: {
-    maintenanceMode: false,
-    requireTwoFactor: false,
-    passwordExpiry: true,
-    sessionTimeout: true,
-    limitFailedLogins: true,
-    dailyBackups: true,
-    supportEmail: 'support@brainpulses.example',
-  },
 };
 
 export async function getSettings(organizationId: string, group: SettingGroup) {
@@ -48,6 +27,17 @@ export async function getSettings(organizationId: string, group: SettingGroup) {
   for (const row of rows) {
     values[row.key] = row.value;
   }
+
+  if (group === 'general') {
+    const org = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { name: true },
+    });
+    if (org) {
+      values.organizationName = org.name;
+    }
+  }
+
   return { group, values };
 }
 
@@ -70,6 +60,16 @@ export async function patchSettings(
       },
       update: { value: value as Prisma.InputJsonValue },
     });
+  }
+
+  if (group === 'general' && typeof values.organizationName === 'string') {
+    const name = values.organizationName.trim();
+    if (name) {
+      await prisma.organization.update({
+        where: { id: organizationId },
+        data: { name },
+      });
+    }
   }
 
   await writeAudit({

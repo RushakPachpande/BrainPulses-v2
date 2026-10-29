@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { verifyActingUserPassword } from '../../lib/verify-acting-password.js';
 import { userActor } from '../../middleware/auth.js';
 import * as service from './service.js';
 
@@ -55,6 +56,7 @@ export async function regrade(req: Request, res: Response, next: NextFunction) {
 export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
+    await verifyActingUserPassword(actor.userId, req.body.password as string);
     const data = await service.deleteResult(actor.organizationId, actor, req.params.id as string);
     res.json({ data });
   } catch (err) {

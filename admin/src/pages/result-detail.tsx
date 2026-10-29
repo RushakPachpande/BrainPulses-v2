@@ -190,17 +190,18 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   }
 
   async function onDeleteResponse() {
-    const ok = await confirm({
+    const password = await confirm({
       title: 'Delete this response?',
       description:
         "Removes the student's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete response',
       destructive: true,
+      requirePassword: true,
     });
-    if (!ok) return;
+    if (!password) return;
     setSaving(true);
     try {
-      await deleteResult(resultId);
+      await deleteResult(resultId, password);
       toast.success('Response deleted.');
       setDirty(false);
       void navigate(base);

@@ -7,6 +7,7 @@ import {
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
+import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
 import * as controller from './controller.js';
 import {
   activityListQuerySchema,
@@ -64,7 +65,7 @@ activitiesRouter.post(
 activitiesRouter.delete(
   '/:id',
   requireOrgAccess('full'),
-  validate({ params: idParamSchema }),
+  validate({ params: idParamSchema, body: confirmPasswordSchema }),
   controller.remove,
 );
 
@@ -87,6 +88,6 @@ activitiesRouter.post(
 activitiesRouter.delete(
   '/:id/rounds/:roundId/questions/:questionId',
   requireOrgAccess('edit'),
-  validate({ params: roundQuestionParamsSchema }),
+  validate({ params: roundQuestionParamsSchema, body: confirmPasswordSchema }),
   controller.deleteRoundQuestion,
 );

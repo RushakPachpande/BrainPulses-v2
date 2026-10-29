@@ -80,9 +80,6 @@ enum ReleaseStatus {
 
 enum SettingGroup {
   general
-  access
-  notifications
-  system
 }
 
 enum ActorType {

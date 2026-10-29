@@ -1,10 +1,14 @@
 import { randomBytes } from 'node:crypto';
-import { parse as parseCsv } from 'csv-parse/sync';
 import { stringify } from 'csv-stringify/sync';
 import ExcelJS from 'exceljs';
 import type { z } from 'zod';
 import { sanitizeCsvCell } from '../../lib/csv.js';
-import { unprocessable } from '../../lib/errors.js';
+import {
+  MAX_IMPORT_ROWS,
+  parseXlsxWorkbook,
+  readImportedText,
+  type SpreadsheetColumnSpec,
+} from '../../lib/spreadsheet-import.js';
 import {
   authorableTypesForKind,
   createQuestionSchema,
@@ -12,10 +16,8 @@ import {
   type QuestionTypeValue,
 } from './schema.js';
 
-/** Data rows per file. One past this is rejected; this exact count is accepted. */
-export const MAX_IMPORT_ROWS = 1000;
-/** Header scan is inclusive: row 20 can be the header, row 21 cannot. */
-const HEADER_SCAN_LIMIT = 20;
+export { MAX_IMPORT_ROWS, readImportedText };
+
 const MAX_POINTS = 100_000_000;
 
 export const BANK_IMPORT_HEADERS = [
@@ -51,6 +53,33 @@ export function headersForKind(_kind: BankKind = 'assessment'): readonly BankImp
   return BANK_IMPORT_HEADERS;
 }
 
+export const BANK_IMPORT_COLUMNS: SpreadsheetColumnSpec<BankImportHeader>[] = [
+  { key: 'type' },
+  { key: 'question', aliases: ['stem', 'text', 'questiontext', 'prompt', 'Question Text'] },
+  { key: 'points', aliases: ['point', 'marks'] },
+  { key: 'optionA', aliases: ['a', 'Option A'] },
+  { key: 'optionB', aliases: ['b', 'Option B'] },
+  { key: 'optionC', aliases: ['c', 'Option C'] },
+  { key: 'optionD', aliases: ['d', 'Option D'] },
+  { key: 'optionE', aliases: ['e', 'Option E'] },
+  { key: 'optionF', aliases: ['f', 'Option F'] },
+  {
+    key: 'correct',
+    aliases: ['answer', 'correctanswer', 'rightanswer', 'answers', 'answerkey', 'Correct Answer'],
+  },
+  { key: 'numericValue', aliases: ['value'] },
+  { key: 'numericTolerance', aliases: ['tolerance'] },
+  { key: 'referenceAnswer', aliases: ['reference'] },
+  { key: 'stemImageUrl', aliases: ['questionimageurl'] },
+  { key: 'optionA_imageUrl' },
+  { key: 'optionB_imageUrl' },
+  { key: 'optionC_imageUrl' },
+  { key: 'optionD_imageUrl' },
+  { key: 'optionE_imageUrl' },
+  { key: 'optionF_imageUrl' },
+  { key: 'passageText', aliases: ['passage', 'passagebody'] },
+];
+
 /** Codes are unique per imported row and stay within the 40-character column. */
 export function newImportQuestionCode(sheetRow: number, sequence: number): string {
   const row = Math.max(0, Math.trunc(sheetRow)).toString(36);
@@ -83,245 +112,26 @@ export type ExportableQuestion = {
 
 export type ImportIssue = { row: number; message: string };
 
-/** Undo the leading apostrophe `sanitizeCsvCell` adds so a round-trip keeps the real text. */
-export function readImportedText(value: string): string {
-  const trimmed = value.trim();
-  if (trimmed.length > 1 && trimmed.startsWith("'") && /^[=+\-@|]/.test(trimmed.slice(1))) {
-    return trimmed.slice(1).trim();
-  }
-  return trimmed;
-}
-
-function cellText(value: ExcelJS.CellValue): string {
-  if (value == null) return '';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return readImportedText(String(value));
-  }
-  if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object') {
-    if ('error' in value) return '';
-    if ('formula' in value) {
-      const result = value.result;
-      if (result != null && result !== '') return cellText(result);
-      return '';
-    }
-    if ('text' in value && typeof value.text === 'string') return readImportedText(value.text);
-    if ('richText' in value && Array.isArray(value.richText)) {
-      return readImportedText(value.richText.map((part) => part.text ?? '').join(''));
-    }
-    if ('result' in value && value.result != null) return cellText(value.result);
-  }
-  return readImportedText(String(value));
-}
-
-function normalizeHeaderKey(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, '');
-}
-
-const HEADER_ALIAS: Record<string, BankImportHeader | 'skip'> = {
-  type: 'type',
-  question: 'question',
-  stem: 'question',
-  text: 'question',
-  questiontext: 'question',
-  prompt: 'question',
-  points: 'points',
-  point: 'points',
-  marks: 'points',
-  optiona: 'optionA',
-  optionb: 'optionB',
-  optionc: 'optionC',
-  optiond: 'optionD',
-  optione: 'optionE',
-  optionf: 'optionF',
-  a: 'optionA',
-  b: 'optionB',
-  c: 'optionC',
-  d: 'optionD',
-  e: 'optionE',
-  f: 'optionF',
-  correct: 'correct',
-  answer: 'correct',
-  correctanswer: 'correct',
-  rightanswer: 'correct',
-  answers: 'correct',
-  answerkey: 'correct',
-  numericvalue: 'numericValue',
-  value: 'numericValue',
-  numerictolerance: 'numericTolerance',
-  tolerance: 'numericTolerance',
-  referenceanswer: 'referenceAnswer',
-  reference: 'referenceAnswer',
-  stemimageurl: 'stemImageUrl',
-  questionimageurl: 'stemImageUrl',
-  optionaimageurl: 'optionA_imageUrl',
-  optionbimageurl: 'optionB_imageUrl',
-  optioncimageurl: 'optionC_imageUrl',
-  optiondimageurl: 'optionD_imageUrl',
-  optioneimageurl: 'optionE_imageUrl',
-  optionfimageurl: 'optionF_imageUrl',
-  passagetext: 'passageText',
-  passage: 'passageText',
-  passagebody: 'passageText',
-};
-
-function emptyRow(sheetRow: number): BankImportRow {
+/** Empty keyed row for tests and helpers. */
+export function emptyBankImportRow(sheetRow = 2): BankImportRow {
   const row = { sheetRow } as BankImportRow;
   for (const h of BANK_IMPORT_HEADERS) row[h] = '';
   return row;
 }
 
-type HeaderHit = { index: number; columns: Map<number, BankImportHeader> };
-
-function headerColumnsFromCells(cells: string[]): Map<number, BankImportHeader> {
-  const columns = new Map<number, BankImportHeader>();
-  cells.forEach((cell, index) => {
-    const alias = HEADER_ALIAS[normalizeHeaderKey(cell)];
-    if (alias && alias !== 'skip') columns.set(index, alias);
-  });
-  return columns;
-}
-
-/** Prefer the header row that matches the most known columns, within the first 20 rows. */
-function findHeader(rows: string[][]): HeaderHit | null {
-  let best: HeaderHit | null = null;
-  let bestScore = 0;
-  const limit = Math.min(rows.length, HEADER_SCAN_LIMIT);
-  for (let index = 0; index < limit; index += 1) {
-    const columns = headerColumnsFromCells(rows[index] ?? []);
-    if (![...columns.values()].includes('question')) continue;
-    const score = new Set(columns.values()).size;
-    if (score > bestScore) {
-      best = { index, columns };
-      bestScore = score;
-    }
-  }
-  return best;
-}
-
-function assertRowCount(count: number): void {
-  if (count > MAX_IMPORT_ROWS) {
-    throw unprocessable(`Too many questions. A file can contain up to ${MAX_IMPORT_ROWS} rows.`);
-  }
-}
-
-function rowFromCells(
-  cells: string[],
-  columns: Map<number, BankImportHeader>,
-  sheetRow: number,
-): BankImportRow | null {
-  const row = emptyRow(sheetRow);
-  let any = false;
-  for (const [index, key] of columns) {
-    const text = readImportedText(String(cells[index] ?? ''));
-    if (text) any = true;
-    row[key] = text;
-  }
-  if (!any) return null;
-  if (!row.question.trim() && !row.type.trim()) return null;
-  return row;
-}
-
-function excelRowCells(row: ExcelJS.Row): string[] {
-  const cells: string[] = [];
-  row.eachCell((cell, col) => {
-    cells[col - 1] = cellText(cell.value);
-  });
-  return cells.map((cell) => cell ?? '');
-}
-
-function sheetPreview(sheet: ExcelJS.Worksheet): string[][] {
-  const last = Math.min(Math.max(sheet.rowCount, 1), HEADER_SCAN_LIMIT);
-  const rows: string[][] = [];
-  for (let rowNumber = 1; rowNumber <= last; rowNumber += 1) {
-    rows.push(excelRowCells(sheet.getRow(rowNumber)));
-  }
-  return rows;
-}
-
-function pickWorksheet(workbook: ExcelJS.Workbook): ExcelJS.Worksheet {
-  const named = workbook.getWorksheet('Questions');
-  if (named) return named;
-  for (const sheet of workbook.worksheets) {
-    if (findHeader(sheetPreview(sheet))) return sheet;
-  }
-  const first = workbook.worksheets[0];
-  if (!first) throw unprocessable('No worksheet found in the file.');
-  return first;
-}
-
-function rowsFromSheet(sheet: ExcelJS.Worksheet): BankImportRow[] {
-  const header = findHeader(sheetPreview(sheet));
-  if (!header) throw unprocessable('Missing required column. Expected question (or stem).');
-
-  const rows: BankImportRow[] = [];
-  sheet.eachRow((excelRow, rowNumber) => {
-    if (rowNumber <= header.index + 1) return;
-    const row = rowFromCells(excelRowCells(excelRow), header.columns, rowNumber);
-    if (row) rows.push(row);
-  });
-  assertRowCount(rows.length);
-  return rows;
-}
-
-function rowsFromCsvString(csv: string): BankImportRow[] {
-  let table: string[][];
-  try {
-    table = parseCsv(csv, {
-      bom: true,
-      skip_empty_lines: false,
-      trim: true,
-      relax_column_count: true,
-    }) as string[][];
-  } catch {
-    throw unprocessable('CSV could not be parsed.');
-  }
-
-  if (table.length === 0 || table.every((cells) => cells.every((cell) => !String(cell).trim()))) {
-    return [];
-  }
-
-  const header = findHeader(table);
-  if (!header) throw unprocessable('Missing required column. Expected question (or stem).');
-
-  const rows: BankImportRow[] = [];
-  for (let index = header.index + 1; index < table.length; index += 1) {
-    const row = rowFromCells(table[index] ?? [], header.columns, index + 1);
-    if (row) rows.push(row);
-  }
-  assertRowCount(rows.length);
-  return rows;
-}
-
 export async function parseBankQuestionsFile(
   buffer: Buffer,
   filename: string,
-  mimetype?: string,
+  _mimetype?: string,
 ): Promise<BankImportRow[]> {
-  const name = filename.toLowerCase();
-  if (name.endsWith('.xls') && !name.endsWith('.xlsx')) {
-    throw unprocessable('Legacy .xls files are not supported. Save the sheet as .xlsx or .csv.');
-  }
-  const isCsv = name.endsWith('.csv') || mimetype === 'text/csv' || mimetype === 'application/csv';
-
-  if (isCsv && !name.endsWith('.xlsx')) {
-    return rowsFromCsvString(buffer.toString('utf8'));
-  }
-
-  const workbook = new ExcelJS.Workbook();
-  try {
-    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
-  } catch {
-    throw unprocessable('Excel file could not be parsed. Use .xlsx or .csv.');
-  }
-  return rowsFromSheet(pickWorksheet(workbook));
-}
-
-export function parseBankQuestionsCsv(csv: string): BankImportRow[] {
-  return rowsFromCsvString(csv);
+  const parsed = await parseXlsxWorkbook(buffer, filename, {
+    columns: BANK_IMPORT_COLUMNS,
+    preferredSheetName: 'Questions',
+    emptyNoun: 'questions',
+  });
+  return parsed.rows
+    .filter((row) => row.question.trim() || row.type.trim())
+    .map((row) => row as BankImportRow);
 }
 
 type ChoiceOption = {
@@ -781,28 +591,31 @@ export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promis
     '3. Import adds questions. It does not update or replace questions already in the bank.',
   ]);
   instructions.addRow([
-    '4. Save as .xlsx or .csv. Legacy .xls is not supported. Up to 1000 rows, 10 MB.',
+    '4. Save as Excel (.xlsx) only. CSV and legacy .xls are not supported. Up to 1000 rows, 10 MB.',
+  ]);
+  instructions.addRow([
+    '5. Keep every column header from the Questions sheet (order may change). Missing or misspelled headers block the import.',
   ]);
   if (kind === 'quiz') {
     instructions.addRow([
-      '5. type is single_mcq (one correct option) or multiple_mcq (one or more). You can also write MCQ or MSQ.',
+      '6. type is single_mcq (one correct option) or multiple_mcq (one or more). You can also write MCQ or MSQ.',
     ]);
     instructions.addRow([
-      '6. If type is blank, one correct answer becomes single_mcq and two or more become multiple_mcq.',
+      '7. If type is blank, one correct answer becomes single_mcq and two or more become multiple_mcq.',
     ]);
   } else {
     instructions.addRow([
-      '5. type is required. Use a value below, or the label from the question form (for example Single choice or True / False).',
+      '6. type is required. Use a value below, or the label from the question form (for example Single choice or True / False).',
     ]);
     instructions.addRow([
-      '6. true_false may leave options blank (True is A, False is B). Mark the correct one; a blank correct cell is rejected.',
+      '7. true_false may leave options blank (True is A, False is B). Mark the correct one; a blank correct cell is rejected.',
     ]);
     instructions.addRow([
-      '7. numeric uses numericValue and optional numericTolerance. Negative numbers are allowed.',
+      '8. numeric uses numericValue and optional numericTolerance. Negative numbers are allowed.',
     ]);
-    instructions.addRow(['8. short_text and long_text use optional referenceAnswer.']);
+    instructions.addRow(['9. short_text and long_text use optional referenceAnswer.']);
     instructions.addRow([
-      '9. comprehension_mcq requires passageText on every row. Rows with the same passage text share one passage. image_selection requires an image URL on every filled option.',
+      '10. comprehension_mcq requires passageText on every row. Rows with the same passage text share one passage. image_selection requires an image URL on every filled option.',
     ]);
   }
   instructions.addRow([

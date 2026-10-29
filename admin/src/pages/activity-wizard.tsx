@@ -667,16 +667,17 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     if (readOnly || !activityId) return;
     const round = rounds.find((r) => r.key === roundKey);
     if (!round?.id) return;
-    const ok = await confirm({
+    const password = await confirm({
       title: 'Delete this question?',
       description: 'This cannot be undone.',
       confirmLabel: 'Delete',
       destructive: true,
+      requirePassword: true,
     });
-    if (!ok) return;
+    if (!password) return;
     setSaving(true);
     try {
-      await deleteRoundQuestion(activityId, round.id, questionId);
+      await deleteRoundQuestion(activityId, round.id, questionId, password);
       await syncRoundsFromServer(activityId);
       toast.success('Question removed.');
     } catch (err) {
@@ -688,17 +689,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
   async function handleDeleteQuiz() {
     if (!isQuiz || !canFull || !activityId) return;
-    const ok = await confirm({
+    const password = await confirm({
       title: `Delete this ${noun.toLowerCase()}?`,
       description:
         'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
       confirmLabel: 'Delete quiz',
       destructive: true,
+      requirePassword: true,
     });
-    if (!ok) return;
+    if (!password) return;
     setSaving(true);
     try {
-      await deleteActivity(activityId);
+      await deleteActivity(activityId, password);
       toast.success('Quiz deleted.');
       allowLeave();
       void navigate(listPath);

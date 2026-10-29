@@ -6,6 +6,7 @@ import {
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
+import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
 import * as controller from './controller.js';
 import { idParamSchema, regradeSchema, resultListQuerySchema } from './schema.js';
 
@@ -40,6 +41,6 @@ resultsRouter.post(
 resultsRouter.delete(
   '/:id',
   requireOrgAccess('full'),
-  validate({ params: idParamSchema }),
+  validate({ params: idParamSchema, body: confirmPasswordSchema }),
   controller.remove,
 );

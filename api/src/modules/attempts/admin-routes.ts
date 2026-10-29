@@ -6,6 +6,7 @@ import {
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
+import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
 import * as controller from './admin-controller.js';
 import {
   activityIdParamSchema,
@@ -35,7 +36,7 @@ adminAttemptsRouter.post(
 adminAttemptsRouter.delete(
   '/:id',
   requireOrgAccess('full'),
-  validate({ params: attemptIdParamSchema }),
+  validate({ params: attemptIdParamSchema, body: confirmPasswordSchema }),
   controller.remove,
 );
 

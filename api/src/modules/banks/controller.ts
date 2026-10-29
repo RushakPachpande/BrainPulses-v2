@@ -1,7 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { badRequest } from '../../lib/errors.js';
 import { userActor } from '../../middleware/auth.js';
-import { importBodySchema } from './schema.js';
 import * as service from './service.js';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
@@ -90,34 +89,22 @@ export async function importQuestions(req: Request, res: Response, next: NextFun
     const idempotencyKey = req.header('idempotency-key') ?? undefined;
     const file = req.file;
 
-    if (file) {
-      const data = await service.importQuestionsFile(
-        actor.organizationId,
-        actor.userId,
-        actor,
-        bankId,
-        {
-          buffer: file.buffer,
-          originalname: file.originalname,
-          mimetype: file.mimetype,
-        },
-        idempotencyKey,
+    if (!file) {
+      throw badRequest(
+        'Upload an Excel (.xlsx) file in the multipart field “file”. Download Sample Excel for the correct template.',
       );
-      res.json({ data });
-      return;
     }
 
-    const parsed = importBodySchema.safeParse(req.body);
-    if (!parsed.success) {
-      throw badRequest('Provide a multipart file field “file”, or a JSON body with csv.');
-    }
-
-    const data = await service.importQuestions(
+    const data = await service.importQuestionsFile(
       actor.organizationId,
       actor.userId,
       actor,
       bankId,
-      parsed.data.csv,
+      {
+        buffer: file.buffer,
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+      },
       idempotencyKey,
     );
     res.json({ data });

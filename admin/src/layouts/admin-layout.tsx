@@ -16,7 +16,6 @@ import {
 import { ConfirmProvider } from '@/components/confirm-dialog';
 import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
-import { canManageUsersOrSettings } from '@/lib/access';
 import { Button } from '@/components/ui/button';
 import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -90,9 +89,7 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/settings', label: 'General', end: true },
-      { to: '/settings/access', label: 'User & Access', end: true },
-      { to: '/settings/notifications', label: 'Notifications', end: true },
-      { to: '/settings/system', label: 'System', end: true },
+      { to: '/settings/student-portal', label: 'Student portal', end: true },
       { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },
@@ -278,17 +275,7 @@ export function AdminLayout() {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  const membership = auth.status === 'authenticated' ? auth.membership : null;
-  const showAccessSettings = canManageUsersOrSettings(membership);
-  const navItems = nav.map((item) => {
-    if (item.to !== '/settings' || !item.children) return item;
-    return {
-      ...item,
-      children: item.children.filter(
-        (child) => showAccessSettings || child.to !== '/settings/access',
-      ),
-    };
-  });
+  const navItems = nav;
 
   useEffect(() => {
     document.title = `${meta.title} · BrainPulses Admin`;

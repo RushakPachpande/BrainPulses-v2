@@ -132,6 +132,31 @@ export async function signIn(input: { email: string; password: string }, res: Re
     };
   }
 
+  // TEMP DEMO: skip org chooser; auto-enter NextGenInnov8 until org management is ready.
+  const demoMembership = memberships.find((m) => m.organization.slug === 'nextgeninnov8');
+  if (demoMembership) {
+    return {
+      status: 'authenticated' as const,
+      session: await issueSession(res, demoMembership),
+    };
+  }
+
+  const orgIds = memberships.map((m) => m.organization.id);
+  const displayRows = await prisma.setting.findMany({
+    where: {
+      organizationId: { in: orgIds },
+      group: 'general',
+      key: 'orgDisplayName',
+    },
+    select: { organizationId: true, value: true },
+  });
+  const displayByOrg = new Map(
+    displayRows.map((row) => [
+      row.organizationId,
+      typeof row.value === 'string' && row.value.trim() ? row.value.trim() : 'BrainPulses',
+    ]),
+  );
+
   return {
     status: 'select_organization' as const,
     selectionToken: signOrgSelectToken(user.id),
@@ -140,6 +165,7 @@ export async function signIn(input: { email: string; password: string }, res: Re
       name: m.organization.name,
       slug: m.organization.slug,
       role: m.role,
+      displayName: displayByOrg.get(m.organization.id) ?? 'BrainPulses',
     })),
   };
 }

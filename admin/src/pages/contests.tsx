@@ -1,22 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Building2Icon, CalendarDaysIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { ListPager, MediaCard, MediaCardGrid } from '@/components/media-card-grid';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { Toolbar } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useOrgId } from '@/hooks/use-org-id';
-import { canMutateOrg } from '@/lib/access';
+import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { ContestEditorDialog } from '@/pages/contest-editor-dialog';
 import { ContestViewDialog } from '@/pages/contest-view-dialog';
-import { getContests, type Contest } from '@/services';
+import { deleteContest, getContests, type Contest } from '@/services';
 
 const EMPTY: Contest[] = [];
 
@@ -36,8 +38,11 @@ function compare(a: Contest, b: Contest, key: SortKey) {
 export function ContestsPage() {
   const auth = useAuth();
   const orgId = useOrgId();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
+  const canDelete = canManageUsersOrSettings(membership);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -47,6 +52,28 @@ export function ContestsPage() {
     enabled: Boolean(orgId),
   });
   const contests = data ?? EMPTY;
+
+  async function onDeleteContest(contest: Contest) {
+    if (!canDelete) return;
+    const password = await confirm({
+      title: `Delete “${contest.name}”?`,
+      description:
+        'Permanently removes this contest. Quizzes that still use it must be unlinked first. This cannot be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteContest(contest.id, password);
+      toast.success('Contest deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contests'] });
+      if (viewId === contest.id) setViewId(null);
+      if (editor === contest.id) setEditor(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete contest.');
+    }
+  }
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -218,6 +245,7 @@ export function ContestsPage() {
               kind="contest"
               onView={() => setViewId(contest.id)}
               onEdit={canMutate ? () => setEditor(contest.id) : undefined}
+              onDelete={canDelete ? () => void onDeleteContest(contest) : undefined}
               title={contest.name}
               imageFileId={contest.imageFileId}
               organizer={{ name: contest.sponsorName }}

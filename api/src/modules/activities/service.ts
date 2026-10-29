@@ -119,31 +119,14 @@ function mapActivity(a: {
   sponsor?: { id: string; name: string } | null;
   contest?: { id: string; name: string } | null;
   settings?: Prisma.JsonValue | null;
-  _count?: { registrations: number; activityBanks: number; attempts: number; rounds?: number };
-  registrations?: { status: string }[];
-  rounds?: Array<
-    | Prisma.ActivityRoundGetPayload<{ include: typeof roundInclude }>
-    | { banks: { id: string }[]; sortOrder?: number }
-  >;
+  _count?: { registrations: number; attempts: number; rounds?: number };
+  rounds?: Array<Prisma.ActivityRoundGetPayload<{ include: typeof roundInclude }>>;
 }) {
   const registered = a._count?.registrations ?? 0;
-  const assigned = a.registrations?.filter((r) => r.status === 'assigned').length ?? registered;
-  const firstRound = a.rounds?.[0];
-  const fullRounds =
-    firstRound && 'name' in firstRound
-      ? [...(a.rounds as Prisma.ActivityRoundGetPayload<{ include: typeof roundInclude }>[])]
-          .sort((x, y) => x.sortOrder - y.sortOrder)
-          .map(mapRound)
-      : undefined;
-  const bankCount =
-    a.kind === 'assessment' && a.rounds
-      ? a.rounds.reduce((n, r) => {
-          if ('bankIds' in r && Array.isArray(r.bankIds)) return n + r.bankIds.length;
-          if ('banks' in r && Array.isArray(r.banks)) return n + r.banks.length;
-          return n;
-        }, 0)
-      : (a._count?.activityBanks ?? 0);
-  const rounds = fullRounds;
+  const sourceRounds = a.rounds;
+  const rounds = sourceRounds?.length
+    ? [...sourceRounds].sort((x, y) => x.sortOrder - y.sortOrder).map(mapRound)
+    : undefined;
   const statusDisplay = activityStatusDisplay(a.status, a.startsAt, a.endsAt);
   const row = {
     id: a.id,
@@ -169,8 +152,6 @@ function mapActivity(a: {
     contest: a.contest ? { id: a.contest.id, name: a.contest.name } : null,
     settings: a.kind === 'quiz' ? normalizeQuizSettingsJson(a.settings) : (a.settings ?? null),
     registered,
-    assigned,
-    banks: bankCount,
     attempts: a._count?.attempts ?? 0,
     ...(rounds ? { rounds } : {}),
   };
@@ -182,9 +163,7 @@ function mapActivity(a: {
 }
 
 const listInclude = {
-  _count: { select: { registrations: true, activityBanks: true, attempts: true, rounds: true } },
-  registrations: { select: { status: true } },
-  rounds: { select: { banks: { select: { id: true } } } },
+  _count: { select: { registrations: true, attempts: true } },
   sponsor: { select: { id: true, name: true } },
   contest: { select: { id: true, name: true } },
 } satisfies Prisma.ActivityInclude;

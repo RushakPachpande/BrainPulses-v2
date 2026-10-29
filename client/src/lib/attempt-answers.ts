@@ -1,6 +1,12 @@
 export type AttemptAnswerValue =
   { label: string } | { labels: string[] } | { value: number } | { text: string };
 
+/** Visual option letter by display index (A, B, C…). Independent of bank labels after shuffle. */
+export function optionLetterAt(index: number): string {
+  if (index < 0 || index > 25) return String(index + 1);
+  return String.fromCharCode(65 + index);
+}
+
 export type AnswerMap = Record<string, AttemptAnswerValue>;
 
 export function answerFromResponse(answer: unknown): AttemptAnswerValue | null {
