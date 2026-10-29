@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
 export type ToolbarFilter = {
   name: string;
@@ -39,6 +40,7 @@ export function Toolbar({
 }) {
   const structured = isFilterDefs(filters);
   const [inputValue, setInputValue] = useState(searchValue ?? '');
+  const debouncedInput = useDebouncedValue(inputValue, 300);
 
   // Keep typing immediate in the input while delaying expensive filtering/API work.
   useEffect(() => {
@@ -46,16 +48,16 @@ export function Toolbar({
   }, [searchValue]);
 
   useEffect(() => {
+    if (!onSearchChange) return;
+    if (debouncedInput !== inputValue) return;
     const committedValue = searchValue ?? '';
-    if (!onSearchChange || inputValue === committedValue) return;
-
-    const timeoutId = window.setTimeout(() => onSearchChange(inputValue), 300);
-    return () => window.clearTimeout(timeoutId);
-  }, [inputValue, onSearchChange, searchValue]);
+    if (debouncedInput === committedValue) return;
+    onSearchChange(debouncedInput);
+  }, [debouncedInput, inputValue, onSearchChange, searchValue]);
 
   return (
     <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-      <InputGroup className="w-full min-w-0 sm:min-w-[12rem] sm:flex-1 sm:basis-64">
+      <InputGroup className="w-full min-w-0 sm:min-w-48 sm:flex-1 sm:basis-64">
         <InputGroupAddon align="inline-start">
           <SearchIcon />
         </InputGroupAddon>
@@ -101,7 +103,18 @@ export function Toolbar({
           ))}
       {dateRange ? <div className="w-full shrink-0 sm:w-56">{dateRange}</div> : null}
       {actions ? (
-        <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none">
+        <div
+          className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none"
+          onClickCapture={(event) => {
+            const button = (event.target as HTMLElement | null)?.closest('button');
+            if (!button) return;
+            const label = button.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+            if (!/^Clear Filters$/i.test(label)) return;
+            // Clear the visible search immediately (including uncommitted debounce text).
+            setInputValue('');
+            if ((searchValue ?? '') !== '') onSearchChange?.('');
+          }}
+        >
           {actions}
         </div>
       ) : null}

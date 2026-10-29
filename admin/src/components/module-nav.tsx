@@ -1,12 +1,10 @@
 import { NavLink } from 'react-router';
 import {
   BarChart3Icon,
-  BellIcon,
   ClipboardListIcon,
   FolderOpenIcon,
+  PanelsTopLeftIcon,
   SettingsIcon,
-  ShieldIcon,
-  ServerIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -35,7 +33,6 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
     label: 'Quiz',
     links: [
       { to: '/quizzes', label: 'Overview', icon: ClipboardListIcon, end: true },
-      { to: '/quizzes/banks', label: 'Question Banks', icon: FolderOpenIcon, end: true },
       { to: '/quizzes/registrations', label: 'Registrations', icon: UsersIcon, end: true },
       { to: '/quizzes/reports', label: 'Reports & Results', icon: BarChart3Icon, end: true },
     ],
@@ -45,9 +42,12 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
     label: 'Settings',
     links: [
       { to: '/settings', label: 'General', icon: SettingsIcon, end: true },
-      { to: '/settings/access', label: 'User & Access', icon: ShieldIcon, end: true },
-      { to: '/settings/notifications', label: 'Notifications', icon: BellIcon, end: true },
-      { to: '/settings/system', label: 'System', icon: ServerIcon, end: true },
+      {
+        to: '/settings/student-portal',
+        label: 'Student portal',
+        icon: PanelsTopLeftIcon,
+        end: true,
+      },
     ],
   },
 ];
@@ -60,7 +60,7 @@ export function ModuleNav({ pathname }: { pathname: string }) {
 
   return (
     <nav aria-label={`${module.label} navigation`} className="w-fit max-w-full min-w-0">
-      <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1 shadow-sm scrollbar-none [&::-webkit-scrollbar]:hidden">
         {module.links.map((link) => {
           const Icon = link.icon;
           return (

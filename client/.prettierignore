@@ -1,0 +1,20 @@
+# Dependencies & build
+node_modules
+dist
+dist-ssr
+coverage
+*.tsbuildinfo
+
+# Lockfile (npm owns this)
+package-lock.json
+
+# Env
+.env
+.env.*
+!.env.example
+
+# Vite cache
+.vite
+
+# Prototype handoff snapshot (intentionally dense)
+src/App.handoff.tsx

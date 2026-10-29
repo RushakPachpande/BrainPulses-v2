@@ -1,6 +1,6 @@
 # Technical Requirements Document (TRD)
 
-**Status:** Current frontend documented; production architecture proposed pending decisions.
+**Status:** Admin, student client, and API are implemented for local development. Hosting and some operational choices remain proposals. Critical request flows are in [../architecture/DEPENDENCY_MAP.md](../architecture/DEPENDENCY_MAP.md).
 
 ## 1. Current stack
 | Area | Current |
@@ -23,9 +23,10 @@
 Browser → admin React app → Router → AdminLayout/pages
                               ├─ shadcn/ui local components
                               ├─ theme/page-header contexts
-                              └─ services → fixture data
+                              └─ services → API (fixtures only when VITE_USE_FIXTURES=true)
 ```
-This is not evidence of a production API/database/auth implementation.
+
+`api/` is Express with Prisma, PostgreSQL, and Redis. It is the server-side auth, tenant, and assessment boundary. The fixture diagram that used to stand here described only the optional fixture path.
 
 ## 3. Target architecture (proposed)
 ```text

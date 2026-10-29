@@ -19,7 +19,7 @@ import {
 } from '@/components/ui/sheet';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { PanelLeftIcon, XIcon } from 'lucide-react';
+import { PanelLeftCloseIcon, PanelLeftOpenIcon, XIcon } from 'lucide-react';
 
 const SIDEBAR_COOKIE_NAME = 'sidebar_state';
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -259,7 +259,9 @@ function Sidebar({
 }
 
 function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, state, isMobile, openMobile } = useSidebar();
+  const expanded = isMobile ? openMobile : state === 'expanded';
+  const label = expanded ? 'Collapse sidebar' : 'Expand sidebar';
 
   return (
     <Button
@@ -273,9 +275,11 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
         toggleSidebar();
       }}
       {...props}
+      aria-label={props['aria-label'] ?? label}
+      title={props.title ?? label}
     >
-      <PanelLeftIcon />
-      <span className="sr-only">Toggle Sidebar</span>
+      {expanded ? <PanelLeftCloseIcon /> : <PanelLeftOpenIcon />}
+      <span className="sr-only">{label}</span>
     </Button>
   );
 }
@@ -509,8 +513,13 @@ function SidebarMenuButton({
       {...props}
       onClick={(event) => {
         onClick?.(event);
-        const opensMenu = event.currentTarget.getAttribute('aria-haspopup') === 'menu';
-        if (isMobile && !opensMenu) setOpenMobile(false);
+        if (!isMobile) return;
+        // Keep the sheet open for disclosure toggles (parent nav with children)
+        // and popup menus — close only when the click is a real navigation.
+        const target = event.currentTarget;
+        const opensMenu = target.getAttribute('aria-haspopup') === 'menu';
+        const togglesSubnav = target.hasAttribute('aria-expanded');
+        if (!opensMenu && !togglesSubnav) setOpenMobile(false);
       }}
     />
   );

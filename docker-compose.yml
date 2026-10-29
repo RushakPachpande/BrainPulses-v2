@@ -1,0 +1,129 @@
+# BrainPulses local data stack.
+# Loopback ports avoid clashes with LevelUP (5432 / 8979) and PGDM (5433 / 6379 / 8978).
+#
+#   docker compose up -d
+#   docker compose down
+#
+# Postgres:     127.0.0.1:5434
+# Redis:        127.0.0.1:6381
+# RedisInsight: 127.0.0.1:5540
+# CloudBeaver:  127.0.0.1:8977
+
+name: brainpulses
+
+services:
+  db:
+    image: postgres:18
+    container_name: brainpulses-postgres
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-brainpulses}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-brainpulses}
+      POSTGRES_DB: ${POSTGRES_DB:-brainpulses}
+      TZ: Asia/Kolkata
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    shm_size: 256mb
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  redis:
+    image: redis:8
+    container_name: brainpulses-redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6381:6379"
+    volumes:
+      - redis_data:/data
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:-brainpulses}",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "redis-cli",
+          "-a",
+          "${REDIS_PASSWORD:-brainpulses}",
+          "ping",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  redisinsight:
+    image: redis/redisinsight:3.8
+    container_name: brainpulses-redisinsight
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5540:5540"
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  cloudbeaver:
+    image: dbeaver/cloudbeaver:26.1.4
+    container_name: brainpulses-cloudbeaver
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8977:8978"
+    environment:
+      CLOUDBEAVER_ROOT_URI: /
+      CB_SERVER_NAME: BrainPulses CloudBeaver
+      CB_ADMIN_NAME: ${CLOUDBEAVER_ADMIN_USER:-cbadmin}
+      CB_ADMIN_PASSWORD: ${CLOUDBEAVER_ADMIN_PASSWORD:-cbadmin}
+      CB_SERVER_URL: ${CLOUDBEAVER_SERVER_URL:-http://127.0.0.1:8977/}
+    volumes:
+      - cloudbeaver_data:/opt/cloudbeaver/workspace
+    depends_on:
+      db:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+volumes:
+  postgres_data:
+    name: brainpulses-postgres-data
+  redis_data:
+    name: brainpulses-redis-data
+  redisinsight_data:
+    name: brainpulses-redisinsight-data
+  cloudbeaver_data:
+    name: brainpulses-cloudbeaver-data

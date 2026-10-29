@@ -1,23 +1,25 @@
 ---
-description: Install npm packages only inside admin/, latest stable, and check audit impact
+description: Install npm packages in the matching app package, latest stable, and check audit impact
 alwaysApply: true
 ---
 
 # Secure dependency selection
 
-Install packages in `admin/`. Root `package.json` only forwards scripts; do not `npm install` there.
+Install packages in the app that needs them (`admin/`, `client/`, or `api/`). Root `package.json` only forwards scripts; do not `npm install` there.
 
 ```bash
-# ❌ BAD — install at the repo root, or add a second UI kit
+# ❌ BAD — install at the repo root, or add a second UI kit in admin
 npm install some-ui-lib
 
-# ✅ GOOD — from admin/
-npm install <pkg>
+# ✅ GOOD — from the package that uses it
+cd admin && npm install <pkg>
+cd client && npm install -D eslint prettier
+cd api && npm install <pkg>
 npm audit
 ```
 
 - Prefer the current stable release, not alpha/beta/nightly, unless the user asks.
 - Prefer maintained packages. Skip ones with known high or critical vulnerabilities; pick a patched version or a safer alternative.
-- Do not add a library the app already covers (UI follows `shadcn-only-ui`).
-- The lockfile is `admin/package-lock.json`.
-- After install, run `npm run typecheck` and `npm run lint` in `admin/`, and say so if `npm audit` reports a new blocker.
+- Do not add a library the app already covers (admin UI follows `shadcn-only-ui`).
+- Lockfiles: `admin/package-lock.json`, `client/package-lock.json`, `api/package-lock.json`.
+- After install, run that package’s `typecheck` / `lint` (when present), and say so if `npm audit` reports a new blocker.

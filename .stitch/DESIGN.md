@@ -101,6 +101,8 @@ spacing:
   sidebar-rail: 76px
 ---
 
+> **Update:** The winning color definitions now come from `admin/src/styles/tokens.css` and `client/src/styles/tokens.css`, each imported after its frontend stylesheet. The historical theme extraction below is retained for layout/component reference.
+
 # Design System: BrainPulses Admin
 
 Extracted from `admin/` (Vite, React 19, Tailwind v4, shadcn `radix-nova`, Lucide). There is no `tailwind.config`. Tokens, type, and interaction rules live in `admin/src/index.css`. Components live in `admin/src/components/ui` and the shared chrome beside them. Dark is the default theme unless `localStorage` `brainpulses-theme` is `light`.

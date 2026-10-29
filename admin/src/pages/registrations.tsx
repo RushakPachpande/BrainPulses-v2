@@ -1,28 +1,27 @@
 import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
   DownloadIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
   UserIcon,
   UsersIcon,
 } from 'lucide-react';
-import { SortHeader } from '@/components/sort-header';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
+import { RowActions } from '@/components/row-actions';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -31,21 +30,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { useRecordSelection } from '@/hooks/use-list-selection';
+import { useOrgId } from '@/hooks/use-org-id';
+import { ApiError } from '@/lib/api-client';
+import { canEditKind, canFullKind } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { getRegistrations, type ActivityKind } from '@/services';
+import { deleteAttempt, getRegistrations, type ActivityKind } from '@/services';
 import { assessmentNames, quizNames, studentCities, studentCourses } from '@/services/fixtures';
+import type { RegistrationRow as Registration } from '@/services/types';
 
-type Registration = ReturnType<typeof getRegistrations>[number];
+const EMPTY_ROWS: Registration[] = [];
 
 type SortKey =
   'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'bank' | 'assignment' | 'attempt';
@@ -54,7 +52,50 @@ function compareRows(a: Registration, b: Registration, key: SortKey) {
   return String(a[key]).localeCompare(String(b[key]), undefined, { numeric: true });
 }
 
+const registrationPlacement: Record<SortKey, RecordColumn<Registration>['placement']> = {
+  id: 'identity',
+  name: 'title',
+  email: 'wide',
+  phone: 'wide',
+  registered: 'details',
+  activity: 'primary',
+  bank: 'details',
+  assignment: 'primary',
+  attempt: 'status',
+};
+
+function renderRegistrationCell(key: SortKey, row: Registration) {
+  switch (key) {
+    case 'id':
+      return row.id;
+    case 'name':
+      return <span className="font-medium">{row.name}</span>;
+    case 'email':
+      return row.email;
+    case 'phone':
+      return row.phone;
+    case 'registered':
+      return row.registered;
+    case 'activity':
+      return row.activity;
+    case 'bank':
+      return row.bank;
+    case 'assignment':
+      return <AssignmentStatusPill value={row.assignment} />;
+    case 'attempt':
+      return <AttemptStatusPill value={row.attempt} />;
+  }
+}
+
 export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const { narrow, ref } = useContainerNarrow();
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canEdit = canEditKind(membership, kind);
+  const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
   const attemptLabel = isQuiz ? 'Attempt Status' : 'Student Status';
@@ -73,7 +114,45 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'attempt', label: attemptLabel },
   ];
 
-  const rows = useMemo(() => getRegistrations(kind), [kind]);
+  const recordColumns: RecordColumn<Registration>[] = sortColumns.map((column) => ({
+    key: column.key,
+    label: column.label,
+    placement: registrationPlacement[column.key],
+    identityPrefix: column.key === 'id' ? 'ID: ' : undefined,
+    tableClassName: column.key === 'id' || column.key === 'phone' ? 'tabular-nums' : undefined,
+    render: (row) => renderRegistrationCell(column.key, row),
+  }));
+
+  const orgId = useOrgId();
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.registrations(orgId, kind),
+    queryFn: () => getRegistrations(kind),
+    enabled: Boolean(orgId),
+  });
+  const rows = data ?? EMPTY_ROWS;
+
+  async function onDeleteAttempt(row: Registration) {
+    if (!row.attemptId) return;
+    const inProgress = row.attempt === 'In Progress';
+    const password = await confirm({
+      title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
+      description: inProgress
+        ? 'Removes the open attempt so the student can start again as if they never began. This cannot be undone.'
+        : "Removes the student's attempt and score. They can start again as if they never attempted.",
+      confirmLabel: 'Delete attempt',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteAttempt(row.attemptId, password);
+      toast.success('Attempt deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete attempt.');
+    }
+  }
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState('All');
   const [city, setCity] = useState('All');
@@ -82,7 +161,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const [attempt, setAttempt] = useState('All');
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
@@ -210,9 +288,14 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const pageRows = filtered.slice(start, start + size);
   const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
 
-  const pageIds = pageRows.map((row) => row.id);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const pageIds = pageRows.map((row) => row.registrationId);
+  const records = useRecordSelection(
+    orgId,
+    `registrations-${kind}`,
+    'registrations',
+    pageIds,
+    filtered.map((row) => row.registrationId),
+  );
 
   function clearFilters() {
     setSearch('');
@@ -238,37 +321,43 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     setSortDir('asc');
   }
 
-  function toggleAllPage(checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of pageIds) {
-        if (checked) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  function toggleOne(id: string, checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeaderActions>
+          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
+            <DownloadIcon data-icon="inline-start" />
+            Download Filtered Data
+          </Button>
+          {canEdit ? (
+            <Button asChild className="w-full sm:w-auto">
+              <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
+                <PlusIcon data-icon="inline-start" />
+                Add Registration
+              </Link>
+            </Button>
+          ) : null}
+        </PageHeaderActions>
+        <ListPageSkeleton columns={8} />
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={ref} className="flex flex-col gap-4">
       <PageHeaderActions>
-        <Button type="button" variant="outline" className="w-full sm:w-auto">
+        <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
           <DownloadIcon data-icon="inline-start" />
           Download Filtered Data
         </Button>
-        <Button type="button" className="w-full sm:w-auto">
-          <PlusIcon data-icon="inline-start" />
-          Add Registration
-        </Button>
+        {canEdit ? (
+          <Button asChild className="w-full sm:w-auto">
+            <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
+              <PlusIcon data-icon="inline-start" />
+              Add Registration
+            </Link>
+          </Button>
+        ) : null}
       </PageHeaderActions>
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -305,118 +394,93 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
           setPage(1);
         }}
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            className="w-full sm:w-auto"
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={recordColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">{activityLabel} registrations</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label="Select all registrations on this page"
-                  />
-                </TableHead>
-                {sortColumns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={column.label}
-                      active={sortKey === column.key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(column.key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={11} className="h-24 text-center text-muted-foreground">
-                    No registrations match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((row) => (
-                  <TableRow key={row.id} data-state={selected.has(row.id) ? 'selected' : undefined}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(row.id)}
-                        onCheckedChange={(checked) => toggleOne(row.id, checked === true)}
-                        aria-label={`Select ${row.name}`}
-                      />
-                    </TableCell>
-                    <TableCell className="tabular-nums">{row.id}</TableCell>
-                    <TableCell>
-                      <span className="font-medium">{row.name}</span>
-                    </TableCell>
-                    <TableCell>{row.email}</TableCell>
-                    <TableCell className="tabular-nums">{row.phone}</TableCell>
-                    <TableCell>{row.registered}</TableCell>
-                    <TableCell>{row.activity}</TableCell>
-                    <TableCell>{row.bank}</TableCell>
-                    <TableCell>
-                      <AssignmentStatusPill value={row.assignment} />
-                    </TableCell>
-                    <TableCell>
-                      <AttemptStatusPill value={row.attempt} />
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${row.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption={`${activityLabel} registrations`}
+            rows={pageRows}
+            getRowId={(row) => row.registrationId}
+            columns={recordColumns}
+            narrow={narrow}
+            empty="No registrations match the current filters."
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              ...records,
+              rowLabel: (row) => `Select ${row.name}`,
+            }}
+            renderActions={(row) => (
+              <RowActions
+                view={{
+                  to: isQuiz
+                    ? `/quizzes/registrations/${row.registrationId}`
+                    : `/assessments/registrations/${row.registrationId}`,
+                }}
+                edit={
+                  canEdit
+                    ? {
+                        to: isQuiz
+                          ? `/quizzes/registrations/${row.registrationId}/edit`
+                          : `/assessments/registrations/${row.registrationId}/edit`,
+                      }
+                    : undefined
+                }
+                remove={
+                  canFull && row.attemptId
+                    ? {
+                        label: 'Delete attempt',
+                        onClick: () => {
+                          void onDeleteAttempt(row);
+                        },
+                      }
+                    : undefined
+                }
+              />
+            )}
+            onRowOpen={(row) =>
+              navigate(
+                isQuiz
+                  ? `/quizzes/registrations/${row.registrationId}`
+                  : `/assessments/registrations/${row.registrationId}`,
+              )
+            }
+          />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length}{' '}
               registrations
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows per page</span>
+            <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                  Rows per page
+                </span>
                 <Select
                   value={pageSize}
                   onValueChange={(value) => {
@@ -424,7 +488,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger aria-label="Rows per page" className="w-20">
+                  <SelectTrigger aria-label="Rows per page" className="w-16 shrink-0 sm:w-20">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>

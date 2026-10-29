@@ -1,3 +1,5 @@
+> **Current authoritative tokens:** `admin/src/styles/tokens.css` and `client/src/styles/tokens.css` are application-local and imported after each app stylesheet. This document retains existing component and layout guidance. Each app has its own `docs/design-system/README.md` for brand usage.
+
 # DESIGN.md --- Quiz & Assessment Platform
 
 > **Purpose:** This document is the source of truth for AI coding agents
@@ -350,7 +352,7 @@ the shipped components, not a second set to invent.
 
 -   shadcn `Card` (12 px, flat; KPI tiles stay on the card color)
 -   `KpiGrid` for summary metrics
--   shadcn `Table` inside a card for lists; `DataTable` only where a page already uses it
+-   shadcn `Table` inside a card for lists at 720px and wider; stacked record panels below that
 -   `Toolbar` for search and filters
 -   `SortHeader` for sortable columns
 -   `StatusPill` and its account, flow, assignment, and attempt wrappers
@@ -386,8 +388,8 @@ the shipped components, not a second set to invent.
     page dramatically when content loads.
 -   Use a stable minimum height for loading regions when layout shift
     would disrupt the user.
--   Skeletons are temporary loading indicators, not permanent
-    placeholders for unfinished production pages.
+-   Skeletons show a loading state. They are not a stand-in for
+    unfinished pages.
 
 ------------------------------------------------------------------------
 

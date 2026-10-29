@@ -1,0 +1,653 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MembershipRole {
+  super_admin
+  admin
+}
+
+enum AccessLevel {
+  full
+  edit
+  view
+  none
+}
+
+enum ActivityKind {
+  assessment
+  quiz
+}
+
+enum FlowStatus {
+  draft
+  active
+  completed
+  archived
+}
+
+enum QuestionType {
+  single_mcq
+  multiple_mcq
+  true_false
+  numeric
+  short_text
+  long_text
+  passage
+  match
+  image_mcq
+  image_selection
+  comprehension_mcq
+}
+
+enum PresentationMode {
+  one_at_a_time
+  all_on_page
+}
+
+enum DurationMode {
+  overall
+  per_question
+}
+
+enum BankOrigin {
+  reusable
+  round_local
+  quiz_local
+}
+
+enum AssignmentStatus {
+  assigned
+  unassigned
+}
+
+enum AttemptStatus {
+  in_progress
+  submitted
+  auto_submitted
+  voided
+}
+
+enum ReleaseStatus {
+  withheld
+  published
+}
+
+enum SettingGroup {
+  general
+}
+
+enum ActorType {
+  user
+  student
+  system
+}
+
+enum ReattemptMode {
+  continue
+  restart
+}
+
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships        Membership[]
+  students           Student[]
+  questionBanks      QuestionBank[]
+  passages           Passage[]
+  questions          Question[]
+  questionVersions   QuestionVersion[]
+  activities         Activity[]
+  activityBanks      ActivityBank[]
+  activityRounds     ActivityRound[]
+  activityRoundBanks ActivityRoundBank[]
+  registrations      Registration[]
+  attempts           Attempt[]
+  attemptResponses   AttemptResponse[]
+  results            Result[]
+  resultRevisions    ResultRevision[]
+  settings           Setting[]
+  notifications      Notification[]
+  auditEvents        AuditEvent[]
+  fileObjects        FileObject[]
+  reattemptGrants    ReattemptGrant[]
+  sponsors           Sponsor[]
+  contests           Contest[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  memberships          Membership[]
+  auditEvents          AuditEvent[]
+  fileObjects          FileObject[]
+  disqualifiedAttempts Attempt[]        @relation("AttemptDisqualifiedBy")
+  reattemptGrants      ReattemptGrant[]
+
+  @@map("users")
+}
+
+model Membership {
+  id               String         @id @default(uuid()) @db.Uuid
+  organizationId   String         @map("organization_id") @db.Uuid
+  userId           String         @map("user_id") @db.Uuid
+  role             MembershipRole @default(admin)
+  assessmentAccess AccessLevel    @default(full) @map("assessment_access")
+  quizAccess       AccessLevel    @default(full) @map("quiz_access")
+  isActive         Boolean        @default(true) @map("is_active")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId, role])
+  @@map("memberships")
+}
+
+model Student {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  code           String
+  name           String
+  email          String
+  phone          String?
+  course         String?
+  city           String?
+  cohort         String?
+  isActive       Boolean   @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registrations   Registration[]
+  attempts        Attempt[]
+  results         Result[]
+  reattemptGrants ReattemptGrant[]
+
+  @@unique([organizationId, code])
+  @@unique([organizationId, email])
+  @@unique([organizationId, phone])
+  @@index([organizationId, isActive])
+  @@index([organizationId, name])
+  @@index([organizationId, cohort])
+  @@map("students")
+}
+
+model QuestionBank {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  kind           ActivityKind
+  code           String
+  name           String
+  description    String?
+  presentation   PresentationMode @default(one_at_a_time)
+  status         FlowStatus       @default(draft)
+  origin         BankOrigin       @default(reusable)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  passages           Passage[]
+  questions          Question[]
+  activityBanks      ActivityBank[]
+  activityRoundBanks ActivityRoundBank[]
+  localForRounds     ActivityRound[]     @relation("RoundLocalBank")
+
+  @@unique([organizationId, code])
+  @@index([organizationId, kind, status])
+  @@index([organizationId, origin])
+  @@map("question_banks")
+}
+
+model Passage {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  bankId         String   @map("bank_id") @db.Uuid
+  title          String?
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bank         QuestionBank      @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  questions    Question[]        @relation("QuestionCurrentPassage")
+  versions     QuestionVersion[] @relation("QuestionVersionPassage")
+
+  @@index([organizationId, bankId])
+  @@map("passages")
+}
+
+model Question {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  bankId         String       @map("bank_id") @db.Uuid
+  code           String
+  type           QuestionType
+  question       String
+  points         Decimal      @default(1) @db.Decimal(10, 2)
+  isActive       Boolean      @default(true) @map("is_active")
+  passageId      String?      @map("passage_id") @db.Uuid
+  sortOrder      Int          @default(0) @map("sort_order")
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bank         QuestionBank      @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  passage      Passage?          @relation("QuestionCurrentPassage", fields: [passageId], references: [id], onDelete: SetNull)
+  versions     QuestionVersion[]
+  options      QuestionOption[]
+
+  @@unique([organizationId, bankId, code])
+  @@index([organizationId, bankId, isActive])
+  @@index([passageId])
+  @@map("questions")
+}
+
+model QuestionVersion {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  questionId     String       @map("question_id") @db.Uuid
+  version        Int
+  type           QuestionType
+  question       String
+  points         Decimal      @db.Decimal(10, 2)
+  answerKey      Json         @map("answer_key")
+  passageId      String?      @map("passage_id") @db.Uuid
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parentQuestion   Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  passage          Passage?          @relation("QuestionVersionPassage", fields: [passageId], references: [id], onDelete: SetNull)
+  options          QuestionOption[]
+  attemptResponses AttemptResponse[]
+
+  @@unique([questionId, version])
+  @@index([organizationId, questionId])
+  @@index([passageId])
+  @@map("question_versions")
+}
+
+model QuestionOption {
+  id                String  @id @default(uuid()) @db.Uuid
+  questionId        String  @map("question_id") @db.Uuid
+  questionVersionId String  @map("question_version_id") @db.Uuid
+  label             String
+  body              String
+  imageUrl          String? @map("image_url")
+  sortOrder         Int     @map("sort_order")
+  isCorrect         Boolean @default(false) @map("is_correct")
+
+  question        Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  questionVersion QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Cascade)
+
+  @@index([questionVersionId, sortOrder])
+  @@map("question_options")
+}
+
+model Activity {
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  kind               ActivityKind
+  code               String
+  name               String
+  subtitle           String?
+  instructions       String?          @db.Text
+  status             FlowStatus       @default(draft)
+  startsAt           DateTime?        @map("starts_at") @db.Timestamptz(3)
+  endsAt             DateTime?        @map("ends_at") @db.Timestamptz(3)
+  durationMinutes    Int?             @map("duration_minutes")
+  durationMode       DurationMode     @default(overall) @map("duration_mode")
+  perQuestionSeconds Int?             @map("per_question_seconds")
+  passingPercent     Decimal?         @map("passing_percent") @db.Decimal(5, 2)
+  presentation       PresentationMode @default(one_at_a_time)
+  settings           Json?            @db.JsonB
+  imageFileId        String?          @map("image_file_id") @db.Uuid
+  sponsorId          String?          @map("sponsor_id") @db.Uuid
+  contestId          String?          @map("contest_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  image           FileObject?      @relation("ActivityImage", fields: [imageFileId], references: [id], onDelete: SetNull)
+  sponsor         Sponsor?         @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  contest         Contest?         @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  activityBanks   ActivityBank[]
+  rounds          ActivityRound[]
+  registrations   Registration[]
+  attempts        Attempt[]
+  results         Result[]
+  reattemptGrants ReattemptGrant[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, kind, status])
+  @@index([organizationId, sponsorId])
+  @@index([organizationId, contestId])
+  @@index([organizationId, imageFileId])
+  @@map("activities")
+}
+
+model Sponsor {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  imageFileId    String   @map("image_file_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  image        FileObject   @relation("SponsorImage", fields: [imageFileId], references: [id], onDelete: Restrict)
+  contests     Contest[]
+  activities   Activity[]
+
+  @@index([organizationId, name])
+  @@map("sponsors")
+}
+
+model Contest {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  sponsorId      String   @map("sponsor_id") @db.Uuid
+  name           String
+  description    String?
+  imageFileId    String   @map("image_file_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sponsor      Sponsor      @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  image        FileObject   @relation("ContestImage", fields: [imageFileId], references: [id], onDelete: Restrict)
+  activities   Activity[]
+
+  @@index([organizationId, sponsorId])
+  @@index([organizationId, name])
+  @@map("contests")
+}
+
+model ActivityBank {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  activityId     String   @map("activity_id") @db.Uuid
+  bankId         String   @map("bank_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  bank         QuestionBank @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, bankId])
+  @@index([organizationId, activityId])
+  @@map("activity_banks")
+}
+
+model ActivityRound {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  activityId      String   @map("activity_id") @db.Uuid
+  name            String
+  sortOrder       Int      @map("sort_order")
+  durationMinutes Int?     @map("duration_minutes")
+  localBankId     String?  @unique @map("local_bank_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity     Activity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  localBank    QuestionBank?       @relation("RoundLocalBank", fields: [localBankId], references: [id], onDelete: SetNull)
+  banks        ActivityRoundBank[]
+  attempts     Attempt[]
+
+  @@unique([activityId, sortOrder])
+  @@index([organizationId, activityId])
+  @@map("activity_rounds")
+}
+
+model ActivityRoundBank {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  roundId        String   @map("round_id") @db.Uuid
+  bankId         String   @map("bank_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  round        ActivityRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  bank         QuestionBank  @relation(fields: [bankId], references: [id], onDelete: Cascade)
+
+  @@unique([roundId, bankId])
+  @@index([organizationId, roundId])
+  @@map("activity_round_banks")
+}
+
+model Registration {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  activityId     String           @map("activity_id") @db.Uuid
+  studentId      String           @map("student_id") @db.Uuid
+  status         AssignmentStatus @default(assigned)
+  assignedAt     DateTime?        @map("assigned_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, activityId, studentId])
+  @@index([organizationId, activityId, status])
+  @@index([organizationId, studentId])
+  @@map("registrations")
+}
+
+model Attempt {
+  id                   String        @id @default(uuid()) @db.Uuid
+  organizationId       String        @map("organization_id") @db.Uuid
+  activityId           String        @map("activity_id") @db.Uuid
+  roundId              String?       @map("round_id") @db.Uuid
+  studentId            String        @map("student_id") @db.Uuid
+  status               AttemptStatus @default(in_progress)
+  revision             Int           @default(0)
+  startedAt            DateTime      @map("started_at") @db.Timestamptz(3)
+  deadlineAt           DateTime      @map("deadline_at") @db.Timestamptz(3)
+  submittedAt          DateTime?     @map("submitted_at") @db.Timestamptz(3)
+  submitIdempotencyKey String?       @map("submit_idempotency_key")
+  questionOrder        String[]      @default([]) @map("question_order")
+  optionOrders         Json?         @map("option_orders") @db.JsonB
+  isAuthoritative      Boolean       @default(true) @map("is_authoritative")
+  disqualified         Boolean       @default(false)
+  disqualifiedAt       DateTime?     @map("disqualified_at") @db.Timestamptz(3)
+  disqualifiedByUserId String?       @map("disqualified_by_user_id") @db.Uuid
+  disqualifiedNote     String?       @map("disqualified_note")
+  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity       Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  round          ActivityRound?    @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  disqualifiedBy User?             @relation("AttemptDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: SetNull)
+  responses      AttemptResponse[]
+  result         Result?
+
+  @@index([organizationId, activityId, studentId, status])
+  @@index([organizationId, activityId, roundId, studentId, status])
+  @@index([organizationId, studentId, status])
+  @@index([organizationId, id, submitIdempotencyKey])
+  @@index([organizationId, activityId, isAuthoritative, disqualified])
+  @@map("attempts")
+}
+
+model ReattemptGrant {
+  id              String        @id @default(uuid()) @db.Uuid
+  organizationId  String        @map("organization_id") @db.Uuid
+  activityId      String        @map("activity_id") @db.Uuid
+  studentId       String        @map("student_id") @db.Uuid
+  mode            ReattemptMode
+  note            String?
+  grantedByUserId String        @map("granted_by_user_id") @db.Uuid
+  consumedAt      DateTime?     @map("consumed_at") @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grantedBy    User         @relation(fields: [grantedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, activityId, studentId, consumedAt])
+  @@map("reattempt_grants")
+}
+
+model AttemptResponse {
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  attemptId         String   @map("attempt_id") @db.Uuid
+  questionVersionId String   @map("question_version_id") @db.Uuid
+  answer            Json
+  revision          Int
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization    Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attempt         Attempt         @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionVersion QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, questionVersionId])
+  @@index([organizationId, attemptId])
+  @@map("attempt_responses")
+}
+
+model Result {
+  id             String        @id @default(uuid()) @db.Uuid
+  organizationId String        @map("organization_id") @db.Uuid
+  attemptId      String        @unique @map("attempt_id") @db.Uuid
+  activityId     String        @map("activity_id") @db.Uuid
+  studentId      String        @map("student_id") @db.Uuid
+  score          Decimal       @db.Decimal(10, 2)
+  maxScore       Decimal       @map("max_score") @db.Decimal(10, 2)
+  percent        Decimal       @db.Decimal(5, 2)
+  passed         Boolean?
+  releaseStatus  ReleaseStatus @default(withheld) @map("release_status")
+  publishedAt    DateTime?     @map("published_at") @db.Timestamptz(3)
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  attempt      Attempt          @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  activity     Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  revisions    ResultRevision[]
+
+  @@index([organizationId, activityId, releaseStatus])
+  @@index([organizationId, studentId])
+  @@map("results")
+}
+
+model ResultRevision {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  resultId       String   @map("result_id") @db.Uuid
+  score          Decimal  @db.Decimal(10, 2)
+  maxScore       Decimal  @map("max_score") @db.Decimal(10, 2)
+  percent        Decimal  @db.Decimal(5, 2)
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  result       Result       @relation(fields: [resultId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, resultId])
+  @@map("result_revisions")
+}
+
+model Setting {
+  id             String       @id @default(uuid()) @db.Uuid
+  organizationId String       @map("organization_id") @db.Uuid
+  group          SettingGroup
+  key            String
+  value          Json
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, group, key])
+  @@index([organizationId, group])
+  @@map("settings")
+}
+
+model Notification {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventType      String   @map("event_type")
+  title          String
+  body           String?
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("notifications")
+}
+
+model AuditEvent {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  actorType      ActorType @map("actor_type")
+  actorUserId    String?   @map("actor_user_id") @db.Uuid
+  action         String
+  targetType     String?   @map("target_type")
+  targetId       String?   @map("target_id")
+  metadata       Json?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actorUser    User?        @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action])
+  @@map("audit_events")
+}
+
+model FileObject {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  uploadedById   String?   @map("uploaded_by_id") @db.Uuid
+  originalName   String    @map("original_name")
+  mimeType       String    @map("mime_type")
+  sizeBytes      Int       @map("size_bytes")
+  storagePath    String    @map("storage_path")
+  finalizedAt    DateTime? @map("finalized_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy     User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  sponsorImages  Sponsor[]    @relation("SponsorImage")
+  contestImages  Contest[]    @relation("ContestImage")
+  activityImages Activity[]   @relation("ActivityImage")
+
+  @@index([organizationId, createdAt])
+  @@map("file_objects")
+}

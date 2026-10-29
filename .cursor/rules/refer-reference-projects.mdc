@@ -1,0 +1,27 @@
+---
+description: When the user says refer PGDM/DISHA, LevelUP, or legacy BrainPulses, search and read only under the matching references/ folder
+alwaysApply: true
+---
+
+# Refer projects under references/
+
+`references/` is **read-only** inspiration. It is gitignored; `.cursorignore` still allows Read, Grep, and Glob. Do not copy files, ports, env layout, or product behavior into `admin/` or `api/` unless the user asks.
+
+Stay in the **single** BrainPulses v2.0 folder workspace. Do not ask the user to add `references` as a second workspace root (that splits chat history).
+
+When the user says **refer**, **look at**, **from**, or **like** one of these projects, search and read **only** that folder for that task:
+
+| User says | Path |
+|---|---|
+| PGDM, DISHA, Induction, PGDM Induction | `references/PGDM Induction Program/` |
+| LevelUP, Level Up | `references/LevelUP/` |
+| legacy BrainPulses, old BrainPulses, brainpulses (reference) | `references/brainpulses/` |
+
+```text
+❌ BAD — Grep the whole repo or invent paths under reference-projects/
+✅ GOOD — Grep path references/LevelUP for the pattern the task needs
+```
+
+- Prefer `path` scoped to the matching folder. Pass absolute paths when the tool needs them.
+- Other roots under `references/` (`ChatGPT/`, `design-systems/`, HTML mocks) only when the user names them.
+- Ideas only. Implement in this app’s stack and conventions. Never commit `references/`.

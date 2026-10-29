@@ -1,6 +1,6 @@
 import * as React from 'react';
 
-/* Drawer below 768px, matching the Quizora shell. */
+/* Drawer below 768px, matching the BrainPulses shell. */
 const MOBILE_BREAKPOINT = 768;
 
 export function useIsMobile() {

@@ -52,7 +52,7 @@ Agree targets before launch. Candidate metrics: activity creation time, import e
 ## 8. Risks
 | Risk | Mitigation |
 |---|---|
-| Fixture data mistaken for live | Label demo data; replace before launch |
+| Fixture data mistaken for live | Label fixture data; replace it before launch |
 | UI-only permissions | Enforce in trusted API/database |
 | Answer-key leakage | Minimize payloads; server-side scoring/release |
 | Inconsistent UI | Enforce DESIGN.md and shared components |

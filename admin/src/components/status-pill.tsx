@@ -31,9 +31,18 @@ export function StatusPill({
   );
 }
 
-/** Active / Draft / Completed (activity + question bank flow). */
+/** Activity / bank flow statuses including derived Scheduled / Expired. */
 export function FlowStatusPill({ status }: { status: string }) {
-  const tone: PillTone = status === 'Completed' ? 'pr' : status === 'Active' ? 'ok' : 'wn';
+  const tone: PillTone =
+    status === 'Completed'
+      ? 'pr'
+      : status === 'Active'
+        ? 'ok'
+        : status === 'Expired' || status === 'Archived'
+          ? 'gy'
+          : status === 'Scheduled'
+            ? 'wn'
+            : 'wn';
   return <StatusPill value={status} tone={tone} />;
 }
 

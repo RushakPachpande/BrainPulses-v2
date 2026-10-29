@@ -1,9 +1,9 @@
 # API Structure and Service Contracts
 
-**Status: Draft. No production API contract is established.**
+**Status: Implemented for local UAT.** Canonical contract: [`api/openapi.yaml`](../../api/openapi.yaml).
 
 ## Current state
-`admin/src/services/index.ts` maps fixture data to UI records; it is not a deployed API.
+Express API on port **3002** (`api/`) with Prisma/Postgres. Admin and student client call live endpoints when `VITE_USE_FIXTURES=false`. Student portal routes live under `/api/student/*`; attempts under `/api/attempts/*`.
 
 ## Proposed principles
 Use HTTPS outside local development; decide versioning/auth conventions after backend selection; enforce server-side auth/tenant scope; validate path/query/body/files; return only authorized fields; use consistent errors and pagination; make retry-sensitive mutations idempotent; document limits; maintain typed service contracts; never expose privileged DB keys in browser code.
@@ -41,7 +41,7 @@ Confirm response format before implementation.
 | Results | list/detail/publish/regrade | Release policy |
 | Settings | read/update settings groups | Separate sensitive operations |
 | Audit | list/detail | Strict permissions |
-| Files | initiate/finalize upload/download | Limits and signed URLs |
+| Files | initiate/finalize upload/download, image library list | Limits and signed URLs; library is org-scoped and filtered by purpose |
 
 Implement only approved MVP endpoints.
 

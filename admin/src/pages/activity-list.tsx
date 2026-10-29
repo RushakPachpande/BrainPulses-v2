@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -7,14 +9,17 @@ import {
   CircleDashedIcon,
   ClipboardListIcon,
   LayersIcon,
-  MoreVerticalIcon,
   PlusIcon,
   RotateCcwIcon,
 } from 'lucide-react';
 import { DateRangeFilter } from '@/components/date-range-filter';
-import { SortHeader } from '@/components/sort-header';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
+import { RowActions } from '@/components/row-actions';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
 import {
   ALL_DATE_RANGE,
   isDateInRange,
@@ -23,13 +28,6 @@ import {
 } from '@/lib/date-range';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -38,47 +36,30 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
+import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { useRecordSelection } from '@/hooks/use-list-selection';
+import { useOrgId } from '@/hooks/use-org-id';
+import { ApiError } from '@/lib/api-client';
+import { canEditKind, canFullKind } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { getActivities, type ActivityKind } from '@/services';
+import { deleteActivity, getActivities, type ActivityKind } from '@/services';
+import type { Activity } from '@/services/types';
 
-type Activity = ReturnType<typeof getActivities>[number];
+const EMPTY_ACTIVITIES: Activity[] = [];
 
-type SortKey =
-  'name' | 'status' | 'registered' | 'assigned' | 'banks' | 'attempts' | 'start' | 'end';
+type SortKey = 'name' | 'status' | 'registered' | 'attempts' | 'start' | 'end';
 
-const assessmentMetrics = [
-  {
-    label: 'Total Assessments',
-    value: '24',
-    icon: ClipboardListIcon,
-    tone: 'bg-chart-2/15 text-chart-2',
-  },
-  { label: 'Active', value: '14', icon: CheckCircle2Icon, tone: 'bg-success/15 text-success' },
-  { label: 'Draft', value: '6', icon: CircleDashedIcon, tone: 'bg-warning/15 text-warning' },
-  { label: 'Completed', value: '4', icon: LayersIcon, tone: 'bg-primary/15 text-primary' },
-] as const;
-
-const quizMetrics = [
-  {
-    label: 'Total Quizzes',
-    value: '32',
-    icon: ClipboardListIcon,
-    tone: 'bg-chart-2/15 text-chart-2',
-  },
-  { label: 'Active', value: '26', icon: CheckCircle2Icon, tone: 'bg-success/15 text-success' },
-  { label: 'Draft', value: '4', icon: CircleDashedIcon, tone: 'bg-warning/15 text-warning' },
-  { label: 'Completed', value: '2', icon: LayersIcon, tone: 'bg-primary/15 text-primary' },
-] as const;
+const activityPlacement: Record<SortKey, RecordColumn<Activity>['placement']> = {
+  name: 'title',
+  status: 'status',
+  registered: 'primary',
+  attempts: 'primary',
+  start: 'details',
+  end: 'details',
+};
 
 function compareActivities(a: Activity, b: Activity, key: SortKey) {
   const left = a[key];
@@ -93,49 +74,100 @@ function attemptPercent(activity: Activity) {
 }
 
 export function ActivityListPage({ kind }: { kind: ActivityKind }) {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const confirm = useConfirm();
+  const { narrow, ref } = useContainerNarrow();
+  const auth = useAuth();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canEdit = canEditKind(membership, kind);
+  const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'quizzes' : 'assessments';
   const nounSingular = isQuiz ? 'quiz' : 'assessment';
   const nameLabel = isQuiz ? 'Quiz Name' : 'Assessment Name';
+  const listPath = isQuiz ? '/quizzes' : '/assessments';
   const createHref = isQuiz ? '/quizzes/new' : '/assessments/new';
-  const metrics = isQuiz ? quizMetrics : assessmentMetrics;
 
-  const sortColumns: { key: SortKey; label: string }[] = isQuiz
-    ? [
-        { key: 'name', label: nameLabel },
-        { key: 'status', label: 'Status' },
-        { key: 'banks', label: 'Question Banks' },
-        { key: 'registered', label: 'Registered Students' },
-        { key: 'assigned', label: 'Assigned Students' },
-        { key: 'attempts', label: 'Attempts' },
-        { key: 'start', label: 'Start Date' },
-        { key: 'end', label: 'End Date' },
-      ]
-    : [
-        { key: 'name', label: nameLabel },
-        { key: 'status', label: 'Status' },
-        { key: 'registered', label: 'Registered Students' },
-        { key: 'assigned', label: 'Assigned Students' },
-        { key: 'banks', label: 'Question Banks' },
-        { key: 'attempts', label: 'Attempts' },
-        { key: 'start', label: 'Start Date' },
-        { key: 'end', label: 'End Date' },
-      ];
+  const sortColumns: { key: SortKey; label: string }[] = [
+    { key: 'name', label: nameLabel },
+    { key: 'status', label: 'Status' },
+    { key: 'registered', label: 'Registered Students' },
+    { key: 'attempts', label: 'Attempts' },
+    { key: 'start', label: 'Start Date' },
+    { key: 'end', label: 'End Date' },
+  ];
 
-  const activities = useMemo(() => getActivities(kind), [kind]);
+  const orgId = useOrgId();
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.activities(orgId, kind),
+    queryFn: () => getActivities(kind),
+    enabled: Boolean(orgId),
+  });
+  const activities = data ?? EMPTY_ACTIVITIES;
+
+  async function onDeleteQuiz(item: Activity) {
+    if (!isQuiz || !canFull) return;
+    const password = await confirm({
+      title: `Delete “${item.name}”?`,
+      description:
+        'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
+      confirmLabel: 'Delete quiz',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteActivity(item.id, password);
+      toast.success('Quiz deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'activities'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete quiz.');
+    }
+  }
+
+  const statusCount = (value: string) => activities.filter((item) => item.status === value).length;
+  const metrics = [
+    {
+      label: isQuiz ? 'Total Quizzes' : 'Total Assessments',
+      value: String(activities.length),
+      icon: ClipboardListIcon,
+      tone: 'bg-chart-2/15 text-chart-2',
+    },
+    {
+      label: 'Active',
+      value: String(statusCount('Active')),
+      icon: CheckCircle2Icon,
+      tone: 'bg-success/15 text-success',
+    },
+    {
+      label: 'Scheduled',
+      value: String(statusCount('Scheduled')),
+      icon: CircleDashedIcon,
+      tone: 'bg-warning/15 text-warning',
+    },
+    {
+      label: 'Expired',
+      value: String(statusCount('Expired')),
+      icon: LayersIcon,
+      tone: 'bg-muted text-muted-foreground',
+    },
+  ];
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('All');
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
   const filters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['All', 'Active', 'Draft', 'Completed'],
+      options: ['All', 'Active', 'Scheduled', 'Expired', 'Draft', 'Completed', 'Archived'],
       value: status,
       onValueChange: (value) => {
         setStatus(value);
@@ -171,8 +203,13 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
 
   const pageIds = pageRows.map((row) => row.id);
-  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
-  const somePageSelected = pageIds.some((id) => selected.has(id));
+  const records = useRecordSelection(
+    orgId,
+    `activities-${kind}`,
+    noun,
+    pageIds,
+    filtered.map((row) => row.id),
+  );
 
   function clearFilters() {
     setSearch('');
@@ -195,41 +232,21 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     setSortDir('asc');
   }
 
-  function toggleAllPage(checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const id of pageIds) {
-        if (checked) next.add(id);
-        else next.delete(id);
-      }
-      return next;
-    });
-  }
-
-  function toggleOne(id: string, checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }
-
   function renderCell(column: SortKey, item: Activity) {
     switch (column) {
       case 'name':
         return (
           <div className="min-w-0">
             <div className="truncate font-medium">{item.name}</div>
-            <div className="truncate text-xs text-muted-foreground">{item.subtitle}</div>
+            <div className="truncate text-xs font-normal text-muted-foreground">
+              {item.subtitle}
+            </div>
           </div>
         );
       case 'status':
         return <FlowStatusPill status={item.status} />;
       case 'registered':
-      case 'assigned':
-      case 'banks':
-        return <span className="tabular-nums">{item[column]}</span>;
+        return <span className="tabular-nums">{item.registered}</span>;
       case 'attempts': {
         const percent = attemptPercent(item);
         return (
@@ -266,16 +283,43 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     }
   }
 
+  const recordColumns: RecordColumn<Activity>[] = sortColumns.map((column) => ({
+    key: column.key,
+    label: column.label,
+    placement: activityPlacement[column.key],
+    render: (item) => renderCell(column.key, item),
+  }));
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {canEdit ? (
+          <PageHeaderActions>
+            <Button type="button" asChild className="w-full sm:w-auto">
+              <Link to={createHref}>
+                <PlusIcon data-icon="inline-start" />
+                Create {isQuiz ? 'Quiz' : 'Assessment'}
+              </Link>
+            </Button>
+          </PageHeaderActions>
+        ) : null}
+        <ListPageSkeleton columns={6} />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeaderActions>
-        <Button type="button" asChild className="w-full sm:w-auto">
-          <Link to={createHref}>
-            <PlusIcon data-icon="inline-start" />
-            Create {isQuiz ? 'Quiz' : 'Assessment'}
-          </Link>
-        </Button>
-      </PageHeaderActions>
+    <div ref={ref} className="flex flex-col gap-4">
+      {canEdit ? (
+        <PageHeaderActions>
+          <Button type="button" asChild className="w-full sm:w-auto">
+            <Link to={createHref}>
+              <PlusIcon data-icon="inline-start" />
+              Create {isQuiz ? 'Quiz' : 'Assessment'}
+            </Link>
+          </Button>
+        </PageHeaderActions>
+      ) : null}
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
@@ -319,108 +363,69 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
           />
         }
         actions={
-          <Button
-            type="button"
-            variant="outline"
-            onClick={clearFilters}
-            className="w-full sm:w-auto"
-          >
-            <RotateCcwIcon data-icon="inline-start" />
-            Clear Filters
-          </Button>
+          <>
+            {narrow ? (
+              <RecordSortSelect
+                columns={recordColumns}
+                activeKey={sortKey}
+                direction={sortDir}
+                onSort={(key) => toggleSort(key as SortKey)}
+              />
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={clearFilters}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          </>
         }
       />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <Table>
-            <TableCaption className="sr-only">{isQuiz ? 'Quizzes' : 'Assessments'}</TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10">
-                  <Checkbox
-                    checked={allPageSelected ? true : somePageSelected ? 'indeterminate' : false}
-                    onCheckedChange={(checked) => toggleAllPage(checked === true)}
-                    aria-label={`Select all ${noun} on this page`}
-                  />
-                </TableHead>
-                {sortColumns.map((column) => (
-                  <TableHead
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sortKey === column.key
-                        ? sortDir === 'asc'
-                          ? 'ascending'
-                          : 'descending'
-                        : 'none'
-                    }
-                  >
-                    <SortHeader
-                      label={column.label}
-                      active={sortKey === column.key}
-                      direction={sortDir}
-                      onSort={() => toggleSort(column.key)}
-                    />
-                  </TableHead>
-                ))}
-                <TableHead scope="col">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
-                    No {noun} match the current filters.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((item) => (
-                  <TableRow
-                    key={item.id}
-                    data-state={selected.has(item.id) ? 'selected' : undefined}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        checked={selected.has(item.id)}
-                        onCheckedChange={(checked) => toggleOne(item.id, checked === true)}
-                        aria-label={`Select ${item.name}`}
-                      />
-                    </TableCell>
-                    {sortColumns.map((column) => (
-                      <TableCell key={column.key}>{renderCell(column.key, item)}</TableCell>
-                    ))}
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Actions for ${item.name}`}
-                          >
-                            <MoreVerticalIcon />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>View</DropdownMenuItem>
-                          <DropdownMenuItem>Edit</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+          <ResponsiveRecords
+            caption={isQuiz ? 'Quizzes' : 'Assessments'}
+            rows={pageRows}
+            getRowId={(item) => item.id}
+            columns={recordColumns}
+            narrow={narrow}
+            empty={`No ${noun} match the current filters.`}
+            sort={{
+              key: sortKey,
+              direction: sortDir,
+              onSort: (key) => toggleSort(key as SortKey),
+            }}
+            selection={{
+              ...records,
+              rowLabel: (item) => `Select ${item.name}`,
+            }}
+            renderActions={(item) => (
+              <RowActions
+                view={{ to: `${listPath}/${item.id}` }}
+                edit={canEdit ? { to: `${listPath}/${item.id}/edit` } : undefined}
+                remove={
+                  isQuiz && canFull
+                    ? { label: 'Delete', onClick: () => void onDeleteQuiz(item) }
+                    : undefined
+                }
+              />
+            )}
+            onRowOpen={(item) => navigate(`${listPath}/${item.id}`)}
+          />
 
           <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length} {noun}
             </p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows per page</span>
+            <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                  Rows per page
+                </span>
                 <Select
                   value={pageSize}
                   onValueChange={(value) => {
@@ -428,7 +433,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                     setPage(1);
                   }}
                 >
-                  <SelectTrigger aria-label="Rows per page" className="w-20">
+                  <SelectTrigger aria-label="Rows per page" className="w-16 shrink-0 sm:w-20">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
