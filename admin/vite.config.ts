@@ -35,6 +35,23 @@ function readByteCap(raw: string | undefined, name: string, fallback: number) {
 
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3002';
 
+/**
+ * Hosts the dev server may answer, on top of Vite's localhost and IP defaults.
+ * Unset allows `*.trycloudflare.com` (Cloudflare quick tunnels).
+ * A set value is the full list you choose (comma-separated). A leading `.` allows that name and its subdomains.
+ * `*` allows every host. `none` keeps only Vite's defaults.
+ */
+function devAllowedHosts(raw: string | undefined): true | string[] {
+  const value = raw?.trim() ?? '';
+  if (value === '') return ['.trycloudflare.com'];
+  if (value === '*') return true;
+  if (value === 'none') return [];
+  return value
+    .split(',')
+    .map((host) => host.trim())
+    .filter(Boolean);
+}
+
 const apiProxy = {
   '/api': {
     target: apiProxyTarget,
@@ -55,6 +72,7 @@ export default defineConfig(({ command, mode }) => {
     5 * MB,
   );
   const singleFile = command === 'build' && mode === 'singlefile';
+  const allowedHosts = devAllowedHosts(process.env.DEV_ALLOWED_HOSTS || fileEnv.DEV_ALLOWED_HOSTS);
 
   return {
     plugins: [
@@ -79,12 +97,14 @@ export default defineConfig(({ command, mode }) => {
       port: 5173,
       strictPort: true,
       open: false,
+      allowedHosts,
       proxy: { ...apiProxy },
     },
     preview: {
       host: '0.0.0.0',
       port: 5173,
       strictPort: true,
+      allowedHosts,
       proxy: { ...apiProxy },
     },
 

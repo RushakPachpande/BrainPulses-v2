@@ -65,17 +65,6 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Quizzes',
     description: 'Create and manage quizzes, track participation, and monitor performance.',
   },
-  '/quizzes/banks': {
-    crumb: 'BrainPulses / Quiz / Question Banks',
-    title: 'Quiz Question Banks',
-    description:
-      'Manage reusable question banks for quizzes. Banks use MCQs with one correct answer.',
-  },
-  '/quizzes/banks/new': {
-    crumb: 'BrainPulses / Quiz / Question Banks / Create',
-    title: 'Create Question Bank',
-    description: 'Save bank details, then add single-MCQ questions on the edit page.',
-  },
   '/quizzes/new': { crumb: 'BrainPulses / Quiz / Create Quiz', title: 'Create Quiz' },
   '/quizzes/registrations': {
     crumb: 'BrainPulses / Quiz / Registrations',
@@ -88,11 +77,6 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Assign Students',
   },
   '/quizzes/reports': { crumb: 'BrainPulses / Quiz / Reports', title: 'Quiz Reports & Results' },
-  '/quizzes/leaderboard': {
-    crumb: 'BrainPulses / Quiz / Leaderboard',
-    title: 'Quiz Leaderboard',
-    description: 'Individual and group rankings for quizzes.',
-  },
   '/settings': { crumb: 'BrainPulses / Settings / General Settings', title: 'General Settings' },
   '/settings/access': {
     crumb: 'BrainPulses / Settings / User & Access',
@@ -116,10 +100,7 @@ export const pageMeta: Record<string, PageMeta> = {
 export function resolvePageMeta(pathname: string): PageMeta {
   if (pageMeta[pathname]) return pageMeta[pathname]!;
   const activityEdit = pathname.match(/^\/(assessments|quizzes)\/([^/]+)\/edit$/);
-  if (
-    activityEdit &&
-    !['banks', 'registrations', 'reports', 'leaderboard', 'new'].includes(activityEdit[2]!)
-  ) {
+  if (activityEdit && !['banks', 'registrations', 'reports', 'new'].includes(activityEdit[2]!)) {
     const kind = activityEdit[1] === 'quizzes' ? 'Quiz' : 'Assessment';
     return {
       crumb: `BrainPulses / ${kind} / Edit`,
@@ -127,10 +108,7 @@ export function resolvePageMeta(pathname: string): PageMeta {
     };
   }
   const activityView = pathname.match(/^\/(assessments|quizzes)\/([^/]+)$/);
-  if (
-    activityView &&
-    !['banks', 'registrations', 'reports', 'leaderboard', 'new'].includes(activityView[2]!)
-  ) {
+  if (activityView && !['banks', 'registrations', 'reports', 'new'].includes(activityView[2]!)) {
     const kind = activityView[1] === 'quizzes' ? 'Quiz' : 'Assessment';
     return { crumb: `BrainPulses / ${kind} / View`, title: `View ${kind}` };
   }

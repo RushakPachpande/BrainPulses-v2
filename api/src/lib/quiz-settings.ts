@@ -1,38 +1,47 @@
 import type { Prisma } from '#prisma';
 
+export type ScoreRelease = 'after_submit' | 'after_publish';
+
 export type QuizSettings = {
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
-  scoreVisibleToStudent: boolean;
+  scoreRelease: ScoreRelease;
   answersVisibleToStudent: boolean;
-  dailyLeaderboardVisible: boolean;
-  overallLeaderboardVisible: boolean;
-  dailyGroupLeaderboardVisible: boolean;
-  overallGroupLeaderboardVisible: boolean;
-  countsForGroupLeaderboard: boolean;
-  leaderboardReleasedAt: string | null;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
+  /** Null means unlimited submissions. */
+  maxAttempts: number | null;
 };
 
 export const defaultQuizSettings: QuizSettings = {
   shuffleQuestions: true,
   shuffleOptions: true,
-  scoreVisibleToStudent: false,
+  scoreRelease: 'after_submit',
   answersVisibleToStudent: false,
-  dailyLeaderboardVisible: true,
-  overallLeaderboardVisible: true,
-  dailyGroupLeaderboardVisible: true,
-  overallGroupLeaderboardVisible: true,
-  countsForGroupLeaderboard: true,
-  leaderboardReleasedAt: null,
   allowPrevious: true,
   showQuestionPanel: true,
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0,
+  maxAttempts: 1,
 };
+
+function parseScoreRelease(q: Record<string, unknown>): ScoreRelease {
+  if (q.scoreRelease === 'after_submit' || q.scoreRelease === 'after_publish') {
+    return q.scoreRelease;
+  }
+  if (q.scoreVisibleToStudent === true) return 'after_publish';
+  return 'after_submit';
+}
+
+function parseMaxAttempts(value: unknown): number | null {
+  if (value === null) return null;
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 100) {
+    return value;
+  }
+  return defaultQuizSettings.maxAttempts;
+}
 
 export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined): QuizSettings {
   if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
@@ -50,40 +59,11 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
         : defaultQuizSettings.shuffleQuestions,
     shuffleOptions:
       typeof q.shuffleOptions === 'boolean' ? q.shuffleOptions : defaultQuizSettings.shuffleOptions,
-    scoreVisibleToStudent:
-      typeof q.scoreVisibleToStudent === 'boolean'
-        ? q.scoreVisibleToStudent
-        : defaultQuizSettings.scoreVisibleToStudent,
+    scoreRelease: parseScoreRelease(q),
     answersVisibleToStudent:
       typeof q.answersVisibleToStudent === 'boolean'
         ? q.answersVisibleToStudent
         : defaultQuizSettings.answersVisibleToStudent,
-    dailyLeaderboardVisible:
-      typeof q.dailyLeaderboardVisible === 'boolean'
-        ? q.dailyLeaderboardVisible
-        : defaultQuizSettings.dailyLeaderboardVisible,
-    overallLeaderboardVisible:
-      typeof q.overallLeaderboardVisible === 'boolean'
-        ? q.overallLeaderboardVisible
-        : defaultQuizSettings.overallLeaderboardVisible,
-    dailyGroupLeaderboardVisible:
-      typeof q.dailyGroupLeaderboardVisible === 'boolean'
-        ? q.dailyGroupLeaderboardVisible
-        : defaultQuizSettings.dailyGroupLeaderboardVisible,
-    overallGroupLeaderboardVisible:
-      typeof q.overallGroupLeaderboardVisible === 'boolean'
-        ? q.overallGroupLeaderboardVisible
-        : defaultQuizSettings.overallGroupLeaderboardVisible,
-    countsForGroupLeaderboard:
-      typeof q.countsForGroupLeaderboard === 'boolean'
-        ? q.countsForGroupLeaderboard
-        : defaultQuizSettings.countsForGroupLeaderboard,
-    leaderboardReleasedAt:
-      typeof q.leaderboardReleasedAt === 'string'
-        ? q.leaderboardReleasedAt
-        : q.leaderboardReleasedAt === null
-          ? null
-          : defaultQuizSettings.leaderboardReleasedAt,
     allowPrevious:
       typeof q.allowPrevious === 'boolean' ? q.allowPrevious : defaultQuizSettings.allowPrevious,
     showQuestionPanel:
@@ -100,7 +80,15 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
       q.negativeMarkPoints >= 0
         ? q.negativeMarkPoints
         : defaultQuizSettings.negativeMarkPoints,
+    maxAttempts: parseMaxAttempts(q.maxAttempts),
   };
+}
+
+/** Assessments pass null and still require a published result. */
+export function isQuizScoreVisible(settings: QuizSettings | null, published: boolean): boolean {
+  if (!settings) return published;
+  if (settings.scoreRelease === 'after_submit') return true;
+  return published;
 }
 
 export function shuffleInPlace<T>(items: T[]): T[] {

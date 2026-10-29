@@ -3,7 +3,9 @@ import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
-import { parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
+import { isQuizScoreVisible, parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
+import { clusterByPassage } from '../banks/passages.js';
+import { assertActivityPageEnabled } from '../../lib/student-pages.js';
 import {
   applyNegativeMarking,
   clampScore,
@@ -34,9 +36,51 @@ async function autoSubmitIfExpired(attempt: {
   if (attempt.status !== 'in_progress') return attempt;
   if (attempt.deadlineAt.getTime() > Date.now()) return attempt;
 
+  const activity = await prisma.activity.findFirst({
+    where: { organizationId: attempt.organizationId, id: attempt.activityId },
+    select: {
+      durationMode: true,
+      perQuestionSeconds: true,
+      endsAt: true,
+      kind: true,
+    },
+  });
+
+  // Per-question: expired deadline is the question window, not the whole attempt,
+  // unless the activity end time has passed.
+  if (activity?.kind === 'quiz' && activity.durationMode === 'per_question') {
+    if (activity.endsAt && activity.endsAt.getTime() <= Date.now()) {
+      return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.studentId, {
+        auto: true,
+        idempotencyKey: `auto:${attempt.id}`,
+      });
+    }
+    return renewPerQuestionDeadline(attempt.organizationId, attempt.id, activity);
+  }
+
   return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.studentId, {
     auto: true,
     idempotencyKey: `auto:${attempt.id}`,
+  });
+}
+
+async function renewPerQuestionDeadline(
+  organizationId: string,
+  attemptId: string,
+  activity: {
+    perQuestionSeconds: number | null;
+    endsAt: Date | null;
+  },
+) {
+  const seconds = activity.perQuestionSeconds ?? 0;
+  if (seconds <= 0) throw badRequest('This quiz has no per-question time.');
+  let deadlineAt = new Date(Date.now() + seconds * 1000);
+  if (activity.endsAt && activity.endsAt < deadlineAt) {
+    deadlineAt = activity.endsAt;
+  }
+  return prisma.attempt.update({
+    where: { id: attemptId },
+    data: { deadlineAt },
   });
 }
 
@@ -83,7 +127,11 @@ function mapAttempt(
       : (quizSettings?.allowPrevious ?? true);
   const forwardOnly = durationMode === 'per_question' || allowPrevious === false;
   const showQuestionPanel =
-    extras?.activityKind === 'quiz' ? (quizSettings?.showQuestionPanel ?? true) : true;
+    durationMode === 'per_question'
+      ? false
+      : extras?.activityKind === 'quiz'
+        ? (quizSettings?.showQuestionPanel ?? true)
+        : true;
   return {
     id: a.id,
     status: a.status,
@@ -140,6 +188,7 @@ async function presentQuestions(
   const versions = await prisma.questionVersion.findMany({
     where: { organizationId, id: { in: versionIds } },
     include: {
+      passage: { select: { body: true } },
       options: {
         orderBy: { sortOrder: 'asc' },
         select: { id: true, label: true, body: true, sortOrder: true, imageUrl: true },
@@ -161,7 +210,9 @@ async function presentQuestions(
         v.answerKey && typeof v.answerKey === 'object' && !Array.isArray(v.answerKey)
           ? (v.answerKey as Record<string, unknown>)
           : {};
-      const passageText = typeof key.passageText === 'string' ? key.passageText : undefined;
+      const passageText =
+        v.passage?.body?.trim() ||
+        (typeof key.passageText === 'string' ? key.passageText : undefined);
       const questionImageUrl =
         typeof key.questionImageUrl === 'string'
           ? key.questionImageUrl
@@ -237,13 +288,15 @@ function buildShuffleOrders(
 const questionBankInclude = {
   questions: {
     where: { isActive: true },
+    orderBy: { createdAt: 'asc' as const },
     include: {
       versions: { orderBy: { version: 'desc' as const }, take: 1 },
     },
   },
 } satisfies Prisma.QuestionBankInclude;
 
-function attemptDurationMs(
+/** Session or per-question window length in ms. Per-question uses one question only. */
+export function attemptDurationMs(
   activity: {
     kind: string;
     durationMode: 'overall' | 'per_question';
@@ -257,7 +310,7 @@ function attemptDurationMs(
     const seconds = activity.perQuestionSeconds ?? 0;
     if (seconds <= 0) throw badRequest('This quiz has no per-question time.');
     if (questionCount <= 0) throw badRequest('No questions available for this attempt.');
-    return questionCount * seconds * 1000;
+    return seconds * 1000;
   }
   return fallbackMinutes * 60_000;
 }
@@ -265,10 +318,16 @@ function attemptDurationMs(
 function versionIdsFromBank(
   bank: Prisma.QuestionBankGetPayload<{ include: typeof questionBankInclude }>,
 ): string[] {
-  return bank.questions.map((q) => q.versions[0]?.id).filter((id): id is string => Boolean(id));
+  return clusterByPassage(
+    bank.questions.flatMap((question) => {
+      const id = question.versions[0]?.id;
+      if (!id) return [];
+      return [{ id, passageId: question.passageId, sortOrder: question.sortOrder }];
+    }),
+  ).map((question) => question.id);
 }
 
-/** Student-facing result: withhold scores until published and quiz visibility allows. */
+/** Student-facing result. `scoreVisible` is the final decision, including publish rules. */
 function mapStudentResult(
   r: {
     id: string;
@@ -281,7 +340,7 @@ function mapStudentResult(
   visibility?: { scoreVisible: boolean; answersVisible: boolean },
 ) {
   const published = r.releaseStatus === 'published';
-  const scoreOk = published && (visibility?.scoreVisible ?? true);
+  const scoreOk = visibility ? visibility.scoreVisible : published;
   return {
     id: r.id,
     score: scoreOk ? toNumber(r.score) : null,
@@ -317,6 +376,7 @@ export async function startAttempt(
     },
   });
   if (!activity) throw notFound('Activity not found.');
+  await assertActivityPageEnabled(organizationId, activity.kind);
   if (activity.status !== 'active') throw forbidden('Activity is not open for attempts.');
 
   const now = new Date();
@@ -458,38 +518,58 @@ export async function startAttempt(
       }
     }
 
-    const completed = await prisma.attempt.findFirst({
+    const usedAttempts = await prisma.attempt.count({
       where: {
         organizationId,
         activityId,
         studentId,
         status: { in: ['submitted', 'auto_submitted'] },
       },
-      orderBy: { submittedAt: 'desc' },
     });
-    if (completed) {
-      const grant = await prisma.reattemptGrant.findFirst({
-        where: {
-          organizationId,
-          activityId,
-          studentId,
-          consumedAt: null,
-        },
-        orderBy: { createdAt: 'asc' },
-      });
-      if (!grant) {
-        throw conflict('Quiz already completed. Ask an admin for a reattempt.');
-      }
-      if (grant.mode === 'restart' && completed.isAuthoritative) {
-        await prisma.attempt.update({
-          where: { id: completed.id },
+    if (usedAttempts > 0) {
+      const cap = parseQuizSettings(activity.settings).maxAttempts;
+      const underCap = cap == null || usedAttempts < cap;
+      if (underCap) {
+        await prisma.attempt.updateMany({
+          where: {
+            organizationId,
+            activityId,
+            studentId,
+            status: { in: ['submitted', 'auto_submitted'] },
+            isAuthoritative: true,
+          },
           data: { isAuthoritative: false },
         });
+      } else {
+        const grant = await prisma.reattemptGrant.findFirst({
+          where: {
+            organizationId,
+            activityId,
+            studentId,
+            consumedAt: null,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+        if (!grant) {
+          throw conflict('You have used all attempts for this quiz.');
+        }
+        if (grant.mode === 'restart') {
+          await prisma.attempt.updateMany({
+            where: {
+              organizationId,
+              activityId,
+              studentId,
+              status: { in: ['submitted', 'auto_submitted'] },
+              isAuthoritative: true,
+            },
+            data: { isAuthoritative: false },
+          });
+        }
+        await prisma.reattemptGrant.update({
+          where: { id: grant.id },
+          data: { consumedAt: new Date() },
+        });
       }
-      await prisma.reattemptGrant.update({
-        where: { id: grant.id },
-        data: { consumedAt: new Date() },
-      });
     }
 
     versionIds = activity.activityBanks.flatMap((ab) => versionIdsFromBank(ab.bank));
@@ -596,6 +676,7 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
     },
   });
   if (!attempt) throw notFound('Attempt not found.');
+  await assertActivityPageEnabled(organizationId, attempt.activity.kind);
 
   const quizSettings =
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
@@ -610,7 +691,10 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
       },
       submitted: true,
       result: mapStudentResult(maybe.result as never, {
-        scoreVisible: quizSettings?.scoreVisibleToStudent ?? true,
+        scoreVisible: isQuizScoreVisible(
+          quizSettings,
+          (maybe.result as { releaseStatus?: string }).releaseStatus === 'published',
+        ),
         answersVisible: quizSettings?.answersVisibleToStudent ?? false,
       }),
     };
@@ -649,13 +733,36 @@ export async function saveAttempt(
 ) {
   const attempt = await prisma.attempt.findFirst({
     where: { organizationId, id: attemptId, studentId },
+    include: {
+      activity: {
+        select: {
+          kind: true,
+          durationMode: true,
+          presentation: true,
+          perQuestionSeconds: true,
+          settings: true,
+        },
+      },
+    },
   });
   if (!attempt) throw notFound('Attempt not found.');
+  await assertActivityPageEnabled(organizationId, attempt.activity.kind);
 
   await autoSubmitIfExpired(attempt);
 
   const live = await prisma.attempt.findFirst({
     where: { organizationId, id: attemptId },
+    include: {
+      activity: {
+        select: {
+          kind: true,
+          durationMode: true,
+          presentation: true,
+          perQuestionSeconds: true,
+          settings: true,
+        },
+      },
+    },
   });
   if (!live || live.status !== 'in_progress') {
     throw conflict('Attempt is no longer in progress.');
@@ -667,6 +774,8 @@ export async function saveAttempt(
   }
 
   const nextRevision = live.revision + 1;
+  const perQuestion =
+    live.activity.kind === 'quiz' && live.activity.durationMode === 'per_question';
 
   await prisma.$transaction(async (tx) => {
     const guarded = await tx.attempt.updateMany({
@@ -675,7 +784,8 @@ export async function saveAttempt(
         id: attemptId,
         status: 'in_progress',
         revision: input.revision,
-        deadlineAt: { gt: new Date() },
+        // Per-question: allow a final save after the question window expires (advance follows).
+        ...(perQuestion ? {} : { deadlineAt: { gt: new Date() } }),
       },
       data: { revision: nextRevision },
     });
@@ -717,7 +827,59 @@ export async function saveAttempt(
   return {
     acknowledged: true,
     revision: updated.revision,
-    attempt: mapAttempt(updated),
+    attempt: mapAttempt(updated, extrasFromActivity(live.activity)),
+  };
+}
+
+/** Renew the per-question deadline when the student moves to the next question. */
+export async function advanceAttempt(organizationId: string, studentId: string, attemptId: string) {
+  const attempt = await prisma.attempt.findFirst({
+    where: { organizationId, id: attemptId, studentId },
+    include: {
+      activity: {
+        select: {
+          kind: true,
+          durationMode: true,
+          presentation: true,
+          perQuestionSeconds: true,
+          endsAt: true,
+          settings: true,
+        },
+      },
+      responses: true,
+    },
+  });
+  if (!attempt) throw notFound('Attempt not found.');
+  await assertActivityPageEnabled(organizationId, attempt.activity.kind);
+  if (attempt.status !== 'in_progress') {
+    throw conflict('Attempt is no longer in progress.');
+  }
+  if (attempt.activity.kind !== 'quiz' || attempt.activity.durationMode !== 'per_question') {
+    throw badRequest('Advance is only available for per-question timed quizzes.');
+  }
+
+  if (attempt.activity.endsAt && attempt.activity.endsAt.getTime() <= Date.now()) {
+    const submitted = await submitAttemptInternal(organizationId, attemptId, studentId, {
+      auto: true,
+      idempotencyKey: `auto:${attemptId}`,
+    });
+    return {
+      attempt: submitted.attempt,
+      submitted: true as const,
+      result: submitted.result,
+    };
+  }
+
+  await renewPerQuestionDeadline(organizationId, attemptId, attempt.activity);
+  const live = await prisma.attempt.findFirst({
+    where: { organizationId, id: attemptId },
+    include: { responses: true },
+  });
+  if (!live) throw notFound('Attempt not found.');
+
+  return {
+    attempt: mapAttempt(live, extrasFromActivity(attempt.activity)),
+    submitted: false as const,
   };
 }
 
@@ -746,13 +908,14 @@ async function submitAttemptInternal(
     },
   });
   if (!attempt) throw notFound('Attempt not found.');
+  if (!opts.auto) await assertActivityPageEnabled(organizationId, attempt.activity.kind);
 
   const quizSettings =
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
-  const visibility = {
-    scoreVisible: quizSettings?.scoreVisibleToStudent ?? true,
+  const visibilityFor = (releaseStatus: string) => ({
+    scoreVisible: isQuizScoreVisible(quizSettings, releaseStatus === 'published'),
     answersVisible: quizSettings?.answersVisibleToStudent ?? false,
-  };
+  });
 
   if (existingByKey?.result) {
     return {
@@ -760,7 +923,10 @@ async function submitAttemptInternal(
         activityKind: attempt.activity.kind,
         softProctoring: attempt.activity.kind === 'quiz',
       }),
-      result: mapStudentResult(existingByKey.result, visibility),
+      result: mapStudentResult(
+        existingByKey.result,
+        visibilityFor(existingByKey.result.releaseStatus),
+      ),
     };
   }
 
@@ -770,7 +936,7 @@ async function submitAttemptInternal(
         activityKind: attempt.activity.kind,
         softProctoring: attempt.activity.kind === 'quiz',
       }),
-      result: mapStudentResult(attempt.result, visibility),
+      result: mapStudentResult(attempt.result, visibilityFor(attempt.result.releaseStatus)),
     };
   }
 
@@ -781,7 +947,7 @@ async function submitAttemptInternal(
           activityKind: attempt.activity.kind,
           softProctoring: attempt.activity.kind === 'quiz',
         }),
-        result: mapStudentResult(attempt.result, visibility),
+        result: mapStudentResult(attempt.result, visibilityFor(attempt.result.releaseStatus)),
       };
     }
     throw conflict('Attempt already submitted.');
@@ -887,7 +1053,7 @@ async function submitAttemptInternal(
       activityKind: attempt.activity.kind,
       softProctoring: attempt.activity.kind === 'quiz',
     }),
-    result: mapStudentResult(result, visibility),
+    result: mapStudentResult(result, visibilityFor(result.releaseStatus)),
   };
 }
 

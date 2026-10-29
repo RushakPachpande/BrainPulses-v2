@@ -1,8 +1,13 @@
 import { Prisma } from '#prisma';
-import { notFound } from '../../lib/errors.js';
+import { forbidden, notFound } from '../../lib/errors.js';
+import {
+  STUDENT_PAGE_OFF_MESSAGE,
+  assertStudentPageEnabled,
+  getStudentPages,
+} from '../../lib/student-pages.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
-import { parseQuizSettings } from '../../lib/quiz-settings.js';
+import { isQuizScoreVisible, parseQuizSettings } from '../../lib/quiz-settings.js';
 import { scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
 import type {
@@ -44,6 +49,7 @@ export async function patchMe(
     where: { organizationId, id: studentId, isActive: true },
   });
   if (!existing) throw notFound('Student not found.');
+  await assertStudentPageEnabled(organizationId, 'profile');
 
   await prisma.student.updateMany({
     where: { organizationId, id: studentId },
@@ -60,13 +66,29 @@ export async function listMyActivities(
   studentId: string,
   query: z.infer<typeof studentActivitiesQuerySchema>,
 ) {
+  const pages = await getStudentPages(organizationId);
+  const enabledKinds = (
+    [pages.quizzes ? 'quiz' : null, pages.assessments ? 'assessment' : null] as const
+  ).filter((kind): kind is 'quiz' | 'assessment' => kind !== null);
+  if (query.kind !== 'all' && !enabledKinds.includes(query.kind)) {
+    throw forbidden(STUDENT_PAGE_OFF_MESSAGE);
+  }
+  if (enabledKinds.length === 0) {
+    return listEnvelope([], {
+      limit: query.limit,
+      nextCursor: null,
+      hasMore: false,
+      total: 0,
+    });
+  }
+
   const where: Prisma.RegistrationWhereInput = {
     organizationId,
     studentId,
     status: 'assigned',
     activity: {
       status: { in: ['active', 'completed'] },
-      ...(query.kind !== 'all' ? { kind: query.kind } : {}),
+      kind: query.kind === 'all' ? { in: enabledKinds } : query.kind,
       ...(query.q
         ? {
             OR: [
@@ -116,6 +138,10 @@ export async function listMyActivities(
             },
             sponsor: { select: { name: true, imageFileId: true } },
             contest: { select: { name: true, imageFileId: true } },
+            reattemptGrants: {
+              where: { studentId, consumedAt: null },
+              select: { id: true },
+            },
             attempts: {
               where: { studentId },
               orderBy: { startedAt: 'desc' },
@@ -236,18 +262,14 @@ export async function listMyActivities(
       );
 
       const quizSettings = activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
-      let leaderboardAvailable = false;
-      if (quizSettings) {
-        const released =
-          !quizSettings.leaderboardReleasedAt ||
-          new Date(quizSettings.leaderboardReleasedAt) <= new Date();
-        leaderboardAvailable =
-          released &&
-          (quizSettings.dailyLeaderboardVisible ||
-            quizSettings.overallLeaderboardVisible ||
-            quizSettings.dailyGroupLeaderboardVisible ||
-            quizSettings.overallGroupLeaderboardVisible);
-      }
+      const attemptsUsed = attempts.filter(
+        (a) => a.status === 'submitted' || a.status === 'auto_submitted',
+      ).length;
+      const extraAttempts = activity.reattemptGrants.length;
+      const maxAttempts = quizSettings ? quizSettings.maxAttempts : null;
+      const underCap = !quizSettings || maxAttempts == null || attemptsUsed < maxAttempts;
+      const canStartAnother =
+        activity.kind === 'quiz' && canAttempt && !openAttempt && (underCap || extraAttempts > 0);
 
       return {
         registrationId: row.id,
@@ -267,7 +289,14 @@ export async function listMyActivities(
         openAttemptId: openAttempt?.id ?? null,
         latestResultId: latestCompleted?.result?.id ?? null,
         latestPercent: latestCompleted?.result ? toNumber(latestCompleted.result.percent) : null,
-        leaderboardAvailable,
+        ...(activity.kind === 'quiz'
+          ? {
+              attemptsUsed,
+              maxAttempts,
+              extraAttempts,
+              canStartAnother,
+            }
+          : {}),
         instructions: activity.instructions ?? null,
         imageFileId: activity.imageFileId ?? null,
         sponsorName: activity.sponsor?.name ?? null,
@@ -286,6 +315,7 @@ export async function listMyResults(
   studentId: string,
   query: z.infer<typeof studentResultsQuerySchema>,
 ) {
+  await assertStudentPageEnabled(organizationId, 'results');
   const activityFilter: Prisma.ActivityWhereInput = {
     ...(query.kind !== 'all' ? { kind: query.kind } : {}),
     ...(query.q ? { name: { contains: query.q, mode: 'insensitive' } } : {}),
@@ -323,7 +353,7 @@ export async function listMyResults(
       const published = r.releaseStatus === 'published';
       const quizSettings =
         r.activity.kind === 'quiz' ? parseQuizSettings(r.activity.settings) : null;
-      const scoreOk = published && (quizSettings?.scoreVisibleToStudent ?? true);
+      const scoreOk = isQuizScoreVisible(quizSettings, published);
       return {
         id: r.id,
         activityId: r.activity.id,
@@ -355,6 +385,7 @@ export async function listMyResults(
 }
 
 export async function getMyResult(organizationId: string, studentId: string, resultId: string) {
+  await assertStudentPageEnabled(organizationId, 'results');
   const result = await prisma.result.findFirst({
     where: { organizationId, id: resultId, studentId },
     include: {
@@ -372,6 +403,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
   const versions = await prisma.questionVersion.findMany({
     where: { organizationId, id: { in: versionIds } },
     include: {
+      passage: { select: { body: true } },
       options: {
         orderBy: { sortOrder: 'asc' },
         select: {
@@ -390,7 +422,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
   const quizSettings =
     result.activity.kind === 'quiz' ? parseQuizSettings(result.activity.settings) : null;
   const published = result.releaseStatus === 'published';
-  const scoreOk = published && (quizSettings?.scoreVisibleToStudent ?? true);
+  const scoreOk = isQuizScoreVisible(quizSettings, published);
   const includeKeys = published && (quizSettings?.answersVisibleToStudent ?? published);
 
   const review = result.attempt.responses.map((response) => {
@@ -425,9 +457,13 @@ export async function getMyResult(organizationId: string, studentId: string, res
         : typeof key.stemImageUrl === 'string'
           ? key.stemImageUrl
           : undefined;
+    const passageText =
+      version.passage?.body?.trim() ||
+      (typeof key.passageText === 'string' ? key.passageText : undefined);
     return {
       questionVersionId: version.id,
       question: version.question,
+      ...(passageText ? { passageText } : {}),
       ...(questionImageUrl ? { questionImageUrl } : {}),
       options: version.options.map((o) => ({
         label: o.label,
@@ -442,12 +478,41 @@ export async function getMyResult(organizationId: string, studentId: string, res
     };
   });
 
+  const attemptAllowance =
+    result.activity.kind === 'quiz'
+      ? await Promise.all([
+          prisma.attempt.count({
+            where: {
+              organizationId,
+              activityId: result.activity.id,
+              studentId,
+              status: { in: ['submitted', 'auto_submitted'] },
+            },
+          }),
+          prisma.reattemptGrant.count({
+            where: {
+              organizationId,
+              activityId: result.activity.id,
+              studentId,
+              consumedAt: null,
+            },
+          }),
+        ])
+      : null;
+
   return {
     id: result.id,
     title: result.activity.name,
     kind: result.activity.kind,
     activityId: result.activity.id,
     attemptId: result.attempt.id,
+    ...(attemptAllowance
+      ? {
+          attemptsUsed: attemptAllowance[0],
+          maxAttempts: quizSettings?.maxAttempts ?? 1,
+          extraAttempts: attemptAllowance[1],
+        }
+      : {}),
     score: scoreOk ? toNumber(result.score) : null,
     maxScore: scoreOk ? toNumber(result.maxScore) : null,
     percent: scoreOk ? toNumber(result.percent) : null,

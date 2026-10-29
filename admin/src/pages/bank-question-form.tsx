@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Field, FieldLabel } from '@/components/ui/field';
+import { Field, FieldDescription, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -115,6 +115,7 @@ export function BankQuestionDialog({
   draft,
   saving,
   kind = 'assessment',
+  passageSharedCount,
   onOpenChange,
   onDraftChange,
   onSave,
@@ -124,6 +125,7 @@ export function BankQuestionDialog({
   draft: QuestionDraft;
   saving: boolean;
   kind?: BankKind;
+  passageSharedCount?: number;
   onOpenChange: (open: boolean) => void;
   onDraftChange: (draft: QuestionDraft) => void;
   onSave: () => void;
@@ -132,7 +134,6 @@ export function BankQuestionDialog({
   const title =
     mode === 'add' ? 'Add question' : mode === 'edit' ? 'Edit question' : 'View question';
   const typeOptions = typesForKind(kind);
-  const quizLocked = kind === 'quiz';
   const showMedia = supportsChoiceMedia(draft.type);
 
   function setType(type: BankAuthorType) {
@@ -164,34 +165,35 @@ export function BankQuestionDialog({
           <DialogDescription>
             {readOnly
               ? bankQuestionTypeLabel(draft.type)
-              : quizLocked
-                ? 'Single choice only. Options may be text, an image URL, or both.'
+              : kind === 'quiz'
+                ? 'MCQ has one correct option. MSQ has one or more. Options may be text, an image URL, or both.'
                 : 'Choose a type, then fill in the question and answers.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          {!quizLocked ? (
-            <Field>
-              <FieldLabel htmlFor="bank-q-type">Type</FieldLabel>
-              {readOnly ? (
-                <Input id="bank-q-type" value={bankQuestionTypeLabel(draft.type)} disabled />
-              ) : (
-                <Select value={draft.type} onValueChange={(v) => setType(v as BankAuthorType)}>
-                  <SelectTrigger id="bank-q-type" className="w-full" aria-label="Question type">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {typeOptions.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </Field>
-          ) : null}
+          <Field>
+            <FieldLabel htmlFor="bank-q-type">Type</FieldLabel>
+            {readOnly ? (
+              <Input id="bank-q-type" value={bankQuestionTypeLabel(draft.type)} disabled />
+            ) : (
+              <Select value={draft.type} onValueChange={(v) => setType(v as BankAuthorType)}>
+                <SelectTrigger id="bank-q-type" className="w-full" aria-label="Question type">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {typeOptions.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {draft.type === 'multiple_mcq' ? (
+              <FieldDescription>Students see a note: Select all that apply.</FieldDescription>
+            ) : null}
+          </Field>
 
           {draft.type === 'comprehension_mcq' ? (
             <Field>
@@ -205,6 +207,13 @@ export function BankQuestionDialog({
                 rows={5}
                 onChange={(e) => onDraftChange({ ...draft, passageText: e.target.value })}
               />
+              <FieldDescription>
+                {passageSharedCount && passageSharedCount > 1
+                  ? `Shared with ${passageSharedCount - 1} other question${passageSharedCount - 1 === 1 ? '' : 's'} in this bank. Saving updates that one passage for all of them.`
+                  : 'Questions imported with this same passage text share one passage.'}{' '}
+                If a student has already started, saving a passage edit keeps that attempt on the
+                previous text.
+              </FieldDescription>
             </Field>
           ) : null}
 

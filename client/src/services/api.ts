@@ -10,12 +10,12 @@ import { invalidateClient } from '../lib/query-client';
 import type {
   AttemptQuestion,
   AttemptState,
-  LeaderboardPayload,
   StudentActivity,
   StudentProfile,
   StudentResultDetail,
   StudentResultSummary,
 } from './types';
+import type { StudentPages } from '../lib/student-pages';
 
 type StudentAuthPayload = {
   accessToken: string;
@@ -93,6 +93,10 @@ export async function studentSignOut() {
 
 export function getMe() {
   return apiGetData<StudentProfile>('/api/student/me');
+}
+
+export function getStudentPages() {
+  return apiGetData<StudentPages>('/api/student/pages');
 }
 
 export function patchMe(name: string) {
@@ -212,15 +216,11 @@ export async function submitAttempt(attemptId: string, idempotencyKey: string) {
   return data;
 }
 
-export function getStudentActivityLeaderboard(
-  activityId: string,
-  query: { scope?: 'daily' | 'overall'; kind?: 'individual' | 'group' } = {},
-) {
-  const qs = new URLSearchParams();
-  if (query.scope) qs.set('scope', query.scope);
-  if (query.kind) qs.set('kind', query.kind);
-  const suffix = qs.toString() ? `?${qs}` : '';
-  return apiGetData<LeaderboardPayload>(
-    `/api/student/leaderboards/activities/${activityId}${suffix}`,
-  );
+/** Renew the per-question deadline after moving forward (or when the window expires). */
+export async function advanceAttempt(attemptId: string) {
+  return apiPostData<{
+    attempt: AttemptState;
+    submitted: boolean;
+    result?: { id: string };
+  }>(`/api/attempts/${attemptId}/advance`);
 }

@@ -15,4 +15,5 @@ attemptsRouter.post(
   validate({ params: idParamSchema, body: saveAttemptSchema }),
   controller.save,
 );
+attemptsRouter.post('/:id/advance', validate({ params: idParamSchema }), controller.advance);
 attemptsRouter.post('/:id/submit', validate({ params: idParamSchema }), controller.submit);

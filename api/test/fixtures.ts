@@ -210,7 +210,7 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
         code: 'QB-HIDDEN',
         name: 'Hidden answers',
         status: 'active',
-        origin: 'reusable',
+        origin: 'quiz_local',
       },
     });
     const question = await prisma.question.create({
@@ -268,14 +268,9 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
           quiz: {
             shuffleQuestions: false,
             shuffleOptions: false,
-            scoreVisibleToStudent: true,
+            scoreRelease: 'after_publish',
             answersVisibleToStudent: false,
-            dailyLeaderboardVisible: false,
-            overallLeaderboardVisible: false,
-            dailyGroupLeaderboardVisible: false,
-            overallGroupLeaderboardVisible: false,
-            countsForGroupLeaderboard: false,
-            leaderboardReleasedAt: null,
+            maxAttempts: 1,
           },
         },
         activityBanks: { create: { organizationId: organization.id, bankId: bank.id } },

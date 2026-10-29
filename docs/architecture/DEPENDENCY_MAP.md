@@ -117,7 +117,7 @@ Router: `requireAuth`, `requireUser`, `withTenantContext`, then `requireOrgAcces
 | `POST /:id/save` | `saveAttempt` | Not in progress, or revision mismatch, **409**. Update is conditional on `status`, `revision`, and `deadlineAt` inside a transaction. |
 | `POST /:id/submit` | `submitAttempt` | Missing `Idempotency-Key` **400**. Same key with an existing result returns that result. A different key after submit **409** `Attempt already submitted.` |
 
-Scoring uses server-side `scoreObjective` and question versions. Student visibility of score and answer key follows quiz settings in `submitAttemptInternal` (`scoreVisibleToStudent`, `answersVisibleToStudent`). Tests: `api/test/attempts.test.ts` (stale revision, idempotent submit, resume) and `api/test/scoring.test.ts`.
+Scoring uses server-side `scoreObjective` and question versions. Student visibility of score and answer key follows quiz settings in `submitAttemptInternal` (`scoreRelease`, `answersVisibleToStudent`). Tests: `api/test/attempts.test.ts` (stale revision, idempotent submit, resume) and `api/test/scoring.test.ts`.
 
 ## Cross-layer edges
 

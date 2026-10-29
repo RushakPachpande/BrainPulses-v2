@@ -19,18 +19,13 @@ export const quizSettingsSchema = z
   .object({
     shuffleQuestions: z.boolean().default(true),
     shuffleOptions: z.boolean().default(true),
-    scoreVisibleToStudent: z.boolean().default(false),
+    scoreRelease: z.enum(['after_submit', 'after_publish']).default('after_submit'),
     answersVisibleToStudent: z.boolean().default(false),
-    dailyLeaderboardVisible: z.boolean().default(true),
-    overallLeaderboardVisible: z.boolean().default(true),
-    dailyGroupLeaderboardVisible: z.boolean().default(true),
-    overallGroupLeaderboardVisible: z.boolean().default(true),
-    countsForGroupLeaderboard: z.boolean().default(true),
-    leaderboardReleasedAt: z.string().datetime().nullable().optional(),
     allowPrevious: z.boolean().default(true),
     showQuestionPanel: z.boolean().default(true),
     negativeMarkingEnabled: z.boolean().default(false),
     negativeMarkPoints: z.number().min(0).max(1000).default(0),
+    maxAttempts: z.number().int().min(1).max(100).nullable().default(1),
   })
   .strict()
   .superRefine((val, ctx) => {

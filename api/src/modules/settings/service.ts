@@ -10,6 +10,12 @@ const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
     locale: 'en-IN',
     dateFormat: 'DD MMM YYYY',
     timeFormat: '12-hour',
+    studentPageOverview: true,
+    studentPageQuizzes: true,
+    studentPageAssessments: true,
+    studentPageResults: true,
+    studentPageProfile: true,
+    studentPageHelp: true,
   },
   access: {
     allowStudentSelfRegister: false,

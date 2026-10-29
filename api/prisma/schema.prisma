@@ -58,6 +58,7 @@ enum DurationMode {
 enum BankOrigin {
   reusable
   round_local
+  quiz_local
 }
 
 enum AssignmentStatus {
@@ -103,27 +104,28 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  memberships    Membership[]
-  students       Student[]
-  questionBanks  QuestionBank[]
-  questions      Question[]
-  questionVersions QuestionVersion[]
-  activities     Activity[]
-  activityBanks    ActivityBank[]
-  activityRounds   ActivityRound[]
+  memberships        Membership[]
+  students           Student[]
+  questionBanks      QuestionBank[]
+  passages           Passage[]
+  questions          Question[]
+  questionVersions   QuestionVersion[]
+  activities         Activity[]
+  activityBanks      ActivityBank[]
+  activityRounds     ActivityRound[]
   activityRoundBanks ActivityRoundBank[]
-  registrations    Registration[]
-  attempts         Attempt[]
-  attemptResponses AttemptResponse[]
-  results          Result[]
-  resultRevisions  ResultRevision[]
-  settings         Setting[]
-  notifications    Notification[]
-  auditEvents      AuditEvent[]
-  fileObjects      FileObject[]
-  reattemptGrants  ReattemptGrant[]
-  sponsors         Sponsor[]
-  contests         Contest[]
+  registrations      Registration[]
+  attempts           Attempt[]
+  attemptResponses   AttemptResponse[]
+  results            Result[]
+  resultRevisions    ResultRevision[]
+  settings           Setting[]
+  notifications      Notification[]
+  auditEvents        AuditEvent[]
+  fileObjects        FileObject[]
+  reattemptGrants    ReattemptGrant[]
+  sponsors           Sponsor[]
+  contests           Contest[]
 
   @@map("organizations")
 }
@@ -141,7 +143,7 @@ model User {
   memberships          Membership[]
   auditEvents          AuditEvent[]
   fileObjects          FileObject[]
-  disqualifiedAttempts Attempt[]       @relation("AttemptDisqualifiedBy")
+  disqualifiedAttempts Attempt[]        @relation("AttemptDisqualifiedBy")
   reattemptGrants      ReattemptGrant[]
 
   @@map("users")
@@ -211,15 +213,34 @@ model QuestionBank {
   updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  passages           Passage[]
   questions          Question[]
   activityBanks      ActivityBank[]
   activityRoundBanks ActivityRoundBank[]
-  localForRounds     ActivityRound[]      @relation("RoundLocalBank")
+  localForRounds     ActivityRound[]     @relation("RoundLocalBank")
 
   @@unique([organizationId, code])
   @@index([organizationId, kind, status])
   @@index([organizationId, origin])
   @@map("question_banks")
+}
+
+model Passage {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  bankId         String   @map("bank_id") @db.Uuid
+  title          String?
+  body           String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  bank         QuestionBank      @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  questions    Question[]        @relation("QuestionCurrentPassage")
+  versions     QuestionVersion[] @relation("QuestionVersionPassage")
+
+  @@index([organizationId, bankId])
+  @@map("passages")
 }
 
 model Question {
@@ -231,16 +252,20 @@ model Question {
   question       String
   points         Decimal      @default(1) @db.Decimal(10, 2)
   isActive       Boolean      @default(true) @map("is_active")
+  passageId      String?      @map("passage_id") @db.Uuid
+  sortOrder      Int          @default(0) @map("sort_order")
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   bank         QuestionBank      @relation(fields: [bankId], references: [id], onDelete: Cascade)
+  passage      Passage?          @relation("QuestionCurrentPassage", fields: [passageId], references: [id], onDelete: SetNull)
   versions     QuestionVersion[]
   options      QuestionOption[]
 
   @@unique([organizationId, bankId, code])
   @@index([organizationId, bankId, isActive])
+  @@index([passageId])
   @@map("questions")
 }
 
@@ -253,15 +278,18 @@ model QuestionVersion {
   question       String
   points         Decimal      @db.Decimal(10, 2)
   answerKey      Json         @map("answer_key")
+  passageId      String?      @map("passage_id") @db.Uuid
   createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   parentQuestion   Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  passage          Passage?          @relation("QuestionVersionPassage", fields: [passageId], references: [id], onDelete: SetNull)
   options          QuestionOption[]
   attemptResponses AttemptResponse[]
 
   @@unique([questionId, version])
   @@index([organizationId, questionId])
+  @@index([passageId])
   @@map("question_versions")
 }
 
@@ -283,27 +311,27 @@ model QuestionOption {
 }
 
 model Activity {
-  id             String           @id @default(uuid()) @db.Uuid
-  organizationId String           @map("organization_id") @db.Uuid
-  kind           ActivityKind
-  code           String
-  name           String
-  subtitle       String?
-  instructions   String?          @db.Text
-  status         FlowStatus       @default(draft)
-  startsAt       DateTime?        @map("starts_at") @db.Timestamptz(3)
-  endsAt         DateTime?        @map("ends_at") @db.Timestamptz(3)
-  durationMinutes Int?            @map("duration_minutes")
-  durationMode    DurationMode     @default(overall) @map("duration_mode")
-  perQuestionSeconds Int?          @map("per_question_seconds")
-  passingPercent Decimal?         @map("passing_percent") @db.Decimal(5, 2)
-  presentation   PresentationMode @default(one_at_a_time)
-  settings       Json?            @db.JsonB
-  imageFileId    String?          @map("image_file_id") @db.Uuid
-  sponsorId      String?          @map("sponsor_id") @db.Uuid
-  contestId      String?          @map("contest_id") @db.Uuid
-  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  kind               ActivityKind
+  code               String
+  name               String
+  subtitle           String?
+  instructions       String?          @db.Text
+  status             FlowStatus       @default(draft)
+  startsAt           DateTime?        @map("starts_at") @db.Timestamptz(3)
+  endsAt             DateTime?        @map("ends_at") @db.Timestamptz(3)
+  durationMinutes    Int?             @map("duration_minutes")
+  durationMode       DurationMode     @default(overall) @map("duration_mode")
+  perQuestionSeconds Int?             @map("per_question_seconds")
+  passingPercent     Decimal?         @map("passing_percent") @db.Decimal(5, 2)
+  presentation       PresentationMode @default(one_at_a_time)
+  settings           Json?            @db.JsonB
+  imageFileId        String?          @map("image_file_id") @db.Uuid
+  sponsorId          String?          @map("sponsor_id") @db.Uuid
+  contestId          String?          @map("contest_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   image           FileObject?      @relation("ActivityImage", fields: [imageFileId], references: [id], onDelete: SetNull)
@@ -406,7 +434,7 @@ model ActivityRoundBank {
   bankId         String   @map("bank_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   round        ActivityRound @relation(fields: [roundId], references: [id], onDelete: Cascade)
   bank         QuestionBank  @relation(fields: [bankId], references: [id], onDelete: Cascade)
 
@@ -457,13 +485,13 @@ model Attempt {
   createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  activity         Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  round            ActivityRound?    @relation(fields: [roundId], references: [id], onDelete: Restrict)
-  student          Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  disqualifiedBy   User?             @relation("AttemptDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: SetNull)
-  responses        AttemptResponse[]
-  result           Result?
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activity       Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  round          ActivityRound?    @relation(fields: [roundId], references: [id], onDelete: Restrict)
+  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  disqualifiedBy User?             @relation("AttemptDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: SetNull)
+  responses      AttemptResponse[]
+  result         Result?
 
   @@index([organizationId, activityId, studentId, status])
   @@index([organizationId, activityId, roundId, studentId, status])
@@ -617,11 +645,11 @@ model FileObject {
   finalizedAt    DateTime? @map("finalized_at") @db.Timestamptz(3)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  organization  Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  uploadedBy    User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
-  sponsorImages Sponsor[]    @relation("SponsorImage")
-  contestImages Contest[]    @relation("ContestImage")
-  activityImages Activity[]  @relation("ActivityImage")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedBy     User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  sponsorImages  Sponsor[]    @relation("SponsorImage")
+  contestImages  Contest[]    @relation("ContestImage")
+  activityImages Activity[]   @relation("ActivityImage")
 
   @@index([organizationId, createdAt])
   @@map("file_objects")

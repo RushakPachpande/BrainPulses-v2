@@ -710,32 +710,6 @@ export async function grantReattempt(
   return apiPostData(`/api/activities/${activityId}/reattempts`, payload);
 }
 
-export async function getActivityLeaderboard(
-  activityId: string,
-  query: { scope?: 'daily' | 'overall'; kind?: 'individual' | 'group' } = {},
-) {
-  if (useFixtures) {
-    return {
-      activityId,
-      activityName: 'Fixture Quiz',
-      scope: query.scope ?? 'overall',
-      kind: query.kind ?? 'individual',
-      entries: [],
-    };
-  }
-  const qs = new URLSearchParams();
-  if (query.scope) qs.set('scope', query.scope);
-  if (query.kind) qs.set('kind', query.kind);
-  const suffix = qs.toString() ? `?${qs}` : '';
-  return apiGetData<{
-    activityId: string;
-    activityName: string;
-    scope: string;
-    kind: string;
-    entries: Record<string, unknown>[];
-  }>(`/api/leaderboards/activities/${activityId}${suffix}`);
-}
-
 export async function deactivateStudent(id: string) {
   if (useFixtures) {
     invalidateAdmin(['students', 'dashboard']);
@@ -858,6 +832,7 @@ export type BankQuestionItem = {
   correctLabels?: string[];
   options: BankQuestionOption[];
   passageText?: string;
+  passageSharedCount?: number;
   questionImageUrl?: string;
   referenceValue?: unknown;
   numericTolerance?: number;
@@ -942,6 +917,9 @@ export type BankImportResult = {
 const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
 
 export async function importBankQuestions(bankId: string, file: File): Promise<BankImportResult> {
+  if (!/\.(csv|xlsx)$/i.test(file.name)) {
+    throw new Error('Upload a .csv or .xlsx file. Legacy .xls is not supported.');
+  }
   if (file.size > IMPORT_MAX_BYTES) {
     throw new Error('File is too large (max 10 MB).');
   }

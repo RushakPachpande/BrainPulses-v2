@@ -11,8 +11,8 @@ Prerequisites: follow [`LOCAL_PRODUCTION.md`](LOCAL_PRODUCTION.md) until all thr
 3. Confirm dashboard KPIs load (not empty fixture zeros unless the DB is empty)
 4. Open **Students** — 12 seeded students appear (`BP-24101` …) with cohorts
 5. Open **Quizzes** — Launch Quiz is the active quiz
-6. Open **Question Banks** — Foundation Question Bank appears
-7. Open **Registrations** / **Reports** / **Leaderboard** — assigned students and seeded results appear
+6. Open **Launch Quiz** — its questions are listed on the quiz (there is no separate quiz Question Banks page)
+7. Open **Registrations** / **Reports** — assigned students and seeded results appear
 8. Sign out and confirm `/dashboard` redirects to login
 
 ## 2. Admin mutations (persistence)

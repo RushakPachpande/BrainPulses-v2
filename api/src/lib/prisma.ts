@@ -14,6 +14,7 @@ export const tenantStore = new AsyncLocalStorage<TenantContext>();
 const TENANT_MODELS = new Set([
   'student',
   'questionBank',
+  'passage',
   'question',
   'questionVersion',
   'activity',

@@ -262,13 +262,13 @@ export function draftToPayload(draft: QuestionDraft): {
   return { type, question, points, options, answerKey };
 }
 
-/** Quiz banks persist only single_mcq; coerce legacy image_mcq on save. */
+/** Quiz questions are MCQ or MSQ. Legacy image_mcq saves as single choice. */
 export function draftToPayloadForKind(
   draft: QuestionDraft,
   kind: 'quiz' | 'assessment',
 ): ReturnType<typeof draftToPayload> {
   const payload = draftToPayload(draft);
-  if (kind === 'quiz' && (payload.type === 'image_mcq' || payload.type === 'single_mcq')) {
+  if (kind === 'quiz' && payload.type === 'image_mcq') {
     return { ...payload, type: 'single_mcq' };
   }
   return payload;

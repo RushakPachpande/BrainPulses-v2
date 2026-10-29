@@ -433,7 +433,7 @@ export function BankFormPage({
                 <CardTitle>Questions</CardTitle>
                 <CardDescription>
                   {questions.length} question{questions.length === 1 ? '' : 's'}
-                  {isQuiz ? ' · Single choice only (text and/or image options)' : ''}
+                  {isQuiz ? ' · MCQ (one option) or MSQ (multiple options)' : ''}
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -442,7 +442,7 @@ export function BankFormPage({
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                      accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                       className="sr-only"
                       aria-hidden
                       tabIndex={-1}
@@ -499,8 +499,8 @@ export function BankFormPage({
               <Alert>
                 <AlertTitle>Legacy question types</AlertTitle>
                 <AlertDescription>
-                  This quiz bank has questions that are not single choice. They remain available for
-                  attempts but can only be viewed here — new questions must be single choice.
+                  This quiz has questions that are not MCQ or MSQ. They remain available for
+                  attempts but can only be viewed here. New questions must be MCQ or MSQ.
                 </AlertDescription>
               </Alert>
             ) : null}
@@ -596,6 +596,11 @@ export function BankFormPage({
           draft={draft}
           saving={savingQuestion}
           kind={kind}
+          passageSharedCount={
+            dialog.kind === 'add'
+              ? undefined
+              : questions.find((question) => question.id === dialog.questionId)?.passageSharedCount
+          }
           onOpenChange={(open) => {
             if (!open) closeDialog();
           }}

@@ -106,4 +106,72 @@ describe('student portal', () => {
     });
     assert.equal(other.status, 404);
   });
+
+  it('turns a student page off for lists and attempt start', async () => {
+    const app = await getTestApp();
+    const token = await studentToken();
+    const signIn = await request(app, 'POST', '/api/auth/sign-in', {
+      body: { email: 'admin@brainpulses.com', password: 'Password123!' },
+    });
+    const data = (signIn.body as { data: Record<string, unknown> }).data;
+    let admin: string;
+    if (data.status === 'authenticated') {
+      admin = (data.session as { accessToken: string }).accessToken;
+    } else {
+      const orgs = data.organizations as { id: string; slug: string }[];
+      const org = orgs.find((item) => item.slug === 'nextgeninnov8') ?? orgs[0]!;
+      const selected = await request(app, 'POST', '/api/auth/select-organization', {
+        body: { selectionToken: data.selectionToken, organizationId: org.id },
+      });
+      admin = (selected.body as { data: { session: { accessToken: string } } }).data.session
+        .accessToken;
+    }
+
+    const before = await request(app, 'GET', '/api/student/pages', {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    assert.equal(before.status, 200);
+    assert.equal((before.body as { data: { quizzes: boolean } }).data.quizzes, true);
+
+    try {
+      const patched = await request(app, 'PATCH', '/api/settings/general', {
+        headers: { authorization: `Bearer ${admin}` },
+        body: { values: { studentPageQuizzes: false } },
+      });
+      assert.equal(patched.status, 200);
+
+      const pages = await request(app, 'GET', '/api/student/pages', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      assert.equal(pages.status, 200);
+      const flags = (pages.body as { data: { quizzes: boolean; overview: boolean } }).data;
+      assert.equal(flags.quizzes, false);
+      assert.equal(flags.overview, true);
+
+      const quizzes = await request(app, 'GET', '/api/student/activities?kind=quiz&limit=50', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      assert.equal(quizzes.status, 403);
+
+      const all = await request(app, 'GET', '/api/student/activities?kind=all&limit=50', {
+        headers: { authorization: `Bearer ${token}` },
+      });
+      assert.equal(all.status, 200);
+      const list = (all.body as { data: { kind: string }[] }).data;
+      assert.ok(list.every((item) => item.kind !== 'quiz'));
+
+      const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
+      assert.ok(activity);
+      const start = await request(app, 'POST', '/api/attempts/start', {
+        headers: { authorization: `Bearer ${token}` },
+        body: { activityId: activity.id },
+      });
+      assert.equal(start.status, 403);
+    } finally {
+      await request(app, 'PATCH', '/api/settings/general', {
+        headers: { authorization: `Bearer ${admin}` },
+        body: { values: { studentPageQuizzes: true } },
+      });
+    }
+  });
 });

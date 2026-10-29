@@ -7,7 +7,6 @@ import {
   SettingsIcon,
   ShieldIcon,
   ServerIcon,
-  TrophyIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -36,10 +35,8 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
     label: 'Quiz',
     links: [
       { to: '/quizzes', label: 'Overview', icon: ClipboardListIcon, end: true },
-      { to: '/quizzes/banks', label: 'Question Banks', icon: FolderOpenIcon, end: true },
       { to: '/quizzes/registrations', label: 'Registrations', icon: UsersIcon, end: true },
       { to: '/quizzes/reports', label: 'Reports & Results', icon: BarChart3Icon, end: true },
-      { to: '/quizzes/leaderboard', label: 'Leaderboard', icon: TrophyIcon, end: true },
     ],
   },
   {

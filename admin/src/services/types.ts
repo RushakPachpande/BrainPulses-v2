@@ -50,21 +50,19 @@ export type ActivityRegistrationField = {
   options?: string[];
 };
 
+export type ScoreRelease = 'after_submit' | 'after_publish';
+
 export type QuizActivitySettings = {
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
-  scoreVisibleToStudent: boolean;
+  scoreRelease: ScoreRelease;
   answersVisibleToStudent: boolean;
-  dailyLeaderboardVisible: boolean;
-  overallLeaderboardVisible: boolean;
-  dailyGroupLeaderboardVisible: boolean;
-  overallGroupLeaderboardVisible: boolean;
-  countsForGroupLeaderboard: boolean;
-  leaderboardReleasedAt: string | null;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
+  /** Null means unlimited submissions. */
+  maxAttempts: number | null;
 };
 
 export type ActivitySettings = {

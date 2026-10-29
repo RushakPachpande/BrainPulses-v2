@@ -10,6 +10,7 @@ import {
   buildExportWorkbook,
   buildSampleCsv,
   buildSampleWorkbook,
+  newImportQuestionCode,
   parseBankQuestionsCsv,
   parseBankQuestionsFile,
   rowToCreatePayload,
@@ -17,6 +18,7 @@ import {
   type ExportableQuestion,
   type ImportIssue,
 } from './import-export.js';
+import { saveSharedPassage, stripPassageText } from './passages.js';
 import {
   assertTypeAllowedForKind,
   normalizeAnswerKeyImages,
@@ -101,6 +103,7 @@ function mapQuestionAdmin(q: {
   question: string;
   points: Prisma.Decimal;
   isActive: boolean;
+  passage?: { body: string } | null;
   versions: {
     id: string;
     version: number;
@@ -123,7 +126,9 @@ function mapQuestionAdmin(q: {
     : [];
   const correctLabels =
     fromKey.length > 0 ? fromKey : options.filter((o) => o.isCorrect).map((o) => o.label);
-  const passageText = typeof key.passageText === 'string' ? key.passageText : undefined;
+  const fromPassage = q.passage?.body?.trim();
+  const passageFromKey = typeof key.passageText === 'string' ? key.passageText : undefined;
+  const passageText = fromPassage || passageFromKey;
   const questionImageUrl =
     typeof key.questionImageUrl === 'string'
       ? key.questionImageUrl
@@ -190,7 +195,9 @@ export async function getBank(organizationId: string, id: string, actor?: Access
       _count: { select: { questions: true, activityBanks: true } },
       questions: {
         where: { isActive: true },
+        orderBy: { createdAt: 'asc' },
         include: {
+          passage: true,
           versions: {
             orderBy: { version: 'desc' },
             take: 1,
@@ -202,9 +209,17 @@ export async function getBank(organizationId: string, id: string, actor?: Access
   });
   if (!bank) throw notFound('Question bank not found.');
   if (actor) assertBankAccess(actor, bank.kind, 'view');
+  const shared = new Map<string, number>();
+  for (const question of bank.questions) {
+    if (!question.passageId) continue;
+    shared.set(question.passageId, (shared.get(question.passageId) ?? 0) + 1);
+  }
   return {
     ...mapBank(bank),
-    items: bank.questions.map(mapQuestionAdmin),
+    items: bank.questions.map((question) => ({
+      ...mapQuestionAdmin(question),
+      ...(question.passageId ? { passageSharedCount: shared.get(question.passageId) ?? 1 } : {}),
+    })),
   };
 }
 
@@ -285,6 +300,49 @@ export async function updateBank(
   return mapBank(bank);
 }
 
+async function linkQuestionPassage(
+  organizationId: string,
+  bankId: string,
+  type: string,
+  answerKey: Record<string, unknown>,
+  options: {
+    cache?: Map<string, string>;
+    passageId?: string | null;
+    editingQuestionId?: string;
+    fallbackBody?: string | null;
+  } = {},
+): Promise<{
+  passageId: string | null;
+  sortOrder: number;
+  answerKey: Record<string, unknown>;
+  passageBody: string | null;
+}> {
+  if (type !== 'comprehension_mcq') {
+    return {
+      passageId: null,
+      sortOrder: 0,
+      answerKey: stripPassageText(answerKey),
+      passageBody: null,
+    };
+  }
+  const incoming = typeof answerKey.passageText === 'string' ? answerKey.passageText : '';
+  const body = incoming.trim() || options.fallbackBody?.trim() || '';
+  const saved = await saveSharedPassage({
+    organizationId,
+    bankId,
+    body,
+    passageId: options.passageId,
+    editingQuestionId: options.editingQuestionId,
+    cache: options.cache,
+  });
+  return {
+    passageId: saved.passageId,
+    sortOrder: saved.sortOrder,
+    answerKey: stripPassageText(answerKey),
+    passageBody: body,
+  };
+}
+
 async function createQuestionVersion(
   organizationId: string,
   questionId: string,
@@ -299,6 +357,7 @@ async function createQuestionVersion(
       imageUrl?: string | null;
     }[];
     answerKey: Record<string, unknown>;
+    passageId?: string | null;
   },
   version: number,
 ) {
@@ -308,7 +367,7 @@ async function createQuestionVersion(
       : {
           correctLabels: input.options.filter((o) => o.isCorrect).map((o) => o.label),
         };
-  const answerKey = normalizeAnswerKeyImages(rawKey);
+  const answerKey = stripPassageText(normalizeAnswerKeyImages(rawKey));
 
   const created = await prisma.questionVersion.create({
     data: {
@@ -319,6 +378,7 @@ async function createQuestionVersion(
       question: input.question,
       points: input.points,
       answerKey: answerKey as Prisma.InputJsonValue,
+      passageId: input.passageId ?? null,
     },
   });
 
@@ -350,12 +410,16 @@ export async function createQuestion(
   actor: AccessActor,
   bankId: string,
   input: z.infer<typeof createQuestionSchema>,
+  passageCache?: Map<string, string>,
 ) {
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'edit');
   assertTypeAllowedForKind(bank.kind, input.type);
 
+  const linked = await linkQuestionPassage(organizationId, bankId, input.type, input.answerKey, {
+    cache: passageCache,
+  });
   const code = input.code ?? `Q-${Date.now().toString(36)}`;
   const question = await prisma.question.create({
     data: {
@@ -365,10 +429,17 @@ export async function createQuestion(
       type: input.type,
       question: input.question,
       points: input.points,
+      passageId: linked.passageId,
+      sortOrder: linked.sortOrder,
     },
   });
 
-  const version = await createQuestionVersion(organizationId, question.id, input, 1);
+  const version = await createQuestionVersion(
+    organizationId,
+    question.id,
+    { ...input, answerKey: linked.answerKey, passageId: linked.passageId },
+    1,
+  );
 
   await writeAudit({
     organizationId,
@@ -381,6 +452,7 @@ export async function createQuestion(
 
   return mapQuestionAdmin({
     ...question,
+    passage: linked.passageBody ? { body: linked.passageBody } : null,
     versions: [
       {
         id: version.id,
@@ -414,6 +486,7 @@ export async function updateQuestion(
   const question = await prisma.question.findFirst({
     where: { organizationId, bankId, id: questionId },
     include: {
+      passage: true,
       versions: {
         orderBy: { version: 'desc' },
         take: 1,
@@ -445,6 +518,7 @@ export async function updateQuestion(
   const latest = question.versions[0];
   let liveIsActive = question.isActive;
   let liveType = question.type;
+  let passageForMap: { body: string } | null = question.passage;
   let liveQuestion = question.question;
   let livePoints = Number(question.points);
   let versionForMap = latest
@@ -480,6 +554,12 @@ export async function updateQuestion(
       (latest?.answerKey && typeof latest.answerKey === 'object'
         ? (latest.answerKey as Record<string, unknown>)
         : {});
+    const linked = await linkQuestionPassage(organizationId, bankId, liveType, answerKey, {
+      passageId: question.passageId,
+      editingQuestionId: question.id,
+      fallbackBody: question.passage?.body,
+    });
+    passageForMap = linked.passageBody ? { body: linked.passageBody } : null;
 
     await prisma.question.update({
       where: { id: questionId },
@@ -487,6 +567,7 @@ export async function updateQuestion(
         type: liveType,
         question: liveQuestion,
         points: livePoints,
+        passageId: linked.passageId,
         ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
       },
     });
@@ -495,7 +576,14 @@ export async function updateQuestion(
     const version = await createQuestionVersion(
       organizationId,
       questionId,
-      { type: liveType, question: liveQuestion, points: livePoints, options, answerKey },
+      {
+        type: liveType,
+        question: liveQuestion,
+        points: livePoints,
+        options,
+        answerKey: linked.answerKey,
+        passageId: linked.passageId,
+      },
       nextVersion,
     );
     versionForMap = {
@@ -538,6 +626,7 @@ export async function updateQuestion(
     question: liveQuestion,
     points: new Prisma.Decimal(livePoints),
     isActive: liveIsActive,
+    passage: passageForMap,
     versions: versionForMap
       ? [
           {
@@ -556,6 +645,15 @@ export async function updateQuestion(
         ]
       : [],
   });
+}
+
+function importRowMessage(err: unknown): string {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === 'P2002') return 'This row duplicates an existing question code.';
+    return 'Could not save this row.';
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return 'Failed to import row';
 }
 
 async function importFromRows(
@@ -591,16 +689,27 @@ async function importFromRows(
 
   const issues: ImportIssue[] = [];
   let created = 0;
+  const passageCache = new Map<string, string>();
 
   for (const row of rows) {
     try {
       const payload = rowToCreatePayload(row, bank.kind);
-      await createQuestion(organizationId, actorUserId, actor, bankId, payload);
+      await createQuestion(
+        organizationId,
+        actorUserId,
+        actor,
+        bankId,
+        {
+          ...payload,
+          code: payload.code ?? newImportQuestionCode(row.sheetRow, created + issues.length),
+        },
+        passageCache,
+      );
       created += 1;
     } catch (err) {
       issues.push({
         row: row.sheetRow,
-        message: err instanceof Error ? err.message : 'Failed to import row',
+        message: importRowMessage(err),
       });
     }
   }
@@ -723,6 +832,7 @@ async function loadExportableQuestions(
         where: { isActive: true },
         orderBy: { createdAt: 'asc' },
         include: {
+          passage: true,
           versions: {
             orderBy: { version: 'desc' },
             take: 1,

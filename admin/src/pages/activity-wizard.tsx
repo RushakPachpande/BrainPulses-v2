@@ -14,6 +14,7 @@ import {
   Loader2Icon,
   PercentIcon,
   PlusIcon,
+  RepeatIcon,
   TargetIcon,
   TrashIcon,
   UsersIcon,
@@ -22,6 +23,7 @@ import { CatalogImageField } from '@/components/catalog-image-field';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { QuestionImageField } from '@/components/question-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
+import { RichTextEditor } from '@/components/rich-text-editor';
 import { FlowStatusPill } from '@/components/status-pill';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
@@ -30,6 +32,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { isInstructionsEmpty, sanitizeInstructionsHtml } from '@/lib/sanitize-html';
 import {
   Select,
   SelectContent,
@@ -44,6 +47,7 @@ import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { ApiError } from '@/lib/api-client';
 import { canEditKind, canFullKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
+import { QuizQuestionsPanel } from '@/pages/quiz-questions-panel';
 import {
   archiveActivity,
   assignRegistrations,
@@ -55,6 +59,7 @@ import {
   getContests,
   getQuestionBanks,
   getSponsors,
+  getQuestionBank,
   getStudents,
   publishActivity,
   updateActivity,
@@ -69,18 +74,13 @@ import {
 const defaultQuizSettings = (): QuizActivitySettings => ({
   shuffleQuestions: true,
   shuffleOptions: true,
-  scoreVisibleToStudent: false,
+  scoreRelease: 'after_submit',
   answersVisibleToStudent: false,
-  dailyLeaderboardVisible: true,
-  overallLeaderboardVisible: true,
-  dailyGroupLeaderboardVisible: true,
-  overallGroupLeaderboardVisible: true,
-  countsForGroupLeaderboard: true,
-  leaderboardReleasedAt: null,
   allowPrevious: true,
   showQuestionPanel: true,
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0.25,
+  maxAttempts: 1,
 });
 
 type RoundDraft = {
@@ -162,7 +162,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       [
         'Basic Details',
         'Registration Form',
-        isQuiz ? 'Select Question Banks' : 'Define Rounds',
+        isQuiz ? 'Questions' : 'Define Rounds',
         'Assignment Rules',
         'Behaviour Settings',
         'Review & Publish',
@@ -186,7 +186,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [contests, setContests] = useState<{ id: string; sponsorId: string; name: string }[]>([]);
   const [durationMode, setDurationMode] = useState<'overall' | 'per_question'>('overall');
   const [perQuestionSeconds, setPerQuestionSeconds] = useState('30');
-  const [bankQuery, setBankQuery] = useState('');
   const [startDate, setStartDate] = useState(() => new Date());
   const [endDate, setEndDate] = useState(() => {
     const d = new Date();
@@ -209,7 +208,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [assignMode, setAssignMode] = useState<'manual' | 'all_active_students'>('manual');
   const [assignNotes, setAssignNotes] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('60');
-  const [passingPercent, setPassingPercent] = useState('40');
+  const [passingPercent, setPassingPercent] = useState('50');
   const [presentation, setPresentation] = useState<'one_at_a_time' | 'all_on_page'>(
     'one_at_a_time',
   );
@@ -217,7 +216,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [imageFileId, setImageFileId] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [quizSettings, setQuizSettings] = useState<QuizActivitySettings>(defaultQuizSettings);
-  const [leaderboardReleaseLocal, setLeaderboardReleaseLocal] = useState('');
+  const [quizBankId, setQuizBankId] = useState<string | null>(null);
+  const [quizQuestionCount, setQuizQuestionCount] = useState(0);
   const [baselineFp, setBaselineFp] = useState<string | null>(null);
   const publishIdempotencyKeyRef = useRef<string | null>(null);
 
@@ -250,7 +250,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         passingPercent,
         presentation,
         quizSettings,
-        leaderboardReleaseLocal,
       }),
     [
       name,
@@ -274,7 +273,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       passingPercent,
       presentation,
       quizSettings,
-      leaderboardReleaseLocal,
     ],
   );
 
@@ -347,6 +345,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         if (activity.startsAt) setStartDate(new Date(activity.startsAt));
         if (activity.endsAt) setEndDate(new Date(activity.endsAt));
         setBankIds(activity.bankIds);
+        if (activity.kind === 'quiz') {
+          const nextBankId = activity.bankIds[0] ?? null;
+          setQuizBankId(nextBankId);
+          if (nextBankId) {
+            try {
+              const bank = await getQuestionBank(nextBankId);
+              if (!cancelled) setQuizQuestionCount(bank.items.length);
+            } catch {
+              if (!cancelled) setQuizQuestionCount(0);
+            }
+          }
+        }
         if (activity.rounds && activity.rounds.length > 0) {
           setRounds(
             activity.rounds.map((r) => ({
@@ -370,7 +380,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             ? ''
             : String(activity.durationMinutes ?? 60),
         );
-        setPassingPercent(String(activity.passingPercent ?? 40));
+        setPassingPercent(String(activity.passingPercent ?? 50));
         const loadedPerQuestion =
           activity.kind === 'quiz' && activity.durationMode === 'per_question';
         setPresentation(
@@ -389,13 +399,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         setAssignNotes(settings?.assignmentRules?.notes ?? '');
         if (activity.kind === 'quiz') {
           const q = { ...defaultQuizSettings(), ...settings?.quiz };
-          if (loadedPerQuestion) q.allowPrevious = false;
+          if (loadedPerQuestion) {
+            q.allowPrevious = false;
+            q.showQuestionPanel = false;
+          }
           setQuizSettings(q);
-          setLeaderboardReleaseLocal(
-            q.leaderboardReleasedAt
-              ? new Date(q.leaderboardReleasedAt).toISOString().slice(0, 16)
-              : '',
-          );
         }
       } catch (err) {
         toast.error(
@@ -431,25 +439,17 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             quiz: {
               ...quizSettings,
               allowPrevious: durationMode === 'per_question' ? false : quizSettings.allowPrevious,
+              showQuestionPanel:
+                durationMode === 'per_question' ? false : quizSettings.showQuestionPanel,
               negativeMarkPoints: quizSettings.negativeMarkingEnabled
                 ? quizSettings.negativeMarkPoints
                 : 0,
-              leaderboardReleasedAt: leaderboardReleaseLocal
-                ? new Date(leaderboardReleaseLocal).toISOString()
-                : null,
+              maxAttempts: quizSettings.maxAttempts,
             },
           }
         : {}),
     };
-  }, [
-    assignMode,
-    assignNotes,
-    durationMode,
-    isQuiz,
-    leaderboardReleaseLocal,
-    quizSettings,
-    regFields,
-  ]);
+  }, [assignMode, assignNotes, durationMode, isQuiz, quizSettings, regFields]);
 
   async function syncRoundsFromServer(id: string): Promise<RoundDraft[]> {
     const activity = await getActivity(id);
@@ -513,7 +513,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       const payload = {
         name: name.trim(),
         subtitle: description.trim() || undefined,
-        instructions: instructions.trim() || null,
+        instructions: isInstructionsEmpty(instructions)
+          ? null
+          : sanitizeInstructionsHtml(instructions),
         imageFileId: nextImageFileId,
         startsAt: startDate,
         endsAt: endDate,
@@ -521,7 +523,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         presentation: isQuiz && durationMode === 'per_question' ? 'one_at_a_time' : presentation,
         ...(isQuiz
           ? {
-              bankIds,
               sponsorId,
               contestId,
               durationMode,
@@ -553,6 +554,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
       if (!isQuiz) {
         await syncRoundsFromServer(id);
+      } else {
+        const saved = await getActivity(id);
+        setBankIds(saved.bankIds);
+        setQuizBankId(saved.bankIds[0] ?? null);
       }
 
       if (assignMode === 'all_active_students') {
@@ -839,15 +844,16 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   />
                   <Field>
                     <FieldLabel htmlFor="activity-instructions">Instructions</FieldLabel>
-                    <Textarea
+                    <RichTextEditor
                       id="activity-instructions"
                       value={instructions}
-                      onChange={(e) => setInstructions(e.target.value)}
                       disabled={readOnly}
-                      rows={5}
+                      onChange={setInstructions}
+                      aria-label="Quiz instructions"
                     />
                     <FieldDescription>
-                      Shown before students start. If set, they must confirm they have read them.
+                      Shown in a dialog before students start. If set, they must confirm they have
+                      read them. Supports bold, italic, and lists.
                     </FieldDescription>
                   </Field>
                 </>
@@ -1031,79 +1037,20 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           ) : null}
 
           {step === 2 && isQuiz ? (
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Select one or more question banks for this {noun.toLowerCase()}.
-                </p>
-                <p className="text-sm font-medium">{bankIds.length} selected</p>
-              </div>
-              {banks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No banks yet.{' '}
-                  <Link className="underline" to={`${listPath}/banks/new`}>
-                    Create a bank
-                  </Link>
-                </p>
-              ) : (
-                <>
-                  <Input
-                    type="search"
-                    value={bankQuery}
-                    onChange={(event) => setBankQuery(event.target.value)}
-                    placeholder="Search question banks"
-                    aria-label="Search question banks"
-                  />
-                  {banks.filter((bank) =>
-                    bank.name.toLowerCase().includes(bankQuery.trim().toLowerCase()),
-                  ).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No question banks match this search.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      {banks
-                        .filter((bank) =>
-                          bank.name.toLowerCase().includes(bankQuery.trim().toLowerCase()),
-                        )
-                        .map((bank) => {
-                          const checked = bankIds.includes(bank.id);
-                          return (
-                            <label
-                              key={bank.id}
-                              className={cn(
-                                'flex min-h-(--control-h) cursor-pointer items-center gap-3 rounded-lg border px-3 py-3',
-                                checked
-                                  ? 'border-primary bg-accent text-accent-foreground'
-                                  : 'border-border',
-                                readOnly ? 'cursor-default' : '',
-                              )}
-                            >
-                              <Checkbox
-                                checked={checked}
-                                disabled={readOnly}
-                                onCheckedChange={(value) => {
-                                  setBankIds((prev) =>
-                                    value === true
-                                      ? [...prev, bank.id]
-                                      : prev.filter((id) => id !== bank.id),
-                                  );
-                                }}
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="block font-medium">{bank.name}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  {bank.questions} questions
-                                </span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
+            <QuizQuestionsPanel
+              bankId={quizBankId}
+              readOnly={readOnly}
+              onCount={setQuizQuestionCount}
+              onEnsureBank={async () => {
+                const id = (await persist({ stay: true })) ?? activityId;
+                if (!id) return null;
+                const activity = await getActivity(id);
+                const next = activity.bankIds[0] ?? null;
+                setBankIds(activity.bankIds);
+                setQuizBankId(next);
+                return next;
+              }}
+            />
           ) : null}
 
           {step === 2 && !isQuiz ? (
@@ -1433,7 +1380,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           setDurationMode(next);
                           if (next === 'per_question') {
                             setPresentation('one_at_a_time');
-                            setQuizSettings((prev) => ({ ...prev, allowPrevious: false }));
+                            setQuizSettings((prev) => ({
+                              ...prev,
+                              allowPrevious: false,
+                              showQuestionPanel: false,
+                            }));
                           }
                         }}
                       >
@@ -1607,40 +1558,132 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                             Question overview panel
                           </FieldLabel>
                           <FieldDescription>
-                            When off, students do not see the numbered question panel beside the
-                            attempt.
+                            {durationMode === 'per_question'
+                              ? 'Per-question timer always hides the overview panel.'
+                              : 'When off, students do not see the numbered question panel beside the attempt.'}
                           </FieldDescription>
                         </div>
                         <Switch
                           id="quiz-showQuestionPanel"
-                          checked={quizSettings.showQuestionPanel}
-                          disabled={readOnly}
+                          checked={
+                            durationMode === 'per_question' ? false : quizSettings.showQuestionPanel
+                          }
+                          disabled={readOnly || durationMode === 'per_question'}
                           onCheckedChange={(checked) =>
                             setQuizSettings((prev) => ({ ...prev, showQuestionPanel: checked }))
                           }
                         />
                       </div>
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5">
+                        <div className="min-w-0">
+                          <FieldLabel htmlFor="quiz-max-attempts">Number of attempts</FieldLabel>
+                          <FieldDescription id="quiz-max-attempts-hint">
+                            How many times a student can submit. An admin can still grant an extra
+                            attempt.
+                          </FieldDescription>
+                        </div>
+                        <Input
+                          id="quiz-max-attempts"
+                          type="number"
+                          inputMode="numeric"
+                          min={1}
+                          max={100}
+                          aria-describedby="quiz-max-attempts-hint"
+                          className="w-24 shrink-0"
+                          value={quizSettings.maxAttempts ?? ''}
+                          disabled={readOnly || quizSettings.maxAttempts === null}
+                          onChange={(e) => {
+                            const next = Number(e.target.value);
+                            setQuizSettings((prev) => ({
+                              ...prev,
+                              maxAttempts:
+                                Number.isInteger(next) && next >= 1 ? Math.min(100, next) : 1,
+                            }));
+                          }}
+                        />
+                      </div>
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5 md:border-r">
+                        <div className="min-w-0">
+                          <FieldLabel htmlFor="quiz-unlimited-attempts">Unlimited</FieldLabel>
+                          <FieldDescription>
+                            Students can submit as many times as they need.
+                          </FieldDescription>
+                        </div>
+                        <Switch
+                          id="quiz-unlimited-attempts"
+                          checked={quizSettings.maxAttempts === null}
+                          disabled={readOnly}
+                          onCheckedChange={(checked) =>
+                            setQuizSettings((prev) => ({
+                              ...prev,
+                              maxAttempts: checked ? null : (prev.maxAttempts ?? 1),
+                            }))
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-col gap-3 border-b border-border p-3.5 md:min-h-(--control-h) md:flex-row md:items-center md:justify-between">
+                        <div className="min-w-0">
+                          <FieldLabel id="quiz-score-release-label">Score</FieldLabel>
+                          <FieldDescription>
+                            {quizSettings.scoreRelease === 'after_publish'
+                              ? 'Students see the score after an admin publishes the result.'
+                              : 'Students see the score as soon as they submit.'}
+                          </FieldDescription>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+                          <span
+                            id="score-after-submit"
+                            className={cn(
+                              'text-sm',
+                              quizSettings.scoreRelease === 'after_submit'
+                                ? 'font-medium text-foreground'
+                                : 'text-muted-foreground',
+                            )}
+                          >
+                            After submit
+                          </span>
+                          <Switch
+                            id="quiz-scoreRelease"
+                            checked={quizSettings.scoreRelease === 'after_publish'}
+                            disabled={readOnly}
+                            aria-labelledby="quiz-score-release-label score-after-submit score-after-publish"
+                            onCheckedChange={(checked) =>
+                              setQuizSettings((prev) => ({
+                                ...prev,
+                                scoreRelease: checked ? 'after_publish' : 'after_submit',
+                              }))
+                            }
+                          />
+                          <span
+                            id="score-after-publish"
+                            className={cn(
+                              'text-sm',
+                              quizSettings.scoreRelease === 'after_publish'
+                                ? 'font-medium text-foreground'
+                                : 'text-muted-foreground',
+                            )}
+                          >
+                            After publish
+                          </span>
+                        </div>
+                      </div>
                       {(
                         [
                           ['shuffleQuestions', 'Shuffle questions'],
                           ['shuffleOptions', 'Shuffle options'],
-                          ['scoreVisibleToStudent', 'Show scores to students (when published)'],
                           ['answersVisibleToStudent', 'Show answers to students (when published)'],
-                          ['dailyLeaderboardVisible', 'Daily individual leaderboard'],
-                          ['overallLeaderboardVisible', 'Overall individual leaderboard'],
-                          ['dailyGroupLeaderboardVisible', 'Daily group leaderboard'],
-                          ['overallGroupLeaderboardVisible', 'Overall group leaderboard'],
-                          ['countsForGroupLeaderboard', 'Count toward group leaderboards'],
                         ] as const
-                      ).map(([key, label], index) => {
-                        // Show-panel occupies the left cell; list items start on the right.
-                        const leftCol = (1 + index) % 2 === 0;
+                      ).map(([key, label], index, items) => {
+                        const cellsBefore = 6;
+                        const column = (cellsBefore + index) % 2;
+                        const lastAlone =
+                          index === items.length - 1 && (cellsBefore + items.length) % 2 === 1;
                         return (
                           <div
                             key={key}
                             className={cn(
                               'flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5',
-                              leftCol ? 'md:border-r' : null,
+                              column === 0 && !lastAlone ? 'md:border-r' : null,
                             )}
                           >
                             <FieldLabel htmlFor={`quiz-${key}`}>{label}</FieldLabel>
@@ -1655,19 +1698,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           </div>
                         );
                       })}
-                      <Field className="p-3.5 md:col-span-2">
-                        <FieldLabel htmlFor="lb-release">Leaderboard release (optional)</FieldLabel>
-                        <Input
-                          id="lb-release"
-                          type="datetime-local"
-                          value={leaderboardReleaseLocal}
-                          disabled={readOnly}
-                          onChange={(e) => setLeaderboardReleaseLocal(e.target.value)}
-                        />
-                        <FieldDescription>
-                          Students see boards only at/after this time when set.
-                        </FieldDescription>
-                      </Field>
                     </div>
                   </div>
                 </div>
@@ -1747,14 +1777,25 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     />
                     <ReviewFact
                       icon={LibraryIcon}
-                      label="Question banks"
+                      label="Questions"
+                      value={`${quizQuestionCount} on this quiz`}
+                    />
+                    <ReviewFact
+                      icon={RepeatIcon}
+                      label="Attempts"
                       value={
-                        bankIds.length === 0
-                          ? 'None selected'
-                          : banks
-                              .filter((b) => bankIds.includes(b.id))
-                              .map((b) => b.name)
-                              .join(', ')
+                        quizSettings.maxAttempts == null
+                          ? 'Unlimited'
+                          : String(quizSettings.maxAttempts)
+                      }
+                    />
+                    <ReviewFact
+                      icon={PercentIcon}
+                      label="Score"
+                      value={
+                        quizSettings.scoreRelease === 'after_publish'
+                          ? 'After publish'
+                          : 'After submit'
                       }
                     />
                   </>

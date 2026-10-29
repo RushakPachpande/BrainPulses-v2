@@ -18,6 +18,7 @@ import { LibraryStatsSkeleton } from '../components/skeletons';
 import { ActivityCardMedia, ActivityOrganizer } from '../components/activity-images';
 import { Heading, KindIcon, Status } from '../components/ui-bits';
 import { useAuth } from '../contexts/auth-context';
+import { useStudentPages } from '../hooks/use-student-pages';
 import { useDebouncedValue } from '../hooks/use-debounced-value';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { clientQueryKeys } from '../lib/query-keys';
@@ -43,6 +44,8 @@ function LibraryGridSkeleton() {
 export function LibraryPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
   const { student } = useAuth();
+  const pagesQuery = useStudentPages();
+  const resultsOn = pagesQuery.data?.results ?? true;
   const studentId = student?.id ?? '';
   const [searchInput, setSearchInput] = useState('');
   const debouncedSearch = useDebouncedValue(searchInput, 300);
@@ -77,6 +80,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
 
   function begin(item: StudentActivity) {
     if (item.attemptState === 'submitted') {
+      if (!resultsOn) return;
       if (item.latestResultId) navigate(`/results/${item.latestResultId}`);
       else navigate('/results');
       return;
@@ -102,9 +106,11 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
             : 'Structured assessments to measure your readiness and progress.'
         }
         action={
-          <button className="btn outline" type="button" onClick={() => navigate('/results')}>
-            <Trophy size={16} /> View results
-          </button>
+          resultsOn ? (
+            <button className="btn outline" type="button" onClick={() => navigate('/results')}>
+              <Trophy size={16} /> View results
+            </button>
+          ) : undefined
         }
       />
       {error && <div className="error-text">{error}</div>}

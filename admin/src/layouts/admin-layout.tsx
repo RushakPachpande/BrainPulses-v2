@@ -67,10 +67,8 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/quizzes', label: 'All Quizzes', end: true },
-      { to: '/quizzes/banks', label: 'Question Banks', end: true },
       { to: '/quizzes/registrations', label: 'Registrations', end: true },
       { to: '/quizzes/reports', label: 'Reports & Results', end: true },
-      { to: '/quizzes/leaderboard', label: 'Leaderboard', end: true },
     ],
   },
   {

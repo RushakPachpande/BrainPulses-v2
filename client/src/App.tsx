@@ -2,17 +2,15 @@ import { lazy, Suspense } from 'react';
 import {
   createBrowserRouter,
   createRoutesFromElements,
-  Navigate,
   Outlet,
   Route,
   RouterProvider,
-  useLocation,
 } from 'react-router';
 import { ApiLoadingProvider } from './contexts/api-loading';
 import { AuthProvider } from './contexts/auth';
 import { ClientQueryProvider } from './contexts/query-provider';
 import { RequireAuth } from './contexts/require-auth';
-import { StudentShell } from './layouts/student-shell';
+import { StudentPageGuard, EnabledHome } from './layouts/student-page-guard';
 import { LoginPage } from './pages/login';
 
 const ActivityDetailPage = lazy(() =>
@@ -23,9 +21,6 @@ const DashboardPage = lazy(() =>
   import('./pages/dashboard').then((m) => ({ default: m.DashboardPage })),
 );
 const HelpPage = lazy(() => import('./pages/help').then((m) => ({ default: m.HelpPage })));
-const LeaderboardPage = lazy(() =>
-  import('./pages/leaderboard').then((m) => ({ default: m.LeaderboardPage })),
-);
 const LibraryPage = lazy(() => import('./pages/library').then((m) => ({ default: m.LibraryPage })));
 const ProfilePage = lazy(() => import('./pages/profile').then((m) => ({ default: m.ProfilePage })));
 const ResultsPage = lazy(() => import('./pages/results').then((m) => ({ default: m.ResultsPage })));
@@ -33,24 +28,11 @@ const ResultDetailPage = lazy(() =>
   import('./pages/results').then((m) => ({ default: m.ResultDetailPage })),
 );
 
-function titleForPath(pathname: string) {
-  if (pathname.includes('/leaderboard')) return 'Leaderboard';
-  if (pathname.startsWith('/quizzes/')) return 'Quiz details';
-  if (pathname.startsWith('/quizzes')) return 'My quizzes';
-  if (pathname.startsWith('/assessments/')) return 'Assessment details';
-  if (pathname.startsWith('/assessments')) return 'Assessments';
-  if (pathname.startsWith('/results')) return 'My results';
-  if (pathname.startsWith('/profile')) return 'My profile';
-  if (pathname.startsWith('/help')) return 'Help centre';
-  return 'Overview';
-}
-
 function ShellLayout() {
-  const location = useLocation();
   return (
-    <StudentShell title={titleForPath(location.pathname)}>
+    <StudentPageGuard>
       <Outlet />
-    </StudentShell>
+    </StudentPageGuard>
   );
 }
 
@@ -71,10 +53,9 @@ const appRouter = createBrowserRouter(
           <Route path="/attempt/start/:id" element={<AttemptPage mode="start" />} />
           <Route path="/attempt/:id" element={<AttemptPage mode="resume" />} />
           <Route element={<ShellLayout />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<EnabledHome />} />
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/quizzes" element={<LibraryPage kind="quiz" />} />
-            <Route path="/quizzes/:activityId/leaderboard" element={<LeaderboardPage />} />
             <Route path="/quizzes/:activityId" element={<ActivityDetailPage kind="quiz" />} />
             <Route path="/assessments" element={<LibraryPage kind="assessment" />} />
             <Route
@@ -85,7 +66,7 @@ const appRouter = createBrowserRouter(
             <Route path="/results/:id" element={<ResultDetailPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/help" element={<HelpPage />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<EnabledHome />} />
           </Route>
         </Route>
       </Route>

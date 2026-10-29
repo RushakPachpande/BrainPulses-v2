@@ -60,3 +60,17 @@ export async function submit(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function advance(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = studentActor(req);
+    const data = await service.advanceAttempt(
+      actor.organizationId,
+      actor.studentId,
+      req.params.id as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}

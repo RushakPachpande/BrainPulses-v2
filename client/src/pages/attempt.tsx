@@ -15,6 +15,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { AttemptQuestionBlock } from '../components/attempt-question-block';
 import { ExamShellSkeleton } from '../components/skeletons';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
+import { useStudentPages } from '../hooks/use-student-pages';
 import { ApiError } from '../lib/api-client';
 import {
   answerFromResponse,
@@ -23,7 +24,9 @@ import {
   type AttemptAnswerValue,
 } from '../lib/attempt-answers';
 import { timeRemaining } from '../lib/format';
+import { firstEnabledStudentPath, isStudentPageOffError } from '../lib/student-pages';
 import {
+  advanceAttempt,
   clearSubmitIdempotencyKey,
   listActivities,
   resumeAttempt,
@@ -41,6 +44,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [searchParams] = useSearchParams();
   const roundIdParam = searchParams.get('roundId') ?? undefined;
   const navigate = useNavigate();
+  const pagesQuery = useStudentPages();
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
@@ -77,7 +81,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   );
 
   const applyLoadedAttempt = useCallback(
-    (data: { attempt: AttemptState; questions: AttemptQuestion[] }) => {
+    (
+      data: { attempt: AttemptState; questions: AttemptQuestion[] },
+      opts?: { resume?: boolean },
+    ) => {
       attemptIdRef.current = data.attempt.id;
       setAttempt(data.attempt);
       setQuestions(data.questions);
@@ -89,9 +96,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         data.attempt.durationMode === 'per_question' ||
         data.attempt.allowPrevious === false;
       setForwardOnly(fo);
-      setShowQuestionPanel(data.attempt.showQuestionPanel !== false);
-      setMaxVisitedIndex(0);
-      setQIndex(0);
+      setShowQuestionPanel(
+        data.attempt.durationMode === 'per_question'
+          ? false
+          : data.attempt.showQuestionPanel !== false,
+      );
       revisionRef.current = data.attempt.revision;
       const mapped: AnswerMap = {};
       for (const r of data.attempt.responses) {
@@ -100,6 +109,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       }
       setAnswers(mapped);
       answersRef.current = mapped;
+      let startIndex = 0;
+      if (opts?.resume && data.questions.length > 0) {
+        const firstOpen = data.questions.findIndex((q) => !isAnswered(mapped[q.questionVersionId]));
+        startIndex = firstOpen >= 0 ? firstOpen : Math.max(0, data.questions.length - 1);
+      }
+      setQIndex(startIndex);
+      setMaxVisitedIndex(startIndex);
+      autoSubmitted.current = false;
       const remaining = Math.max(
         0,
         Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
@@ -115,6 +132,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     try {
       if (mode === 'start') {
         let data: { attempt: AttemptState; questions: AttemptQuestion[] };
+        let resumedOpen = false;
         try {
           data = await startAttempt(id, roundIdParam);
         } catch (err) {
@@ -130,8 +148,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           const openId = rows.find((row) => row.activityId === id)?.openAttemptId;
           if (!openId) throw err;
           data = await resumeAttempt(openId);
+          resumedOpen = true;
         }
-        applyLoadedAttempt(data);
+        applyLoadedAttempt(data, { resume: resumedOpen });
       } else {
         const data = await resumeAttempt(id);
         if (data.submitted && data.result) {
@@ -143,7 +162,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           }
           return;
         }
-        applyLoadedAttempt(data);
+        applyLoadedAttempt(data, { resume: true });
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Unable to open attempt.');
@@ -155,6 +174,17 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const pages = pagesQuery.data;
+  const pageOff =
+    isStudentPageOffError(error) ||
+    (attempt?.activityKind === 'quiz' && pages?.quizzes === false) ||
+    (attempt?.activityKind === 'assessment' && pages?.assessments === false);
+
+  useEffect(() => {
+    if (!pages || !pageOff) return;
+    navigate(firstEnabledStudentPath(pages) ?? '/', { replace: true });
+  }, [navigate, pageOff, pages]);
 
   useEffect(() => {
     if (!attempt?.softProctoring) return;
@@ -370,11 +400,65 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     [answers, attempt, navigate, submitting],
   );
 
+  const goToNextQuestionWithRenewedDeadline = useCallback(async () => {
+    if (!attempt || submitting) return;
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+    }
+    const latest = pendingAnswersRef.current ?? answersRef.current;
+    pendingAnswersRef.current = null;
+    setPendingSave(false);
+    try {
+      if (Object.keys(latest).length) await enqueueSave(latest);
+      await saveChainRef.current.catch(() => undefined);
+      const data = await advanceAttempt(attempt.id);
+      if (data.submitted && data.result) {
+        clearSubmitIdempotencyKey(attempt.id);
+        flushSync(() => setAllowLeave(true));
+        navigate(
+          attempt.roundId ? `/assessments/${attempt.activityId}` : `/results/${data.result.id}`,
+          { replace: true },
+        );
+        return;
+      }
+      setAttempt(data.attempt);
+      const remaining = Math.max(
+        0,
+        Math.ceil((new Date(data.attempt.deadlineAt).getTime() - Date.now()) / 1000),
+      );
+      setSeconds(remaining);
+      autoSubmitted.current = false;
+      setQIndex((i) => Math.min(i + 1, Math.max(0, questions.length - 1)));
+    } catch (err) {
+      autoSubmitted.current = false;
+      setError(err instanceof ApiError ? err.message : 'Could not move to the next question.');
+    }
+  }, [attempt, navigate, questions.length, submitting]);
+
   useEffect(() => {
-    if (!attempt || busy || seconds > 0 || autoSubmitted.current) return;
+    if (!attempt || busy || seconds > 0 || autoSubmitted.current || submitting) return;
     autoSubmitted.current = true;
+    if (attempt.durationMode === 'per_question') {
+      const isLast = qIndex >= questions.length - 1;
+      if (isLast) {
+        void doSubmit(true);
+      } else {
+        void goToNextQuestionWithRenewedDeadline();
+      }
+      return;
+    }
     void doSubmit(true);
-  }, [attempt, busy, doSubmit, seconds]);
+  }, [
+    attempt,
+    busy,
+    doSubmit,
+    goToNextQuestionWithRenewedDeadline,
+    qIndex,
+    questions.length,
+    seconds,
+    submitting,
+  ]);
 
   function setAnswer(questionVersionId: string, answer: AttemptAnswerValue) {
     const next = { ...answers, [questionVersionId]: answer };
@@ -430,12 +514,24 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     if (skipConfirmIndex == null) return;
     const next = skipConfirmIndex;
     setSkipConfirmIndex(null);
+    if (attempt?.durationMode === 'per_question') {
+      void goToNextQuestionWithRenewedDeadline();
+      return;
+    }
     advanceToQuestion(next);
   }
 
   function requestNext() {
     const next = qIndex + 1;
     if (next >= questions.length) return;
+    if (attempt?.durationMode === 'per_question') {
+      if (shouldWarnBeforeLeavingUnanswered()) {
+        setSkipConfirmIndex(next);
+        return;
+      }
+      void goToNextQuestionWithRenewedDeadline();
+      return;
+    }
     if (shouldWarnBeforeLeavingUnanswered()) {
       setSkipConfirmIndex(next);
       return;
@@ -492,6 +588,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     return <ExamShellSkeleton />;
   }
 
+  if (pageOff) {
+    return <ExamShellSkeleton />;
+  }
+
   if (error && !attempt) {
     return (
       <div className="exam-page">
@@ -523,10 +623,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           <span>Attempt</span>
           <b>{allOnPage ? 'All on one page' : 'In progress'}</b>
         </div>
-        <div className={`exam-timer ${seconds < 300 ? 'timer-warning' : ''}`}>
+        <div
+          className={`exam-timer ${seconds < (attempt.durationMode === 'per_question' ? 10 : 300) ? 'timer-warning' : ''}`}
+        >
           <Clock3 size={17} />
           <div>
-            <span>Time remaining</span>
+            <span>
+              {attempt.durationMode === 'per_question' ? 'Question time' : 'Time remaining'}
+            </span>
             <b>{timeRemaining(seconds)}</b>
           </div>
         </div>

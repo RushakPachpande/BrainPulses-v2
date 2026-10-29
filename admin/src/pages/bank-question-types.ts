@@ -16,8 +16,8 @@ export type BankAuthorType = (typeof BANK_QUESTION_TYPES)[number]['value'];
 export type BankKind = 'quiz' | 'assessment';
 
 const QUIZ_TYPES = [
-  { value: 'single_mcq' as const, label: 'Single choice' },
-  { value: 'multiple_mcq' as const, label: 'Multiple choice' },
+  { value: 'single_mcq' as const, label: 'MCQ (single option)' },
+  { value: 'multiple_mcq' as const, label: 'MSQ (multiple options)' },
 ];
 
 const CHOICE_MEDIA_TYPES = new Set<string>([

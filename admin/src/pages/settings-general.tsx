@@ -13,6 +13,7 @@ import {
   CheckCircle2Icon,
   ImageIcon,
   LanguagesIcon,
+  PanelsTopLeftIcon,
   SaveIcon,
   UploadIcon,
   XIcon,
@@ -30,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/auth-context';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { getSettingsGroup, patchSettingsGroup } from '@/services';
@@ -57,6 +59,54 @@ const LANGUAGE_TO_LOCALE: Record<string, string> = {
   Hindi: 'hi-IN',
   Marathi: 'mr-IN',
 };
+
+const studentPageToggles = [
+  {
+    key: 'overview',
+    label: 'Overview',
+    hint: 'Home page with progress, goals, and recent activity.',
+  },
+  {
+    key: 'quizzes',
+    label: 'My quizzes',
+    hint: 'Quiz list, quiz details, and quiz attempts.',
+  },
+  {
+    key: 'assessments',
+    label: 'Assessments',
+    hint: 'Assessment list, details, and assessment attempts.',
+  },
+  {
+    key: 'results',
+    label: 'My results',
+    hint: 'Scores and result details.',
+  },
+  {
+    key: 'profile',
+    label: 'My profile',
+    hint: 'Name and account details.',
+  },
+  {
+    key: 'help',
+    label: 'Help centre',
+    hint: 'Help articles for students.',
+  },
+] as const;
+
+type StudentPageKey = (typeof studentPageToggles)[number]['key'];
+
+const initialPages: Record<StudentPageKey, boolean> = {
+  overview: true,
+  quizzes: true,
+  assessments: true,
+  results: true,
+  profile: true,
+  help: true,
+};
+
+function pageEnabled(value: unknown) {
+  return typeof value === 'boolean' ? value : true;
+}
 
 function localeToLanguage(locale: string, fallback: string) {
   return LOCALE_TO_LANGUAGE[locale] ?? LOCALE_TO_LANGUAGE[locale.split('-')[0] ?? ''] ?? fallback;
@@ -89,6 +139,7 @@ export function GeneralSettingsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canManage = canManageUsersOrSettings(membership);
   const [settings, setSettings] = useState(initialSettings);
+  const [pages, setPages] = useState(initialPages);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -104,6 +155,14 @@ export function GeneralSettingsPage() {
           timeFormat: String(values.timeFormat ?? current.timeFormat),
           language: localeToLanguage(String(values.locale ?? ''), current.language),
         }));
+        setPages({
+          overview: pageEnabled(values.studentPageOverview),
+          quizzes: pageEnabled(values.studentPageQuizzes),
+          assessments: pageEnabled(values.studentPageAssessments),
+          results: pageEnabled(values.studentPageResults),
+          profile: pageEnabled(values.studentPageProfile),
+          help: pageEnabled(values.studentPageHelp),
+        });
       })
       .catch(() => {
         /* keep defaults */
@@ -160,6 +219,12 @@ export function GeneralSettingsPage() {
         dateFormat: settings.dateFormat,
         timeFormat: settings.timeFormat,
         locale: languageToLocale(settings.language),
+        studentPageOverview: pages.overview,
+        studentPageQuizzes: pages.quizzes,
+        studentPageAssessments: pages.assessments,
+        studentPageResults: pages.results,
+        studentPageProfile: pages.profile,
+        studentPageHelp: pages.help,
       });
       setSaved(true);
       toast.success('General settings saved.');
@@ -171,6 +236,7 @@ export function GeneralSettingsPage() {
   }
   function reset() {
     setSettings(initialSettings);
+    setPages(initialPages);
     setLogoFile(null);
     setFaviconFile(null);
     if (logoInput.current) logoInput.current.value = '';
@@ -221,6 +287,46 @@ export function GeneralSettingsPage() {
                   />
                 </SettingField>
               </FieldGroup>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="border-b border-border/70 px-5 py-4 sm:px-6">
+              <div className="flex items-start gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <PanelsTopLeftIcon className="size-5" />
+                </span>
+                <div>
+                  <CardTitle>Student portal pages</CardTitle>
+                  <CardDescription className="mt-1">
+                    Turn student navigation pages on or off. A page stays hidden until you turn it
+                    back on.
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="px-5 py-1 sm:px-6">
+              {studentPageToggles.map((item) => (
+                <div
+                  key={item.key}
+                  className="flex items-center justify-between gap-4 border-b border-border/70 py-4 last:border-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{item.label}</p>
+                    <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                      {item.hint}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={pages[item.key]}
+                    onCheckedChange={(next) => {
+                      setPages((current) => ({ ...current, [item.key]: next }));
+                      setSaved(false);
+                    }}
+                    disabled={!canManage}
+                    aria-label={item.label}
+                  />
+                </div>
+              ))}
             </CardContent>
           </Card>
           <Card>

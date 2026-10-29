@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import { studentActor } from '../../middleware/auth.js';
+import { getStudentPages } from '../../lib/student-pages.js';
 import * as service from './service.js';
 
 export async function me(req: Request, res: Response, next: NextFunction) {
@@ -16,6 +17,16 @@ export async function patchMe(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = studentActor(req);
     const data = await service.patchMe(actor.organizationId, actor.studentId, req.body);
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function pages(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = studentActor(req);
+    const data = await getStudentPages(actor.organizationId);
     res.json({ data });
   } catch (err) {
     next(err);

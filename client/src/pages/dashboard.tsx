@@ -13,6 +13,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
+import { useStudentPages } from '../hooks/use-student-pages';
 import { GoalPanelSkeleton, MetricsSkeleton } from '../components/skeletons';
 import { KindIcon, Metric, Status } from '../components/ui-bits';
 import { ActivityCover, ActivityCredit } from '../components/activity-images';
@@ -24,6 +25,10 @@ import type { StudentActivity } from '../services/types';
 export function DashboardPage() {
   const { student } = useAuth();
   const navigate = useNavigate();
+  const pagesQuery = useStudentPages();
+  const quizzesOn = pagesQuery.data?.quizzes ?? true;
+  const assessmentsOn = pagesQuery.data?.assessments ?? true;
+  const resultsOn = pagesQuery.data?.results ?? true;
   const studentId = student?.id ?? '';
   const name = student?.name?.split(' ')[0] ?? 'there';
 
@@ -43,29 +48,28 @@ export function DashboardPage() {
   } = useQuery({
     queryKey: clientQueryKeys.results(studentId, 'all'),
     queryFn: () => listResults('all'),
-    enabled: Boolean(studentId),
+    enabled: Boolean(studentId) && resultsOn,
   });
 
-  const loading = actsLoading || resultsLoading;
-  const error = actsError || resultsError ? 'Unable to load your dashboard.' : '';
+  const loading = actsLoading || (resultsOn && resultsLoading);
+  const error = actsError || (resultsOn && resultsError) ? 'Unable to load your dashboard.' : '';
 
-  const available = items.filter((x) => x.attemptState !== 'submitted').slice(0, 3);
-  const scored = results.filter((a) => a.percent != null);
+  const visibleItems = items.filter((item) => (item.kind === 'quiz' ? quizzesOn : assessmentsOn));
+  const available = visibleItems.filter((x) => x.attemptState !== 'submitted').slice(0, 3);
+  const visibleResults = resultsOn ? results : [];
+  const scored = visibleResults.filter((a) => a.percent != null);
   const average =
     scored.length > 0
       ? Math.round(scored.reduce((n, a) => n + (a.percent as number), 0) / scored.length)
       : null;
-  const minutes = results.reduce((total, a) => total + (a.durationMinutes ?? 0), 0);
+  const minutes = visibleResults.reduce((total, a) => total + (a.durationMinutes ?? 0), 0);
 
   function begin(item: StudentActivity) {
     const base = item.kind === 'quiz' ? '/quizzes' : '/assessments';
     navigate(`${base}/${item.activityId}`);
   }
 
-  const browsePath =
-    available.some((a) => a.kind === 'assessment') && !available.some((a) => a.kind === 'quiz')
-      ? '/assessments'
-      : '/quizzes';
+  const browsePath = quizzesOn ? '/quizzes' : assessmentsOn ? '/assessments' : null;
 
   return (
     <div className="page-stack">
@@ -106,9 +110,11 @@ export function DashboardPage() {
           <h2>Your progress</h2>
           <p>A quick snapshot of your recent activity.</p>
         </div>
-        <button className="text-btn" type="button" onClick={() => navigate('/results')}>
-          View results <ArrowRight size={15} />
-        </button>
+        {resultsOn ? (
+          <button className="text-btn" type="button" onClick={() => navigate('/results')}>
+            View results <ArrowRight size={15} />
+          </button>
+        ) : null}
       </div>
 
       {loading ? (
@@ -118,7 +124,7 @@ export function DashboardPage() {
           <Metric
             icon={BookOpen}
             label="Activities completed"
-            value={String(results.length).padStart(2, '0')}
+            value={String(visibleResults.length).padStart(2, '0')}
             detail="Submitted attempts"
           />
           <Metric
@@ -136,10 +142,9 @@ export function DashboardPage() {
           <Metric
             icon={Target}
             label="Available to attempt"
-            value={String(items.filter((x) => x.attemptState !== 'submitted').length).padStart(
-              2,
-              '0',
-            )}
+            value={String(
+              visibleItems.filter((x) => x.attemptState !== 'submitted').length,
+            ).padStart(2, '0')}
             detail="Quizzes and assessments"
           />
         </div>
@@ -152,9 +157,11 @@ export function DashboardPage() {
               <h2>Pick up where you left off</h2>
               <p>Activities ready when you are.</p>
             </div>
-            <button className="text-btn" type="button" onClick={() => navigate(browsePath)}>
-              View all <ArrowRight size={15} />
-            </button>
+            {browsePath ? (
+              <button className="text-btn" type="button" onClick={() => navigate(browsePath)}>
+                View all <ArrowRight size={15} />
+              </button>
+            ) : null}
           </div>
           <div className="activity-list" aria-busy={loading || undefined}>
             {loading ? (
@@ -246,13 +253,13 @@ export function DashboardPage() {
           ) : (
             <div className="goal-progress">
               <div className="goal-number">
-                <strong>{Math.min(results.length, 5)}</strong>
+                <strong>{Math.min(visibleResults.length, 5)}</strong>
                 <span>/ 5 activities</span>
               </div>
               <div className="progress-track">
                 <div
                   style={{
-                    width: `${Math.min((results.length / 5) * 100, 100)}%`,
+                    width: `${Math.min((visibleResults.length / 5) * 100, 100)}%`,
                   }}
                 />
               </div>
@@ -268,71 +275,82 @@ export function DashboardPage() {
               <span>Try a short quiz today to keep your momentum.</span>
             </div>
           </div>
-          <button className="btn secondary full" type="button" onClick={() => navigate('/quizzes')}>
-            Explore quizzes <ArrowRight size={16} />
-          </button>
+          {browsePath ? (
+            <button
+              className="btn secondary full"
+              type="button"
+              onClick={() => navigate(browsePath)}
+            >
+              {browsePath === '/assessments' ? 'Explore assessments' : 'Explore quizzes'}{' '}
+              <ArrowRight size={16} />
+            </button>
+          ) : null}
         </section>
       </div>
 
-      <section className="panel recent-panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Recent results</h2>
-            <p>Your latest completed attempts.</p>
-          </div>
-          <button className="text-btn" type="button" onClick={() => navigate('/results')}>
-            All results <ArrowRight size={15} />
-          </button>
-        </div>
-        {loading ? (
-          <div aria-busy="true" aria-live="polite">
-            <span className="sr-only">Loading recent results</span>
-            {[0, 1].map((i) => (
-              <div className="skeleton-row" key={i} aria-hidden>
-                <span className="skeleton-line w-md" />
-                <span className="skeleton-line w-sm" />
-              </div>
-            ))}
-          </div>
-        ) : results.length === 0 ? (
-          <div className="empty-state" role="status">
-            <div className="empty-icon">
-              <Trophy size={22} />
+      {resultsOn ? (
+        <section className="panel recent-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Recent results</h2>
+              <p>Your latest completed attempts.</p>
             </div>
-            <b>Your results will show up here</b>
-            <span>Complete a quiz or assessment to start tracking your progress.</span>
-            <button className="btn outline" type="button" onClick={() => navigate(browsePath)}>
-              Browse activities
+            <button className="text-btn" type="button" onClick={() => navigate('/results')}>
+              All results <ArrowRight size={15} />
             </button>
           </div>
-        ) : (
-          <div className="result-rows">
-            {results.slice(0, 3).map((a) => (
-              <button
-                className="result-row"
-                key={a.id}
-                type="button"
-                onClick={() => navigate(`/results/${a.id}`)}
-              >
-                <div className="result-file">
-                  <FileText size={18} />
+          {loading ? (
+            <div aria-busy="true" aria-live="polite">
+              <span className="sr-only">Loading recent results</span>
+              {[0, 1].map((i) => (
+                <div className="skeleton-row" key={i} aria-hidden>
+                  <span className="skeleton-line w-md" />
+                  <span className="skeleton-line w-sm" />
                 </div>
-                <div className="result-main">
-                  <b>{a.title}</b>
-                  <span>
-                    {formatKind(a.kind)} · {formatDateLabel(a.submittedAt)}
-                  </span>
-                </div>
-                <div className="score-block">
-                  <b>{a.percent == null ? '—' : `${Math.round(a.percent)}%`}</b>
-                  <span>{a.percent == null ? 'Pending' : 'Score'}</span>
-                </div>
-                <ArrowRight size={16} />
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          ) : visibleResults.length === 0 ? (
+            <div className="empty-state" role="status">
+              <div className="empty-icon">
+                <Trophy size={22} />
+              </div>
+              <b>Your results will show up here</b>
+              <span>Complete a quiz or assessment to start tracking your progress.</span>
+              {browsePath ? (
+                <button className="btn outline" type="button" onClick={() => navigate(browsePath)}>
+                  Browse activities
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <div className="result-rows">
+              {visibleResults.slice(0, 3).map((a) => (
+                <button
+                  className="result-row"
+                  key={a.id}
+                  type="button"
+                  onClick={() => navigate(`/results/${a.id}`)}
+                >
+                  <div className="result-file">
+                    <FileText size={18} />
+                  </div>
+                  <div className="result-main">
+                    <b>{a.title}</b>
+                    <span>
+                      {formatKind(a.kind)} · {formatDateLabel(a.submittedAt)}
+                    </span>
+                  </div>
+                  <div className="score-block">
+                    <b>{a.percent == null ? '—' : `${Math.round(a.percent)}%`}</b>
+                    <span>{a.percent == null ? 'Pending' : 'Score'}</span>
+                  </div>
+                  <ArrowRight size={16} />
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { prisma } from '../src/lib/prisma.js';
 import { parseQuizSettings } from '../src/lib/quiz-settings.js';
+import { attemptDurationMs } from '../src/modules/attempts/service.js';
 import { getTestApp, request } from './helpers.js';
 
 async function studentToken(code = 'BP-24101') {
@@ -47,7 +48,8 @@ describe('quiz ops', () => {
   it('parses quiz settings defaults and overrides', () => {
     const defaults = parseQuizSettings(null);
     assert.equal(defaults.shuffleQuestions, true);
-    assert.equal(defaults.scoreVisibleToStudent, false);
+    assert.equal(defaults.scoreRelease, 'after_submit');
+    assert.equal(defaults.maxAttempts, 1);
     assert.equal(defaults.showQuestionPanel, true);
 
     const custom = parseQuizSettings({
@@ -56,15 +58,43 @@ describe('quiz ops', () => {
         scoreVisibleToStudent: true,
         answersVisibleToStudent: true,
         showQuestionPanel: false,
+        maxAttempts: null,
       },
     });
     assert.equal(custom.shuffleQuestions, false);
-    assert.equal(custom.scoreVisibleToStudent, true);
+    assert.equal(custom.scoreRelease, 'after_publish');
     assert.equal(custom.answersVisibleToStudent, true);
     assert.equal(custom.showQuestionPanel, false);
+    assert.equal(custom.maxAttempts, null);
   });
 
-  it('freezes question order across resume and excludes disqualified from boards', async () => {
+  it('uses one question window for per-question duration', () => {
+    const ms = attemptDurationMs(
+      {
+        kind: 'quiz',
+        durationMode: 'per_question',
+        durationMinutes: null,
+        perQuestionSeconds: 30,
+      },
+      20,
+      60,
+    );
+    assert.equal(ms, 30_000);
+
+    const overall = attemptDurationMs(
+      {
+        kind: 'quiz',
+        durationMode: 'overall',
+        durationMinutes: 60,
+        perQuestionSeconds: null,
+      },
+      20,
+      60,
+    );
+    assert.equal(overall, 60 * 60_000);
+  });
+
+  it('freezes question order across resume and allows a granted reattempt', async () => {
     const app = await getTestApp();
     const token = await studentToken();
     const admin = await adminToken();
@@ -84,14 +114,9 @@ describe('quiz ops', () => {
           quiz: {
             shuffleQuestions: true,
             shuffleOptions: true,
-            scoreVisibleToStudent: true,
+            scoreRelease: 'after_submit',
             answersVisibleToStudent: true,
-            dailyLeaderboardVisible: true,
-            overallLeaderboardVisible: true,
-            dailyGroupLeaderboardVisible: true,
-            overallGroupLeaderboardVisible: true,
-            countsForGroupLeaderboard: true,
-            leaderboardReleasedAt: null,
+            maxAttempts: 1,
           },
         },
       },
@@ -151,33 +176,20 @@ describe('quiz ops', () => {
     });
     assert.equal(submit.status, 200);
 
-    const boardBefore = await request(
-      app,
-      'GET',
-      `/api/leaderboards/activities/${activity.id}?scope=overall&kind=individual`,
-      { headers: adminHeaders },
-    );
-    assert.equal(boardBefore.status, 200);
-    const beforeEntries = (boardBefore.body as { data: { entries: { studentCode: string }[] } })
-      .data.entries;
-    assert.ok(beforeEntries.some((e) => e.studentCode === student.code));
+    const blocked = await request(app, 'POST', '/api/attempts/start', {
+      headers: { authorization: `Bearer ${token}` },
+      body: { activityId: activity.id },
+    });
+    assert.equal(blocked.status, 409);
 
     const dq = await request(app, 'POST', `/api/admin/attempts/${started.attempt.id}/disqualify`, {
       headers: adminHeaders,
       body: { note: 'test dq' },
     });
     assert.equal(dq.status, 200);
-
-    const boardAfter = await request(
-      app,
-      'GET',
-      `/api/leaderboards/activities/${activity.id}?scope=overall&kind=individual`,
-      { headers: adminHeaders },
-    );
-    assert.equal(boardAfter.status, 200);
-    const afterEntries = (boardAfter.body as { data: { entries: { studentCode: string }[] } }).data
-      .entries;
-    assert.ok(!afterEntries.some((e) => e.studentCode === student.code));
+    const disqualified = await prisma.attempt.findFirst({ where: { id: started.attempt.id } });
+    assert.equal(disqualified?.disqualified, true);
+    assert.equal(disqualified?.isAuthoritative, false);
 
     const grant = await request(app, 'POST', `/api/activities/${activity.id}/reattempts`, {
       headers: adminHeaders,

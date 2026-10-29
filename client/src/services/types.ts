@@ -32,7 +32,10 @@ export type StudentActivity = {
   openAttemptId: string | null;
   latestResultId: string | null;
   latestPercent: number | null;
-  leaderboardAvailable?: boolean;
+  attemptsUsed?: number;
+  maxAttempts?: number | null;
+  extraAttempts?: number;
+  canStartAnother?: boolean;
   instructions?: string | null;
   imageFileId?: string | null;
   sponsorName?: string | null;
@@ -74,9 +77,13 @@ export type StudentResultDetail = {
   answersVisible?: boolean;
   submittedAt: string;
   questionCount?: number;
+  attemptsUsed?: number;
+  maxAttempts?: number | null;
+  extraAttempts?: number;
   review: {
     questionVersionId: string;
     question: string;
+    passageText?: string;
     questionImageUrl?: string;
     options: { label: string; body: string; imageUrl?: string; isCorrect?: boolean }[];
     yourAnswer: unknown;
@@ -125,28 +132,6 @@ export type AttemptState = {
   showQuestionPanel?: boolean;
   forwardOnly?: boolean;
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
-};
-
-export type LeaderboardEntry = {
-  rank: number;
-  studentId?: string;
-  studentName?: string;
-  studentCode?: string;
-  cohort?: string | null;
-  percent?: number;
-  score?: number;
-  maxScore?: number;
-  members?: number;
-  avgPercent?: number;
-  bestPercent?: number;
-};
-
-export type LeaderboardPayload = {
-  activityId: string;
-  activityName: string;
-  scope: string;
-  kind: string;
-  entries: LeaderboardEntry[];
 };
 
 export type StudentProfile = {

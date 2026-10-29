@@ -16,15 +16,29 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { ThemeToggle } from '../components/theme-toggle';
 import { useAuth } from '../contexts/auth-context';
 import { formatDateLabel } from '../lib/format';
+import type { StudentPageKey, StudentPages } from '../lib/student-pages';
 
-const nav = [
-  { label: 'Overview', path: '/dashboard', icon: Home },
-  { label: 'My quizzes', path: '/quizzes', icon: BookOpen },
-  { label: 'Assessments', path: '/assessments', icon: Target },
-  { label: 'My results', path: '/results', icon: Trophy },
+const nav: {
+  key: StudentPageKey;
+  label: string;
+  path: string;
+  icon: typeof Home;
+}[] = [
+  { key: 'overview', label: 'Overview', path: '/dashboard', icon: Home },
+  { key: 'quizzes', label: 'My quizzes', path: '/quizzes', icon: BookOpen },
+  { key: 'assessments', label: 'Assessments', path: '/assessments', icon: Target },
+  { key: 'results', label: 'My results', path: '/results', icon: Trophy },
 ];
 
-export function StudentShell({ title, children }: { title: string; children?: ReactNode }) {
+export function StudentShell({
+  title,
+  pages,
+  children,
+}: {
+  title: string;
+  pages: StudentPages | null;
+  children?: ReactNode;
+}) {
   const { student, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -64,34 +78,43 @@ export function StudentShell({ title, children }: { title: string; children?: Re
         </div>
         <div className="workspace-label">STUDENT WORKSPACE</div>
         <nav className="side-nav">
-          {nav.map((n) => {
-            const Icon = n.icon;
-            return (
-              <NavLink
-                key={n.path}
-                to={n.path}
-                className={({ isActive }) =>
-                  `nav-item ${isActive || (n.path === '/results' && location.pathname.startsWith('/results/')) ? 'active' : ''}`
-                }
-              >
-                <Icon size={18} />
-                <span>{n.label}</span>
-              </NavLink>
-            );
-          })}
+          {nav
+            .filter((item) => pages?.[item.key])
+            .map((n) => {
+              const Icon = n.icon;
+              return (
+                <NavLink
+                  key={n.path}
+                  to={n.path}
+                  className={({ isActive }) =>
+                    `nav-item ${isActive || (n.path === '/results' && location.pathname.startsWith('/results/')) ? 'active' : ''}`
+                  }
+                >
+                  <Icon size={18} />
+                  <span>{n.label}</span>
+                </NavLink>
+              );
+            })}
         </nav>
         <div className="sidebar-bottom">
-          <NavLink
-            to="/profile"
-            className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-          >
-            <UserRound size={18} />
-            <span>My profile</span>
-          </NavLink>
-          <NavLink to="/help" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-            <CircleHelp size={18} />
-            <span>Help centre</span>
-          </NavLink>
+          {pages?.profile ? (
+            <NavLink
+              to="/profile"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <UserRound size={18} />
+              <span>My profile</span>
+            </NavLink>
+          ) : null}
+          {pages?.help ? (
+            <NavLink
+              to="/help"
+              className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+            >
+              <CircleHelp size={18} />
+              <span>Help centre</span>
+            </NavLink>
+          ) : null}
           <div className="student-mini">
             <div className="avatar" aria-hidden>
               {initials}

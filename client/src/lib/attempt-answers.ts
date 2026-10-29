@@ -48,7 +48,7 @@ export function instructionForType(type: string): string {
   switch (type) {
     case 'multiple_mcq':
     case 'image_selection':
-      return 'Select all answers that apply.';
+      return 'Select all that apply.';
     case 'numeric':
       return 'Enter a numeric answer.';
     case 'short_text':

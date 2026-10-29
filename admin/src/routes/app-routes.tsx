@@ -46,9 +46,6 @@ const ReportsPage = lazy(() => import('@/pages/reports').then((m) => ({ default:
 const ResultDetailPage = lazy(() =>
   import('@/pages/result-detail').then((m) => ({ default: m.ResultDetailPage })),
 );
-const QuizLeaderboardPage = lazy(() =>
-  import('@/pages/quiz-leaderboard').then((m) => ({ default: m.QuizLeaderboardPage })),
-);
 const AccessSettingsPage = lazy(() =>
   import('@/pages/settings-access').then((m) => ({ default: m.AccessSettingsPage })),
 );
@@ -183,8 +180,6 @@ export function AppRoutes() {
           </Route>
 
           <Route path="quizzes" element={<ActivityListPage kind="quiz" />} />
-          <Route path="quizzes/banks" element={<QuestionBanksPage kind="quiz" />} />
-          <Route path="quizzes/banks/:bankId" element={<BankFormPage kind="quiz" mode="view" />} />
           <Route path="quizzes/registrations" element={<RegistrationsPage kind="quiz" />} />
           <Route
             path="quizzes/registrations/:registrationId"
@@ -192,17 +187,11 @@ export function AppRoutes() {
           />
           <Route path="quizzes/reports" element={<ReportsPage kind="quiz" />} />
           <Route path="quizzes/reports/:resultId" element={<ResultDetailPage kind="quiz" />} />
-          <Route path="quizzes/leaderboard" element={<QuizLeaderboardPage />} />
           <Route
             path="quizzes/:activityId"
             element={<ActivityWizardPage kind="quiz" mode="view" />}
           />
           <Route element={<RequireAccess gate={{ type: 'editKind', kind: 'quiz' }} />}>
-            <Route path="quizzes/banks/new" element={<BankFormPage kind="quiz" mode="create" />} />
-            <Route
-              path="quizzes/banks/:bankId/edit"
-              element={<BankFormPage kind="quiz" mode="edit" />}
-            />
             <Route path="quizzes/new" element={<ActivityWizardPage kind="quiz" mode="create" />} />
             <Route
               path="quizzes/:activityId/edit"

@@ -101,14 +101,9 @@ const quizBehaviourSettings = {
   quiz: {
     shuffleQuestions: true,
     shuffleOptions: true,
-    scoreVisibleToStudent: true,
+    scoreRelease: 'after_publish' as const,
     answersVisibleToStudent: true,
-    dailyLeaderboardVisible: true,
-    overallLeaderboardVisible: true,
-    dailyGroupLeaderboardVisible: true,
-    overallGroupLeaderboardVisible: true,
-    countsForGroupLeaderboard: true,
-    leaderboardReleasedAt: null as string | null,
+    maxAttempts: 1,
   },
 };
 
@@ -271,7 +266,7 @@ async function ensureBankWithQuestions(input: {
   name: string;
   description: string;
   questions: McqSeed[];
-  origin?: 'reusable' | 'round_local';
+  origin?: 'reusable' | 'round_local' | 'quiz_local';
   status?: FlowStatus;
 }) {
   const bank = await prisma.questionBank.create({
@@ -557,8 +552,9 @@ async function main() {
     kind: 'quiz',
     code: 'QB-26001',
     name: 'Foundation Question Bank',
-    description: 'Twenty single-choice questions used by Launch Quiz.',
+    description: 'Twenty questions used by Launch Quiz.',
     questions: foundationQuestions,
+    origin: 'quiz_local',
     status: 'active',
   });
 

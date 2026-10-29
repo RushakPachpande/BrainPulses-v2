@@ -6,6 +6,8 @@ import { nextHumanCode } from '../../lib/codes.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { parseQuizSettings } from '../../lib/quiz-settings.js';
+import { saveSharedPassage, stripPassageText } from '../banks/passages.js';
 import type { z } from 'zod';
 import type {
   activityListQuerySchema,
@@ -165,7 +167,7 @@ function mapActivity(a: {
     contestId: a.contestId ?? null,
     sponsor: a.sponsor ? { id: a.sponsor.id, name: a.sponsor.name } : null,
     contest: a.contest ? { id: a.contest.id, name: a.contest.name } : null,
-    settings: a.settings ?? null,
+    settings: a.kind === 'quiz' ? normalizeQuizSettingsJson(a.settings) : (a.settings ?? null),
     registered,
     assigned,
     banks: bankCount,
@@ -412,6 +414,58 @@ function normalizeAssessmentRounds(
   return undefined;
 }
 
+function normalizeQuizSettingsJson(settings: Prisma.JsonValue | null | undefined) {
+  const parsed = parseQuizSettings(settings);
+  const base =
+    settings && typeof settings === 'object' && !Array.isArray(settings)
+      ? { ...(settings as Record<string, unknown>) }
+      : {};
+  return { ...base, quiz: parsed };
+}
+
+async function ensureQuizLocalBank(
+  organizationId: string,
+  activityId: string,
+  activityName: string,
+) {
+  const links = await prisma.activityBank.findMany({
+    where: { organizationId, activityId },
+    include: { bank: { select: { id: true, origin: true, kind: true } } },
+  });
+  const local = links.find((link) => link.bank.origin === 'quiz_local');
+  if (local) return local.bankId;
+
+  if (links.length === 1) {
+    const only = links[0]!;
+    const shared = await prisma.activityBank.count({ where: { bankId: only.bankId } });
+    if (shared === 1 && only.bank.kind === 'quiz') {
+      await prisma.questionBank.update({
+        where: { id: only.bankId },
+        data: { origin: 'quiz_local' },
+      });
+      return only.bankId;
+    }
+  }
+
+  if (links.length > 0) return links[0]!.bankId;
+
+  const code = await nextHumanCode(organizationId, 'QB', 'bank');
+  const bank = await prisma.questionBank.create({
+    data: {
+      organizationId,
+      kind: 'quiz',
+      code,
+      name: `${activityName} questions`.slice(0, 200),
+      origin: 'quiz_local',
+      status: 'active',
+    },
+  });
+  await prisma.activityBank.create({
+    data: { organizationId, activityId, bankId: bank.id },
+  });
+  return bank.id;
+}
+
 async function assertSponsorContest(organizationId: string, sponsorId: string, contestId: string) {
   const contest = await prisma.contest.findFirst({
     where: { organizationId, id: contestId, sponsorId },
@@ -467,7 +521,6 @@ export async function createActivity(
       if (input.endsAt <= input.startsAt) throw badRequest('End must be after start.');
       await assertSponsorContest(organizationId, input.sponsorId, input.contestId);
       const timing = quizTimingWrite(input);
-      await assertReusableBanksForKind(organizationId, input.kind, input.bankIds);
       const activity = await prisma.activity.create({
         data: {
           organizationId,
@@ -488,15 +541,10 @@ export async function createActivity(
           presentation:
             timing.durationMode === 'per_question' ? 'one_at_a_time' : input.presentation,
           settings: input.settings ?? undefined,
-          activityBanks: {
-            create: input.bankIds.map((bankId) => ({
-              organizationId,
-              bankId,
-            })),
-          },
         },
         include: listInclude,
       });
+      await ensureQuizLocalBank(organizationId, activity.id, activity.name);
 
       await writeAudit({
         organizationId,
@@ -623,20 +671,6 @@ export async function updateActivity(
   }
 
   const activity = await prisma.$transaction(async (tx) => {
-    if (existing.kind === 'quiz' && input.bankIds) {
-      await assertReusableBanksForKind(organizationId, existing.kind, input.bankIds);
-      await tx.activityBank.deleteMany({ where: { organizationId, activityId: id } });
-      if (input.bankIds.length > 0) {
-        await tx.activityBank.createMany({
-          data: input.bankIds.map((bankId) => ({
-            organizationId,
-            activityId: id,
-            bankId,
-          })),
-        });
-      }
-    }
-
     if (existing.kind === 'assessment') {
       const rounds = normalizeAssessmentRounds(input);
       if (rounds !== undefined) {
@@ -684,6 +718,10 @@ export async function updateActivity(
       },
     });
   });
+
+  if (existing.kind === 'quiz') {
+    await ensureQuizLocalBank(organizationId, id, input.name ?? existing.name);
+  }
 
   await writeAudit({
     organizationId,
@@ -826,7 +864,8 @@ export async function archiveActivity(
 
 /**
  * Permanently deletes a quiz and all related student data (attempts, results,
- * registrations, reattempt grants, bank links). Shared question banks are kept.
+ * registrations, reattempt grants, bank links). The quiz's private question
+ * bank is removed. Shared assessment banks are kept.
  */
 export async function deleteActivity(
   organizationId: string,
@@ -845,6 +884,12 @@ export async function deleteActivity(
   }
 
   await prisma.$transaction(async (tx) => {
+    const localBankIds = (
+      await tx.activityBank.findMany({
+        where: { organizationId, activityId: id, bank: { origin: 'quiz_local' } },
+        select: { bankId: true },
+      })
+    ).map((row) => row.bankId);
     // Attempts first: round FK is Restrict; responses/results cascade from attempt.
     await tx.attempt.deleteMany({ where: { organizationId, activityId: id } });
     await tx.result.deleteMany({ where: { organizationId, activityId: id } });
@@ -852,6 +897,15 @@ export async function deleteActivity(
     await tx.registration.deleteMany({ where: { organizationId, activityId: id } });
     // Cascades activityBanks / rounds / round banks.
     await tx.activity.delete({ where: { id } });
+    if (localBankIds.length > 0) {
+      await tx.questionBank.deleteMany({
+        where: {
+          id: { in: localBankIds },
+          origin: 'quiz_local',
+          activityBanks: { none: {} },
+        },
+      });
+    }
   });
 
   await writeAudit({
@@ -953,7 +1007,20 @@ export async function createRoundQuestion(
   delete rawKey.stemImageUrl;
   if (fromQuestion || fromStem) rawKey.questionImageUrl = fromQuestion || fromStem;
   else delete rawKey.questionImageUrl;
-  const answerKey = rawKey;
+
+  let passageId: string | null = null;
+  let sortOrder = 0;
+  if (input.type === 'comprehension_mcq') {
+    const body = typeof rawKey.passageText === 'string' ? rawKey.passageText : '';
+    const saved = await saveSharedPassage({
+      organizationId,
+      bankId: localBankId,
+      body,
+    });
+    passageId = saved.passageId;
+    sortOrder = saved.sortOrder;
+  }
+  const answerKey = stripPassageText(rawKey);
 
   const question = await prisma.question.create({
     data: {
@@ -963,6 +1030,8 @@ export async function createRoundQuestion(
       type: input.type,
       question: input.question,
       points: input.points,
+      passageId,
+      sortOrder,
     },
   });
 
@@ -975,6 +1044,7 @@ export async function createRoundQuestion(
       question: input.question,
       points: input.points,
       answerKey: answerKey as Prisma.InputJsonValue,
+      passageId,
     },
   });
 

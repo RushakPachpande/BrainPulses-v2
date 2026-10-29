@@ -14,6 +14,7 @@ export const studentPortalRouter = Router();
 studentPortalRouter.use(requireAuth, requireStudent, withTenantContext);
 
 studentPortalRouter.get('/me', controller.me);
+studentPortalRouter.get('/pages', controller.pages);
 studentPortalRouter.patch('/me', validate({ body: patchProfileSchema }), controller.patchMe);
 studentPortalRouter.get(
   '/activities',

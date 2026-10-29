@@ -39,4 +39,29 @@ describe('cors-origin', () => {
     assert.equal(await allow(prod, 'http://localhost:5173'), true);
     assert.equal(await allow(prod, lan), false);
   });
+
+  it('matches chosen wildcard origins outside production', async () => {
+    const delegate = createCorsOriginDelegate(
+      'http://localhost:5173,https://*.trycloudflare.com,https://preview.example.com',
+      'development',
+    );
+    assert.equal(
+      await allow(delegate, 'https://daughters-statistics-applied-mixed.trycloudflare.com'),
+      true,
+    );
+    assert.equal(await allow(delegate, 'https://preview.example.com'), true);
+    assert.equal(await allow(delegate, 'https://evil.trycloudflare.com.attacker.test'), false);
+    assert.equal(await allow(delegate, 'http://daughters.trycloudflare.com'), false);
+
+    const anyOrigin = createCorsOriginDelegate('*', 'development');
+    assert.equal(await allow(anyOrigin, 'https://chosen.example'), true);
+    assert.equal(await allow(anyOrigin, 'file://local'), false);
+  });
+
+  it('rejects wildcard allowlists in production', () => {
+    assert.throws(
+      () => createCorsOriginDelegate('https://*.trycloudflare.com', 'production'),
+      /wildcards are only allowed outside production/,
+    );
+  });
 });

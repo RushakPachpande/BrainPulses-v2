@@ -5,15 +5,19 @@ import {
   FileText,
   Hash,
   Lock,
+  Repeat,
   ShieldCheck,
-  Trophy,
+  X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Heading, KindIcon, Status } from '../components/ui-bits';
 import { ActivityCover, ActivityCredit } from '../components/activity-images';
+import { formatAttemptAllowance } from '../lib/attempt-allowance';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
+import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { listActivities } from '../services/api';
+import { useStudentPages } from '../hooks/use-student-pages';
 import type { ActivityKind, StudentActivity, StudentActivityRound } from '../services/types';
 
 function roundStatusLabel(state: StudentActivityRound['state']) {
@@ -33,10 +37,14 @@ function activityStatusLabel(item: StudentActivity) {
 export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   const { activityId = '' } = useParams();
   const navigate = useNavigate();
+  const pagesQuery = useStudentPages();
+  const resultsOn = pagesQuery.data?.results ?? true;
   const [item, setItem] = useState<StudentActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [instructionsOpen, setInstructionsOpen] = useState(false);
   const [instructionsAck, setInstructionsAck] = useState(false);
+  const [pendingRoundId, setPendingRoundId] = useState<string | null>(null);
   const libraryPath = kind === 'quiz' ? '/quizzes' : '/assessments';
   const isAssessment = kind === 'assessment';
 
@@ -51,7 +59,9 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
         if (!cancelled) {
           if (!found) setError('Activity not found or not assigned to you.');
           setItem(found);
+          setInstructionsOpen(false);
           setInstructionsAck(false);
+          setPendingRoundId(null);
         }
       } catch {
         if (!cancelled) {
@@ -67,28 +77,62 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
     };
   }, [activityId, kind]);
 
-  function startOrResumeQuiz() {
+  const instructionsHtml = item?.instructions?.trim() ?? '';
+  const hasInstructions = !isInstructionsEmpty(instructionsHtml);
+  const safeInstructionsHtml = hasInstructions ? sanitizeInstructionsHtml(instructionsHtml) : '';
+
+  function beginAttempt(roundId?: string) {
     if (!item) return;
-    if (item.attemptState === 'submitted') {
-      if (item.latestResultId) navigate(`/results/${item.latestResultId}`);
-      else navigate('/results');
+    if (roundId) {
+      navigate(`/attempt/start/${item.activityId}?roundId=${roundId}`);
       return;
     }
-    if (item.openAttemptId) {
-      navigate(`/attempt/${item.openAttemptId}`);
-      return;
-    }
+    navigate(`/attempt/start/${item.activityId}`);
+  }
+
+  function requestStart(roundId?: string) {
+    if (!item) return;
     if (item.canAttempt === false) {
       setError(item.attemptBlockedReason ?? 'This activity is not open for attempts.');
       return;
     }
-    navigate(`/attempt/start/${item.activityId}`);
+    if (hasInstructions) {
+      setPendingRoundId(roundId ?? null);
+      setInstructionsAck(false);
+      setInstructionsOpen(true);
+      return;
+    }
+    beginAttempt(roundId);
+  }
+
+  function viewResults() {
+    if (!item || !resultsOn) return;
+    if (item.latestResultId) navigate(`/results/${item.latestResultId}`);
+    else navigate('/results');
+  }
+
+  function startOrResumeQuiz() {
+    if (!item) return;
+    if (item.openAttemptId) {
+      navigate(`/attempt/${item.openAttemptId}`);
+      return;
+    }
+    if (item.canStartAnother) {
+      requestStart();
+      return;
+    }
+    if (item.attemptState === 'submitted') {
+      viewResults();
+      return;
+    }
+    requestStart();
   }
 
   function startOrResumeRound(round: StudentActivityRound) {
     if (!item) return;
     if (round.state === 'locked') return;
     if (round.state === 'completed') {
+      if (!resultsOn) return;
       if (round.latestResultId) navigate(`/results/${round.latestResultId}`);
       else navigate('/results');
       return;
@@ -97,19 +141,12 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
       navigate(`/attempt/${round.openAttemptId}`);
       return;
     }
-    if (item.canAttempt === false) {
-      setError(item.attemptBlockedReason ?? 'This activity is not open for attempts.');
-      return;
-    }
-    navigate(`/attempt/start/${item.activityId}?roundId=${round.id}`);
+    requestStart(round.id);
   }
 
   const startBlocked =
     !!item && item.attemptState !== 'submitted' && !item.openAttemptId && item.canAttempt === false;
-  const instructionsText = item?.instructions?.trim() ?? '';
-  const needsInstructionsAck =
-    Boolean(instructionsText) && !!item && item.attemptState !== 'submitted' && !item.openAttemptId;
-  const startDisabled = startBlocked || (needsInstructionsAck && !instructionsAck);
+  const startDisabled = startBlocked;
 
   return (
     <div className="page-stack">
@@ -190,6 +227,15 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
                 </dt>
                 <dd>{item.endsAt ? formatDateLabel(item.endsAt) : 'No end date'}</dd>
               </div>
+              {!isAssessment ? (
+                <div className="activity-detail-fact">
+                  <dt>
+                    <Repeat size={16} aria-hidden />
+                    Attempts
+                  </dt>
+                  <dd>{formatAttemptAllowance(item)}</dd>
+                </div>
+              ) : null}
             </dl>
 
             {startBlocked ? (
@@ -206,20 +252,13 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
               </div>
             ) : null}
 
-            {instructionsText ? (
+            {hasInstructions ? (
               <div className="activity-detail-instructions">
                 <h3 className="activity-detail-rounds-title">Instructions</h3>
-                <p className="activity-detail-instructions-body">{instructionsText}</p>
-                {needsInstructionsAck ? (
-                  <label className="activity-detail-ack">
-                    <input
-                      type="checkbox"
-                      checked={instructionsAck}
-                      onChange={(e) => setInstructionsAck(e.target.checked)}
-                    />
-                    <span>I have read the instructions</span>
-                  </label>
-                ) : null}
+                <div
+                  className="activity-detail-instructions-body rich-instructions"
+                  dangerouslySetInnerHTML={{ __html: safeInstructionsHtml }}
+                />
               </div>
             ) : null}
 
@@ -267,69 +306,142 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
                           <Status value={roundStatusLabel(round.state)} />
                         </div>
                       </div>
-                      <button
-                        className={`btn ${round.state === 'completed' || round.state === 'locked' ? 'outline' : 'primary'}`}
-                        type="button"
-                        disabled={round.state === 'locked'}
-                        onClick={() => startOrResumeRound(round)}
-                      >
-                        {round.state === 'locked' ? (
-                          <>
-                            <Lock size={15} aria-hidden /> Locked
-                          </>
-                        ) : round.state === 'completed' ? (
-                          <>
-                            View results <ArrowRight size={15} aria-hidden />
-                          </>
-                        ) : round.state === 'in_progress' ? (
-                          <>
-                            Resume round <ArrowRight size={15} aria-hidden />
-                          </>
-                        ) : (
-                          <>
-                            Start round <ArrowRight size={15} aria-hidden />
-                          </>
-                        )}
-                      </button>
+                      {round.state === 'completed' && !resultsOn ? null : (
+                        <button
+                          className={`btn ${round.state === 'completed' || round.state === 'locked' ? 'outline' : 'primary'}`}
+                          type="button"
+                          disabled={round.state === 'locked'}
+                          onClick={() => startOrResumeRound(round)}
+                        >
+                          {round.state === 'locked' ? (
+                            <>
+                              <Lock size={15} aria-hidden /> Locked
+                            </>
+                          ) : round.state === 'completed' ? (
+                            <>
+                              View results <ArrowRight size={15} aria-hidden />
+                            </>
+                          ) : round.state === 'in_progress' ? (
+                            <>
+                              Resume round <ArrowRight size={15} aria-hidden />
+                            </>
+                          ) : (
+                            <>
+                              Start round <ArrowRight size={15} aria-hidden />
+                            </>
+                          )}
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>
               </div>
             ) : (
               <div className="activity-detail-actions">
-                <button
-                  className={`btn ${item.attemptState === 'submitted' || startDisabled ? 'outline' : 'primary'}`}
-                  type="button"
-                  disabled={startDisabled}
-                  onClick={startOrResumeQuiz}
-                >
-                  {item.attemptState === 'submitted'
-                    ? item.latestResultId
-                      ? 'View results'
-                      : 'Open results list'
-                    : item.openAttemptId
-                      ? 'Resume attempt'
-                      : startBlocked
-                        ? 'Closed'
-                        : 'Start activity'}
-                  {startBlocked ? (
-                    <Lock size={15} aria-hidden />
-                  ) : (
-                    <ArrowRight size={15} aria-hidden />
-                  )}
-                </button>
-                {item.leaderboardAvailable ? (
+                {item.canStartAnother && item.attemptState === 'submitted' ? (
+                  <>
+                    <button className="btn primary" type="button" onClick={startOrResumeQuiz}>
+                      Start again
+                      <ArrowRight size={15} aria-hidden />
+                    </button>
+                    {resultsOn ? (
+                      <button className="btn outline" type="button" onClick={viewResults}>
+                        View results
+                      </button>
+                    ) : null}
+                  </>
+                ) : item.attemptState === 'submitted' && !resultsOn ? null : (
                   <button
-                    className="btn outline"
+                    className={`btn ${item.attemptState === 'submitted' || startDisabled ? 'outline' : 'primary'}`}
                     type="button"
-                    onClick={() => navigate(`/quizzes/${item.activityId}/leaderboard`)}
+                    disabled={startDisabled}
+                    onClick={startOrResumeQuiz}
                   >
-                    <Trophy size={15} aria-hidden /> Leaderboard
+                    {item.attemptState === 'submitted'
+                      ? item.latestResultId
+                        ? 'View results'
+                        : 'Open results list'
+                      : item.openAttemptId
+                        ? 'Resume attempt'
+                        : startBlocked
+                          ? 'Closed'
+                          : 'Start activity'}
+                    {startBlocked ? (
+                      <Lock size={15} aria-hidden />
+                    ) : (
+                      <ArrowRight size={15} aria-hidden />
+                    )}
                   </button>
-                ) : null}
+                )}
               </div>
             )}
           </section>
+
+          {instructionsOpen ? (
+            <div className="modal-backdrop" role="presentation">
+              <div
+                className="confirm-modal instructions-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="instructions-dialog-title"
+                aria-describedby="instructions-dialog-body"
+              >
+                <button
+                  className="modal-close icon-btn"
+                  type="button"
+                  onClick={() => {
+                    setInstructionsOpen(false);
+                    setInstructionsAck(false);
+                    setPendingRoundId(null);
+                  }}
+                  aria-label="Close"
+                >
+                  <X size={18} />
+                </button>
+                <h2 id="instructions-dialog-title">Instructions</h2>
+                <div
+                  id="instructions-dialog-body"
+                  className="instructions-modal-body rich-instructions"
+                  dangerouslySetInnerHTML={{ __html: safeInstructionsHtml }}
+                />
+                <label className="activity-detail-ack">
+                  <input
+                    type="checkbox"
+                    checked={instructionsAck}
+                    onChange={(e) => setInstructionsAck(e.target.checked)}
+                  />
+                  <span>I confirm that I have read the instructions</span>
+                </label>
+                <div className="modal-actions">
+                  <button
+                    className="btn outline"
+                    type="button"
+                    onClick={() => {
+                      setInstructionsOpen(false);
+                      setInstructionsAck(false);
+                      setPendingRoundId(null);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn primary"
+                    type="button"
+                    disabled={!instructionsAck}
+                    onClick={() => {
+                      const roundId = pendingRoundId ?? undefined;
+                      setInstructionsOpen(false);
+                      setInstructionsAck(false);
+                      setPendingRoundId(null);
+                      beginAttempt(roundId);
+                    }}
+                  >
+                    Begin <ArrowRight size={15} aria-hidden />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </>
       )}
     </div>

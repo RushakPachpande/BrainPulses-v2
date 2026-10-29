@@ -9,6 +9,7 @@ export const clientQueryKeys = {
     ['client', 'activities', studentId, kind] as const,
   results: (studentId: string, kind: string) => ['client', 'results', studentId, kind] as const,
   dashboard: (studentId: string) => ['client', 'dashboard', studentId] as const,
+  pages: (studentId: string) => ['client', 'pages', studentId] as const,
 };
 
 /** Legacy sessionStorage key prefix from PersistQueryClient (no longer written). */

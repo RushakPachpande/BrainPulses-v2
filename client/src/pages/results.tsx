@@ -22,6 +22,8 @@ import {
   SelectTrigger,
 } from '../components/ui/select';
 import { useAuth } from '../contexts/auth-context';
+import { useStudentPages } from '../hooks/use-student-pages';
+import { formatAttemptAllowance } from '../lib/attempt-allowance';
 import { answerLabel, formatDateLabel, formatKind } from '../lib/format';
 import { clientQueryKeys } from '../lib/query-keys';
 import { getResult, listResults } from '../services/api';
@@ -32,6 +34,9 @@ const RESULT_FILTERS = ['All', 'Quiz', 'Assessment'] as const;
 export function ResultsPage() {
   const navigate = useNavigate();
   const { student } = useAuth();
+  const pagesQuery = useStudentPages();
+  const quizzesOn = pagesQuery.data?.quizzes ?? true;
+  const assessmentsOn = pagesQuery.data?.assessments ?? true;
   const studentId = student?.id ?? '';
   const [filter, setFilter] = useState<(typeof RESULT_FILTERS)[number]>('All');
 
@@ -182,16 +187,24 @@ export function ResultsPage() {
                 </li>
               </ol>
               <div className="results-empty-actions">
-                <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
-                  Start a quiz <ArrowRight size={15} aria-hidden />
-                </button>
-                <button
-                  className="btn outline"
-                  type="button"
-                  onClick={() => navigate('/assessments')}
-                >
-                  Browse assessments
-                </button>
+                {quizzesOn ? (
+                  <button
+                    className="btn primary"
+                    type="button"
+                    onClick={() => navigate('/quizzes')}
+                  >
+                    Start a quiz <ArrowRight size={15} aria-hidden />
+                  </button>
+                ) : null}
+                {assessmentsOn ? (
+                  <button
+                    className="btn outline"
+                    type="button"
+                    onClick={() => navigate('/assessments')}
+                  >
+                    Browse assessments
+                  </button>
+                ) : null}
               </div>
             </>
           ) : (
@@ -310,9 +323,13 @@ export function ResultDetailPage() {
   }
 
   const scoreHidden = attempt.percent == null;
-  const unpublished = attempt.releaseStatus !== 'published';
-  const pending = unpublished || scoreHidden;
+  const waitingOnPublish = scoreHidden && attempt.releaseStatus !== 'published';
+  const pending = scoreHidden;
   const percent = pending ? null : Math.round(attempt.percent as number);
+  const attemptLine =
+    attempt.kind === 'quiz' && attempt.attemptsUsed != null
+      ? `Attempts: ${formatAttemptAllowance(attempt)}`
+      : null;
 
   return (
     <div className="page-stack">
@@ -332,7 +349,7 @@ export function ResultDetailPage() {
         <div className="result-hero-copy">
           <span className="result-label">
             <CheckCircle2 size={15} />
-            {unpublished
+            {waitingOnPublish
               ? 'Pending release'
               : scoreHidden
                 ? 'Score withheld'
@@ -341,7 +358,7 @@ export function ResultDetailPage() {
                   : 'Keep practising'}
           </span>
           <h2>
-            {unpublished
+            {waitingOnPublish
               ? 'Your score is waiting for release.'
               : scoreHidden
                 ? 'Your score is not visible yet.'
@@ -350,7 +367,7 @@ export function ResultDetailPage() {
                   : 'Every attempt is a chance to improve.'}
           </h2>
           <p>
-            {unpublished
+            {waitingOnPublish
               ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Scores appear when your instructor publishes results.`
               : scoreHidden
                 ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Your instructor has not made scores visible to students yet.`
@@ -369,6 +386,7 @@ export function ResultDetailPage() {
               <FileText size={15} />
               {attempt.questionCount ?? attempt.review.length} questions
             </span>
+            {attemptLine ? <span>{attemptLine}</span> : null}
           </div>
           <button
             className="btn primary"
@@ -426,6 +444,7 @@ export function ResultDetailPage() {
                     {q.correct === true ? 'Correct' : yours ? 'Review needed' : 'Not answered'}
                   </span>
                 </div>
+                {q.passageText ? <div className="question-passage">{q.passageText}</div> : null}
                 <b>{q.question}</b>
                 {q.questionImageUrl ? (
                   <StoredImage
