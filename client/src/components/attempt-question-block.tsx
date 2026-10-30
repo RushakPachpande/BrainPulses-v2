@@ -16,6 +16,8 @@ type Props = {
   total: number;
   answer: AttemptAnswerValue | undefined;
   marked: boolean;
+  /** Mark for review is for all-on-page only; hide when one-at-a-time. */
+  showMarkForReview?: boolean;
   showTopline?: boolean;
   id?: string;
   onAnswer: (answer: AttemptAnswerValue) => void;
@@ -29,6 +31,7 @@ export function AttemptQuestionBlock({
   total,
   answer,
   marked,
+  showMarkForReview = true,
   showTopline = true,
   id,
   onAnswer,
@@ -41,6 +44,8 @@ export function AttemptQuestionBlock({
     answer && 'value' in answer && Number.isFinite(answer.value) ? String(answer.value) : '';
   const textValue = answer && 'text' in answer ? answer.text : '';
   const isChoice = isSingleSelectType(q.type) || isMultiSelectType(q.type);
+  const showClear = isChoice;
+  const showActions = showMarkForReview || showClear;
 
   return (
     <div id={id} className="attempt-question-block">
@@ -50,7 +55,7 @@ export function AttemptQuestionBlock({
             QUESTION {String(index + 1).padStart(2, '0')}{' '}
             <span className="question-total">/ {String(total).padStart(2, '0')}</span>
           </span>
-          {marked ? (
+          {showMarkForReview && marked ? (
             <span className="review-chip">
               <Flag size={13} aria-hidden /> Marked for review
             </span>
@@ -137,27 +142,31 @@ export function AttemptQuestionBlock({
           </div>
         ) : null}
       </div>
-      <div className="question-actions">
-        <button
-          className={`btn outline review-toggle ${marked ? 'is-marked' : ''}`}
-          type="button"
-          aria-pressed={marked}
-          onClick={onToggleMarked}
-        >
-          <Flag size={15} aria-hidden />
-          {marked ? 'Unmark review' : 'Mark for review'}
-        </button>
-        {isChoice ? (
-          <button
-            className="btn outline"
-            type="button"
-            disabled={!isAnswered(answer)}
-            onClick={onClear}
-          >
-            <Eraser size={15} aria-hidden /> Clear selection
-          </button>
-        ) : null}
-      </div>
+      {showActions ? (
+        <div className="question-actions">
+          {showMarkForReview ? (
+            <button
+              className={`btn outline review-toggle ${marked ? 'is-marked' : ''}`}
+              type="button"
+              aria-pressed={marked}
+              onClick={onToggleMarked}
+            >
+              <Flag size={15} aria-hidden />
+              {marked ? 'Unmark review' : 'Mark for review'}
+            </button>
+          ) : null}
+          {showClear ? (
+            <button
+              className="btn outline"
+              type="button"
+              disabled={!isAnswered(answer)}
+              onClick={onClear}
+            >
+              <Eraser size={15} aria-hidden /> Clear selection
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

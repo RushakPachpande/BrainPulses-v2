@@ -693,6 +693,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 total={questions.length}
                 answer={answers[question.questionVersionId]}
                 marked={marked.includes(i)}
+                showMarkForReview
                 onAnswer={(value) => setAnswer(question.questionVersionId, value)}
                 onClear={() => clearAnswer(question.questionVersionId)}
                 onToggleMarked={() =>
@@ -707,6 +708,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               total={questions.length}
               answer={answers[q.questionVersionId]}
               marked={marked.includes(qIndex)}
+              showMarkForReview={false}
               onAnswer={(value) => setAnswer(q.questionVersionId, value)}
               onClear={() => clearAnswer(q.questionVersionId)}
               onToggleMarked={() =>
