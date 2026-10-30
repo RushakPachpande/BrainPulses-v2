@@ -14,6 +14,12 @@ function tokenKey(tokenHash: string): string {
   return `refresh:token:${tokenHash}`;
 }
 
+function userFamiliesKey(userId: string): string {
+  return `refresh:user:${userId}`;
+}
+
+const tokenFamilyIndex = (tokenHash: string) => `refresh:idx:${tokenHash}`;
+
 export type RefreshSession = {
   userId: string;
   organizationId: string;
@@ -30,12 +36,12 @@ export async function issueRefreshToken(session: RefreshSession): Promise<string
   await redis.set(tokenKey(tokenHash), JSON.stringify(session), 'EX', ttl);
   await redis.sadd(familyKey(session.familyId), tokenHash);
   await redis.expire(familyKey(session.familyId), ttl);
-  await redis.set(`refresh:idx:${tokenHash}`, session.familyId, 'EX', ttl);
+  await redis.set(tokenFamilyIndex(tokenHash), session.familyId, 'EX', ttl);
+  await redis.sadd(userFamiliesKey(session.userId), session.familyId);
+  await redis.expire(userFamiliesKey(session.userId), ttl);
 
   return raw;
 }
-
-const tokenFamilyIndex = (tokenHash: string) => `refresh:idx:${tokenHash}`;
 
 export async function rotateRefreshToken(
   rawToken: string,
@@ -76,7 +82,7 @@ export async function rotateRefreshToken(
   return { session, nextToken };
 }
 
-export async function revokeRefreshFamily(familyId: string): Promise<void> {
+export async function revokeRefreshFamily(familyId: string, userId?: string): Promise<void> {
   const redis = getRedis();
   const key = familyKey(familyId);
   const members = await redis.smembers(key);
@@ -84,6 +90,9 @@ export async function revokeRefreshFamily(familyId: string): Promise<void> {
     await redis.del(...members.map(tokenKey), key);
   } else {
     await redis.del(key);
+  }
+  if (userId) {
+    await redis.srem(userFamiliesKey(userId), familyId);
   }
 }
 
@@ -93,7 +102,18 @@ export async function revokeRefreshToken(rawToken: string): Promise<void> {
   const payload = await redis.get(tokenKey(tokenHash));
   if (!payload) return;
   const session = JSON.parse(payload) as RefreshSession;
-  await revokeRefreshFamily(session.familyId);
+  await revokeRefreshFamily(session.familyId, session.userId);
+}
+
+/** Revoke every refresh-token family for a staff user (password change / reset). */
+export async function revokeAllRefreshForUser(userId: string): Promise<void> {
+  const redis = getRedis();
+  const key = userFamiliesKey(userId);
+  const families = await redis.smembers(key);
+  for (const familyId of families) {
+    await revokeRefreshFamily(familyId);
+  }
+  await redis.del(key);
 }
 
 /**

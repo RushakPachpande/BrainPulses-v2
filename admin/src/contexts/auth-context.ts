@@ -4,6 +4,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  mustChangePassword: boolean;
 };
 
 export type AuthOrganization = {
@@ -52,6 +53,8 @@ export type AuthContextValue = AuthState & {
   signIn: (email: string, password: string) => Promise<void>;
   selectOrganization: (organizationId: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Apply a fresh session after a forced password change (keeps the user signed in). */
+  acceptSession: (session: SessionPayload & { accessToken: string }) => void;
 };
 
 export const AuthContext = createContext<AuthContextValue | null>(null);

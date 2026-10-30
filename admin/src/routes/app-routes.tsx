@@ -21,6 +21,9 @@ const ContestsPage = lazy(() =>
   import('@/pages/contests').then((m) => ({ default: m.ContestsPage })),
 );
 const UsersPage = lazy(() => import('@/pages/users').then((m) => ({ default: m.UsersPage })));
+const ChangePasswordPage = lazy(() =>
+  import('@/pages/change-password').then((m) => ({ default: m.ChangePasswordPage })),
+);
 const ActivityListPage = lazy(() =>
   import('@/pages/activity-list').then((m) => ({ default: m.ActivityListPage })),
 );
@@ -97,6 +100,7 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route element={<AdminLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="change-password" element={<ChangePasswordPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="students" element={<StudentsPage />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>

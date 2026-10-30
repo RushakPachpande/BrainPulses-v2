@@ -744,6 +744,45 @@ export async function deleteUserCompletely(membershipId: string, password: strin
   return body.data;
 }
 
+/** Super admin resets another user's password (membership id). */
+export async function resetUserPassword(
+  membershipId: string,
+  payload: { password: string; confirmPassword: string; mustChangePassword: boolean },
+) {
+  if (useFixtures) {
+    return { ok: true as const, self: false };
+  }
+  return apiPostData<{ ok: true; self: boolean }>(`/api/users/${membershipId}/password`, payload);
+}
+
+/** Change the signed-in user's password. Forced change returns a new session. */
+export async function changeOwnPassword(payload: {
+  currentPassword?: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<
+  | { status: 'signed_out'; ok: true }
+  | {
+      status: 'authenticated';
+      session: {
+        accessToken: string;
+        user: { id: string; email: string; name: string; mustChangePassword: boolean };
+        organization: { id: string; name: string; slug: string };
+        membership: {
+          id: string;
+          role: string;
+          assessmentAccess: string;
+          quizAccess: string;
+        };
+      };
+    }
+> {
+  if (useFixtures) {
+    return { status: 'signed_out', ok: true };
+  }
+  return apiPostData('/api/auth/password', payload);
+}
+
 export type SpreadsheetImportResult = {
   created: number;
   issues: { row: number; message: string }[];

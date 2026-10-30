@@ -3,6 +3,7 @@ import { requireAuth, requireStudent, requireUser } from '../../middleware/auth.
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
+  changePasswordSchema,
   selectOrganizationSchema,
   signInSchema,
   studentRequestOtpSchema,
@@ -43,3 +44,10 @@ authRouter.post('/student/sign-out', requireAuth, requireStudent, controller.stu
 authRouter.post('/refresh', controller.refresh);
 authRouter.post('/sign-out', controller.signOut);
 authRouter.get('/session', requireAuth, requireUser, controller.session);
+authRouter.post(
+  '/password',
+  requireAuth,
+  requireUser,
+  validate({ body: changePasswordSchema }),
+  controller.changePassword,
+);

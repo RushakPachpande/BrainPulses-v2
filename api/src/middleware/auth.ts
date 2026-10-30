@@ -2,6 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import type { AccessLevel, ActivityKind, MembershipRole } from '#prisma';
 import { badRequest, unauthorized, forbidden } from '../lib/errors.js';
 import { verifyToken } from '../lib/jwt.js';
+import { getPasswordEpoch } from '../lib/password-epoch.js';
 import { tenantStore } from '../lib/prisma.js';
 import { isStudentSessionCurrent, touchStudentSession } from '../lib/student-sessions.js';
 import type { AuthActor } from '../types/auth-actor.js';
@@ -19,6 +20,15 @@ function bearer(req: Request): string | null {
   return header.slice(7).trim() || null;
 }
 
+/** Paths a user with mustChangePassword may still call with their access token. */
+function isMustChangePasswordAllowed(req: Request): boolean {
+  const path = (req.originalUrl ?? req.url).split('?')[0] ?? '';
+  const method = req.method.toUpperCase();
+  if (method === 'GET' && path === '/api/auth/session') return true;
+  if (method === 'POST' && path === '/api/auth/password') return true;
+  return false;
+}
+
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
   try {
     const token = bearer(req);
@@ -26,6 +36,15 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     const payload = verifyToken(token);
 
     if (payload.typ === 'access') {
+      if (payload.pwdEpoch != null) {
+        const current = await getPasswordEpoch(payload.sub);
+        if (current > payload.pwdEpoch) throw unauthorized('Session expired. Sign in again.');
+      }
+
+      if (payload.mustChangePassword && !isMustChangePasswordAllowed(req)) {
+        throw forbidden('You must change your password before continuing.');
+      }
+
       req.actor = {
         kind: 'user',
         userId: payload.sub,
@@ -34,6 +53,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
         role: payload.role,
         assessmentAccess: payload.assessmentAccess,
         quizAccess: payload.quizAccess,
+        mustChangePassword: payload.mustChangePassword === true,
       };
       return next();
     }
@@ -57,7 +77,11 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     }
 
     throw unauthorized('Invalid access token.');
-  } catch {
+  } catch (err) {
+    if (err && typeof err === 'object' && 'status' in err) {
+      next(err);
+      return;
+    }
     next(unauthorized());
   }
 }

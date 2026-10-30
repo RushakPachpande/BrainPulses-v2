@@ -89,6 +89,21 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function resetPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.resetMembershipPassword(
+      actor.organizationId,
+      actor.userId,
+      req.params.id as string,
+      req.body,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function sampleXlsx(req: Request, res: Response, next: NextFunction) {
   try {
     const buffer = await service.sampleUsersWorkbook();

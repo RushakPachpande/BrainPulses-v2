@@ -1,5 +1,12 @@
 import { Link } from 'react-router';
-import { BanIcon, CheckCircle2Icon, EyeIcon, PencilIcon, TrashIcon } from 'lucide-react';
+import {
+  BanIcon,
+  CheckCircle2Icon,
+  EyeIcon,
+  KeyRoundIcon,
+  PencilIcon,
+  TrashIcon,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 type RowActionTarget = {
@@ -40,12 +47,14 @@ function ActionButton({
 export function RowActions({
   view,
   edit,
+  resetPassword,
   activate,
   deactivate,
   remove,
 }: {
   view?: RowActionTarget;
   edit?: RowActionTarget;
+  resetPassword?: { onClick: () => void };
   activate?: { onClick: () => void };
   deactivate?: { onClick: () => void };
   remove?: { label?: string; onClick: () => void };
@@ -54,6 +63,13 @@ export function RowActions({
     <div className="flex w-max shrink-0 flex-nowrap items-center gap-2">
       {view ? <ActionButton label="View" icon={EyeIcon} target={view} /> : null}
       {edit ? <ActionButton label="Edit" icon={PencilIcon} target={edit} /> : null}
+      {resetPassword ? (
+        <ActionButton
+          label="Reset password"
+          icon={KeyRoundIcon}
+          target={{ onClick: resetPassword.onClick }}
+        />
+      ) : null}
       {activate ? (
         <ActionButton label="Activate" icon={CheckCircle2Icon} target={activate} />
       ) : null}

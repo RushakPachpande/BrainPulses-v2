@@ -3,6 +3,7 @@ import {
   requireAuth,
   requireUser,
   requireOrgAccess,
+  requireRole,
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -12,6 +13,7 @@ import { xlsxImportUpload } from '../../lib/xlsx-upload.js';
 import {
   idParamSchema,
   inviteUserSchema,
+  resetPasswordSchema,
   updateMembershipSchema,
   userListQuerySchema,
 } from './schema.js';
@@ -56,6 +58,12 @@ usersRouter.post(
   requireOrgAccess('full'),
   validate({ params: idParamSchema }),
   controller.deactivate,
+);
+usersRouter.post(
+  '/:id/password',
+  requireRole('super_admin'),
+  validate({ params: idParamSchema, body: resetPasswordSchema }),
+  controller.resetPassword,
 );
 usersRouter.delete(
   '/:id',

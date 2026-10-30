@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeftIcon,
@@ -42,6 +42,7 @@ import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
+import { ResetPasswordDialog } from '@/pages/reset-password-dialog';
 import { UserEditorDialog } from '@/pages/user-editor-dialog';
 import { UserViewDialog } from '@/pages/user-view-dialog';
 import {
@@ -49,6 +50,7 @@ import {
   downloadUsersSample,
   getUsers,
   importUsers,
+  resetUserPassword,
   type AdminUser as User,
 } from '@/services';
 
@@ -104,15 +106,20 @@ function compareUsers(a: User, b: User, key: SortKey) {
 export function UsersPage() {
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
+  const navigate = useNavigate();
   const orgId = useOrgId();
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const actorUserId = auth.status === 'authenticated' ? auth.user.id : null;
+  const isSuperAdmin = membership?.role === 'super_admin';
   const canManage = canManageUsersOrSettings(membership);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
+  const [resetTarget, setResetTarget] = useState<User | null>(null);
+  const [resetting, setResetting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const { data, isPending: loading } = useQuery({
@@ -175,6 +182,39 @@ export function UsersPage() {
       if (editor === user.id) setEditor(null);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not delete user.');
+    }
+  }
+
+  async function onResetPassword(payload: {
+    password: string;
+    confirmPassword: string;
+    mustChangePassword: boolean;
+  }) {
+    if (!resetTarget?.id) return;
+    const resettingSelf = Boolean(resetTarget.userId && resetTarget.userId === actorUserId);
+    setResetting(true);
+    try {
+      await resetUserPassword(resetTarget.id, payload);
+      setResetTarget(null);
+      if (resettingSelf) {
+        toast.success(
+          payload.mustChangePassword
+            ? 'Password reset. Sign in with the new password, then choose a permanent one.'
+            : 'Password reset. Sign in with your new password.',
+        );
+        await auth.signOut();
+        void navigate('/login', { replace: true });
+        return;
+      }
+      toast.success(
+        payload.mustChangePassword
+          ? 'Password reset. They must change it at next login.'
+          : 'Password reset.',
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not reset password.');
+    } finally {
+      setResetting(false);
     }
   }
   const [search, setSearch] = useState('');
@@ -423,6 +463,7 @@ export function UsersPage() {
               }}
               renderActions={(user) => {
                 const id = user.id;
+                const canReset = isSuperAdmin && Boolean(id) && Boolean(user.userId);
                 return (
                   <RowActions
                     view={
@@ -436,6 +477,13 @@ export function UsersPage() {
                       canManage && id
                         ? {
                             onClick: () => setEditor(id),
+                          }
+                        : undefined
+                    }
+                    resetPassword={
+                      canReset
+                        ? {
+                            onClick: () => setResetTarget(user),
                           }
                         : undefined
                     }
@@ -517,6 +565,15 @@ export function UsersPage() {
       </div>
       {viewDialog}
       {editorDialog}
+      <ResetPasswordDialog
+        open={Boolean(resetTarget)}
+        userName={resetTarget?.name ?? 'user'}
+        saving={resetting}
+        onOpenChange={(open) => {
+          if (!open && !resetting) setResetTarget(null);
+        }}
+        onSubmit={onResetPassword}
+      />
       <ImportResultDialog
         result={importResult}
         onOpenChange={(open) => {

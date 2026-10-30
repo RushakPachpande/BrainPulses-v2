@@ -17,6 +17,8 @@ export type Student = {
 
 export type AdminUser = {
   id?: string;
+  /** Underlying user id (for password reset / self checks). */
+  userId?: string;
   name: string;
   email: string;
   role: string;

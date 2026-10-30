@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   CircleHelpIcon,
   HandshakeIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   ListIcon,
   LogOutIcon,
@@ -13,12 +14,16 @@ import {
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ConfirmProvider } from '@/components/confirm-dialog';
 import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ApiError } from '@/lib/api-client';
+import { ChangePasswordDialog } from '@/pages/change-password-dialog';
+import { changeOwnPassword } from '@/services';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Breadcrumb,
@@ -257,6 +262,72 @@ function SignOutButton() {
   );
 }
 
+function ChangePasswordButton() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  if (auth.status !== 'authenticated' || auth.membership.role !== 'super_admin') {
+    return null;
+  }
+
+  if (auth.user.mustChangePassword) {
+    return null;
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Change password"
+        title="Change password"
+        onClick={() => setOpen(true)}
+      >
+        <KeyRoundIcon />
+      </Button>
+      <ChangePasswordDialog
+        open={open}
+        saving={saving}
+        onOpenChange={(next) => {
+          if (!saving) setOpen(next);
+        }}
+        onSubmit={async (payload) => {
+          setSaving(true);
+          try {
+            const result = await changeOwnPassword(payload);
+            setOpen(false);
+            if (result.status === 'authenticated') {
+              auth.acceptSession({
+                accessToken: result.session.accessToken,
+                user: result.session.user,
+                organization: result.session.organization,
+                membership: {
+                  id: result.session.membership.id,
+                  role: result.session.membership.role as 'super_admin' | 'admin',
+                  assessmentAccess: result.session.membership.assessmentAccess,
+                  quizAccess: result.session.membership.quizAccess,
+                },
+              });
+              toast.success('Password updated.');
+              return;
+            }
+            await auth.signOut();
+            toast.success('Password updated. Sign in with your new password.');
+            void navigate('/login', { replace: true });
+          } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : 'Could not change password.');
+          } finally {
+            setSaving(false);
+          }
+        }}
+      />
+    </>
+  );
+}
+
 export function AdminLayout() {
   const auth = useAuth();
   const { pathname } = useLocation();
@@ -342,6 +413,7 @@ export function AdminLayout() {
               </div>
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <ThemeToggle />
+                <ChangePasswordButton />
                 <SignOutButton />
               </div>
             </div>

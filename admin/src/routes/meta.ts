@@ -26,6 +26,11 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'User Management',
     description: 'Manage admin users, roles, and access to assessments and quizzes.',
   },
+  '/change-password': {
+    crumb: 'BrainPulses / Change password',
+    title: 'Change password',
+    description: 'Choose a new password before continuing.',
+  },
   '/assessments': {
     crumb: 'BrainPulses / Assessment',
     title: 'Assessments',

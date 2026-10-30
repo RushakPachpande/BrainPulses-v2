@@ -7,7 +7,12 @@ import { DashboardPage } from './dashboard';
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     status: 'authenticated',
-    user: { id: 'u1', email: 'admin@brainpulses.com', name: 'Admin' },
+    user: {
+      id: 'u1',
+      email: 'admin@brainpulses.com',
+      name: 'Admin',
+      mustChangePassword: false,
+    },
     organization: { id: 'o1', name: 'NextGenInnov8', slug: 'nextgeninnov8' },
     membership: {
       id: 'm1',
@@ -18,6 +23,7 @@ vi.mock('@/contexts/auth-context', () => ({
     signIn: vi.fn(),
     selectOrganization: vi.fn(),
     signOut: vi.fn(),
+    acceptSession: vi.fn(),
   }),
 }));
 

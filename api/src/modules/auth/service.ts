@@ -9,11 +9,13 @@ import {
   signStudentAccessToken,
   verifyToken,
 } from '../../lib/jwt.js';
-import { verifyPassword } from '../../lib/password.js';
+import { hashPassword, verifyPassword } from '../../lib/password.js';
+import { bumpPasswordEpoch, getPasswordEpoch } from '../../lib/password-epoch.js';
 import { normalizePhone, toE164 } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import {
   issueRefreshToken,
+  revokeAllRefreshForUser,
   revokeRefreshToken,
   rotateRefreshToken,
 } from '../../lib/refresh-tokens.js';
@@ -65,9 +67,12 @@ async function issueSession(
     assessmentAccess: 'full' | 'edit' | 'view' | 'none';
     quizAccess: 'full' | 'edit' | 'view' | 'none';
     organization: { id: string; name: string; slug: string };
-    user: { id: string; email: string; name: string };
+    user: { id: string; email: string; name: string; mustChangePassword: boolean };
   },
+  opts: { touchLastLogin?: boolean } = {},
 ) {
+  const mustChangePassword = membership.user.mustChangePassword;
+  const pwdEpoch = await getPasswordEpoch(membership.userId);
   const accessToken = signAccessToken({
     sub: membership.userId,
     organizationId: membership.organizationId,
@@ -75,6 +80,8 @@ async function issueSession(
     role: membership.role,
     assessmentAccess: membership.assessmentAccess,
     quizAccess: membership.quizAccess,
+    mustChangePassword: mustChangePassword || undefined,
+    pwdEpoch,
   });
 
   const familyId = randomUUID();
@@ -86,10 +93,12 @@ async function issueSession(
   });
   setRefreshCookie(res, refreshToken);
 
-  await prisma.user.update({
-    where: { id: membership.userId },
-    data: { lastLoginAt: new Date() },
-  });
+  if (opts.touchLastLogin !== false) {
+    await prisma.user.update({
+      where: { id: membership.userId },
+      data: { lastLoginAt: new Date() },
+    });
+  }
 
   return {
     accessToken,
@@ -97,6 +106,7 @@ async function issueSession(
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      mustChangePassword,
     },
     organization: membership.organization,
     membership: {
@@ -227,6 +237,8 @@ export async function refresh(reqCookies: Record<string, string | undefined>, re
 
   setRefreshCookie(res, rotated.nextToken);
 
+  const mustChangePassword = membership.user.mustChangePassword;
+  const pwdEpoch = await getPasswordEpoch(membership.userId);
   const accessToken = signAccessToken({
     sub: membership.userId,
     organizationId: membership.organizationId,
@@ -234,6 +246,8 @@ export async function refresh(reqCookies: Record<string, string | undefined>, re
     role: membership.role,
     assessmentAccess: membership.assessmentAccess,
     quizAccess: membership.quizAccess,
+    mustChangePassword: mustChangePassword || undefined,
+    pwdEpoch,
   });
 
   return {
@@ -242,6 +256,7 @@ export async function refresh(reqCookies: Record<string, string | undefined>, re
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      mustChangePassword,
     },
     organization: membership.organization,
     membership: {
@@ -281,6 +296,7 @@ export async function getSession(actor: {
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      mustChangePassword: membership.user.mustChangePassword,
     },
     organization: {
       id: membership.organization.id,
@@ -293,6 +309,93 @@ export async function getSession(actor: {
       assessmentAccess: membership.assessmentAccess,
       quizAccess: membership.quizAccess,
     },
+  };
+}
+
+export async function changeOwnPassword(
+  actor: {
+    userId: string;
+    organizationId: string;
+    membershipId: string;
+  },
+  input: {
+    currentPassword?: string;
+    newPassword: string;
+    confirmPassword: string;
+  },
+  res: Response,
+) {
+  if (input.newPassword !== input.confirmPassword) {
+    throw badRequest('Passwords do not match.', { confirmPassword: 'Passwords do not match.' });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: actor.userId } });
+  if (!user || !user.isActive) throw unauthorized();
+
+  if (!user.mustChangePassword) {
+    if (!input.currentPassword) {
+      throw badRequest('Current password is required.', {
+        currentPassword: 'Current password is required.',
+      });
+    }
+    const ok = await verifyPassword(input.currentPassword, user.passwordHash);
+    if (!ok) {
+      throw badRequest('Current password is incorrect.', {
+        currentPassword: 'Current password is incorrect.',
+      });
+    }
+  }
+
+  const sameAsCurrent = await verifyPassword(input.newPassword, user.passwordHash);
+  if (sameAsCurrent) {
+    throw badRequest('New password must be different from the current password.', {
+      newPassword: 'New password must be different from the current password.',
+    });
+  }
+
+  const wasForced = user.mustChangePassword;
+  const passwordHash = await hashPassword(input.newPassword);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      mustChangePassword: false,
+    },
+  });
+
+  await bumpPasswordEpoch(user.id);
+  await revokeAllRefreshForUser(user.id);
+  clearRefreshCookie(res);
+
+  await writeAudit({
+    organizationId: actor.organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'user.password_change',
+    targetType: 'user',
+    targetId: user.id,
+    metadata: { forced: wasForced },
+  });
+
+  if (!wasForced) {
+    return { status: 'signed_out' as const, ok: true as const };
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      id: actor.membershipId,
+      userId: actor.userId,
+      organizationId: actor.organizationId,
+      isActive: true,
+    },
+    include: { organization: true, user: true },
+  });
+  if (!membership) throw unauthorized();
+
+  return {
+    status: 'authenticated' as const,
+    session: await issueSession(res, membership, { touchLastLogin: false }),
   };
 }
 

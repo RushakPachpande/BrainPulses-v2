@@ -1,9 +1,11 @@
 import { Prisma } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
-import { AppError, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { hashPassword } from '../../lib/password.js';
+import { bumpPasswordEpoch } from '../../lib/password-epoch.js';
 import { prisma } from '../../lib/prisma.js';
+import { revokeAllRefreshForUser } from '../../lib/refresh-tokens.js';
 import type { z } from 'zod';
 import {
   buildUserSampleWorkbook,
@@ -11,7 +13,12 @@ import {
   userRowIssue,
   type UserImportIssue,
 } from './import-export.js';
-import type { inviteUserSchema, updateMembershipSchema, userListQuerySchema } from './schema.js';
+import type {
+  inviteUserSchema,
+  resetPasswordSchema,
+  updateMembershipSchema,
+  userListQuerySchema,
+} from './schema.js';
 
 function mapMembership(m: {
   id: string;
@@ -248,6 +255,50 @@ export async function deactivateMembership(
     { isActive: false },
     actorAccess,
   );
+}
+
+export async function resetMembershipPassword(
+  organizationId: string,
+  actorUserId: string,
+  membershipId: string,
+  input: z.infer<typeof resetPasswordSchema>,
+) {
+  const existing = await prisma.membership.findFirst({
+    where: { organizationId, id: membershipId },
+    include: { user: true },
+  });
+  if (!existing) throw notFound('User membership not found.');
+
+  if (input.password !== input.confirmPassword) {
+    throw badRequest('Passwords do not match.', { confirmPassword: 'Passwords do not match.' });
+  }
+
+  const mustChangePassword = input.mustChangePassword ?? true;
+  const self = existing.userId === actorUserId;
+  const passwordHash = await hashPassword(input.password);
+
+  await prisma.user.update({
+    where: { id: existing.userId },
+    data: {
+      passwordHash,
+      mustChangePassword,
+    },
+  });
+
+  await bumpPasswordEpoch(existing.userId);
+  await revokeAllRefreshForUser(existing.userId);
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'user.password_reset',
+    targetType: 'user',
+    targetId: existing.userId,
+    metadata: { membershipId, mustChangePassword, self },
+  });
+
+  return { ok: true as const, self };
 }
 
 export async function deleteUserCompletely(

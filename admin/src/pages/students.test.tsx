@@ -8,7 +8,12 @@ import { StudentsPage } from './students';
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     status: 'authenticated',
-    user: { id: 'u1', email: 'viewer@brainpulses.com', name: 'Viewer' },
+    user: {
+      id: 'u1',
+      email: 'viewer@brainpulses.com',
+      name: 'Viewer',
+      mustChangePassword: false,
+    },
     organization: { id: 'o1', name: 'NextGenInnov8', slug: 'nextgeninnov8' },
     membership: {
       id: 'm1',
@@ -19,6 +24,7 @@ vi.mock('@/contexts/auth-context', () => ({
     signIn: vi.fn(),
     selectOrganization: vi.fn(),
     signOut: vi.fn(),
+    acceptSession: vi.fn(),
   }),
 }));
 

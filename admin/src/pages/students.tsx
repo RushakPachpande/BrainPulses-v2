@@ -377,9 +377,9 @@ export function StudentsPage() {
       toast.error(
         err instanceof ApiError
           ? err.message
-          : enabling
-            ? 'Could not enable students.'
-            : 'Could not disable students.',
+          : activating
+            ? 'Could not activate students.'
+            : 'Could not deactivate students.',
       );
     } finally {
       setBulkAction(null);

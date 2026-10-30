@@ -10,6 +10,10 @@ export type AccessTokenPayload = {
   role: MembershipRole;
   assessmentAccess: AccessLevel;
   quizAccess: AccessLevel;
+  /** When true, only password-change / session routes are allowed. */
+  mustChangePassword?: boolean;
+  /** Password epoch; tokens with a lower value are rejected after a password write. */
+  pwdEpoch?: number;
 };
 
 export type StudentAccessTokenPayload = {

@@ -58,6 +58,16 @@ export async function session(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function changePassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const result = await authService.changeOwnPassword(actor, req.body, res);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function studentSignInByCode(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await authService.studentSignInByCode(req.body);

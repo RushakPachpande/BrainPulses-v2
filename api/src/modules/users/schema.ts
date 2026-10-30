@@ -31,3 +31,20 @@ export const updateMembershipSchema = z
   .strict();
 
 export const idParamSchema = z.object({ id: z.string().uuid() });
+
+export const resetPasswordSchema = z
+  .object({
+    password: z.string().min(8).max(128),
+    confirmPassword: z.string().min(8).max(128),
+    mustChangePassword: z.boolean().optional().default(true),
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    if (data.password !== data.confirmPassword) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Passwords do not match.',
+        path: ['confirmPassword'],
+      });
+    }
+  });

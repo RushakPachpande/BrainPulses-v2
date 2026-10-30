@@ -84,6 +84,7 @@ export function mapStudentFromApi(row: {
 
 export function mapUserFromApi(row: {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   role: string;
@@ -94,6 +95,7 @@ export function mapUserFromApi(row: {
 }): AdminUser {
   return {
     id: row.id,
+    userId: row.userId,
     name: row.name,
     email: row.email,
     role: row.role,

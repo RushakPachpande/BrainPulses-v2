@@ -1491,8 +1491,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 <div className="flex flex-col gap-3 border-t border-border pt-4">
                   <p className="text-sm font-medium">Quiz behaviour</p>
                   <div className="overflow-hidden rounded-xl border border-border">
-                    <div className="grid grid-cols-1 md:grid-cols-2">
-                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5 md:border-r">
+                    <div className="flex flex-col divide-y divide-border">
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
                         <div className="min-w-0">
                           <FieldLabel htmlFor="quiz-allowPrevious">Allow Previous</FieldLabel>
                           <FieldDescription>
@@ -1512,7 +1512,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           }
                         />
                       </div>
-                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5">
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
                         <div className="min-w-0">
                           <FieldLabel htmlFor="quiz-questionsCompulsory">
                             Questions are compulsory
@@ -1534,7 +1534,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           }
                         />
                       </div>
-                      <div className="flex flex-col gap-3 border-b border-border p-3.5 md:border-r">
+                      <div className="flex flex-col gap-3 p-3.5">
                         <div className="flex min-h-(--control-h) items-center justify-between gap-3">
                           <div className="min-w-0">
                             <FieldLabel htmlFor="quiz-negativeMarking">Negative marking</FieldLabel>
@@ -1580,7 +1580,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           </Field>
                         ) : null}
                       </div>
-                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5">
+                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
                         <div className="min-w-0">
                           <FieldLabel htmlFor="quiz-showQuestionPanel">
                             Question overview panel
@@ -1602,54 +1602,56 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           }
                         />
                       </div>
-                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5">
+                      <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <FieldLabel htmlFor="quiz-max-attempts">Number of attempts</FieldLabel>
                           <FieldDescription id="quiz-max-attempts-hint">
-                            How many times a student can submit. An admin can still grant an extra
-                            attempt.
+                            How many times a student can submit. Turn on Unlimited for no limit. An
+                            admin can still grant an extra attempt.
                           </FieldDescription>
                         </div>
-                        <Input
-                          id="quiz-max-attempts"
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          max={100}
-                          aria-describedby="quiz-max-attempts-hint"
-                          className="w-24 shrink-0"
-                          value={quizSettings.maxAttempts ?? ''}
-                          disabled={readOnly || quizSettings.maxAttempts === null}
-                          onChange={(e) => {
-                            const next = Number(e.target.value);
-                            setQuizSettings((prev) => ({
-                              ...prev,
-                              maxAttempts:
-                                Number.isInteger(next) && next >= 1 ? Math.min(100, next) : 1,
-                            }));
-                          }}
-                        />
-                      </div>
-                      <div className="flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5 md:border-r">
-                        <div className="min-w-0">
-                          <FieldLabel htmlFor="quiz-unlimited-attempts">Unlimited</FieldLabel>
-                          <FieldDescription>
-                            Students can submit as many times as they need.
-                          </FieldDescription>
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+                          <Input
+                            id="quiz-max-attempts"
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={100}
+                            aria-describedby="quiz-max-attempts-hint"
+                            className="w-24"
+                            value={quizSettings.maxAttempts ?? ''}
+                            disabled={readOnly || quizSettings.maxAttempts === null}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setQuizSettings((prev) => ({
+                                ...prev,
+                                maxAttempts:
+                                  Number.isInteger(next) && next >= 1 ? Math.min(100, next) : 1,
+                              }));
+                            }}
+                          />
+                          <div className="flex items-center gap-2">
+                            <FieldLabel
+                              htmlFor="quiz-unlimited-attempts"
+                              className="text-sm font-normal text-muted-foreground"
+                            >
+                              Unlimited
+                            </FieldLabel>
+                            <Switch
+                              id="quiz-unlimited-attempts"
+                              checked={quizSettings.maxAttempts === null}
+                              disabled={readOnly}
+                              onCheckedChange={(checked) =>
+                                setQuizSettings((prev) => ({
+                                  ...prev,
+                                  maxAttempts: checked ? null : (prev.maxAttempts ?? 1),
+                                }))
+                              }
+                            />
+                          </div>
                         </div>
-                        <Switch
-                          id="quiz-unlimited-attempts"
-                          checked={quizSettings.maxAttempts === null}
-                          disabled={readOnly}
-                          onCheckedChange={(checked) =>
-                            setQuizSettings((prev) => ({
-                              ...prev,
-                              maxAttempts: checked ? null : (prev.maxAttempts ?? 1),
-                            }))
-                          }
-                        />
                       </div>
-                      <div className="flex flex-col gap-3 border-b border-border p-3.5 md:min-h-(--control-h) md:flex-row md:items-center md:justify-between">
+                      <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
                           <FieldLabel id="quiz-score-release-label">Score</FieldLabel>
                           <FieldDescription>
@@ -1701,31 +1703,22 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           ['shuffleOptions', 'Shuffle options'],
                           ['answersVisibleToStudent', 'Show answers to students (when published)'],
                         ] as const
-                      ).map(([key, label], index, items) => {
-                        const cellsBefore = 6;
-                        const column = (cellsBefore + index) % 2;
-                        const lastAlone =
-                          index === items.length - 1 && (cellsBefore + items.length) % 2 === 1;
-                        return (
-                          <div
-                            key={key}
-                            className={cn(
-                              'flex min-h-(--control-h) items-center justify-between gap-3 border-b border-border p-3.5',
-                              column === 0 && !lastAlone ? 'md:border-r' : null,
-                            )}
-                          >
-                            <FieldLabel htmlFor={`quiz-${key}`}>{label}</FieldLabel>
-                            <Switch
-                              id={`quiz-${key}`}
-                              checked={quizSettings[key]}
-                              disabled={readOnly}
-                              onCheckedChange={(checked) =>
-                                setQuizSettings((prev) => ({ ...prev, [key]: checked }))
-                              }
-                            />
-                          </div>
-                        );
-                      })}
+                      ).map(([key, label]) => (
+                        <div
+                          key={key}
+                          className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5"
+                        >
+                          <FieldLabel htmlFor={`quiz-${key}`}>{label}</FieldLabel>
+                          <Switch
+                            id={`quiz-${key}`}
+                            checked={quizSettings[key]}
+                            disabled={readOnly}
+                            onCheckedChange={(checked) =>
+                              setQuizSettings((prev) => ({ ...prev, [key]: checked }))
+                            }
+                          />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>

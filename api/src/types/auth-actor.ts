@@ -9,6 +9,7 @@ export type AuthActor =
       role: MembershipRole;
       assessmentAccess: AccessLevel;
       quizAccess: AccessLevel;
+      mustChangePassword?: boolean;
     }
   | {
       kind: 'student';

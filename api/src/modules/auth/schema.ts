@@ -6,6 +6,14 @@ export const signInSchema = z.object({
   password: z.string().min(1),
 });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(128).optional(),
+    newPassword: z.string().min(8).max(128),
+    confirmPassword: z.string().min(8).max(128),
+  })
+  .strict();
+
 export const selectOrganizationSchema = z.object({
   selectionToken: z.string().min(1),
   organizationId: z.string().uuid(),
