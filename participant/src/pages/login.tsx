@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router';
 import { LoginArt } from '../components/login-art';
+import { PageLoader } from '../components/loading-overlay';
 import { ThemeButton } from '../components/theme-button';
 import { SessionActiveError, useAuth } from '../contexts/auth-context';
 import { ApiError } from '../lib/api-client';
@@ -22,7 +23,7 @@ export function LoginPage() {
     document.getElementById('idv')?.focus();
   }, []);
 
-  if (!ready) return <p className="sr-only">Loading</p>;
+  if (!ready) return <PageLoader />;
   if (participant) return <Navigate to={from} replace />;
 
   async function signIn(replaceSession: boolean) {

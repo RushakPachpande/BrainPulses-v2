@@ -74,6 +74,7 @@ export type ParticipantResultDetail = {
   percent: number | null;
   passed: boolean | null;
   releaseStatus: string;
+  endMessage?: string | null;
   answersVisible?: boolean;
   submittedAt: string;
   questionCount?: number;

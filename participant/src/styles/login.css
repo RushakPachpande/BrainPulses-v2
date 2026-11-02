@@ -183,10 +183,18 @@ body.dk2 .login-screen {
     sans-serif;
   background: #45068f;
   box-shadow: 0 12px 24px -10px rgba(69, 6, 143, 0.6);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .login-screen button.btn:hover:not(:disabled) {
   filter: brightness(1.06);
+}
+
+.login-screen button.btn:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .login-screen button.btn:disabled {
@@ -206,6 +214,14 @@ body.dk2 .login-screen {
   display: grid;
   place-items: center;
   cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.login-screen .thm:active {
+  transform: scale(0.94);
 }
 
 .login-screen .dec {

@@ -214,6 +214,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     'one_at_a_time',
   );
   const [instructions, setInstructions] = useState('');
+  const [endMessage, setEndMessage] = useState('');
   const [imageFileId, setImageFileId] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [quizSettings, setQuizSettings] = useState<QuizActivitySettings>(defaultQuizSettings);
@@ -228,6 +229,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         name,
         description,
         instructions,
+        endMessage,
         imageFileId,
         imageFileName: imageFile?.name ?? null,
         code,
@@ -256,6 +258,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       name,
       description,
       instructions,
+      endMessage,
       imageFileId,
       imageFile,
       code,
@@ -394,6 +397,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               : 'one_at_a_time',
         );
         setInstructions(activity.instructions ?? '');
+        setEndMessage(activity.endMessage ?? '');
         setImageFileId(activity.imageFileId ?? '');
         setImageFile(null);
         const settings = activity.settings;
@@ -445,6 +449,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               allowPrevious: durationMode === 'per_question' ? false : quizSettings.allowPrevious,
               showQuestionPanel:
                 durationMode === 'per_question' ? false : quizSettings.showQuestionPanel,
+              questionsCompulsory: quizSettings.negativeMarkingEnabled
+                ? false
+                : quizSettings.questionsCompulsory,
               negativeMarkPoints: quizSettings.negativeMarkingEnabled
                 ? quizSettings.negativeMarkPoints
                 : 0,
@@ -520,6 +527,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         instructions: isInstructionsEmpty(instructions)
           ? null
           : sanitizeInstructionsHtml(instructions),
+        endMessage: isInstructionsEmpty(endMessage) ? null : sanitizeInstructionsHtml(endMessage),
         imageFileId: nextImageFileId,
         startsAt: startDate,
         endsAt: endDate,
@@ -860,6 +868,21 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     <FieldDescription>
                       Shown in a dialog before participants start. If set, they must confirm they
                       have read them. Supports bold, italic, and lists.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="activity-end-message">Quiz End Message</FieldLabel>
+                    <RichTextEditor
+                      id="activity-end-message"
+                      value={endMessage}
+                      disabled={readOnly}
+                      onChange={setEndMessage}
+                      aria-label="Quiz end message"
+                    />
+                    <FieldDescription>
+                      Shown on the result screen after a participant submits. If left empty, the
+                      default pass, fail, or pending message is used. Supports bold, italic, and
+                      lists.
                     </FieldDescription>
                   </Field>
                 </>
@@ -1521,14 +1544,19 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                             Questions are compulsory
                           </FieldLabel>
                           <FieldDescription>
-                            When on, participants must answer before they can go to the next
-                            question or submit. When off, they can skip with a confirmation.
+                            {quizSettings.negativeMarkingEnabled
+                              ? 'Off while negative marking is enabled so unanswered questions stay allowed.'
+                              : 'When on, participants must answer before they can go to the next question or submit. When off, they can skip with a confirmation.'}
                           </FieldDescription>
                         </div>
                         <Switch
                           id="quiz-questionsCompulsory"
-                          checked={quizSettings.questionsCompulsory}
-                          disabled={readOnly}
+                          checked={
+                            quizSettings.negativeMarkingEnabled
+                              ? false
+                              : quizSettings.questionsCompulsory
+                          }
+                          disabled={readOnly || quizSettings.negativeMarkingEnabled}
                           onCheckedChange={(checked) =>
                             setQuizSettings((prev) => ({
                               ...prev,
@@ -1553,6 +1581,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                               setQuizSettings((prev) => ({
                                 ...prev,
                                 negativeMarkingEnabled: checked,
+                                questionsCompulsory: checked ? false : prev.questionsCompulsory,
                                 negativeMarkPoints:
                                   checked && prev.negativeMarkPoints <= 0
                                     ? 0.25

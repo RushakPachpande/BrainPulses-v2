@@ -316,6 +316,7 @@ model Activity {
   name               String
   subtitle           String?
   instructions       String?          @db.Text
+  endMessage         String?          @map("end_message") @db.Text
   status             FlowStatus       @default(draft)
   startsAt           DateTime?        @map("starts_at") @db.Timestamptz(3)
   endsAt             DateTime?        @map("ends_at") @db.Timestamptz(3)

@@ -14,7 +14,7 @@ body {
   --g1: #fbe4f0;
   --g2: #e3dcff;
   --gl: rgba(58, 26, 166, 0.06);
-  --selbg: #17093f;
+  --selbg: var(--vio);
   --selfg: #fff;
   --selbadge: #e9d7b0;
   --selbadgefg: #17093f;
@@ -107,6 +107,82 @@ a:focus-visible,
 svg {
   display: block;
   flex: none;
+}
+/* motion — short hover / press / enter feedback */
+@keyframes portal-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes portal-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.begin,
+.cta,
+.da .p,
+.da .s,
+.qf .nx,
+.rbt .p,
+.rbt .s,
+.lo,
+.back {
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.begin:active:not(:disabled),
+.cta:active:not(:disabled),
+.da .p:active:not(:disabled),
+.da .s:active:not(:disabled),
+.qf .nx:active:not(:disabled),
+.rbt .p:active:not(:disabled),
+.rbt .s:active:not(:disabled),
+.lo:active:not(:disabled),
+.back:active {
+  transform: scale(0.97);
+}
+.thm,
+.tg,
+.ib,
+.xb {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+.thm:active,
+.tg:active,
+.ib:active,
+.xb:active {
+  transform: scale(0.94);
+}
+@media (hover: hover) {
+  .begin:hover:not(:disabled),
+  .da .p:hover:not(:disabled),
+  .qf .nx:hover:not(:disabled),
+  .rbt .p:hover:not(:disabled) {
+    filter: brightness(1.08);
+  }
+  .da .s:hover:not(:disabled),
+  .rbt .s:hover:not(:disabled),
+  .lo:hover:not(:disabled) {
+    background-color: var(--soft);
+  }
 }
 .brand {
   display: flex;
@@ -242,6 +318,9 @@ svg {
   margin-bottom: 6px;
   cursor: pointer;
   text-decoration: none;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 .nv a:hover {
   background: var(--soft);
@@ -481,7 +560,6 @@ body.pc .grid {
   color: #fff;
   box-shadow: 0 8px 18px -10px var(--vio);
   width: 100%;
-  transition: filter 0.15s;
 }
 .cta:hover:not(:disabled) {
   filter: brightness(1.1);
@@ -503,7 +581,7 @@ body.pc .grid {
   .grid .card {
     transition:
       transform 0.2s ease,
-      box-shadow 0.2s ease;
+      box-shadow 0.22s ease;
   }
   .grid .card:hover {
     transform: translateY(-6px);
@@ -530,6 +608,7 @@ body.pc .grid {
   cursor: pointer;
   background: none;
   border: 0;
+  border-radius: 8px;
 }
 .back:hover {
   color: var(--ink);
@@ -597,9 +676,15 @@ body.pc .grid {
   cursor: pointer;
   width: 100%;
   text-align: left;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 .ack:hover {
   box-shadow: inset 0 0 0 1.5px #9a86e8;
+}
+.ack:active {
+  transform: scale(0.99);
 }
 .ack .bx {
   width: 24px;
@@ -659,6 +744,7 @@ body.pc .grid {
   overflow: hidden;
   text-align: center;
   padding-bottom: 22px;
+  animation: portal-rise-in 0.28s ease;
 }
 .rb {
   aspect-ratio: 1200/525;
@@ -718,6 +804,41 @@ body.pc .grid {
   margin: 8px auto 0;
   max-width: 420px;
   padding: 0 20px;
+}
+.rcard .end-message {
+  margin: 18px auto 0;
+  max-width: 460px;
+  padding: 0 24px;
+  text-align: center;
+  color: var(--ink);
+  font: 500 16px/1.5 Manrope;
+}
+.rcard .end-message p,
+.rcard .end-message h2,
+.rcard .end-message h3 {
+  margin: 0 0 8px;
+  padding: 0;
+  max-width: none;
+  color: inherit;
+  font: inherit;
+}
+.rcard .end-message h2,
+.rcard .end-message h3,
+.rcard .end-message strong {
+  font-family: Sora, sans-serif;
+  font-weight: 800;
+}
+.rcard .end-message h2 {
+  font-size: 32px;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.rcard .end-message ul,
+.rcard .end-message ol {
+  display: inline-block;
+  text-align: left;
+  margin: 8px auto 0;
+  padding-left: 1.2em;
 }
 .rbt {
   display: flex;
@@ -812,7 +933,7 @@ body.pc .grid {
   background: var(--vio);
 }
 .segs i.c {
-  background: var(--ink);
+  background: var(--vio2);
 }
 .segs i.r {
   background: var(--clay);
@@ -977,10 +1098,16 @@ body.pc .grid {
   text-align: left;
   width: 100%;
   color: var(--ink);
-  transition: box-shadow 0.12s;
+  transition:
+    box-shadow 0.15s ease,
+    transform 0.15s ease,
+    background-color 0.15s ease;
 }
 .o:hover {
   box-shadow: inset 0 0 0 1.5px #9a86e8;
+}
+.o:active {
+  transform: scale(0.985);
 }
 .o b {
   width: 34px;
@@ -1084,14 +1211,15 @@ body.pc .grid {
   gap: 8px;
   box-shadow: 0 8px 18px -10px var(--vio);
 }
-.qf .nx.sub {
-  background: var(--ink);
-  color: var(--paper);
+.qf .nx:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
   box-shadow: none;
 }
-body.dk2 .qf .nx.sub {
-  background: #f1ecff;
-  color: #17093f;
+.qf .nx.sub {
+  background: var(--vio);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px var(--vio);
 }
 /* dialog + lightbox */
 .dlg,
@@ -1108,6 +1236,10 @@ body.dk2 .qf .nx.sub {
 .dlg.open,
 .lbx.open {
   display: grid;
+}
+.dlg.open .dc,
+.lbx.open .lbc {
+  animation: portal-pop-in 0.2s ease;
 }
 .dc {
   width: min(460px, 100%);
@@ -1141,12 +1273,9 @@ body.dk2 .qf .nx.sub {
   color: var(--ink);
 }
 .da .p {
-  background: var(--ink);
-  color: var(--paper);
-}
-body.dk2 .da .p {
-  background: #f1ecff;
-  color: #17093f;
+  background: var(--vio);
+  color: #fff;
+  box-shadow: 0 8px 18px -10px var(--vio);
 }
 .lbc {
   width: min(900px, 100%);

@@ -518,6 +518,7 @@ export async function getMyResult(organizationId: string, participantId: string,
     percent: scoreOk ? toNumber(result.percent) : null,
     passed: scoreOk ? result.passed : null,
     releaseStatus: result.releaseStatus,
+    endMessage: result.activity.endMessage ?? null,
     answersVisible: includeKeys,
     submittedAt: result.attempt.submittedAt ?? result.createdAt,
     questionCount:

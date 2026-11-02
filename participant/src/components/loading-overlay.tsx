@@ -19,3 +19,8 @@ export function LoadingOverlay() {
     </div>
   );
 }
+
+/** Visible full-screen wait for route/chunk/page data loads (not sr-only). */
+export function PageLoader() {
+  return <LoadingOverlay />;
+}

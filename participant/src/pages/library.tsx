@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
+import { PageLoader } from '../components/loading-overlay';
 import { StoredImage } from '../components/stored-image';
 import { IconArrow, PulseLine } from '../components/portal-icons';
 import { useAuth } from '../contexts/auth-context';
@@ -82,6 +83,8 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
     navigate(`${base}/${item.activityId}`);
   }
 
+  if (loading && items.length === 0) return <PageLoader />;
+
   return (
     <>
       <h1>Welcome, {firstName(participant?.name)}.</h1>
@@ -89,7 +92,6 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
       <div className="sec2">All {plural}</div>
       {isError ? <p className="portal-note">Unable to load activities.</p> : null}
       <div className="grid" aria-busy={loading || undefined}>
-        {loading ? <span className="sr-only">Loading activities</span> : null}
         {!loading && items.length === 0 ? (
           <p className="portal-note" role="status">
             No {plural} yet.

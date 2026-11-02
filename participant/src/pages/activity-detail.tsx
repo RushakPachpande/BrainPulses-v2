@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { PageLoader } from '../components/loading-overlay';
 import { PortalHeader } from '../components/portal-header';
 import { IconArrow, IconBack, IconCheck } from '../components/portal-icons';
 import { useParticipantPages } from '../hooks/use-participant-pages';
@@ -112,7 +113,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
           <IconBack /> Back to {backLabel}
         </button>
         {loading ? (
-          <p className="sr-only">Loading activity</p>
+          <PageLoader />
         ) : !item ? (
           <section className="dcard">
             <h1>{error || 'Activity not found'}</h1>

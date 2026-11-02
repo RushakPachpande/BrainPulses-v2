@@ -10,6 +10,7 @@ import { ApiLoadingProvider } from './contexts/api-loading';
 import { AuthProvider } from './contexts/auth';
 import { ClientQueryProvider } from './contexts/query-provider';
 import { RequireAuth } from './contexts/require-auth';
+import { PageLoader } from './components/loading-overlay';
 import { ParticipantPageGuard, EnabledHome } from './layouts/participant-page-guard';
 import { LoginPage } from './pages/login';
 
@@ -40,7 +41,7 @@ function ShellLayout() {
 
 function LazyOutlet() {
   return (
-    <Suspense fallback={<p className="sr-only">Loading page</p>}>
+    <Suspense fallback={<PageLoader />}>
       <Outlet />
     </Suspense>
   );

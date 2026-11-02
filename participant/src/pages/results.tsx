@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { SummaryTilesSkeleton } from '../components/skeletons';
+import { PageLoader } from '../components/loading-overlay';
 import { PortalHeader } from '../components/portal-header';
 import { IconCheck } from '../components/portal-icons';
 import { StoredImage } from '../components/stored-image';
@@ -17,6 +18,7 @@ import {
 import { useAuth } from '../contexts/auth-context';
 import { useParticipantPages } from '../hooks/use-participant-pages';
 import { answerLabel, formatDateLabel, formatKind } from '../lib/format';
+import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { clientQueryKeys } from '../lib/query-keys';
 import { getResult, listActivities, listResults } from '../services/api';
 import type { ParticipantResultDetail } from '../services/types';
@@ -278,7 +280,6 @@ type ResultRetryInfo = {
 export function ResultDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const { participant } = useAuth();
   const [attempt, setAttempt] = useState<ParticipantResultDetail | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
   const [retry, setRetry] = useState<ResultRetryInfo | null>(null);
@@ -337,7 +338,7 @@ export function ResultDetailPage() {
     };
   }, [id]);
 
-  if (loading) return <p className="sr-only">Loading result</p>;
+  if (loading) return <PageLoader />;
 
   if (!attempt) {
     return (
@@ -360,18 +361,24 @@ export function ResultDetailPage() {
   const hidden = attempt.percent == null;
   const percent = hidden ? 0 : Math.round(attempt.percent as number);
   const passed = hidden ? false : (attempt.passed ?? percent >= 50);
-  const used = retry ? retry.used : Math.max(1, attempt.attemptsUsed ?? 1);
-  const max = retry ? retry.max : (attempt.maxAttempts ?? null);
-  const left = retry ? retry.left : null;
-  const canRetry = retry ? retry.canRetry : false;
+  const used = retry?.used ?? Math.max(1, attempt.attemptsUsed ?? 1);
+  /** Prefer activity allowance when loaded — result API may default unlimited to 1. */
+  const max = retry != null ? retry.max : (attempt.maxAttempts ?? null);
+  const unlimited = max == null;
+  const left = unlimited
+    ? null
+    : Math.max(0, max + (attempt.extraAttempts ?? 0) - (attempt.attemptsUsed ?? used));
+  const canRetry = retry?.canRetry ?? false;
   const library = attempt.kind === 'assessment' ? '/assessments' : '/quizzes';
   const backLabel = attempt.kind === 'assessment' ? 'Back to assessments' : 'Back to quizzes';
-  const name = participant?.name?.split(/\s+/)[0] || 'there';
   const score = attempt.score ?? 0;
   const maxScore = attempt.maxScore ?? 0;
   const ring = hidden ? 0 : Math.max(0, Math.min(389.6, (percent / 100) * 389.6));
   const color = passed ? 'var(--vio)' : 'var(--clay)';
-  const showRetry = canRetry;
+  const showRetry = canRetry && (unlimited || (left != null && left > 0));
+  const endMessageHtml = isInstructionsEmpty(attempt.endMessage)
+    ? ''
+    : sanitizeInstructionsHtml(attempt.endMessage ?? '');
 
   return (
     <>
@@ -412,22 +419,12 @@ export function ResultDetailPage() {
               </div>
             </div>
           )}
-          <h1>
-            {hidden
-              ? `Thanks for participating, ${name}!`
-              : passed
-                ? `Well done, ${name}!`
-                : 'Not quite there yet'}
-          </h1>
-          <p>
-            {hidden
-              ? `Your answers for ${attempt.title} are submitted. Results will be shared by the organiser.`
-              : passed
-                ? `You passed ${attempt.title}.`
-                : showRetry
-                  ? `Give ${attempt.title} another try.`
-                  : `That was your last attempt at ${attempt.title}.`}
-          </p>
+          {endMessageHtml ? (
+            <div
+              className="rich-instructions end-message"
+              dangerouslySetInnerHTML={{ __html: endMessageHtml }}
+            />
+          ) : null}
           <div className="rbt">
             {showRetry ? (
               <button
@@ -435,9 +432,9 @@ export function ResultDetailPage() {
                 type="button"
                 onClick={() => navigate(`${library}/${attempt.activityId}`)}
               >
-                {left == null
-                  ? 'Try again'
-                  : `Try again · ${left} attempt${left === 1 ? '' : 's'} left`}
+                {unlimited
+                  ? 'Try again (Unlimited attempts)'
+                  : `Try again (${left ?? 0} attempt${left === 1 ? '' : 's'} left)`}
               </button>
             ) : null}
             <button
@@ -449,9 +446,7 @@ export function ResultDetailPage() {
             </button>
           </div>
           <div className="at">
-            {hidden
-              ? 'Submitted'
-              : `Attempt ${used}${max == null ? '' : ` of ${max}`}${left === 0 ? ' · no attempts left' : ''}`}
+            {unlimited ? `Attempt ${used} of Unlimited` : `Attempt ${used} of ${max}`}
           </div>
         </section>
       </div>

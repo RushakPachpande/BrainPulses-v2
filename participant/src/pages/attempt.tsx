@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { AttemptQuestionBlock } from '../components/attempt-question-block';
+import { PageLoader } from '../components/loading-overlay';
 import { ThemeButton } from '../components/theme-button';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
 import { useParticipantPages } from '../hooks/use-participant-pages';
@@ -52,11 +53,12 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [skipConfirmIndex, setSkipConfirmIndex] = useState<number | null>(null);
   const [allowLeave, setAllowLeave] = useState(false);
   const [error, setError] = useState('');
-  const [proctorWarn, setProctorWarn] = useState('');
   const [busy, setBusy] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [savingInFlight, setSavingInFlight] = useState(false);
   const [pendingSave, setPendingSave] = useState(false);
+  /** Per-question timer expired with no answer — do not block compulsory submit. */
+  const [timedOutUnanswered, setTimedOutUnanswered] = useState<Set<string>>(() => new Set());
   const revisionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const pendingAnswersRef = useRef<AnswerMap | null>(null);
@@ -100,6 +102,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       }
       setAnswers(mapped);
       answersRef.current = mapped;
+      setTimedOutUnanswered(new Set());
       let startIndex = 0;
       if (opts?.resume && data.questions.length > 0) {
         const firstOpen = data.questions.findIndex((q) => !isAnswered(mapped[q.questionVersionId]));
@@ -180,37 +183,22 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   useEffect(() => {
     if (!attempt?.softProctoring) return;
 
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') {
-        setProctorWarn(
-          'You left this tab. Stay on this page until you submit — leaving may be flagged.',
-        );
-      }
-    };
     const block = (e: Event) => {
       e.preventDefault();
     };
 
-    document.addEventListener('visibilitychange', onVisibility);
     document.addEventListener('copy', block);
     document.addEventListener('cut', block);
     document.addEventListener('paste', block);
     document.addEventListener('contextmenu', block);
 
     return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('copy', block);
       document.removeEventListener('cut', block);
       document.removeEventListener('paste', block);
       document.removeEventListener('contextmenu', block);
     };
   }, [attempt?.softProctoring]);
-
-  useEffect(() => {
-    if (!proctorWarn) return;
-    const t = window.setTimeout(() => setProctorWarn(''), 6000);
-    return () => window.clearTimeout(t);
-  }, [proctorWarn]);
 
   const persist = useCallback(
     async (nextAnswers: AnswerMap) => {
@@ -431,6 +419,15 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     if (!attempt || busy || seconds > 0 || autoSubmitted.current || submitting) return;
     autoSubmitted.current = true;
     if (attempt.durationMode === 'per_question') {
+      const current = questions[qIndex];
+      if (current && !isAnswered(answersRef.current[current.questionVersionId])) {
+        setTimedOutUnanswered((prev) => {
+          if (prev.has(current.questionVersionId)) return prev;
+          const next = new Set(prev);
+          next.add(current.questionVersionId);
+          return next;
+        });
+      }
       const isLast = qIndex >= questions.length - 1;
       if (isLast) {
         void doSubmit(true);
@@ -446,12 +443,18 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     doSubmit,
     goToNextQuestionWithRenewedDeadline,
     qIndex,
-    questions.length,
+    questions,
     seconds,
     submitting,
   ]);
 
   function setAnswer(questionVersionId: string, answer: AttemptAnswerValue) {
+    setTimedOutUnanswered((prev) => {
+      if (!prev.has(questionVersionId)) return prev;
+      const next = new Set(prev);
+      next.delete(questionVersionId);
+      return next;
+    });
     const next = { ...answers, [questionVersionId]: answer };
     setAnswers(next);
     queueSave(next);
@@ -571,19 +574,33 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     [answers],
   );
   const allAnswered = questions.length > 0 && answeredCount === questions.length;
+  /**
+   * Compulsory submit gate. Unanswered does not block when:
+   * - the per-question timer expired on that item, or
+   * - forward-only / per-question left it behind (cannot go back).
+   */
+  const allRequiredAnswered = useMemo(() => {
+    if (questions.length === 0) return false;
+    return questions.every((question, index) => {
+      if (isAnswered(answers[question.questionVersionId])) return true;
+      if (timedOutUnanswered.has(question.questionVersionId)) return true;
+      if (!allOnPage && forwardOnly && index < qIndex) return true;
+      return false;
+    });
+  }, [allOnPage, answers, forwardOnly, qIndex, questions, timedOutUnanswered]);
   const unansweredCount = Math.max(0, questions.length - answeredCount);
   const markedSorted = useMemo(() => [...marked].sort((a, b) => a - b), [marked]);
   const q = questions[qIndex];
   const currentAnswered = q ? isAnswered(answers[q.questionVersionId]) : true;
+  const onSubmitSurface = allOnPage || qIndex >= questions.length - 1;
   const nextDisabled = questionsCompulsory && !allOnPage && !currentAnswered;
   const submitDisabled =
-    submitting ||
-    (questionsCompulsory && (allOnPage || qIndex >= questions.length - 1 ? !allAnswered : false));
+    submitting || (questionsCompulsory && onSubmitSurface && !allRequiredAnswered);
 
   function requestSubmit() {
     if (submitting) return;
     if (questionsCompulsory) {
-      if (!allAnswered) return;
+      if (!allRequiredAnswered) return;
       void doSubmit(false);
       return;
     }
@@ -602,7 +619,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }
 
   if ((busy && !attempt) || pageOff) {
-    return <p className="sr-only">Loading attempt</p>;
+    return <PageLoader />;
   }
 
   if (error && !attempt) {
@@ -731,11 +748,6 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         </button>
       </div>
       {error ? <p className="portal-note">{error}</p> : null}
-      {proctorWarn ? (
-        <p className="portal-note" role="status">
-          {proctorWarn}
-        </p>
-      ) : null}
       <div className="qwrap">
         <section className="qcard">
           {allOnPage ? (
@@ -792,6 +804,12 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             <span className="c" id="attempt-submit-status">
               {answeredCount} of {questions.length} answered
               {reviewCount ? ` · ${reviewCount} marked for review` : ''}
+              {questionsCompulsory && onSubmitSurface && !allRequiredAnswered
+                ? ' · Answer every remaining question to submit'
+                : ''}
+              {questionsCompulsory && !onSubmitSurface && !currentAnswered
+                ? ' · Answer to continue'
+                : ''}
               {saving ? ' · Saving…' : ''}
             </span>
             {allOnPage || qIndex >= questions.length - 1 ? (

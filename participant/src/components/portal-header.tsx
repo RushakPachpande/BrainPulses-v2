@@ -7,13 +7,6 @@ export function PortalHeader({ showName = false }: { showName?: boolean }) {
   const { participant } = useAuth();
   const navigate = useNavigate();
   const name = participant?.name ?? 'Participant';
-  const initials = name
-    .split(' ')
-    .map((part) => part[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
 
   return (
     <header className="hdr">
@@ -21,9 +14,6 @@ export function PortalHeader({ showName = false }: { showName?: boolean }) {
       <div className="me">
         <ThemeButton />
         {showName ? <b>{name}</b> : null}
-        <div className="av" title={name}>
-          {initials || 'BP'}
-        </div>
       </div>
     </header>
   );

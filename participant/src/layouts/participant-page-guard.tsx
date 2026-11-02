@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
+import { PageLoader } from '../components/loading-overlay';
 import { useParticipantPages } from '../hooks/use-participant-pages';
 import {
   DEFAULT_PARTICIPANT_PAGES,
@@ -31,10 +32,10 @@ export function ParticipantPageGuard({
   if (!pages) {
     return shell ? (
       <ParticipantShell pages={null}>
-        <p className="sr-only">Loading page</p>
+        <PageLoader />
       </ParticipantShell>
     ) : (
-      <p className="sr-only">Loading page</p>
+      <PageLoader />
     );
   }
 
@@ -61,7 +62,7 @@ export function ParticipantPageGuard({
 export function EnabledHome() {
   const pagesQuery = useParticipantPages();
   const pages = pagesQuery.data ?? (pagesQuery.isError ? DEFAULT_PARTICIPANT_PAGES : null);
-  if (!pages) return <p className="sr-only">Loading page</p>;
+  if (!pages) return <PageLoader />;
   const dest = firstEnabledParticipantPath(pages);
   if (!dest) return <PagesUnavailable />;
   return <Navigate to={dest} replace />;

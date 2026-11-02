@@ -312,6 +312,7 @@ type ActivityWritePayload = {
   name?: string;
   subtitle?: string;
   instructions?: string | null;
+  endMessage?: string | null;
   imageFileId?: string | null;
   startsAt?: Date | null;
   endsAt?: Date | null;
@@ -358,6 +359,7 @@ function mapActivityDetail(
     passingPercent?: number | null;
     presentation?: string;
     instructions?: string | null;
+    endMessage?: string | null;
     imageFileId?: string | null;
     bankIds?: string[];
     sponsorId?: string | null;
@@ -385,6 +387,7 @@ function mapActivityDetail(
     passingPercent: row.passingPercent ?? null,
     presentation: (row.presentation as ActivityDetail['presentation']) ?? 'one_at_a_time',
     instructions: row.instructions ?? null,
+    endMessage: row.endMessage ?? null,
     imageFileId: row.imageFileId ?? null,
     bankIds: row.bankIds ?? [],
     sponsorId: row.sponsorId ?? null,
@@ -430,6 +433,7 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
       passingPercent: 40,
       presentation: 'one_at_a_time',
       instructions: null,
+      endMessage: null,
       imageFileId: null,
       bankIds: [],
       sponsorId: null,

@@ -104,6 +104,7 @@ function mapActivity(a: {
   name: string;
   subtitle: string | null;
   instructions?: string | null;
+  endMessage?: string | null;
   kind: string;
   status: string;
   startsAt: Date | null;
@@ -134,6 +135,7 @@ function mapActivity(a: {
     name: a.name,
     subtitle: a.subtitle,
     instructions: a.instructions ?? null,
+    endMessage: a.endMessage ?? null,
     kind: a.kind,
     status: statusDisplay,
     statusKey: a.status,
@@ -508,6 +510,7 @@ export async function createActivity(
           name: input.name,
           subtitle: input.subtitle,
           instructions: input.instructions?.trim() || null,
+          endMessage: input.endMessage?.trim() || null,
           imageFileId: input.imageFileId ?? null,
           startsAt: input.startsAt,
           endsAt: input.endsAt,
@@ -554,6 +557,7 @@ export async function createActivity(
         name: input.name,
         subtitle: input.subtitle,
         instructions: input.instructions?.trim() || null,
+        endMessage: input.endMessage?.trim() || null,
         imageFileId: input.imageFileId ?? null,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
@@ -665,6 +669,9 @@ export async function updateActivity(
           ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}),
           ...(input.instructions !== undefined
             ? { instructions: input.instructions?.trim() || null }
+            : {}),
+          ...(input.endMessage !== undefined
+            ? { endMessage: input.endMessage?.trim() || null }
             : {}),
           ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
           ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),

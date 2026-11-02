@@ -140,6 +140,7 @@ export type ActivityDetail = Activity & {
   passingPercent: number | null;
   presentation: 'one_at_a_time' | 'all_on_page';
   instructions: string | null;
+  endMessage: string | null;
   imageFileId: string | null;
   bankIds: string[];
   sponsorId: string | null;

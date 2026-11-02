@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StoredImage } from './stored-image';
 import { IconCheck, IconStar } from './portal-icons';
 import {
@@ -46,11 +46,34 @@ export function AttemptQuestionBlock({
   const multi = isMultiSelectType(q.type);
   const [zoom, setZoom] = useState<{ src: string; title: string } | null>(null);
   const [scale, setScale] = useState(1);
+  const lightboxStageRef = useRef<HTMLDivElement>(null);
 
   function openZoom(src: string, title: string) {
     setScale(1);
     setZoom({ src, title });
   }
+
+  useEffect(() => {
+    if (!zoom) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setZoom(null);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [zoom]);
+
+  useEffect(() => {
+    const stage = lightboxStageRef.current;
+    if (!zoom || !stage) return;
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return;
+      event.preventDefault();
+      const step = event.deltaY > 0 ? -0.1 : 0.1;
+      setScale((value) => Math.min(3, Math.max(0.5, Math.round((value + step) * 100) / 100)));
+    };
+    stage.addEventListener('wheel', onWheel, { passive: false });
+    return () => stage.removeEventListener('wheel', onWheel);
+  }, [zoom]);
 
   return (
     <div id={id}>
@@ -200,12 +223,12 @@ export function AttemptQuestionBlock({
               ×
             </button>
           </div>
-          <div className="lbi">
+          <div className="lbi" ref={lightboxStageRef}>
             {zoom ? (
               <StoredImage src={zoom.src} alt="" style={{ transform: `scale(${scale})` }} />
             ) : null}
           </div>
-          <div className="lbf">Click outside the picture or press Esc to close</div>
+          <div className="lbf">Ctrl+scroll to zoom · click outside or press Esc to close</div>
         </div>
       </div>
     </div>

@@ -55,6 +55,14 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
     return { ...defaultQuizSettings };
   }
   const q = quiz as Record<string, unknown>;
+  const negativeMarkingEnabled =
+    typeof q.negativeMarkingEnabled === 'boolean'
+      ? q.negativeMarkingEnabled
+      : defaultQuizSettings.negativeMarkingEnabled;
+  const questionsCompulsoryRaw =
+    typeof q.questionsCompulsory === 'boolean'
+      ? q.questionsCompulsory
+      : defaultQuizSettings.questionsCompulsory;
   return {
     shuffleQuestions:
       typeof q.shuffleQuestions === 'boolean'
@@ -73,14 +81,8 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
       typeof q.showQuestionPanel === 'boolean'
         ? q.showQuestionPanel
         : defaultQuizSettings.showQuestionPanel,
-    questionsCompulsory:
-      typeof q.questionsCompulsory === 'boolean'
-        ? q.questionsCompulsory
-        : defaultQuizSettings.questionsCompulsory,
-    negativeMarkingEnabled:
-      typeof q.negativeMarkingEnabled === 'boolean'
-        ? q.negativeMarkingEnabled
-        : defaultQuizSettings.negativeMarkingEnabled,
+    questionsCompulsory: negativeMarkingEnabled ? false : questionsCompulsoryRaw,
+    negativeMarkingEnabled,
     negativeMarkPoints:
       typeof q.negativeMarkPoints === 'number' &&
       Number.isFinite(q.negativeMarkPoints) &&
