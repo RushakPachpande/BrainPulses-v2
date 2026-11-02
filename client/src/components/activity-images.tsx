@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
 import { StoredImage } from './stored-image';
 import { KindIcon } from './ui-bits';
-import type { StudentActivity } from '../services/types';
+import type { ParticipantActivity } from '../services/types';
 
-function coverOf(item: StudentActivity) {
+function coverOf(item: ParticipantActivity) {
   const fileId = item.imageFileId || item.contestImageFileId || item.sponsorImageFileId;
   if (!fileId) return null;
   return {
@@ -17,7 +17,7 @@ export function ActivityCover({
   className,
   imgClassName,
 }: {
-  item: StudentActivity;
+  item: ParticipantActivity;
   className: string;
   imgClassName: string;
 }) {
@@ -34,7 +34,7 @@ export function ActivityCardMedia({
   item,
   children,
 }: {
-  item: StudentActivity;
+  item: ParticipantActivity;
   children: ReactNode;
 }) {
   const cover = coverOf(item);
@@ -56,7 +56,7 @@ export function ActivityCardMedia({
   );
 }
 
-export function ActivityOrganizer({ item }: { item: StudentActivity }) {
+export function ActivityOrganizer({ item }: { item: ParticipantActivity }) {
   if (!item.sponsorName && !item.contestName) return null;
   const lead = item.sponsorName || item.contestName || '';
   const rest = item.sponsorName ? item.contestName : null;
@@ -88,7 +88,7 @@ export function ActivityOrganizer({ item }: { item: StudentActivity }) {
   );
 }
 
-export function ActivityCredit({ item }: { item: StudentActivity }) {
+export function ActivityCredit({ item }: { item: ParticipantActivity }) {
   if (!item.sponsorName && !item.contestName) return null;
   const coverId = item.contestImageFileId || item.sponsorImageFileId;
   const markId =

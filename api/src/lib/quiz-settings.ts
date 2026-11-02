@@ -6,10 +6,10 @@ export type QuizSettings = {
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
   scoreRelease: ScoreRelease;
-  answersVisibleToStudent: boolean;
+  answersVisibleToParticipant: boolean;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
-  /** When true, students must answer before Next/Submit. */
+  /** When true, participants must answer before Next/Submit. */
   questionsCompulsory: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
@@ -21,7 +21,7 @@ export const defaultQuizSettings: QuizSettings = {
   shuffleQuestions: true,
   shuffleOptions: true,
   scoreRelease: 'after_submit',
-  answersVisibleToStudent: false,
+  answersVisibleToParticipant: false,
   allowPrevious: true,
   showQuestionPanel: true,
   questionsCompulsory: true,
@@ -34,7 +34,7 @@ function parseScoreRelease(q: Record<string, unknown>): ScoreRelease {
   if (q.scoreRelease === 'after_submit' || q.scoreRelease === 'after_publish') {
     return q.scoreRelease;
   }
-  if (q.scoreVisibleToStudent === true) return 'after_publish';
+  if (q.scoreVisibleToParticipant === true) return 'after_publish';
   return 'after_submit';
 }
 
@@ -63,10 +63,10 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
     shuffleOptions:
       typeof q.shuffleOptions === 'boolean' ? q.shuffleOptions : defaultQuizSettings.shuffleOptions,
     scoreRelease: parseScoreRelease(q),
-    answersVisibleToStudent:
-      typeof q.answersVisibleToStudent === 'boolean'
-        ? q.answersVisibleToStudent
-        : defaultQuizSettings.answersVisibleToStudent,
+    answersVisibleToParticipant:
+      typeof q.answersVisibleToParticipant === 'boolean'
+        ? q.answersVisibleToParticipant
+        : defaultQuizSettings.answersVisibleToParticipant,
     allowPrevious:
       typeof q.allowPrevious === 'boolean' ? q.allowPrevious : defaultQuizSettings.allowPrevious,
     showQuestionPanel:

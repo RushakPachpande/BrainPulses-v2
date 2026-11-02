@@ -1,12 +1,12 @@
 import { z } from 'zod';
 import { listQuerySchema } from '../../lib/pagination.js';
 
-export const studentListQuerySchema = listQuerySchema.extend({
+export const participantListQuerySchema = listQuerySchema.extend({
   status: z.enum(['active', 'inactive', 'all']).default('all'),
   sort: z.enum(['name', 'code', 'createdAt', 'registered']).optional(),
 });
 
-export const createStudentSchema = z
+export const createParticipantSchema = z
   .object({
     name: z.string().trim().min(1).max(200),
     email: z.string().email(),
@@ -18,7 +18,7 @@ export const createStudentSchema = z
   })
   .strict();
 
-export const updateStudentSchema = createStudentSchema
+export const updateParticipantSchema = createParticipantSchema
   .partial()
   .extend({
     phone: z.string().trim().max(40).nullable().optional(),
@@ -31,7 +31,7 @@ export const updateStudentSchema = createStudentSchema
 
 export const idParamSchema = z.object({ id: z.string().uuid() });
 
-export const bulkStudentIdsSchema = z
+export const bulkParticipantIdsSchema = z
   .object({
     ids: z.array(z.string().uuid()).min(1).max(500),
   })

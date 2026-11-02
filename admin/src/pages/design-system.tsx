@@ -136,7 +136,7 @@ export function DesignSystemPage() {
           <CardHeader>
             <CardTitle>Typography</CardTitle>
             <CardDescription>
-              Plus Jakarta Sans for hierarchy; Source Sans 3 for fluent, readable UI.
+              Sora for page titles and attempt display; Manrope for fluent, readable UI.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

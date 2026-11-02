@@ -52,7 +52,7 @@ await prisma.activity.updateMany({
 });
 await prisma.contest.updateMany({
   where: { name: 'Launch Cup' },
-  data: { description: 'Opening contest for NextGenInnov8 students.' },
+  data: { description: 'Opening contest for NextGenInnov8 participants.' },
 });
 
 const banksAfter = await prisma.questionBank.findMany({

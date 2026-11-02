@@ -30,7 +30,7 @@
 - `admin/` is React + TypeScript + Vite.
 - UI uses Tailwind CSS v4, shadcn/ui (`radix-nova`), Radix UI, `lucide-react`, React Router, Recharts and Sonner.
 - The live theme is Royal Violet `#45058F` on a porcelain canvas in light mode, and Vivid Violet `#7E22CE` on night navy in dark mode. Dark is the default. Tokens are the last `:root` and `.dark` blocks in `admin/src/index.css`.
-- Current routes cover dashboard, students, users, assessments, quizzes, question banks, registrations, reports and four settings pages.
+- Current routes cover dashboard, participants, users, assessments, quizzes, question banks, registrations, reports and four settings pages.
 - `admin/src/services/index.ts` calls the API unless `VITE_USE_FIXTURES=true`, in which case it reads `admin/src/services/fixtures.ts`.
 - `api/` is an Express service with Prisma, PostgreSQL, Redis, and server-side auth. Critical flows are traced in [architecture/DEPENDENCY_MAP.md](architecture/DEPENDENCY_MAP.md).
 - Settings saves that are still local-only are called out in the page that owns them. Do not treat every settings control as a confirmed persistent write.

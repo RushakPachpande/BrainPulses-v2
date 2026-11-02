@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { StudentProfile } from '../services/types';
+import type { ParticipantProfile } from '../services/types';
 
 export class SessionActiveError extends Error {
   constructor() {
@@ -10,7 +10,7 @@ export class SessionActiveError extends Error {
 
 export type AuthState = {
   ready: boolean;
-  student: StudentProfile | null;
+  participant: ParticipantProfile | null;
   signInWithCode: (code: string, replaceSession?: boolean) => Promise<void>;
   requestPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
   resendPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;

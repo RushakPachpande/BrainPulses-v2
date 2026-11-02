@@ -10,7 +10,7 @@ Severity is impact if left alone, not effort. Items marked done were verified on
 
 The safe excellence work through 2026-10-24 is in place. Do not hide published assessment reviews. Do not split `activity-wizard.tsx`, `attempts/service.ts`, or `activities/service.ts` until a test fails when one function's result changes.
 
-The admin and client entry chunks were over 500 kB. Student routes are now loaded on navigation, and React, the router, and TanStack Query are separate chunks. Latest builds have no chunk-size warning. Largest pieces: admin `kpi-grid` 331 kB (charts, already separate) and `react` 219 kB.
+The admin and client entry chunks were over 500 kB. Participant routes are now loaded on navigation, and React, the router, and TanStack Query are separate chunks. Latest builds have no chunk-size warning. Largest pieces: admin `kpi-grid` 331 kB (charts, already separate) and `react` 219 kB.
 
 Do not hide published assessment reviews. Do not split `activity-wizard.tsx`, `attempts/service.ts`, or `activities/service.ts` until a test fails when one function's result changes.
 
@@ -23,9 +23,9 @@ Do not hide published assessment reviews. Do not split `activity-wizard.tsx`, `a
 | | |
 |---|---|
 | Severity | High. `npm run test:admin` is already red, so later refactors cannot use it as a safety net |
-| Evidence | Audit command table. Failures: `admin/src/pages/dashboard.test.tsx`, `admin/src/pages/students.test.tsx`. Error text: `No QueryClient set` |
+| Evidence | Audit command table. Failures: `admin/src/pages/dashboard.test.tsx`, `admin/src/pages/participants.test.tsx`. Error text: `No QueryClient set` |
 | Next action | Mount the same query provider the app uses, or a test double, around those two renders |
-| Acceptance | `npm run test` in `admin/` passes. Dashboard and students UI behavior stay as captured in `baseline/` |
+| Acceptance | `npm run test` in `admin/` passes. Dashboard and participants UI behavior stay as captured in `baseline/` |
 | Depends on | None |
 
 ### R2 — Docs still describe the API as proposed
@@ -44,7 +44,7 @@ Do not hide published assessment reviews. Do not split `activity-wizard.tsx`, `a
 
 | | |
 |---|---|
-| Severity | High for any client refactor. Student sign-in and attempts have no component or end-to-end suite in `client/` |
+| Severity | High for any client refactor. Participant sign-in and attempts have no component or end-to-end suite in `client/` |
 | Evidence | No test script in `client/package.json`. No `*.test` files under `client/src`. API covers OTP and attempts at HTTP level (`api/test/auth.test.ts`, `api/test/attempts.test.ts`) |
 | Next action | Add one client test for the sign-in screen states already visible in `baseline/client-login-*.png` (Unique ID tab, phone tab, validation). Do not add a full E2E stack in that change |
 | Acceptance | `npm run test` exists in `client/` and the new test fails if the Unique ID field or sign-in button disappears |
@@ -91,7 +91,7 @@ Do not hide published assessment reviews. Do not split `activity-wizard.tsx`, `a
 | | |
 |---|---|
 | Severity | Info. Keep these tests as the gate before splitting attempt or activity services |
-| Evidence | `api/test/tenancy.test.ts`, `api/test/security.test.ts`, `api/test/attempts.test.ts`, `api/test/student-portal.test.ts`. Full API run: 36 passed |
+| Evidence | `api/test/tenancy.test.ts`, `api/test/security.test.ts`, `api/test/attempts.test.ts`, `api/test/participant-portal.test.ts`. Full API run: 36 passed |
 | Next action | Before changing `attempts/service.ts` or `activities/service.ts`, add one characterization test only for a branch the current files do not hit. Do not split the file first |
 | Acceptance | API `npm run test` still passes, including the new case |
 | Depends on | R1 is not required for API work. R4 should not be mixed in |

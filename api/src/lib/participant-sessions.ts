@@ -3,8 +3,8 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { getRedis } from './redis.js';
 
-function sessionKey(organizationId: string, studentId: string) {
-  return `student:session:${organizationId}:${studentId}`;
+function sessionKey(organizationId: string, participantId: string) {
+  return `participant:session:${organizationId}:${participantId}`;
 }
 
 /**
@@ -27,8 +27,8 @@ export function parseDurationSeconds(rawValue: string, fallback = 900): number {
   return n * 86_400;
 }
 
-export function studentSessionTtlSeconds(): number {
-  return parseDurationSeconds(env.STUDENT_JWT_ACCESS_EXPIRES_IN, 14_400);
+export function participantSessionTtlSeconds(): number {
+  return parseDurationSeconds(env.PARTICIPANT_JWT_ACCESS_EXPIRES_IN, 14_400);
 }
 
 /** Prefer the signed token's `exp` so Redis TTL matches jsonwebtoken's lifetime. */
@@ -38,14 +38,14 @@ export function ttlSecondsFromAccessToken(accessToken: string): number {
     const ttl = decoded.exp - Math.floor(Date.now() / 1000);
     if (ttl > 0) return ttl;
   }
-  return studentSessionTtlSeconds();
+  return participantSessionTtlSeconds();
 }
 
-export async function getStudentSessionId(
+export async function getParticipantSessionId(
   organizationId: string,
-  studentId: string,
+  participantId: string,
 ): Promise<string | null> {
-  const raw = await getRedis().get(sessionKey(organizationId, studentId));
+  const raw = await getRedis().get(sessionKey(organizationId, participantId));
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as { sessionId?: string };
@@ -55,65 +55,65 @@ export async function getStudentSessionId(
   }
 }
 
-export async function storeStudentSession(
+export async function storeParticipantSession(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   sessionId: string,
   ttlSeconds: number,
 ): Promise<void> {
-  const ttl = ttlSeconds > 0 ? ttlSeconds : studentSessionTtlSeconds();
+  const ttl = ttlSeconds > 0 ? ttlSeconds : participantSessionTtlSeconds();
   await getRedis().set(
-    sessionKey(organizationId, studentId),
+    sessionKey(organizationId, participantId),
     JSON.stringify({ sessionId }),
     'EX',
     ttl,
   );
 }
 
-export async function replaceStudentSession(
+export async function replaceParticipantSession(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   ttlSeconds?: number,
 ): Promise<string> {
   const sessionId = randomUUID();
-  await storeStudentSession(
+  await storeParticipantSession(
     organizationId,
-    studentId,
+    participantId,
     sessionId,
-    ttlSeconds ?? studentSessionTtlSeconds(),
+    ttlSeconds ?? participantSessionTtlSeconds(),
   );
   return sessionId;
 }
 
-export async function isStudentSessionCurrent(
+export async function isParticipantSessionCurrent(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   sessionId: string,
 ): Promise<boolean> {
-  const current = await getStudentSessionId(organizationId, studentId);
+  const current = await getParticipantSessionId(organizationId, participantId);
   return current !== null && current === sessionId;
 }
 
-/** Extend Redis session TTL on authenticated student requests. */
-export async function touchStudentSession(
+/** Extend Redis session TTL on authenticated participant requests. */
+export async function touchParticipantSession(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   sessionId: string,
 ): Promise<void> {
-  const key = sessionKey(organizationId, studentId);
-  const current = await getStudentSessionId(organizationId, studentId);
+  const key = sessionKey(organizationId, participantId);
+  const current = await getParticipantSessionId(organizationId, participantId);
   if (current !== sessionId) return;
-  await getRedis().expire(key, studentSessionTtlSeconds());
+  await getRedis().expire(key, participantSessionTtlSeconds());
 }
 
-export async function clearStudentSession(
+export async function clearParticipantSession(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   sessionId?: string,
 ): Promise<void> {
   if (sessionId) {
-    const current = await getStudentSessionId(organizationId, studentId);
+    const current = await getParticipantSessionId(organizationId, participantId);
     if (current !== sessionId) return;
   }
-  await getRedis().del(sessionKey(organizationId, studentId));
+  await getRedis().del(sessionKey(organizationId, participantId));
 }

@@ -28,13 +28,15 @@ describe('cycleSelection', () => {
 
 describe('selectionFlags', () => {
   it('names the next step', () => {
-    expect(selectionFlags('students', new Set(), page, filtered).allLabel).toBe(
-      'Select all students on this page',
+    expect(selectionFlags('participants', new Set(), page, filtered).allLabel).toBe(
+      'Select all participants on this page',
     );
-    expect(selectionFlags('students', new Set(page), page, filtered).allLabel).toBe(
-      'Select all 3 students',
+    expect(selectionFlags('participants', new Set(page), page, filtered).allLabel).toBe(
+      'Select all 3 participants',
     );
-    expect(selectionFlags('students', new Set(filtered), page, filtered).allSelected).toBe(true);
-    expect(selectionFlags('students', new Set(['a']), page, filtered).someSelected).toBe(true);
+    expect(selectionFlags('participants', new Set(filtered), page, filtered).allSelected).toBe(
+      true,
+    );
+    expect(selectionFlags('participants', new Set(['a']), page, filtered).someSelected).toBe(true);
   });
 });

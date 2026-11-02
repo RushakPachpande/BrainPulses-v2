@@ -63,7 +63,7 @@
     "design:tokens:admin": "npm run design:tokens --prefix admin",
     "tailwindcss:upgrade:admin": "npm run tailwindcss:upgrade --prefix admin",
 
-    "// client": "Client package (client/) — student Vite app",
+    "// client": "Client package (client/) — participant Vite app",
     "dev:client": "npm run dev --prefix client",
     "build:client": "npm run build --prefix client",
     "start:client": "npm run start --prefix client",

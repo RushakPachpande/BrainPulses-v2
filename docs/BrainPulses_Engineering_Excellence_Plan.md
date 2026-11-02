@@ -67,7 +67,7 @@ generated output:
 
   `client/`               React, Vite,            Assessment-flow
                           TypeScript,             reliability, component
-                          student-facing portal   reuse, API contract
+                          participant-facing portal   reuse, API contract
                                                   consistency,
                                                   accessibility and
                                                   responsive behavior
@@ -92,7 +92,7 @@ generated output:
 
 Root scripts already provide commands for build, lint, typecheck,
 formatting, and tests. API tests include authentication, attempts, quiz
-operations, scoring, security, student portal, and tenancy. Admin has a
+operations, scoring, security, participant portal, and tenancy. Admin has a
 small number of component/page tests. The existence of scripts and tests
 does **not** prove that they pass or adequately cover the product.
 
@@ -305,7 +305,7 @@ based solely on this plan.
     tenant-scoping rules, critical assessment state transitions, and
     database invariants.
 -   Capture current UI behavior/screenshots for representative admin and
-    student flows at approximately 375px, 768px, and 1280px, including
+    participant flows at approximately 375px, 768px, and 1280px, including
     light/dark mode where supported.
 -   Establish a baseline of test coverage if the current toolchain
     supports it; do not invent a percentage if coverage is not measured.
@@ -582,7 +582,7 @@ qualified penetration test or compliance audit.
 -   Verify idempotent submission, concurrent requests, autosave
     behavior, retake rules, manual grading/regrading, and attempt status
     transitions.
--   Keep sensitive answer keys and unreleased scores out of student
+-   Keep sensitive answer keys and unreleased scores out of participant
     responses.
 -   Use database constraints/transactions for invariants that must
     survive concurrent requests.
@@ -635,7 +635,7 @@ behavior; no secret values are included in reports.
     authorization, pagination, idempotency.
 4.  **Component tests:** interaction, loading/error/empty states,
     accessibility names, keyboard operation.
-5.  **End-to-end tests:** critical admin and student journeys against a
+5.  **End-to-end tests:** critical admin and participant journeys against a
     controlled test environment.
 6.  **Manual UAT:** business owner verifies acceptance criteria and
     representative devices.
@@ -643,8 +643,8 @@ behavior; no secret values are included in reports.
 ### Minimum critical journeys
 
 -   Admin login, logout, session expiry, and unauthorized access.
--   Student login/OTP failure and throttling.
--   Student and organization isolation on list/detail/update/export
+-   Participant login/OTP failure and throttling.
+-   Participant and organization isolation on list/detail/update/export
     routes.
 -   Create/edit/publish an activity or quiz.
 -   Question-bank creation/import/export and malformed input rejection.

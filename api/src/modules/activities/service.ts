@@ -319,7 +319,7 @@ async function replaceRounds(
       where: { roundId: { in: toDelete.map((r) => r.id) } },
     });
     if (attemptCount > 0) {
-      throw badRequest('Cannot remove rounds that already have student attempts.');
+      throw badRequest('Cannot remove rounds that already have participant attempts.');
     }
   }
 
@@ -678,7 +678,9 @@ export async function updateActivity(
             : input.presentation !== undefined
               ? { presentation: input.presentation }
               : {}),
-          ...(existing.kind === 'assessment' && input.code !== undefined ? { code: input.code } : {}),
+          ...(existing.kind === 'assessment' && input.code !== undefined
+            ? { code: input.code }
+            : {}),
           ...(quizPatch
             ? {
                 sponsorId: quizPatch.sponsorId,
@@ -845,7 +847,7 @@ export async function archiveActivity(
 }
 
 /**
- * Permanently deletes a quiz and all related student data (attempts, results,
+ * Permanently deletes a quiz and all related participant data (attempts, results,
  * registrations, reattempt grants, bank links). The quiz's private question
  * bank is removed. Shared assessment banks are kept.
  */

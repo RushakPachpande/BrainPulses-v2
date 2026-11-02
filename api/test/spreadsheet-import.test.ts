@@ -4,9 +4,9 @@ import ExcelJS from 'exceljs';
 import { AppError } from '../src/lib/errors.js';
 import { formatImportIssue, parseXlsxWorkbook } from '../src/lib/spreadsheet-import.js';
 import {
-  parseStudentsFile,
-  STUDENT_IMPORT_HEADERS,
-} from '../src/modules/students/import-export.js';
+  parseParticipantsFile,
+  PARTICIPANT_IMPORT_HEADERS,
+} from '../src/modules/participants/import-export.js';
 import { parseUsersFile, USER_IMPORT_HEADERS } from '../src/modules/users/import-export.js';
 
 async function sheetBuffer(
@@ -31,34 +31,34 @@ describe('spreadsheet import helpers', () => {
       value: 'not-an-email',
       problem: 'this is not a valid email',
       expected: 'a real email address',
-      example: 'student@college.edu',
+      example: 'participant@college.edu',
     });
     assert.match(message, /Sheet row 4/);
     assert.match(message, /email/);
     assert.match(message, /not-an-email/);
-    assert.match(message, /student@college\.edu/);
+    assert.match(message, /participant@college\.edu/);
   });
 
-  it('maps shifted student columns and rejects a misspelled header', async () => {
+  it('maps shifted participant columns and rejects a misspelled header', async () => {
     const order = ['cohort', 'email', 'name', 'code', 'city', 'phone', 'course'];
     const buffer = await sheetBuffer(
-      'Students',
-      [...STUDENT_IMPORT_HEADERS],
+      'Participants',
+      [...PARTICIPANT_IMPORT_HEADERS],
       [['2026', 'asha@college.edu', 'Asha Verma', '', 'Pune', '', 'PGDM']],
       order,
     );
-    const { rows } = await parseStudentsFile(buffer, 'students.xlsx');
+    const { rows } = await parseParticipantsFile(buffer, 'participants.xlsx');
     assert.equal(rows[0]?.name, 'Asha Verma');
     assert.equal(rows[0]?.email, 'asha@college.edu');
     assert.equal(rows[0]?.cohort, '2026');
 
     const bad = await sheetBuffer(
-      'Students',
+      'Participants',
       ['name', 'emial', 'phone', 'course', 'city', 'cohort', 'code'],
       [['Asha', 'a@b.com', '', '', '', '', '']],
     );
     await assert.rejects(
-      () => parseStudentsFile(bad, 'bad.xlsx'),
+      () => parseParticipantsFile(bad, 'bad.xlsx'),
       (err: unknown) => {
         assert.ok(err instanceof AppError);
         assert.match(err.message, /email/i);

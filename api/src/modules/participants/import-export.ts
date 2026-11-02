@@ -6,7 +6,7 @@ import {
   type SpreadsheetColumnSpec,
 } from '../../lib/spreadsheet-import.js';
 
-export const STUDENT_IMPORT_HEADERS = [
+export const PARTICIPANT_IMPORT_HEADERS = [
   'name',
   'email',
   'phone',
@@ -16,38 +16,38 @@ export const STUDENT_IMPORT_HEADERS = [
   'code',
 ] as const;
 
-export type StudentImportHeader = (typeof STUDENT_IMPORT_HEADERS)[number];
+export type ParticipantImportHeader = (typeof PARTICIPANT_IMPORT_HEADERS)[number];
 
-export type StudentImportRow = Record<StudentImportHeader, string> & { sheetRow: number };
+export type ParticipantImportRow = Record<ParticipantImportHeader, string> & { sheetRow: number };
 
-export type StudentImportIssue = { row: number; message: string };
+export type ParticipantImportIssue = { row: number; message: string };
 
-export const STUDENT_IMPORT_COLUMNS: SpreadsheetColumnSpec<StudentImportHeader>[] = [
-  { key: 'name', aliases: ['full name', 'student name', 'fullname'] },
+export const PARTICIPANT_IMPORT_COLUMNS: SpreadsheetColumnSpec<ParticipantImportHeader>[] = [
+  { key: 'name', aliases: ['full name', 'participant name', 'fullname'] },
   { key: 'email', aliases: ['e-mail', 'mail', 'login email'] },
   { key: 'phone', aliases: ['mobile', 'phone number', 'mobile number'] },
   { key: 'course', aliases: ['program', 'programme'] },
   { key: 'city', aliases: ['town'] },
   { key: 'cohort', aliases: ['batch', 'batch year', 'year'] },
-  { key: 'code', aliases: ['unique id', 'uniqueid', 'student id', 'student code'] },
+  { key: 'code', aliases: ['unique id', 'uniqueid', 'participant id', 'participant code'] },
 ];
 
-export async function parseStudentsFile(
+export async function parseParticipantsFile(
   buffer: Buffer,
   filename: string,
-): Promise<{ rows: StudentImportRow[]; ignoredColumns: string[] }> {
+): Promise<{ rows: ParticipantImportRow[]; ignoredColumns: string[] }> {
   const parsed = await parseXlsxWorkbook(buffer, filename, {
-    columns: STUDENT_IMPORT_COLUMNS,
-    preferredSheetName: 'Students',
-    emptyNoun: 'students',
+    columns: PARTICIPANT_IMPORT_COLUMNS,
+    preferredSheetName: 'Participants',
+    emptyNoun: 'participants',
   });
   return {
-    rows: parsed.rows as StudentImportRow[],
+    rows: parsed.rows as ParticipantImportRow[],
     ignoredColumns: parsed.ignoredColumns,
   };
 }
 
-function sampleRows(): Record<StudentImportHeader, string>[] {
+function sampleRows(): Record<ParticipantImportHeader, string>[] {
   return [
     {
       name: 'Asha Verma',
@@ -70,14 +70,14 @@ function sampleRows(): Record<StudentImportHeader, string>[] {
   ];
 }
 
-export async function buildStudentSampleWorkbook(): Promise<Buffer> {
+export async function buildParticipantSampleWorkbook(): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   const instructions = workbook.addWorksheet('Instructions');
-  instructions.addRow(['BrainPulses student import']);
+  instructions.addRow(['BrainPulses participant import']);
   instructions.addRow([]);
-  instructions.addRow(['1. Fill the Students sheet. Do not rename the column headers.']);
+  instructions.addRow(['1. Fill the Participants sheet. Do not rename the column headers.']);
   instructions.addRow([
-    '2. Delete the example rows before you import, or those example students will be created.',
+    '2. Delete the example rows before you import, or those example participants will be created.',
   ]);
   instructions.addRow([
     '3. Required values on every data row: name and email. phone, course, city, cohort, and code may be blank.',
@@ -89,28 +89,28 @@ export async function buildStudentSampleWorkbook(): Promise<Buffer> {
     '5. Save as Excel (.xlsx) only. CSV is not supported. Up to 1000 rows, 10 MB.',
   ]);
   instructions.addRow([
-    '6. Column order may change. Every header from the Students sheet must still be present and spelled correctly.',
+    '6. Column order may change. Every header from the Participants sheet must still be present and spelled correctly.',
   ]);
   instructions.getColumn(1).width = 100;
 
-  const sheet = workbook.addWorksheet('Students');
-  sheet.addRow([...STUDENT_IMPORT_HEADERS]);
+  const sheet = workbook.addWorksheet('Participants');
+  sheet.addRow([...PARTICIPANT_IMPORT_HEADERS]);
   for (const row of sampleRows()) {
-    sheet.addRow(STUDENT_IMPORT_HEADERS.map((h) => sanitizeCsvCell(row[h] ?? '')));
+    sheet.addRow(PARTICIPANT_IMPORT_HEADERS.map((h) => sanitizeCsvCell(row[h] ?? '')));
   }
   sheet.getRow(1).font = { bold: true };
-  STUDENT_IMPORT_HEADERS.forEach((header, index) => {
+  PARTICIPANT_IMPORT_HEADERS.forEach((header, index) => {
     sheet.getColumn(index + 1).width = Math.min(28, Math.max(12, header.length + 2));
   });
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
-export function studentRowIssue(
+export function participantRowIssue(
   sheetRow: number,
   problem: string,
   opts?: { column?: string; value?: string; expected?: string; example?: string },
-): StudentImportIssue {
+): ParticipantImportIssue {
   return {
     row: sheetRow,
     message: formatImportIssue({

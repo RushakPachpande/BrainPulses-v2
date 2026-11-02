@@ -7,7 +7,7 @@ import * as service from './service.js';
 export async function list(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.listStudents(actor.organizationId, req.query as never);
+    const data = await service.listParticipants(actor.organizationId, req.query as never);
     res.json(data);
   } catch (err) {
     next(err);
@@ -17,7 +17,7 @@ export async function list(req: Request, res: Response, next: NextFunction) {
 export async function get(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.getStudent(actor.organizationId, req.params.id as string);
+    const data = await service.getParticipant(actor.organizationId, req.params.id as string);
     res.json({ data });
   } catch (err) {
     next(err);
@@ -27,7 +27,7 @@ export async function get(req: Request, res: Response, next: NextFunction) {
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.createStudent(actor.organizationId, actor.userId, req.body);
+    const data = await service.createParticipant(actor.organizationId, actor.userId, req.body);
     res.status(201).json({ data });
   } catch (err) {
     next(err);
@@ -37,7 +37,7 @@ export async function create(req: Request, res: Response, next: NextFunction) {
 export async function update(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.updateStudent(
+    const data = await service.updateParticipant(
       actor.organizationId,
       actor.userId,
       req.params.id as string,
@@ -52,7 +52,7 @@ export async function update(req: Request, res: Response, next: NextFunction) {
 export async function deactivate(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.deactivateStudent(
+    const data = await service.deactivateParticipant(
       actor.organizationId,
       actor.userId,
       req.params.id as string,
@@ -66,7 +66,11 @@ export async function deactivate(req: Request, res: Response, next: NextFunction
 export async function deactivateMany(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.deactivateStudents(actor.organizationId, actor.userId, req.body.ids);
+    const data = await service.deactivateParticipants(
+      actor.organizationId,
+      actor.userId,
+      req.body.ids,
+    );
     res.json({ data });
   } catch (err) {
     next(err);
@@ -76,7 +80,11 @@ export async function deactivateMany(req: Request, res: Response, next: NextFunc
 export async function activateMany(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const data = await service.activateStudents(actor.organizationId, actor.userId, req.body.ids);
+    const data = await service.activateParticipants(
+      actor.organizationId,
+      actor.userId,
+      req.body.ids,
+    );
     res.json({ data });
   } catch (err) {
     next(err);
@@ -87,7 +95,7 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
     await verifyActingUserPassword(actor.userId, req.body.password as string);
-    const data = await service.deleteStudent(
+    const data = await service.deleteParticipant(
       actor.organizationId,
       actor.userId,
       req.params.id as string,
@@ -100,12 +108,15 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
 
 export async function sampleXlsx(req: Request, res: Response, next: NextFunction) {
   try {
-    const buffer = await service.sampleStudentsWorkbook();
+    const buffer = await service.sampleParticipantsWorkbook();
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-students-sample.xlsx"');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="brainpulses-participants-sample.xlsx"',
+    );
     res.send(buffer);
   } catch (err) {
     next(err);
@@ -121,7 +132,7 @@ export async function importFile(req: Request, res: Response, next: NextFunction
         'Upload an Excel (.xlsx) file in the multipart field “file”. Download Sample Excel for the correct template.',
       );
     }
-    const data = await service.importStudentsFile(actor.organizationId, actor.userId, {
+    const data = await service.importParticipantsFile(actor.organizationId, actor.userId, {
       buffer: file.buffer,
       originalname: file.originalname,
     });

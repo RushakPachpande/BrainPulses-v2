@@ -11,14 +11,14 @@ function forbidKeys(value: unknown, banned: readonly string[], path = '$') {
   }
   if (!value || typeof value !== 'object') return;
   for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
-    assert.equal(banned.includes(key), false, `${path}.${key} must not be sent to the student`);
+    assert.equal(banned.includes(key), false, `${path}.${key} must not be sent to the participant`);
     forbidKeys(child, banned, `${path}.${key}`);
   }
 }
 
-async function studentToken() {
+async function participantToken() {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
+  const res = await request(app, 'POST', '/api/auth/participant/sign-in-by-code', {
     body: {
       code: 'BP-24101',
       organizationSlug: 'nextgeninnov8',
@@ -29,22 +29,24 @@ async function studentToken() {
   return (res.body as { data: { accessToken: string } }).data.accessToken;
 }
 
-describe('student attempt payloads', () => {
+describe('participant attempt payloads', () => {
   it('omits isCorrect and answerKey on start and resume', async () => {
     const app = await getTestApp();
-    const token = await studentToken();
+    const token = await participantToken();
     const headers = { authorization: `Bearer ${token}` };
     const { activity, round } = await ensureRoundAssessment();
-    const student = await prisma.student.findFirst({ where: { email: 'student1@mail.com' } });
-    assert.ok(student);
+    const participant = await prisma.participant.findFirst({
+      where: { email: 'participant1@mail.com' },
+    });
+    assert.ok(participant);
     await prisma.attemptResponse.deleteMany({
-      where: { attempt: { studentId: student.id, activityId: activity.id } },
+      where: { attempt: { participantId: participant.id, activityId: activity.id } },
     });
     await prisma.result.deleteMany({
-      where: { studentId: student.id, activityId: activity.id },
+      where: { participantId: participant.id, activityId: activity.id },
     });
     await prisma.attempt.deleteMany({
-      where: { studentId: student.id, activityId: activity.id },
+      where: { participantId: participant.id, activityId: activity.id },
     });
 
     const start = await request(app, 'POST', '/api/attempts/start', {

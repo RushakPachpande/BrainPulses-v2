@@ -20,11 +20,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { assignRegistrations, getActivities, getStudents, type ActivityKind } from '@/services';
-import type { Activity, Student } from '@/services/types';
+import { assignRegistrations, getActivities, getParticipants, type ActivityKind } from '@/services';
+import type { Activity, Participant } from '@/services/types';
 
 const EMPTY_ACTIVITIES: Activity[] = [];
-const EMPTY_STUDENTS: Student[] = [];
+const EMPTY_PARTICIPANTS: Participant[] = [];
 
 export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
@@ -36,14 +36,14 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
     queryFn: () => getActivities(kind),
     enabled: Boolean(orgId),
   });
-  const { data: studentsData, isPending: studentsLoading } = useQuery({
-    queryKey: adminQueryKeys.students(orgId),
-    queryFn: () => getStudents(),
+  const { data: participantsData, isPending: participantsLoading } = useQuery({
+    queryKey: adminQueryKeys.participants(orgId),
+    queryFn: () => getParticipants(),
     enabled: Boolean(orgId),
   });
   const activities = activitiesData ?? EMPTY_ACTIVITIES;
-  const students = studentsData ?? EMPTY_STUDENTS;
-  const loading = activitiesLoading || studentsLoading;
+  const participants = participantsData ?? EMPTY_PARTICIPANTS;
+  const loading = activitiesLoading || participantsLoading;
   const [activityId, setActivityId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
@@ -72,17 +72,17 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!activityId || selected.size === 0) {
-      toast.error('Select an activity and at least one student.');
+      toast.error('Select an activity and at least one participant.');
       return;
     }
     setSaving(true);
     try {
       await assignRegistrations(activityId, [...selected]);
-      toast.success('Students assigned.');
+      toast.success('Participants assigned.');
       allowLeave();
       void navigate(listPath);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not assign students.');
+      toast.error(err instanceof ApiError ? err.message : 'Could not assign participants.');
     } finally {
       setSaving(false);
     }
@@ -97,10 +97,10 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
               <ArrowLeftIcon data-icon="inline-start" /> Back to registrations
             </Link>
           </Button>
-          <h2 className="text-xl font-semibold tracking-tight">Assign Students</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Assign Participants</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Assign students to a {isQuiz ? 'quiz' : 'assessment'} so they can attempt it in the
-            student portal.
+            Assign participants to a {isQuiz ? 'quiz' : 'assessment'} so they can attempt it in the
+            participant portal.
           </p>
         </div>
         <FormPageSkeleton fields={4} />
@@ -116,10 +116,10 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
             <ArrowLeftIcon data-icon="inline-start" /> Back to registrations
           </Link>
         </Button>
-        <h2 className="text-xl font-semibold tracking-tight">Assign Students</h2>
+        <h2 className="text-xl font-semibold tracking-tight">Assign Participants</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Assign students to a {isQuiz ? 'quiz' : 'assessment'} so they can attempt it in the
-          student portal.
+          Assign participants to a {isQuiz ? 'quiz' : 'assessment'} so they can attempt it in the
+          participant portal.
         </p>
       </div>
       <Card>
@@ -152,12 +152,12 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
                 </Select>
               </Field>
               <Field>
-                <FieldLabel>Students</FieldLabel>
+                <FieldLabel>Participants</FieldLabel>
                 <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border p-3">
-                  {students.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No students found.</p>
+                  {participants.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No participants found.</p>
                   ) : (
-                    students.map((s) => (
+                    participants.map((s) => (
                       <label key={s.id} className="flex items-center gap-3 text-sm">
                         <Checkbox
                           checked={selected.has(s.id)}

@@ -3,7 +3,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { PageHeaderProvider } from '@/contexts/page-header';
 import { renderWithAdminQuery } from '@/test/render-with-query';
-import { StudentsPage } from './students';
+import { ParticipantsPage } from './participants';
 
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
@@ -32,7 +32,7 @@ vi.mock('@/services', async () => {
   const actual = await vi.importActual<typeof import('@/services')>('@/services');
   return {
     ...actual,
-    getStudents: vi.fn(async () => [
+    getParticipants: vi.fn(async () => [
       {
         id: 'uuid-stu-1',
         code: 'STU-1',
@@ -50,18 +50,18 @@ vi.mock('@/services', async () => {
   };
 });
 
-describe('StudentsPage', () => {
-  it('shows the students footer count after load', async () => {
+describe('ParticipantsPage', () => {
+  it('shows the participants footer count after load', async () => {
     renderWithAdminQuery(
       <MemoryRouter>
         <PageHeaderProvider>
-          <StudentsPage />
+          <ParticipantsPage />
         </PageHeaderProvider>
       </MemoryRouter>,
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Showing 1 to 1 of 1 students/i)).toBeInTheDocument();
+      expect(screen.getByText(/Showing 1 to 1 of 1 participants/i)).toBeInTheDocument();
     });
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
   });

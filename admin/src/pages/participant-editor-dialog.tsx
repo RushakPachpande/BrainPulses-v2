@@ -9,20 +9,20 @@ import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/use-confirm';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { ApiError } from '@/lib/api-client';
-import { createStudent, getStudent, updateStudent } from '@/services';
+import { createParticipant, getParticipant, updateParticipant } from '@/services';
 
 function blank(value: string) {
   return value === '—' ? '' : value;
 }
 
-export function StudentEditorDialog({
+export function ParticipantEditorDialog({
   mode,
-  studentId,
+  participantId,
   onOpenChange,
   onSaved,
 }: {
   mode: 'create' | 'edit';
-  studentId?: string;
+  participantId?: string;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
 }) {
@@ -43,22 +43,22 @@ export function StudentEditorDialog({
   const allowLeave = useLeaveGuard(dirty);
 
   useEffect(() => {
-    if (mode !== 'edit' || !studentId) return;
+    if (mode !== 'edit' || !participantId) return;
     let cancelled = false;
     (async () => {
       try {
-        const student = await getStudent(studentId);
+        const participant = await getParticipant(participantId);
         if (cancelled) return;
-        setName(student.name);
-        setEmail(student.email);
-        setPhone(blank(student.phone));
-        setCourse(blank(student.course));
-        setCity(blank(student.city));
-        setCohort(blank(student.cohort));
-        setCode(student.code);
+        setName(participant.name);
+        setEmail(participant.email);
+        setPhone(blank(participant.phone));
+        setCourse(blank(participant.course));
+        setCity(blank(participant.city));
+        setCohort(blank(participant.cohort));
+        setCode(participant.code);
         setDirty(false);
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load student.');
+        toast.error(err instanceof ApiError ? err.message : 'Could not load participant.');
         closeRef.current(false);
       } finally {
         if (!cancelled) setLoading(false);
@@ -67,7 +67,7 @@ export function StudentEditorDialog({
     return () => {
       cancelled = true;
     };
-  }, [mode, studentId]);
+  }, [mode, participantId]);
 
   async function requestClose() {
     if (saving) return;
@@ -90,7 +90,7 @@ export function StudentEditorDialog({
     setSaving(true);
     try {
       if (mode === 'create') {
-        await createStudent({
+        await createParticipant({
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim() || undefined,
@@ -99,9 +99,9 @@ export function StudentEditorDialog({
           cohort: cohort.trim() || undefined,
           code: code.trim() || undefined,
         });
-        toast.success('Student created.');
-      } else if (studentId) {
-        await updateStudent(studentId, {
+        toast.success('Participant created.');
+      } else if (participantId) {
+        await updateParticipant(participantId, {
           name: name.trim(),
           email: email.trim(),
           phone: phone.trim() || null,
@@ -109,14 +109,14 @@ export function StudentEditorDialog({
           city: city.trim() || null,
           cohort: cohort.trim() || null,
         });
-        toast.success('Student updated.');
+        toast.success('Participant updated.');
       }
       allowLeave();
       setDirty(false);
       onSaved?.();
       onOpenChange(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not save student.');
+      toast.error(err instanceof ApiError ? err.message : 'Could not save participant.');
     } finally {
       setSaving(false);
     }
@@ -127,11 +127,11 @@ export function StudentEditorDialog({
   return (
     <FormDialog
       icon={GraduationCapIcon}
-      title={isCreate ? 'Add Student' : 'Edit Student'}
+      title={isCreate ? 'Add Participant' : 'Edit Participant'}
       description={
         isCreate
-          ? 'Enter student details to create an account.'
-          : 'Update this student’s account information.'
+          ? 'Enter participant details to create an account.'
+          : 'Update this participant’s account information.'
       }
       busy={saving}
       onOpenChange={(next) => {
@@ -148,7 +148,7 @@ export function StudentEditorDialog({
             Cancel
           </Button>
           <SaveButton form={formId} pending={saving} disabled={loading}>
-            {isCreate ? 'Save Student' : 'Update Student'}
+            {isCreate ? 'Save Participant' : 'Update Participant'}
           </SaveButton>
         </>
       }
@@ -190,7 +190,7 @@ export function StudentEditorDialog({
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              placeholder="student@example.com"
+              placeholder="participant@example.com"
               required
               disabled={loading || saving}
               autoComplete="email"

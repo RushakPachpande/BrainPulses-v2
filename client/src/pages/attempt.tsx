@@ -15,7 +15,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { AttemptQuestionBlock } from '../components/attempt-question-block';
 import { ExamShellSkeleton } from '../components/skeletons';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
-import { useStudentPages } from '../hooks/use-student-pages';
+import { useParticipantPages } from '../hooks/use-participant-pages';
 import { ApiError } from '../lib/api-client';
 import {
   answerFromResponse,
@@ -24,7 +24,7 @@ import {
   type AttemptAnswerValue,
 } from '../lib/attempt-answers';
 import { timeRemaining } from '../lib/format';
-import { firstEnabledStudentPath, isStudentPageOffError } from '../lib/student-pages';
+import { firstEnabledParticipantPath, isParticipantPageOffError } from '../lib/participant-pages';
 import {
   advanceAttempt,
   clearSubmitIdempotencyKey,
@@ -33,7 +33,7 @@ import {
   saveAttempt,
   saveAttemptKeepalive,
   startAttempt,
-  studentSignOut,
+  participantSignOut,
   submitAttempt,
   submitIdempotencyKeyFor,
 } from '../services/api';
@@ -44,7 +44,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [searchParams] = useSearchParams();
   const roundIdParam = searchParams.get('roundId') ?? undefined;
   const navigate = useNavigate();
-  const pagesQuery = useStudentPages();
+  const pagesQuery = useParticipantPages();
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
@@ -179,13 +179,13 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
 
   const pages = pagesQuery.data;
   const pageOff =
-    isStudentPageOffError(error) ||
+    isParticipantPageOffError(error) ||
     (attempt?.activityKind === 'quiz' && pages?.quizzes === false) ||
     (attempt?.activityKind === 'assessment' && pages?.assessments === false);
 
   useEffect(() => {
     if (!pages || !pageOff) return;
-    navigate(firstEnabledStudentPath(pages) ?? '/', { replace: true });
+    navigate(firstEnabledParticipantPath(pages) ?? '/', { replace: true });
   }, [navigate, pageOff, pages]);
 
   useEffect(() => {
@@ -249,7 +249,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             saveTimer.current = null;
           }
           pendingAnswersRef.current = null;
-          void studentSignOut();
+          void participantSignOut();
           setError('Your session ended. Sign in again to continue.');
           navigate('/login', { replace: true });
           return;
@@ -666,8 +666,11 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           <LogOut size={15} /> Exit
         </button>
       </header>
-      <div className="exam-progress">
-        <div style={{ width: `${progressRatio * 100}%` }} />
+      <div className="exam-progress-row">
+        <div className="exam-progress" aria-hidden>
+          <div style={{ width: `${progressRatio * 100}%` }} />
+        </div>
+        <span className="exam-progress-pct">{Math.round(progressRatio * 100)}%</span>
       </div>
       {error && (
         <div className="error-text" style={{ padding: '8px 16px' }}>

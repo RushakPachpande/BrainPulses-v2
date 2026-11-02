@@ -46,44 +46,44 @@ import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import {
-  activateStudents,
-  deactivateStudents,
-  deleteStudent,
-  downloadStudentsSample,
-  getStudents,
-  importStudents,
-  type Student,
+  activateParticipants,
+  deactivateParticipants,
+  deleteParticipant,
+  downloadParticipantsSample,
+  getParticipants,
+  importParticipants,
+  type Participant,
 } from '@/services';
-import { StudentEditorDialog } from '@/pages/student-editor-dialog';
-import { StudentViewDialog } from '@/pages/student-view-dialog';
-import { studentCities, studentCourses } from '@/services/fixtures';
+import { ParticipantEditorDialog } from '@/pages/participant-editor-dialog';
+import { ParticipantViewDialog } from '@/pages/participant-view-dialog';
+import { participantCities, participantCourses } from '@/services/fixtures';
 
-const EMPTY_STUDENTS: Student[] = [];
+const EMPTY_PARTICIPANTS: Participant[] = [];
 
 type SortKey =
   'code' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
 
-const studentColumns: RecordColumn<Student>[] = [
+const participantColumns: RecordColumn<Participant>[] = [
   {
     key: 'code',
     label: 'Unique ID',
     placement: 'identity',
     identityPrefix: 'ID: ',
     tableClassName: 'tabular-nums',
-    render: (student) => student.code,
+    render: (participant) => participant.code,
   },
   {
     key: 'name',
-    label: 'Student',
+    label: 'Participant',
     placement: 'title',
-    render: (student) => <span className="font-medium">{student.name}</span>,
+    render: (participant) => <span className="font-medium">{participant.name}</span>,
   },
   {
     key: 'email',
     label: 'Email',
     placement: 'wide',
     icon: MailIcon,
-    render: (student) => student.email,
+    render: (participant) => participant.email,
   },
   {
     key: 'phone',
@@ -91,7 +91,7 @@ const studentColumns: RecordColumn<Student>[] = [
     placement: 'wide',
     icon: PhoneIcon,
     tableClassName: 'tabular-nums',
-    render: (student) => student.phone,
+    render: (participant) => participant.phone,
   },
   {
     key: 'registered',
@@ -99,21 +99,21 @@ const studentColumns: RecordColumn<Student>[] = [
     cardLabel: 'Registered',
     placement: 'half',
     icon: CalendarIcon,
-    render: (student) => student.registered,
+    render: (participant) => participant.registered,
   },
   {
     key: 'activities',
     label: 'Assigned Activities',
     placement: 'pill',
-    render: (student) => `${student.activities} active`,
-    card: (student) =>
-      `${student.activities} active ${student.activities === 1 ? 'activity' : 'activities'}`,
+    render: (participant) => `${participant.activities} active`,
+    card: (participant) =>
+      `${participant.activities} active ${participant.activities === 1 ? 'activity' : 'activities'}`,
   },
   {
     key: 'status',
     label: 'Status',
     placement: 'status',
-    render: (student) => <AccountStatusPill value={student.status} />,
+    render: (participant) => <AccountStatusPill value={participant.status} />,
   },
   {
     key: 'lastLogin',
@@ -121,18 +121,18 @@ const studentColumns: RecordColumn<Student>[] = [
     cardLabel: 'Last login',
     placement: 'half',
     icon: ClockIcon,
-    render: (student) => student.lastLogin,
+    render: (participant) => participant.lastLogin,
   },
 ];
 
-function compareStudents(a: Student, b: Student, key: SortKey) {
+function compareParticipants(a: Participant, b: Participant, key: SortKey) {
   const left = a[key];
   const right = b[key];
   if (typeof left === 'number' && typeof right === 'number') return left - right;
   return String(left).localeCompare(String(right), undefined, { numeric: true });
 }
 
-export function StudentsPage() {
+export function ParticipantsPage() {
   const { narrow, ref } = useContainerNarrow();
   const auth = useAuth();
   const orgId = useOrgId();
@@ -150,38 +150,38 @@ export function StudentsPage() {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const { data, isPending: loading } = useQuery({
-    queryKey: adminQueryKeys.students(orgId),
-    queryFn: () => getStudents(),
+    queryKey: adminQueryKeys.participants(orgId),
+    queryFn: () => getParticipants(),
     enabled: Boolean(orgId),
   });
-  const students = data ?? EMPTY_STUDENTS;
+  const participants = data ?? EMPTY_PARTICIPANTS;
 
-  async function onDeleteStudent(student: Student) {
+  async function onDeleteParticipant(participant: Participant) {
     if (!canDelete) return;
     const password = await confirm({
-      title: `Delete “${student.name}”?`,
+      title: `Delete “${participant.name}”?`,
       description:
-        'Permanently removes this student and their registrations, attempts, and results. This cannot be undone.',
+        'Permanently removes this participant and their registrations, attempts, and results. This cannot be undone.',
       confirmLabel: 'Delete permanently',
       destructive: true,
       requirePassword: true,
     });
     if (!password) return;
     try {
-      await deleteStudent(student.id, password);
-      toast.success('Student deleted.');
-      await queryClient.invalidateQueries({ queryKey: ['admin', 'students'] });
+      await deleteParticipant(participant.id, password);
+      toast.success('Participant deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'participants'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
-      if (viewId === student.id) setViewId(null);
-      if (editor === student.id) setEditor(null);
+      if (viewId === participant.id) setViewId(null);
+      if (editor === participant.id) setEditor(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete student.');
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete participant.');
     }
   }
 
   async function onSampleDownload() {
     try {
-      await downloadStudentsSample();
+      await downloadParticipantsSample();
       toast.success('Sample Excel downloaded.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
@@ -192,16 +192,16 @@ export function StudentsPage() {
     if (!file || !canMutate) return;
     setImporting(true);
     try {
-      const result = await importStudents(file);
+      const result = await importParticipants(file);
       setImportResult(
         importResultFromCounts(
           result.created,
           result.issues.map((issue) => issue.message),
-          'student',
+          'participant',
         ),
       );
       if (result.created > 0) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'students'] });
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'participants'] });
         await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
       }
     } catch (err) {
@@ -227,8 +227,8 @@ export function StudentsPage() {
     if (!view && !edit && !create) return;
     if (view && loading) return;
     if (view) {
-      if (students.some((student) => student.id === view)) setViewId(view);
-      else toast.error('Could not load student.');
+      if (participants.some((participant) => participant.id === view)) setViewId(view);
+      else toast.error('Could not load participant.');
     }
     if (canMutate && create) setEditor('create');
     if (canMutate && edit) setEditor(edit);
@@ -237,7 +237,7 @@ export function StudentsPage() {
     next.delete('edit');
     next.delete('create');
     setSearchParams(next, { replace: true });
-  }, [canMutate, loading, searchParams, setSearchParams, students]);
+  }, [canMutate, loading, searchParams, setSearchParams, participants]);
 
   const filters: ToolbarFilter[] = [
     {
@@ -251,7 +251,7 @@ export function StudentsPage() {
     },
     {
       name: 'Course',
-      options: ['All', ...studentCourses],
+      options: ['All', ...participantCourses],
       value: course,
       onValueChange: (value) => {
         setCourse(value);
@@ -260,7 +260,7 @@ export function StudentsPage() {
     },
     {
       name: 'City',
-      options: ['All', ...studentCities],
+      options: ['All', ...participantCities],
       value: city,
       onValueChange: (value) => {
         setCity(value);
@@ -271,27 +271,27 @@ export function StudentsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    let rows = students.filter((student) => {
-      if (status !== 'All' && student.status !== status) return false;
-      if (course !== 'All' && student.course !== course) return false;
-      if (city !== 'All' && student.city !== city) return false;
+    let rows = participants.filter((participant) => {
+      if (status !== 'All' && participant.status !== status) return false;
+      if (course !== 'All' && participant.course !== course) return false;
+      if (city !== 'All' && participant.city !== city) return false;
       if (!query) return true;
       return (
-        student.code.toLowerCase().includes(query) ||
-        student.name.toLowerCase().includes(query) ||
-        student.email.toLowerCase().includes(query)
+        participant.code.toLowerCase().includes(query) ||
+        participant.name.toLowerCase().includes(query) ||
+        participant.email.toLowerCase().includes(query)
       );
     });
 
     if (sortKey) {
       rows = [...rows].sort((a, b) => {
-        const result = compareStudents(a, b, sortKey);
+        const result = compareParticipants(a, b, sortKey);
         return sortDir === 'asc' ? result : -result;
       });
     }
 
     return rows;
-  }, [students, search, status, course, city, sortKey, sortDir]);
+  }, [participants, search, status, course, city, sortKey, sortDir]);
 
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
@@ -303,8 +303,8 @@ export function StudentsPage() {
   const pageIds = pageRows.map((row) => row.id);
   const records = useRecordSelection(
     orgId,
-    'students',
-    'students',
+    'participants',
+    'participants',
     pageIds,
     filtered.map((row) => row.id),
   );
@@ -331,13 +331,13 @@ export function StudentsPage() {
     setSortDir('asc');
   }
 
-  const selectedRows = students.filter((student) => records.selected.has(student.id));
+  const selectedRows = participants.filter((participant) => records.selected.has(participant.id));
   const activeIds = selectedRows
-    .filter((student) => student.status === 'Active')
-    .map((student) => student.id);
+    .filter((participant) => participant.status === 'Active')
+    .map((participant) => participant.id);
   const inactiveIds = selectedRows
-    .filter((student) => student.status !== 'Active')
-    .map((student) => student.id);
+    .filter((participant) => participant.status !== 'Active')
+    .map((participant) => participant.id);
 
   async function changeSelectedStatus(kind: 'activate' | 'deactivate') {
     const activating = kind === 'activate';
@@ -347,11 +347,11 @@ export function StudentsPage() {
       title:
         ids.length === 1
           ? activating
-            ? 'Activate 1 student?'
-            : 'Deactivate 1 student?'
+            ? 'Activate 1 participant?'
+            : 'Deactivate 1 participant?'
           : activating
-            ? `Activate ${ids.length} students?`
-            : `Deactivate ${ids.length} students?`,
+            ? `Activate ${ids.length} participants?`
+            : `Deactivate ${ids.length} participants?`,
       description: activating
         ? 'They will be marked Active and can sign in.'
         : 'They will be marked Inactive and cannot sign in.',
@@ -361,16 +361,16 @@ export function StudentsPage() {
     if (!ok) return;
     setBulkAction(kind);
     try {
-      if (activating) await activateStudents(ids);
-      else await deactivateStudents(ids);
+      if (activating) await activateParticipants(ids);
+      else await deactivateParticipants(ids);
       toast.success(
         ids.length === 1
           ? activating
-            ? 'Student activated.'
-            : 'Student deactivated.'
+            ? 'Participant activated.'
+            : 'Participant deactivated.'
           : activating
-            ? `${ids.length} students activated.`
-            : `${ids.length} students deactivated.`,
+            ? `${ids.length} participants activated.`
+            : `${ids.length} participants deactivated.`,
       );
       records.onClear();
     } catch (err) {
@@ -378,18 +378,20 @@ export function StudentsPage() {
         err instanceof ApiError
           ? err.message
           : activating
-            ? 'Could not activate students.'
-            : 'Could not deactivate students.',
+            ? 'Could not activate participants.'
+            : 'Could not deactivate participants.',
       );
     } finally {
       setBulkAction(null);
     }
   }
 
-  const viewing = viewId ? students.find((student) => student.id === viewId) : undefined;
+  const viewing = viewId
+    ? participants.find((participant) => participant.id === viewId)
+    : undefined;
   const viewDialog = viewing ? (
-    <StudentViewDialog
-      student={viewing}
+    <ParticipantViewDialog
+      participant={viewing}
       canEdit={canMutate}
       onOpenChange={(open) => {
         if (!open) setViewId(null);
@@ -407,9 +409,9 @@ export function StudentsPage() {
 
   const editorDialog =
     editor !== null ? (
-      <StudentEditorDialog
+      <ParticipantEditorDialog
         mode={editor === 'create' ? 'create' : 'edit'}
-        studentId={editor === 'create' ? undefined : editor}
+        participantId={editor === 'create' ? undefined : editor}
         onOpenChange={(open) => {
           if (!open) setEditor(null);
         }}
@@ -423,7 +425,7 @@ export function StudentsPage() {
         type="file"
         accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         className="sr-only"
-        aria-label="Import students Excel file"
+        aria-label="Import participants Excel file"
         onChange={(e) => void onImportFile(e.target.files?.[0])}
       />
       <Button
@@ -444,11 +446,11 @@ export function StudentsPage() {
         onClick={() => fileInputRef.current?.click()}
       >
         <UploadIcon data-icon="inline-start" />
-        {importing ? 'Importing…' : 'Upload Students'}
+        {importing ? 'Importing…' : 'Upload Participants'}
       </Button>
       <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
         <PlusIcon data-icon="inline-start" />
-        Add Student
+        Add Participant
       </Button>
     </PageHeaderActions>
   ) : null;
@@ -483,7 +485,7 @@ export function StudentsPage() {
             <>
               {narrow ? (
                 <RecordSortSelect
-                  columns={studentColumns}
+                  columns={participantColumns}
                   activeKey={sortKey}
                   direction={sortDir}
                   onSort={(key) => toggleSort(key as SortKey)}
@@ -505,12 +507,12 @@ export function StudentsPage() {
         <Card>
           <CardContent className="flex flex-col gap-4">
             <ResponsiveRecords
-              caption="Students"
+              caption="Participants"
               rows={pageRows}
-              getRowId={(student) => student.id}
-              columns={studentColumns}
+              getRowId={(participant) => participant.id}
+              columns={participantColumns}
               narrow={narrow}
-              empty="No students match the current filters."
+              empty="No participants match the current filters."
               sort={{
                 key: sortKey,
                 direction: sortDir,
@@ -518,7 +520,7 @@ export function StudentsPage() {
               }}
               selection={{
                 ...records,
-                rowLabel: (student) => `Select ${student.name}`,
+                rowLabel: (participant) => `Select ${participant.name}`,
                 actions:
                   canBulkStatus && (inactiveIds.length > 0 || activeIds.length > 0) ? (
                     <>
@@ -545,20 +547,22 @@ export function StudentsPage() {
                     </>
                   ) : undefined,
               }}
-              renderActions={(student) => (
+              renderActions={(participant) => (
                 <RowActions
-                  view={{ onClick: () => setViewId(student.id) }}
-                  edit={canMutate ? { onClick: () => setEditor(student.id) } : undefined}
-                  remove={canDelete ? { onClick: () => void onDeleteStudent(student) } : undefined}
+                  view={{ onClick: () => setViewId(participant.id) }}
+                  edit={canMutate ? { onClick: () => setEditor(participant.id) } : undefined}
+                  remove={
+                    canDelete ? { onClick: () => void onDeleteParticipant(participant) } : undefined
+                  }
                 />
               )}
-              onRowOpen={(student) => setViewId(student.id)}
+              onRowOpen={(participant) => setViewId(participant.id)}
             />
 
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
                 Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length}{' '}
-                students
+                participants
               </p>
               <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
                 <div className="flex min-w-0 items-center gap-2">

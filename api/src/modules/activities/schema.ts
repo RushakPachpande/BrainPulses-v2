@@ -20,7 +20,7 @@ export const quizSettingsSchema = z
     shuffleQuestions: z.boolean().default(true),
     shuffleOptions: z.boolean().default(true),
     scoreRelease: z.enum(['after_submit', 'after_publish']).default('after_submit'),
-    answersVisibleToStudent: z.boolean().default(false),
+    answersVisibleToParticipant: z.boolean().default(false),
     allowPrevious: z.boolean().default(true),
     showQuestionPanel: z.boolean().default(true),
     questionsCompulsory: z.boolean().default(true),
@@ -49,7 +49,7 @@ export const activitySettingsSchema = z
       .optional(),
     assignmentRules: z
       .object({
-        mode: z.enum(['manual', 'all_active_students']).default('manual'),
+        mode: z.enum(['manual', 'all_active_participants']).default('manual'),
         notes: z.string().trim().max(500).optional(),
       })
       .strict()

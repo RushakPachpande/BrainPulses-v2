@@ -4,15 +4,15 @@ import { FormDialog } from '@/components/form-dialog';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import type { Student } from '@/services';
+import type { Participant } from '@/services';
 
-export function StudentViewDialog({
-  student,
+export function ParticipantViewDialog({
+  participant,
   canEdit,
   onOpenChange,
   onEdit,
 }: {
-  student: Student;
+  participant: Participant;
   canEdit: boolean;
   onOpenChange: (open: boolean) => void;
   onEdit?: () => void;
@@ -22,8 +22,8 @@ export function StudentViewDialog({
   return (
     <FormDialog
       icon={GraduationCapIcon}
-      title="View Student"
-      description="Student profile (read-only)."
+      title="View Participant"
+      description="Participant profile (read-only)."
       onOpenChange={onOpenChange}
       footer={
         <>
@@ -42,35 +42,35 @@ export function StudentViewDialog({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${formId}-name`}>Full name</FieldLabel>
-            <Input id={`${formId}-name`} value={student.name} disabled />
+            <Input id={`${formId}-name`} value={participant.name} disabled />
           </Field>
           <Field>
             <FieldLabel htmlFor={`${formId}-code`}>Unique ID</FieldLabel>
-            <Input id={`${formId}-code`} value={student.code} disabled />
+            <Input id={`${formId}-code`} value={participant.code} disabled />
           </Field>
         </div>
         <Field>
           <FieldLabel htmlFor={`${formId}-email`}>Email address</FieldLabel>
-          <Input id={`${formId}-email`} type="email" value={student.email} disabled />
+          <Input id={`${formId}-email`} type="email" value={participant.email} disabled />
         </Field>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${formId}-phone`}>Phone number</FieldLabel>
-            <Input id={`${formId}-phone`} value={student.phone} disabled />
+            <Input id={`${formId}-phone`} value={participant.phone} disabled />
           </Field>
           <Field>
             <FieldLabel htmlFor={`${formId}-course`}>Course</FieldLabel>
-            <Input id={`${formId}-course`} value={student.course} disabled />
+            <Input id={`${formId}-course`} value={participant.course} disabled />
           </Field>
         </div>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field>
             <FieldLabel htmlFor={`${formId}-city`}>City</FieldLabel>
-            <Input id={`${formId}-city`} value={student.city} disabled />
+            <Input id={`${formId}-city`} value={participant.city} disabled />
           </Field>
           <Field>
             <FieldLabel htmlFor={`${formId}-cohort`}>Cohort</FieldLabel>
-            <Input id={`${formId}-cohort`} value={student.cohort} disabled />
+            <Input id={`${formId}-cohort`} value={participant.cohort} disabled />
           </Field>
         </div>
       </FieldGroup>

@@ -16,7 +16,7 @@ export function applyClientTheme(dark: boolean) {
   writeStorage(STORAGE_KEY, dark ? 'dark' : 'light');
 }
 
-/** Shared dark/light theme for student portal (login + shell). Default is dark. */
+/** Shared dark/light theme for participant portal (login + shell). Default is dark. */
 export function useClientTheme() {
   const [dark, setDark] = useState(() => readClientDark());
 

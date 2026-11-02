@@ -29,7 +29,7 @@ Auth and tenant scope are per router, not global. [`withTenantContext`](../../ap
 flowchart LR
   http[HTTP]
   authn[requireAuth]
-  actor[requireUser_or_requireStudent]
+  actor[requireUser_or_requireParticipant]
   tenant[withTenantContext]
   access[requireOrgAccess_or_kind]
   service[module_service]
@@ -37,7 +37,7 @@ flowchart LR
   http --> authn --> actor --> tenant --> access --> service --> prisma
 ```
 
-Public auth routes skip `requireAuth`. Student attempt routes use `requireStudent` instead of `requireUser`.
+Public auth routes skip `requireAuth`. Participant attempt routes use `requireParticipant` instead of `requireUser`.
 
 ## 1. Admin sign-in
 
@@ -57,30 +57,30 @@ Public auth routes skip `requireAuth`. Student attempt routes use `requireStuden
 
 The access token carries `organizationId`, `membershipId`, `role`, `assessmentAccess`, and `quizAccess`. Client-side role checks are not this boundary.
 
-## 2. Student OTP and Unique ID
+## 2. Participant OTP and Unique ID
 
 **Verified** path: public routes on `authRouter`.
 
 | Route | Service | Failure |
 |---|---|---|
-| `POST /api/auth/student/sign-in-by-code` | `studentSignInByCode` | Unknown code **401**. Ambiguous phone/code across orgs without `organizationSlug` **400**. |
-| `POST /api/auth/student/request-otp` and `resend-otp` | `studentRequestOtp` | Invalid phone **400**. Known student: OTP stored in Redis and SMS attempted. Unknown number: still `{ ok: true }` so the response does not reveal whether the number exists. Cooldown errors are swallowed outside `NODE_ENV=test`. |
-| `POST /api/auth/student/verify-otp` | `studentVerifyOtp` | Bad, expired, or exhausted OTP **401**. Success issues a student session (`typ: student`, `sid`) and consumes the OTP. |
-| `POST /api/auth/student/sign-out` | controller | Requires student access token. |
+| `POST /api/auth/participant/sign-in-by-code` | `participantSignInByCode` | Unknown code **401**. Ambiguous phone/code across orgs without `organizationSlug` **400**. |
+| `POST /api/auth/participant/request-otp` and `resend-otp` | `participantRequestOtp` | Invalid phone **400**. Known participant: OTP stored in Redis and SMS attempted. Unknown number: still `{ ok: true }` so the response does not reveal whether the number exists. Cooldown errors are swallowed outside `NODE_ENV=test`. |
+| `POST /api/auth/participant/verify-otp` | `participantVerifyOtp` | Bad, expired, or exhausted OTP **401**. Success issues a participant session (`typ: participant`, `sid`) and consumes the OTP. |
+| `POST /api/auth/participant/sign-out` | controller | Requires participant access token. |
 
-`requireAuth` for `typ: student` checks Redis via `isStudentSessionCurrent`. A stale `sid` is **401** `Session expired. Sign in again.` Tests: `api/test/auth.test.ts` (Unique ID, invalid phone, OTP round-trip). Browser OTP entry was **not** submitted during the UI capture.
+`requireAuth` for `typ: participant` checks Redis via `isParticipantSessionCurrent`. A stale `sid` is **401** `Session expired. Sign in again.` Tests: `api/test/auth.test.ts` (Unique ID, invalid phone, OTP round-trip). Browser OTP entry was **not** submitted during the UI capture.
 
-## 3. Tenant-scoped student read
+## 3. Tenant-scoped participant read
 
-**Verified** path: `GET /api/students` and `GET /api/students/:id`.
+**Verified** path: `GET /api/participants` and `GET /api/participants/:id`.
 
-`studentsRouter.use(requireAuth, requireUser, withTenantContext)`, then `requireOrgAccess('view')`, then [`students/controller.ts`](../../api/src/modules/students/controller.ts) → students service → Prisma.
+`participantsRouter.use(requireAuth, requireUser, withTenantContext)`, then `requireOrgAccess('view')`, then [`participants/controller.ts`](../../api/src/modules/participants/controller.ts) → participants service → Prisma.
 
 | Outcome | Status | Evidence |
 |---|---|---|
 | Missing or non-user token | 401 | `requireUser` |
 | User below `view` on both assessment and quiz access, and not `super_admin` | 403 | `requireOrgAccess` |
-| Id from another organization | 404 | `api/test/tenancy.test.ts` `denies cross-tenant student read` |
+| Id from another organization | 404 | `api/test/tenancy.test.ts` `denies cross-tenant participant read` |
 | Same-org id | 200 | Not re-executed in the browser audit; list UI loaded for the signed-in org |
 
 `super_admin` bypasses the access-rank check and still rides the token's `organizationId` into the tenant store.
@@ -108,16 +108,16 @@ Router: `requireAuth`, `requireUser`, `withTenantContext`, then `requireOrgAcces
 
 **Verified** path: [`api/src/modules/attempts/routes.ts`](../../api/src/modules/attempts/routes.ts).
 
-`requireAuth`, `requireStudent`, `withTenantContext`, then:
+`requireAuth`, `requireParticipant`, `withTenantContext`, then:
 
 | Route | Service | Notable failures |
 |---|---|---|
-| `POST /start` | `startAttempt` | Activity missing **404**. Not `active`, outside window, or student not `assigned` **403**. Assessment without `roundId` **400**. Previous round incomplete **403**. |
-| `GET /:id/resume` | `resumeAttempt` | Missing attempt for this student **404** (service lookup). |
+| `POST /start` | `startAttempt` | Activity missing **404**. Not `active`, outside window, or participant not `assigned` **403**. Assessment without `roundId` **400**. Previous round incomplete **403**. |
+| `GET /:id/resume` | `resumeAttempt` | Missing attempt for this participant **404** (service lookup). |
 | `POST /:id/save` | `saveAttempt` | Not in progress, or revision mismatch, **409**. Update is conditional on `status`, `revision`, and `deadlineAt` inside a transaction. |
 | `POST /:id/submit` | `submitAttempt` | Missing `Idempotency-Key` **400**. Same key with an existing result returns that result. A different key after submit **409** `Attempt already submitted.` |
 
-Scoring uses server-side `scoreObjective` and question versions. Student visibility of score and answer key follows quiz settings in `submitAttemptInternal` (`scoreRelease`, `answersVisibleToStudent`). Tests: `api/test/attempts.test.ts` (stale revision, idempotent submit, resume) and `api/test/scoring.test.ts`.
+Scoring uses server-side `scoreObjective` and question versions. Participant visibility of score and answer key follows quiz settings in `submitAttemptInternal` (`scoreRelease`, `answersVisibleToParticipant`). Tests: `api/test/attempts.test.ts` (stale revision, idempotent submit, resume) and `api/test/scoring.test.ts`.
 
 ## Cross-layer edges
 

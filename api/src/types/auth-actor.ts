@@ -12,8 +12,8 @@ export type AuthActor =
       mustChangePassword?: boolean;
     }
   | {
-      kind: 'student';
-      studentId: string;
+      kind: 'participant';
+      participantId: string;
       organizationId: string;
       sessionId: string;
     };

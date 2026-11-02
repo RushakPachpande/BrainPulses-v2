@@ -10,7 +10,7 @@ import { ApiLoadingProvider } from './contexts/api-loading';
 import { AuthProvider } from './contexts/auth';
 import { ClientQueryProvider } from './contexts/query-provider';
 import { RequireAuth } from './contexts/require-auth';
-import { StudentPageGuard, EnabledHome } from './layouts/student-page-guard';
+import { ParticipantPageGuard, EnabledHome } from './layouts/participant-page-guard';
 import { LoginPage } from './pages/login';
 
 const ActivityDetailPage = lazy(() =>
@@ -30,9 +30,9 @@ const ResultDetailPage = lazy(() =>
 
 function ShellLayout() {
   return (
-    <StudentPageGuard>
+    <ParticipantPageGuard>
       <Outlet />
-    </StudentPageGuard>
+    </ParticipantPageGuard>
   );
 }
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isValidNationalMobile, isValidUniqueId } from './login-validation';
 
 describe('isValidUniqueId', () => {
-  it('accepts a normal student code', () => {
+  it('accepts a normal participant code', () => {
     expect(isValidUniqueId('BP-24101')).toBe(true);
   });
 

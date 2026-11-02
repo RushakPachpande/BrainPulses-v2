@@ -8,14 +8,18 @@ import { normalizePhone } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
 import {
-  buildStudentSampleWorkbook,
-  parseStudentsFile,
-  studentRowIssue,
-  type StudentImportIssue,
+  buildParticipantSampleWorkbook,
+  parseParticipantsFile,
+  participantRowIssue,
+  type ParticipantImportIssue,
 } from './import-export.js';
-import type { createStudentSchema, studentListQuerySchema, updateStudentSchema } from './schema.js';
+import type {
+  createParticipantSchema,
+  participantListQuerySchema,
+  updateParticipantSchema,
+} from './schema.js';
 
-function mapStudent(s: {
+function mapParticipant(s: {
   id: string;
   code: string;
   name: string;
@@ -46,11 +50,11 @@ function mapStudent(s: {
   };
 }
 
-export async function listStudents(
+export async function listParticipants(
   organizationId: string,
-  query: z.infer<typeof studentListQuerySchema>,
+  query: z.infer<typeof participantListQuerySchema>,
 ) {
-  const where: Prisma.StudentWhereInput = {
+  const where: Prisma.ParticipantWhereInput = {
     organizationId,
     ...(query.status === 'active' ? { isActive: true } : {}),
     ...(query.status === 'inactive' ? { isActive: false } : {}),
@@ -68,8 +72,8 @@ export async function listStudents(
   const sort =
     query.sort === 'name' ? 'name' : query.sort === 'code' ? 'code' : ('createdAt' as const);
   const [total, rows] = await Promise.all([
-    prisma.student.count({ where }),
-    prisma.student.findMany({
+    prisma.participant.count({ where }),
+    prisma.participant.findMany({
       where,
       include: { _count: { select: { registrations: true } } },
       ...prismaCursorArgs(query, sort),
@@ -77,26 +81,26 @@ export async function listStudents(
   ]);
 
   const { items, page } = buildPage(rows, query.limit, total);
-  return listEnvelope(items.map(mapStudent), page);
+  return listEnvelope(items.map(mapParticipant), page);
 }
 
-export async function getStudent(organizationId: string, id: string) {
-  const student = await prisma.student.findFirst({
+export async function getParticipant(organizationId: string, id: string) {
+  const participant = await prisma.participant.findFirst({
     where: { organizationId, id },
     include: { _count: { select: { registrations: true } } },
   });
-  if (!student) throw notFound('Student not found.');
-  return mapStudent(student);
+  if (!participant) throw notFound('Participant not found.');
+  return mapParticipant(participant);
 }
 
-export async function createStudent(
+export async function createParticipant(
   organizationId: string,
   actorUserId: string,
-  input: z.infer<typeof createStudentSchema>,
+  input: z.infer<typeof createParticipantSchema>,
 ) {
-  const code = input.code ?? (await nextHumanCode(organizationId, 'BP', 'student'));
+  const code = input.code ?? (await nextHumanCode(organizationId, 'BP', 'participant'));
   try {
-    const student = await prisma.student.create({
+    const participant = await prisma.participant.create({
       data: {
         organizationId,
         code,
@@ -113,31 +117,31 @@ export async function createStudent(
       organizationId,
       actorType: 'user',
       actorUserId,
-      action: 'student.create',
-      targetType: 'student',
-      targetId: student.id,
+      action: 'participant.create',
+      targetType: 'participant',
+      targetId: participant.id,
     });
     await invalidateDashboard(organizationId);
-    return mapStudent(student);
+    return mapParticipant(participant);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw conflict('A student with that email, code, or phone already exists.');
+      throw conflict('A participant with that email, code, or phone already exists.');
     }
     throw err;
   }
 }
 
-export async function updateStudent(
+export async function updateParticipant(
   organizationId: string,
   actorUserId: string,
   id: string,
-  input: z.infer<typeof updateStudentSchema>,
+  input: z.infer<typeof updateParticipantSchema>,
 ) {
-  const existing = await prisma.student.findFirst({ where: { organizationId, id } });
-  if (!existing) throw notFound('Student not found.');
+  const existing = await prisma.participant.findFirst({ where: { organizationId, id } });
+  if (!existing) throw notFound('Participant not found.');
 
   try {
-    const student = await prisma.student.update({
+    const participant = await prisma.participant.update({
       where: { id },
       data: {
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -158,32 +162,36 @@ export async function updateStudent(
       organizationId,
       actorType: 'user',
       actorUserId,
-      action: 'student.update',
-      targetType: 'student',
+      action: 'participant.update',
+      targetType: 'participant',
       targetId: id,
     });
     await invalidateDashboard(organizationId);
-    return mapStudent(student);
+    return mapParticipant(participant);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-      throw conflict('A student with that email, code, or phone already exists.');
+      throw conflict('A participant with that email, code, or phone already exists.');
     }
     throw err;
   }
 }
 
-export async function deactivateStudent(organizationId: string, actorUserId: string, id: string) {
-  return updateStudent(organizationId, actorUserId, id, { isActive: false });
+export async function deactivateParticipant(
+  organizationId: string,
+  actorUserId: string,
+  id: string,
+) {
+  return updateParticipant(organizationId, actorUserId, id, { isActive: false });
 }
 
-async function setStudentsActive(
+async function setParticipantsActive(
   organizationId: string,
   actorUserId: string,
   ids: string[],
   isActive: boolean,
   action: string,
 ) {
-  const result = await prisma.student.updateMany({
+  const result = await prisma.participant.updateMany({
     where: { organizationId, id: { in: ids } },
     data: { isActive },
   });
@@ -192,39 +200,49 @@ async function setStudentsActive(
     actorType: 'user',
     actorUserId,
     action,
-    targetType: 'student',
+    targetType: 'participant',
     metadata: { ids, updated: result.count },
   });
   await invalidateDashboard(organizationId);
   return { updated: result.count };
 }
 
-export async function deactivateStudents(
+export async function deactivateParticipants(
   organizationId: string,
   actorUserId: string,
   ids: string[],
 ) {
-  return setStudentsActive(organizationId, actorUserId, ids, false, 'student.bulk_deactivate');
+  return setParticipantsActive(
+    organizationId,
+    actorUserId,
+    ids,
+    false,
+    'participant.bulk_deactivate',
+  );
 }
 
-export async function activateStudents(organizationId: string, actorUserId: string, ids: string[]) {
-  return setStudentsActive(organizationId, actorUserId, ids, true, 'student.bulk_activate');
+export async function activateParticipants(
+  organizationId: string,
+  actorUserId: string,
+  ids: string[],
+) {
+  return setParticipantsActive(organizationId, actorUserId, ids, true, 'participant.bulk_activate');
 }
 
-export async function deleteStudent(organizationId: string, actorUserId: string, id: string) {
-  const existing = await prisma.student.findFirst({
+export async function deleteParticipant(organizationId: string, actorUserId: string, id: string) {
+  const existing = await prisma.participant.findFirst({
     where: { organizationId, id },
     select: { id: true, email: true, name: true, code: true },
   });
-  if (!existing) throw notFound('Student not found.');
+  if (!existing) throw notFound('Participant not found.');
 
-  await prisma.student.delete({ where: { id } });
+  await prisma.participant.delete({ where: { id } });
   await writeAudit({
     organizationId,
     actorType: 'user',
     actorUserId,
-    action: 'student.delete',
-    targetType: 'student',
+    action: 'participant.delete',
+    targetType: 'participant',
     targetId: id,
     metadata: { email: existing.email, code: existing.code, name: existing.name },
   });
@@ -232,19 +250,19 @@ export async function deleteStudent(organizationId: string, actorUserId: string,
   return { deleted: true, email: existing.email };
 }
 
-export async function sampleStudentsWorkbook() {
-  return buildStudentSampleWorkbook();
+export async function sampleParticipantsWorkbook() {
+  return buildParticipantSampleWorkbook();
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export async function importStudentsFile(
+export async function importParticipantsFile(
   organizationId: string,
   actorUserId: string,
   file: { buffer: Buffer; originalname: string },
 ) {
-  const { rows, ignoredColumns } = await parseStudentsFile(file.buffer, file.originalname);
-  const issues: StudentImportIssue[] = [];
+  const { rows, ignoredColumns } = await parseParticipantsFile(file.buffer, file.originalname);
+  const issues: ParticipantImportIssue[] = [];
   let created = 0;
   const seenEmails = new Set<string>();
   const seenCodes = new Set<string>();
@@ -262,10 +280,10 @@ export async function importStudentsFile(
 
     if (!name) {
       issues.push(
-        studentRowIssue(row.sheetRow, 'name is required', {
+        participantRowIssue(row.sheetRow, 'name is required', {
           column: 'name',
           value: row.name,
-          expected: 'the student’s full name',
+          expected: 'the participant’s full name',
           example: 'Asha Verma',
         }),
       );
@@ -273,29 +291,29 @@ export async function importStudentsFile(
     }
     if (!emailRaw) {
       issues.push(
-        studentRowIssue(row.sheetRow, 'email is required', {
+        participantRowIssue(row.sheetRow, 'email is required', {
           column: 'email',
           value: row.email,
           expected: 'a real email address',
-          example: 'student@college.edu',
+          example: 'participant@college.edu',
         }),
       );
       continue;
     }
     if (!EMAIL_RE.test(email)) {
       issues.push(
-        studentRowIssue(row.sheetRow, 'this is not a valid email', {
+        participantRowIssue(row.sheetRow, 'this is not a valid email', {
           column: 'email',
           value: emailRaw,
           expected: 'a real email address',
-          example: 'student@college.edu',
+          example: 'participant@college.edu',
         }),
       );
       continue;
     }
     if (seenEmails.has(email)) {
       issues.push(
-        studentRowIssue(row.sheetRow, 'this email is duplicated earlier in the file', {
+        participantRowIssue(row.sheetRow, 'this email is duplicated earlier in the file', {
           column: 'email',
           value: email,
         }),
@@ -304,7 +322,7 @@ export async function importStudentsFile(
     }
     if (codeRaw && seenCodes.has(codeRaw.toLowerCase())) {
       issues.push(
-        studentRowIssue(row.sheetRow, 'this code is duplicated earlier in the file', {
+        participantRowIssue(row.sheetRow, 'this code is duplicated earlier in the file', {
           column: 'code',
           value: codeRaw,
         }),
@@ -317,7 +335,7 @@ export async function importStudentsFile(
       const normalized = normalizePhone(phoneRaw);
       if (!normalized) {
         issues.push(
-          studentRowIssue(row.sheetRow, 'this is not a valid phone number', {
+          participantRowIssue(row.sheetRow, 'this is not a valid phone number', {
             column: 'phone',
             value: phoneRaw,
             expected: 'a phone number with country code when possible',
@@ -328,7 +346,7 @@ export async function importStudentsFile(
       }
       if (seenPhones.has(normalized)) {
         issues.push(
-          studentRowIssue(row.sheetRow, 'this phone is duplicated earlier in the file', {
+          participantRowIssue(row.sheetRow, 'this phone is duplicated earlier in the file', {
             column: 'phone',
             value: phoneRaw,
           }),
@@ -339,7 +357,7 @@ export async function importStudentsFile(
     }
 
     try {
-      await createStudent(organizationId, actorUserId, {
+      await createParticipant(organizationId, actorUserId, {
         name,
         email,
         phone,
@@ -358,9 +376,9 @@ export async function importStudentsFile(
         (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')
       ) {
         issues.push(
-          studentRowIssue(
+          participantRowIssue(
             row.sheetRow,
-            'a student with that email, code, or phone already exists in this organization',
+            'a participant with that email, code, or phone already exists in this organization',
             { column: 'email', value: email },
           ),
         );
@@ -370,7 +388,7 @@ export async function importStudentsFile(
         err instanceof Error && err.message
           ? err.message.replace(/\.$/, '')
           : 'the row could not be saved';
-      issues.push(studentRowIssue(row.sheetRow, message));
+      issues.push(participantRowIssue(row.sheetRow, message));
     }
   }
 
@@ -378,8 +396,8 @@ export async function importStudentsFile(
     organizationId,
     actorType: 'user',
     actorUserId,
-    action: 'student.import',
-    targetType: 'student',
+    action: 'participant.import',
+    targetType: 'participant',
     metadata: { created, issues: issues.length, ignoredColumns },
   });
 

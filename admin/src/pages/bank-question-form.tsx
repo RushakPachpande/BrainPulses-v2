@@ -240,7 +240,7 @@ export function BankQuestionDialog({
               </Select>
             )}
             {draft.type === 'multiple_mcq' ? (
-              <FieldDescription>Students see a note: Select all that apply.</FieldDescription>
+              <FieldDescription>Participants see a note: Select all that apply.</FieldDescription>
             ) : null}
           </Field>
 
@@ -260,8 +260,8 @@ export function BankQuestionDialog({
                 {passageSharedCount && passageSharedCount > 1
                   ? `Shared with ${passageSharedCount - 1} other question${passageSharedCount - 1 === 1 ? '' : 's'} in this bank. Saving updates that one passage for all of them.`
                   : 'Questions imported with this same passage text share one passage.'}{' '}
-                If a student has already started, saving a passage edit keeps that attempt on the
-                previous text.
+                If a participant has already started, saving a passage edit keeps that attempt on
+                the previous text.
               </FieldDescription>
             </Field>
           ) : null}

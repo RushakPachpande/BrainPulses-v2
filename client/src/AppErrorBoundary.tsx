@@ -11,7 +11,7 @@ export default class AppErrorBoundary extends React.Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('BrainPulses student UI error', error, info.componentStack);
+    console.error('BrainPulses participant UI error', error, info.componentStack);
   }
 
   render() {

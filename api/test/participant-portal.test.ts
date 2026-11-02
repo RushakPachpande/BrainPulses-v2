@@ -3,9 +3,9 @@ import { describe, it } from 'node:test';
 import { prisma } from '../src/lib/prisma.js';
 import { getTestApp, request } from './helpers.js';
 
-async function studentToken(code = 'BP-24101') {
+async function participantToken(code = 'BP-24101') {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
+  const res = await request(app, 'POST', '/api/auth/participant/sign-in-by-code', {
     body: {
       code,
       organizationSlug: 'nextgeninnov8',
@@ -16,20 +16,20 @@ async function studentToken(code = 'BP-24101') {
   return (res.body as { data: { accessToken: string } }).data.accessToken;
 }
 
-describe('student portal', () => {
-  it('returns me and assigned activities for the signed-in student', async () => {
+describe('participant portal', () => {
+  it('returns me and assigned activities for the signed-in participant', async () => {
     const app = await getTestApp();
-    const token = await studentToken();
+    const token = await participantToken();
 
-    const me = await request(app, 'GET', '/api/student/me', {
+    const me = await request(app, 'GET', '/api/participant/me', {
       headers: { authorization: `Bearer ${token}` },
     });
     assert.equal(me.status, 200);
     const profile = (me.body as { data: { email: string; name: string } }).data;
-    assert.equal(profile.email, 'student1@mail.com');
+    assert.equal(profile.email, 'participant1@mail.com');
     assert.ok(profile.name);
 
-    const activities = await request(app, 'GET', '/api/student/activities?limit=50', {
+    const activities = await request(app, 'GET', '/api/participant/activities?limit=50', {
       headers: { authorization: `Bearer ${token}` },
     });
     assert.equal(activities.status, 200);
@@ -37,27 +37,29 @@ describe('student portal', () => {
     assert.ok(list.some((a) => a.code === 'QZ-26001'));
   });
 
-  it('does not allow a student to read another student result', async () => {
+  it('does not allow a participant to read another participant result', async () => {
     const app = await getTestApp();
-    const token1 = await studentToken('BP-24101');
-    const token2 = await studentToken('BP-24102');
+    const token1 = await participantToken('BP-24101');
+    const token2 = await participantToken('BP-24102');
 
     const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
     assert.ok(activity);
-    const student1 = await prisma.student.findFirst({ where: { email: 'student1@mail.com' } });
-    assert.ok(student1);
+    const participant1 = await prisma.participant.findFirst({
+      where: { email: 'participant1@mail.com' },
+    });
+    assert.ok(participant1);
 
     await prisma.reattemptGrant.deleteMany({
-      where: { studentId: student1.id, activityId: activity.id },
+      where: { participantId: participant1.id, activityId: activity.id },
     });
     await prisma.attemptResponse.deleteMany({
-      where: { attempt: { studentId: student1.id, activityId: activity.id } },
+      where: { attempt: { participantId: participant1.id, activityId: activity.id } },
     });
     await prisma.result.deleteMany({
-      where: { studentId: student1.id, activityId: activity.id },
+      where: { participantId: participant1.id, activityId: activity.id },
     });
     await prisma.attempt.deleteMany({
-      where: { studentId: student1.id, activityId: activity.id },
+      where: { participantId: participant1.id, activityId: activity.id },
     });
 
     const start = await request(app, 'POST', '/api/attempts/start', {
@@ -96,20 +98,20 @@ describe('student portal', () => {
     assert.equal(submit.status, 200);
     const resultId = (submit.body as { data: { result: { id: string } } }).data.result.id;
 
-    const own = await request(app, 'GET', `/api/student/results/${resultId}`, {
+    const own = await request(app, 'GET', `/api/participant/results/${resultId}`, {
       headers: { authorization: `Bearer ${token1}` },
     });
     assert.equal(own.status, 200);
 
-    const other = await request(app, 'GET', `/api/student/results/${resultId}`, {
+    const other = await request(app, 'GET', `/api/participant/results/${resultId}`, {
       headers: { authorization: `Bearer ${token2}` },
     });
     assert.equal(other.status, 404);
   });
 
-  it('turns a student page off for lists and attempt start', async () => {
+  it('turns a participant page off for lists and attempt start', async () => {
     const app = await getTestApp();
-    const token = await studentToken();
+    const token = await participantToken();
     const signIn = await request(app, 'POST', '/api/auth/sign-in', {
       body: { email: 'admin@brainpulses.com', password: 'Password123!' },
     });
@@ -127,7 +129,7 @@ describe('student portal', () => {
         .accessToken;
     }
 
-    const before = await request(app, 'GET', '/api/student/pages', {
+    const before = await request(app, 'GET', '/api/participant/pages', {
       headers: { authorization: `Bearer ${token}` },
     });
     assert.equal(before.status, 200);
@@ -136,11 +138,11 @@ describe('student portal', () => {
     try {
       const patched = await request(app, 'PATCH', '/api/settings/general', {
         headers: { authorization: `Bearer ${admin}` },
-        body: { values: { studentPageQuizzes: false } },
+        body: { values: { participantPageQuizzes: false } },
       });
       assert.equal(patched.status, 200);
 
-      const pages = await request(app, 'GET', '/api/student/pages', {
+      const pages = await request(app, 'GET', '/api/participant/pages', {
         headers: { authorization: `Bearer ${token}` },
       });
       assert.equal(pages.status, 200);
@@ -148,12 +150,12 @@ describe('student portal', () => {
       assert.equal(flags.quizzes, false);
       assert.equal(flags.overview, true);
 
-      const quizzes = await request(app, 'GET', '/api/student/activities?kind=quiz&limit=50', {
+      const quizzes = await request(app, 'GET', '/api/participant/activities?kind=quiz&limit=50', {
         headers: { authorization: `Bearer ${token}` },
       });
       assert.equal(quizzes.status, 403);
 
-      const all = await request(app, 'GET', '/api/student/activities?kind=all&limit=50', {
+      const all = await request(app, 'GET', '/api/participant/activities?kind=all&limit=50', {
         headers: { authorization: `Bearer ${token}` },
       });
       assert.equal(all.status, 200);
@@ -170,7 +172,7 @@ describe('student portal', () => {
     } finally {
       await request(app, 'PATCH', '/api/settings/general', {
         headers: { authorization: `Bearer ${admin}` },
-        body: { values: { studentPageQuizzes: true } },
+        body: { values: { participantPageQuizzes: true } },
       });
     }
   });

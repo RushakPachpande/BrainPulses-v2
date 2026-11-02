@@ -18,7 +18,7 @@
 ## 1. Product Intent
 
 Build a professional, dependable quiz and assessment web application
-with distinct workspaces for **Students**, **Teachers**, and
+with distinct workspaces for **Participants**, **Teachers**, and
 **Administrators**. The interface should feel calm, modern, precise, and
 trustworthy---not ornamental or trend-driven.
 
@@ -120,10 +120,10 @@ The product uses role-aware workspaces. Navigation items must be driven
 by a single structured configuration rather than duplicated
 independently across pages.
 
-### 3.1 Student workspace
+### 3.1 Participant workspace
 
 **Learn** - Dashboard - My Quizzes - Assessments - Practice - Question
-Bank (only if students are allowed to browse it)
+Bank (only if participants are allowed to browse it)
 
 **Progress** - Results & Analytics - Certificates
 
@@ -139,7 +139,7 @@ Review Attempts
 
 **Analytics** - Performance - Reports
 
-**Manage** - Students - Categories - Settings - Help & Support
+**Manage** - Participants - Categories - Settings - Help & Support
 
 ### 3.3 Administrator workspace
 
@@ -311,11 +311,14 @@ shared tokens.
 
 ### 5.4 Typography
 
--   Headings use Plus Jakarta Sans. Body, tables, and labels use Source
-    Sans 3. Fallback is Segoe UI, then sans-serif.
--   Page titles are 24–30 px and weight 700. Section titles are 18–22 px.
-    Body is 16 px. UI copy (`.text-sm`) is 15 px. Labels, breadcrumbs,
-    and badges (`.text-xs`) are 13 px. Table heads are 13 px uppercase.
+-   Page titles, question text, option letters, and timer values use
+    Sora. Body, UI, section titles, tables, and labels use Manrope.
+    Fallback is Segoe UI, then sans-serif.
+-   Page titles are 24 px (mobile) / 32 px (desktop), weight 700.
+    Subtitles are 16 / 20 px. Primary buttons are 16 px. Attempt
+    question text is 24 / 42 px. Section titles are 18–22 px. Body is
+    16 px. UI copy (`.text-sm`) is 15 px. Labels, breadcrumbs, and
+    badges (`.text-xs`) are 13 px. Table heads are 13 px uppercase.
 -   Do not communicate status by color alone.
 -   Use sentence case for labels and actions.
 -   Keep headings concise. Table heads are the only uppercase text.

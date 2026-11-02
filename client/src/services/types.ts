@@ -1,19 +1,19 @@
 export type ActivityKind = 'assessment' | 'quiz';
 
-export type StudentRoundState = 'locked' | 'available' | 'in_progress' | 'completed';
+export type ParticipantRoundState = 'locked' | 'available' | 'in_progress' | 'completed';
 
-export type StudentActivityRound = {
+export type ParticipantActivityRound = {
   id: string;
   name: string;
   sortOrder: number;
   durationMinutes: number | null;
   questionCount: number;
-  state: StudentRoundState;
+  state: ParticipantRoundState;
   openAttemptId: string | null;
   latestResultId: string | null;
 };
 
-export type StudentActivity = {
+export type ParticipantActivity = {
   registrationId: string;
   activityId: string;
   code: string;
@@ -42,10 +42,10 @@ export type StudentActivity = {
   sponsorImageFileId?: string | null;
   contestName?: string | null;
   contestImageFileId?: string | null;
-  rounds?: StudentActivityRound[];
+  rounds?: ParticipantActivityRound[];
 };
 
-export type StudentResultSummary = {
+export type ParticipantResultSummary = {
   id: string;
   activityId: string;
   activityCode: string;
@@ -63,7 +63,7 @@ export type StudentResultSummary = {
   durationMinutes: number | null;
 };
 
-export type StudentResultDetail = {
+export type ParticipantResultDetail = {
   id: string;
   title: string;
   kind: ActivityKind;
@@ -120,7 +120,7 @@ export type AttemptState = {
   submittedAt: string | null;
   activityId: string;
   roundId?: string | null;
-  studentId: string;
+  participantId: string;
   activityKind?: string | null;
   softProctoring?: boolean;
   disqualified?: boolean;
@@ -136,7 +136,7 @@ export type AttemptState = {
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
 };
 
-export type StudentProfile = {
+export type ParticipantProfile = {
   id: string;
   code: string;
   name: string;

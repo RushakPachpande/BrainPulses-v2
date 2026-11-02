@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { listQuerySchema } from '../../lib/pagination.js';
 
-export const studentActivitiesQuerySchema = listQuerySchema.extend({
+export const participantActivitiesQuerySchema = listQuerySchema.extend({
   kind: z.enum(['assessment', 'quiz', 'all']).default('all'),
 });
 
-export const studentResultsQuerySchema = listQuerySchema.extend({
+export const participantResultsQuerySchema = listQuerySchema.extend({
   kind: z.enum(['assessment', 'quiz', 'all']).default('all'),
 });
 

@@ -1,7 +1,5 @@
 import {
-  Bell,
   BookOpen,
-  CalendarDays,
   CircleHelp,
   Home,
   LogOut,
@@ -15,11 +13,10 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { ThemeToggle } from '../components/theme-toggle';
 import { useAuth } from '../contexts/auth-context';
-import { formatDateLabel } from '../lib/format';
-import type { StudentPageKey, StudentPages } from '../lib/student-pages';
+import type { ParticipantPageKey, ParticipantPages } from '../lib/participant-pages';
 
 const nav: {
-  key: StudentPageKey;
+  key: ParticipantPageKey;
   label: string;
   path: string;
   icon: typeof Home;
@@ -30,33 +27,26 @@ const nav: {
   { key: 'results', label: 'My results', path: '/results', icon: Trophy },
 ];
 
-export function StudentShell({
+export function ParticipantShell({
   title,
   pages,
   children,
 }: {
   title: string;
-  pages: StudentPages | null;
+  pages: ParticipantPages | null;
   children?: ReactNode;
 }) {
-  const { student, signOut } = useAuth();
+  const { participant, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobile, setMobile] = useState(false);
-  const [toast, setToast] = useState('');
   const [signOutConfirm, setSignOutConfirm] = useState(false);
-  const name = student?.name ?? 'Student';
+  const name = participant?.name ?? 'Participant';
   const initials = name
     .split(' ')
     .map((x) => x[0])
     .slice(0, 2)
     .join('');
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(''), 3000);
-    return () => window.clearTimeout(t);
-  }, [toast]);
 
   useEffect(() => {
     setMobile(false);
@@ -76,7 +66,6 @@ export function StudentShell({
             <X size={18} />
           </button>
         </div>
-        <div className="workspace-label">STUDENT WORKSPACE</div>
         <nav className="side-nav">
           {nav
             .filter((item) => pages?.[item.key])
@@ -115,15 +104,15 @@ export function StudentShell({
               <span>Help centre</span>
             </NavLink>
           ) : null}
-          <div className="student-mini">
+          <div className="participant-mini">
             <div className="avatar" aria-hidden>
               {initials}
             </div>
-            <div className="student-mini-info">
+            <div className="participant-mini-info">
               <b>{name}</b>
-              <span>{student?.organization.name ?? 'Student account'}</span>
+              <span>{participant?.organization.name ?? 'Participant account'}</span>
             </div>
-            <div className="student-mini-actions">
+            <div className="participant-mini-actions">
               <ThemeToggle />
               <button
                 type="button"
@@ -154,38 +143,16 @@ export function StudentShell({
           <Menu size={20} />
         </button>
         <div className="topbar-title">
-          <span className="crumb">Student portal</span>
-          <span className="crumb-sep">/</span>
           <b>{title}</b>
         </div>
         <div className="topbar-actions">
-          <div className="top-date">
-            <CalendarDays size={15} />
-            {formatDateLabel(new Date().toISOString())}
-          </div>
           <ThemeToggle />
-          <button
-            className="icon-btn"
-            aria-label="Notifications"
-            type="button"
-            onClick={() => setToast('You are all caught up.')}
-          >
-            <Bell size={18} />
-          </button>
         </div>
       </header>
       <main className="main-content">
         <div className="page-enter" key={location.pathname}>
           {children ?? <Outlet />}
         </div>
-        {toast && (
-          <div className="toast">
-            {toast}
-            <button type="button" onClick={() => setToast('')} aria-label="Dismiss">
-              <X size={15} />
-            </button>
-          </div>
-        )}
       </main>
       <footer className="app-footer">
         <span>© 2026 BrainPulses</span>

@@ -23,9 +23,9 @@ import {
   registeredCounts,
   resultScores,
   resultStatuses,
-  studentCities,
-  studentCourses,
-  studentStatuses,
+  participantCities,
+  participantCourses,
+  participantStatuses,
   usedInCounts,
   when,
 } from './fixtures';
@@ -35,7 +35,7 @@ function range(n: number) {
   return Array.from({ length: n }, (_, i) => i);
 }
 
-export function fixturesGetStudents() {
+export function fixturesGetParticipants() {
   return range(6).map((i) => ({
     id: `stu-fixture-${i}`,
     code: 'BP-' + (24101 + i),
@@ -44,10 +44,10 @@ export function fixturesGetStudents() {
     phone: phone(i),
     registered: when(i),
     activities: activityCounts[i],
-    status: studentStatuses[i],
+    status: participantStatuses[i],
     lastLogin: when(i + 1, 10),
-    course: studentCourses[i],
-    city: studentCities[i],
+    course: participantCourses[i],
+    city: participantCities[i],
     cohort: i % 2 === 0 ? 'Alpha' : 'Beta',
   }));
 }
@@ -59,7 +59,7 @@ export function fixturesGetUsers() {
     role: i % 3 ? 'Admin' : 'Super Admin',
     assessmentAccess: ['Full', 'Full', 'View only', 'Full', 'None', 'Full'][i],
     quizAccess: ['Full', 'Edit', 'Full', 'None', 'Full', 'View only'][i],
-    status: studentStatuses[i],
+    status: participantStatuses[i],
     lastLogin: when(i + 1, 10),
   }));
 }
@@ -104,7 +104,7 @@ export function fixturesGetRegistrations(kind: ActivityKind) {
   return range(6).map((i) => ({
     id: 'BP-' + (24101 + i),
     registrationId: `reg-${i}`,
-    studentId: `stu-${i}`,
+    participantId: `stu-${i}`,
     activityId: `act-${i}`,
     name: personName(i),
     email: mail(i),
@@ -116,8 +116,8 @@ export function fixturesGetRegistrations(kind: ActivityKind) {
     attempt: attemptStatuses[i],
     attemptId: attemptStatuses[i] === 'Not Started' ? null : `fixture-attempt-${kind}-${i}`,
     resultId: attemptStatuses[i] === 'Completed' ? `fixture-result-${kind}-${i}` : null,
-    city: studentCities[i],
-    course: studentCourses[i],
+    city: participantCities[i],
+    course: participantCourses[i],
     cohort: i % 2 === 0 ? 'Alpha' : 'Beta',
   }));
 }
@@ -126,7 +126,7 @@ export function fixturesGetResults(kind: ActivityKind) {
   const names = kind === 'quiz' ? quizNames : assessmentNames;
   return resultScores.map((score, i) => ({
     id: `fixture-result-${kind}-${i}`,
-    student: personName(i),
+    participant: personName(i),
     activity: names[i % 6],
     attempt: '#1',
     score,
@@ -138,7 +138,7 @@ export function fixturesGetResults(kind: ActivityKind) {
 export function fixturesGetDashboard() {
   return {
     kpis: [
-      ['Total Students', '12,480', '▲ 8.2% this month', 0],
+      ['Total Participants', '12,480', '▲ 8.2% this month', 0],
       ['Active Assessments', '14', '3 starting soon', 1],
       ['Active Quizzes', '26', '▲ 4 this week', 2],
       ['Completed Attempts', '9,371', '▲ 12.5%', 3],
@@ -168,7 +168,7 @@ export function fixturesGetDashboard() {
       ['dash-2', 'Weekly GK Quiz published by Meera Joshi', '16 min ago'],
       ['dash-3', 'Rohan Mehta completed Aptitude Screening Q4', '28 min ago'],
       ['dash-4', 'Question bank Verbal Ability updated', '40 min ago'],
-      ['dash-5', '45 students bulk-uploaded', '52 min ago'],
+      ['dash-5', '45 participants bulk-uploaded', '52 min ago'],
     ] as const,
   };
 }

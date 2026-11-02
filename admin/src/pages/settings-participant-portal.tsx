@@ -10,7 +10,7 @@ import { ApiError } from '@/lib/api-client';
 import { canManageUsersOrSettings } from '@/lib/access';
 import { getSettingsGroup, patchSettingsGroup } from '@/services';
 
-const studentPageToggles = [
+const participantPageToggles = [
   {
     key: 'overview',
     label: 'Overview',
@@ -39,13 +39,13 @@ const studentPageToggles = [
   {
     key: 'help',
     label: 'Help centre',
-    hint: 'Help articles for students.',
+    hint: 'Help articles for participants.',
   },
 ] as const;
 
-type StudentPageKey = (typeof studentPageToggles)[number]['key'];
+type ParticipantPageKey = (typeof participantPageToggles)[number]['key'];
 
-const initialPages: Record<StudentPageKey, boolean> = {
+const initialPages: Record<ParticipantPageKey, boolean> = {
   overview: true,
   quizzes: true,
   assessments: true,
@@ -58,11 +58,12 @@ function pageEnabled(value: unknown) {
   return typeof value === 'boolean' ? value : true;
 }
 
-export function StudentPortalSettingsPage() {
+export function ParticipantPortalSettingsPage() {
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canManage = canManageUsersOrSettings(membership);
   const [pages, setPages] = useState(initialPages);
+  const [phoneLogin, setPhoneLogin] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,13 +72,14 @@ export function StudentPortalSettingsPage() {
     void getSettingsGroup('general')
       .then(({ values }) => {
         setPages({
-          overview: pageEnabled(values.studentPageOverview),
-          quizzes: pageEnabled(values.studentPageQuizzes),
-          assessments: pageEnabled(values.studentPageAssessments),
-          results: pageEnabled(values.studentPageResults),
-          profile: pageEnabled(values.studentPageProfile),
-          help: pageEnabled(values.studentPageHelp),
+          overview: pageEnabled(values.participantPageOverview),
+          quizzes: pageEnabled(values.participantPageQuizzes),
+          assessments: pageEnabled(values.participantPageAssessments),
+          results: pageEnabled(values.participantPageResults),
+          profile: pageEnabled(values.participantPageProfile),
+          help: pageEnabled(values.participantPageHelp),
         });
+        setPhoneLogin(pageEnabled(values.participantPhoneLogin));
       })
       .catch(() => {
         /* keep defaults */
@@ -91,15 +93,16 @@ export function StudentPortalSettingsPage() {
     setSaving(true);
     try {
       await patchSettingsGroup('general', {
-        studentPageOverview: pages.overview,
-        studentPageQuizzes: pages.quizzes,
-        studentPageAssessments: pages.assessments,
-        studentPageResults: pages.results,
-        studentPageProfile: pages.profile,
-        studentPageHelp: pages.help,
+        participantPageOverview: pages.overview,
+        participantPageQuizzes: pages.quizzes,
+        participantPageAssessments: pages.assessments,
+        participantPageResults: pages.results,
+        participantPageProfile: pages.profile,
+        participantPageHelp: pages.help,
+        participantPhoneLogin: phoneLogin,
       });
       setSaved(true);
-      toast.success('Student portal settings saved.');
+      toast.success('Participant portal settings saved.');
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not save settings.');
     } finally {
@@ -109,6 +112,7 @@ export function StudentPortalSettingsPage() {
 
   function reset() {
     setPages(initialPages);
+    setPhoneLogin(true);
     setSaved(false);
   }
 
@@ -121,10 +125,10 @@ export function StudentPortalSettingsPage() {
               <PanelsTopLeftIcon className="size-5" />
             </span>
             <div>
-              <CardTitle>Student portal pages</CardTitle>
+              <CardTitle>Participant portal pages</CardTitle>
               <CardDescription className="mt-1">
-                Turn student navigation pages on or off. A page stays hidden until you turn it back
-                on.
+                Turn participant navigation pages on or off. A page stays hidden until you turn it
+                back on.
               </CardDescription>
             </div>
           </div>
@@ -133,7 +137,7 @@ export function StudentPortalSettingsPage() {
           {loading ? (
             <SettingsListSkeleton rows={6} />
           ) : (
-            studentPageToggles.map((item) => (
+            participantPageToggles.map((item) => (
               <div
                 key={item.key}
                 className="flex items-center justify-between gap-4 border-b border-border/70 py-4 last:border-0"
@@ -155,6 +159,46 @@ export function StudentPortalSettingsPage() {
                 />
               </div>
             ))
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="border-b border-border/70 px-5 py-4 sm:px-6">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <PanelsTopLeftIcon className="size-5" />
+            </span>
+            <div>
+              <CardTitle>Sign-in methods</CardTitle>
+              <CardDescription className="mt-1">
+                Choose how participants can sign in to the portal.
+              </CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="px-5 py-1 sm:px-6">
+          {loading ? (
+            <SettingsListSkeleton rows={1} />
+          ) : (
+            <div className="flex items-center justify-between gap-4 py-4">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">Phone login</p>
+                <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
+                  Allow participants to sign in with a mobile number and OTP. Unique ID sign-in stays
+                  available.
+                </p>
+              </div>
+              <Switch
+                checked={phoneLogin}
+                onCheckedChange={(next) => {
+                  setPhoneLogin(next);
+                  setSaved(false);
+                }}
+                disabled={!canManage}
+                aria-label="Phone login"
+              />
+            </div>
           )}
         </CardContent>
       </Card>

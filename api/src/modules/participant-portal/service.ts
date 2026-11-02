@@ -1,10 +1,10 @@
 import { Prisma } from '#prisma';
 import { forbidden, notFound } from '../../lib/errors.js';
 import {
-  STUDENT_PAGE_OFF_MESSAGE,
-  assertStudentPageEnabled,
-  getStudentPages,
-} from '../../lib/student-pages.js';
+  PARTICIPANT_PAGE_OFF_MESSAGE,
+  assertParticipantPageEnabled,
+  getParticipantPages,
+} from '../../lib/participant-pages.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { isQuizScoreVisible, parseQuizSettings } from '../../lib/quiz-settings.js';
@@ -12,8 +12,8 @@ import { scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
 import type {
   patchProfileSchema,
-  studentActivitiesQuerySchema,
-  studentResultsQuerySchema,
+  participantActivitiesQuerySchema,
+  participantResultsQuerySchema,
 } from './schema.js';
 
 function explanationFromAnswerKey(answerKey: Prisma.JsonValue): string | null {
@@ -22,56 +22,56 @@ function explanationFromAnswerKey(answerKey: Prisma.JsonValue): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-export async function getMe(organizationId: string, studentId: string) {
-  const student = await prisma.student.findFirst({
-    where: { organizationId, id: studentId, isActive: true },
+export async function getMe(organizationId: string, participantId: string) {
+  const participant = await prisma.participant.findFirst({
+    where: { organizationId, id: participantId, isActive: true },
     include: { organization: { select: { id: true, name: true, slug: true } } },
   });
-  if (!student) throw notFound('Student not found.');
+  if (!participant) throw notFound('Participant not found.');
   return {
-    id: student.id,
-    code: student.code,
-    name: student.name,
-    email: student.email,
-    phone: student.phone,
-    course: student.course,
-    city: student.city,
-    organization: student.organization,
+    id: participant.id,
+    code: participant.code,
+    name: participant.name,
+    email: participant.email,
+    phone: participant.phone,
+    course: participant.course,
+    city: participant.city,
+    organization: participant.organization,
   };
 }
 
 export async function patchMe(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   input: z.infer<typeof patchProfileSchema>,
 ) {
-  const existing = await prisma.student.findFirst({
-    where: { organizationId, id: studentId, isActive: true },
+  const existing = await prisma.participant.findFirst({
+    where: { organizationId, id: participantId, isActive: true },
   });
-  if (!existing) throw notFound('Student not found.');
-  await assertStudentPageEnabled(organizationId, 'profile');
+  if (!existing) throw notFound('Participant not found.');
+  await assertParticipantPageEnabled(organizationId, 'profile');
 
-  await prisma.student.updateMany({
-    where: { organizationId, id: studentId },
+  await prisma.participant.updateMany({
+    where: { organizationId, id: participantId },
     data: {
       ...(input.name !== undefined ? { name: input.name } : {}),
     },
   });
 
-  return getMe(organizationId, studentId);
+  return getMe(organizationId, participantId);
 }
 
 export async function listMyActivities(
   organizationId: string,
-  studentId: string,
-  query: z.infer<typeof studentActivitiesQuerySchema>,
+  participantId: string,
+  query: z.infer<typeof participantActivitiesQuerySchema>,
 ) {
-  const pages = await getStudentPages(organizationId);
+  const pages = await getParticipantPages(organizationId);
   const enabledKinds = (
     [pages.quizzes ? 'quiz' : null, pages.assessments ? 'assessment' : null] as const
   ).filter((kind): kind is 'quiz' | 'assessment' => kind !== null);
   if (query.kind !== 'all' && !enabledKinds.includes(query.kind)) {
-    throw forbidden(STUDENT_PAGE_OFF_MESSAGE);
+    throw forbidden(PARTICIPANT_PAGE_OFF_MESSAGE);
   }
   if (enabledKinds.length === 0) {
     return listEnvelope([], {
@@ -84,7 +84,7 @@ export async function listMyActivities(
 
   const where: Prisma.RegistrationWhereInput = {
     organizationId,
-    studentId,
+    participantId,
     status: 'assigned',
     activity: {
       status: { in: ['active', 'completed'] },
@@ -139,11 +139,11 @@ export async function listMyActivities(
             sponsor: { select: { name: true, imageFileId: true } },
             contest: { select: { name: true, imageFileId: true } },
             reattemptGrants: {
-              where: { studentId, consumedAt: null },
+              where: { participantId, consumedAt: null },
               select: { id: true },
             },
             attempts: {
-              where: { studentId },
+              where: { participantId },
               orderBy: { startedAt: 'desc' },
               include: { result: true },
             },
@@ -312,17 +312,17 @@ export async function listMyActivities(
 
 export async function listMyResults(
   organizationId: string,
-  studentId: string,
-  query: z.infer<typeof studentResultsQuerySchema>,
+  participantId: string,
+  query: z.infer<typeof participantResultsQuerySchema>,
 ) {
-  await assertStudentPageEnabled(organizationId, 'results');
+  await assertParticipantPageEnabled(organizationId, 'results');
   const activityFilter: Prisma.ActivityWhereInput = {
     ...(query.kind !== 'all' ? { kind: query.kind } : {}),
     ...(query.q ? { name: { contains: query.q, mode: 'insensitive' } } : {}),
   };
   const where: Prisma.ResultWhereInput = {
     organizationId,
-    studentId,
+    participantId,
     ...(Object.keys(activityFilter).length > 0 ? { activity: activityFilter } : {}),
   };
 
@@ -384,10 +384,10 @@ export async function listMyResults(
   );
 }
 
-export async function getMyResult(organizationId: string, studentId: string, resultId: string) {
-  await assertStudentPageEnabled(organizationId, 'results');
+export async function getMyResult(organizationId: string, participantId: string, resultId: string) {
+  await assertParticipantPageEnabled(organizationId, 'results');
   const result = await prisma.result.findFirst({
-    where: { organizationId, id: resultId, studentId },
+    where: { organizationId, id: resultId, participantId },
     include: {
       activity: true,
       attempt: {
@@ -423,7 +423,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
     result.activity.kind === 'quiz' ? parseQuizSettings(result.activity.settings) : null;
   const published = result.releaseStatus === 'published';
   const scoreOk = isQuizScoreVisible(quizSettings, published);
-  const includeKeys = published && (quizSettings?.answersVisibleToStudent ?? published);
+  const includeKeys = published && (quizSettings?.answersVisibleToParticipant ?? published);
 
   const review = result.attempt.responses.map((response) => {
     const version = byId.get(response.questionVersionId);
@@ -485,7 +485,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
             where: {
               organizationId,
               activityId: result.activity.id,
-              studentId,
+              participantId,
               status: { in: ['submitted', 'auto_submitted'] },
             },
           }),
@@ -493,7 +493,7 @@ export async function getMyResult(organizationId: string, studentId: string, res
             where: {
               organizationId,
               activityId: result.activity.id,
-              studentId,
+              participantId,
               consumedAt: null,
             },
           }),

@@ -96,7 +96,7 @@ function sendInline(file: { mimeType: string }, buffer: Buffer, res: Response) {
 }
 
 function allowImageRead(req: Request, res: Response, next: NextFunction) {
-  if (req.actor?.kind === 'student') {
+  if (req.actor?.kind === 'participant') {
     next();
     return;
   }

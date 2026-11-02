@@ -9,25 +9,25 @@ const DAILY_SEND_LIMIT = 10;
 
 type OtpRecord = {
   hash: string;
-  studentId: string;
+  participantId: string;
   organizationId: string;
 };
 
 function otpKey(organizationId: string, phone: string) {
-  return `student-otp:${organizationId}:${phone}`;
+  return `participant-otp:${organizationId}:${phone}`;
 }
 
 function attemptsKey(organizationId: string, phone: string) {
-  return `student-otp-attempts:${organizationId}:${phone}`;
+  return `participant-otp-attempts:${organizationId}:${phone}`;
 }
 
 function cooldownKey(organizationId: string, phone: string) {
-  return `student-otp-cooldown:${organizationId}:${phone}`;
+  return `participant-otp-cooldown:${organizationId}:${phone}`;
 }
 
 function dailyKey(organizationId: string, phone: string) {
   const day = new Date().toISOString().slice(0, 10);
-  return `student-otp-daily:${organizationId}:${phone}:${day}`;
+  return `participant-otp-daily:${organizationId}:${phone}:${day}`;
 }
 
 function hashOtp(otp: string): string {
@@ -67,16 +67,16 @@ export async function markOtpSend(organizationId: string, phone: string): Promis
 }
 
 /** Store a new OTP hash. Failed-attempt counter is preserved across reissues. */
-export async function storeStudentOtp(input: {
+export async function storeParticipantOtp(input: {
   organizationId: string;
   phone: string;
-  studentId: string;
+  participantId: string;
   otp: string;
 }): Promise<void> {
   const redis = getRedis();
   const record: OtpRecord = {
     hash: hashOtp(input.otp),
-    studentId: input.studentId,
+    participantId: input.participantId,
     organizationId: input.organizationId,
   };
   const key = otpKey(input.organizationId, input.phone);
@@ -91,7 +91,10 @@ export async function storeStudentOtp(input: {
   }
 }
 
-export async function consumeStudentOtp(organizationId: string, phone: string): Promise<boolean> {
+export async function consumeParticipantOtp(
+  organizationId: string,
+  phone: string,
+): Promise<boolean> {
   const redis = getRedis();
   const key = otpKey(organizationId, phone);
   const aKey = attemptsKey(organizationId, phone);
@@ -103,14 +106,14 @@ export async function consumeStudentOtp(organizationId: string, phone: string): 
   return false;
 }
 
-export async function verifyStudentOtp(input: {
+export async function verifyParticipantOtp(input: {
   organizationId: string;
   phone: string;
   otp: string;
   /** When false, validate without consuming (for session-conflict checks). Default true. */
   consume?: boolean;
 }): Promise<
-  { ok: true; studentId: string } | { ok: false; reason: 'missing' | 'invalid' | 'exhausted' }
+  { ok: true; participantId: string } | { ok: false; reason: 'missing' | 'invalid' | 'exhausted' }
 > {
   const redis = getRedis();
   const key = otpKey(input.organizationId, input.phone);
@@ -163,10 +166,10 @@ export async function verifyStudentOtp(input: {
     await redis.del(aKey);
   }
 
-  return { ok: true, studentId: record.studentId };
+  return { ok: true, participantId: record.participantId };
 }
 
-export async function clearStudentOtp(organizationId: string, phone: string): Promise<void> {
+export async function clearParticipantOtp(organizationId: string, phone: string): Promise<void> {
   const redis = getRedis();
   await redis.del(otpKey(organizationId, phone), attemptsKey(organizationId, phone));
 }

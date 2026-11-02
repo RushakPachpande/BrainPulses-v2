@@ -6,7 +6,7 @@ export const GC_MS = 5 * 60_000;
 export const adminQueryKeys = {
   all: ['admin'] as const,
   dashboard: (orgId: string) => ['admin', 'dashboard', orgId] as const,
-  students: (orgId: string) => ['admin', 'students', orgId] as const,
+  participants: (orgId: string) => ['admin', 'participants', orgId] as const,
   sponsors: (orgId: string) => ['admin', 'sponsors', orgId] as const,
   contests: (orgId: string) => ['admin', 'contests', orgId] as const,
   users: (orgId: string) => ['admin', 'users', orgId] as const,

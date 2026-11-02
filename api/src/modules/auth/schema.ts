@@ -19,7 +19,7 @@ export const selectOrganizationSchema = z.object({
   organizationId: z.string().uuid(),
 });
 
-export const studentSignInByCodeSchema = z.object({
+export const participantSignInByCodeSchema = z.object({
   code: z
     .string()
     .trim()
@@ -47,11 +47,11 @@ function refinePhoneParts<T extends z.ZodTypeAny>(schema: T) {
   });
 }
 
-export const studentRequestOtpSchema = refinePhoneParts(phonePartsObject);
+export const participantRequestOtpSchema = refinePhoneParts(phonePartsObject);
 
-export const studentResendOtpSchema = refinePhoneParts(phonePartsObject);
+export const participantResendOtpSchema = refinePhoneParts(phonePartsObject);
 
-export const studentVerifyOtpSchema = refinePhoneParts(
+export const participantVerifyOtpSchema = refinePhoneParts(
   phonePartsObject.extend({
     otp: z
       .string()

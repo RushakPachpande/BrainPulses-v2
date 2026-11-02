@@ -1,12 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
-import { studentActor } from '../../middleware/auth.js';
-import { getStudentPages } from '../../lib/student-pages.js';
+import { participantActor } from '../../middleware/auth.js';
+import { getParticipantPages } from '../../lib/participant-pages.js';
 import * as service from './service.js';
 
 export async function me(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
-    const data = await service.getMe(actor.organizationId, actor.studentId);
+    const actor = participantActor(req);
+    const data = await service.getMe(actor.organizationId, actor.participantId);
     res.json({ data });
   } catch (err) {
     next(err);
@@ -15,8 +15,8 @@ export async function me(req: Request, res: Response, next: NextFunction) {
 
 export async function patchMe(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
-    const data = await service.patchMe(actor.organizationId, actor.studentId, req.body);
+    const actor = participantActor(req);
+    const data = await service.patchMe(actor.organizationId, actor.participantId, req.body);
     res.json({ data });
   } catch (err) {
     next(err);
@@ -25,8 +25,8 @@ export async function patchMe(req: Request, res: Response, next: NextFunction) {
 
 export async function pages(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
-    const data = await getStudentPages(actor.organizationId);
+    const actor = participantActor(req);
+    const data = await getParticipantPages(actor.organizationId);
     res.json({ data });
   } catch (err) {
     next(err);
@@ -35,10 +35,10 @@ export async function pages(req: Request, res: Response, next: NextFunction) {
 
 export async function activities(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.listMyActivities(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.query as never,
     );
     res.json(data);
@@ -49,10 +49,10 @@ export async function activities(req: Request, res: Response, next: NextFunction
 
 export async function results(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.listMyResults(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.query as never,
     );
     res.json(data);
@@ -63,10 +63,10 @@ export async function results(req: Request, res: Response, next: NextFunction) {
 
 export async function resultDetail(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.getMyResult(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.params.id as string,
     );
     res.json({ data });

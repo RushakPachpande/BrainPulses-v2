@@ -5,7 +5,7 @@ import { badRequest, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { assertActivityAccess } from '../activities/service.js';
-import { assertCanWipeActivity, wipeStudentActivityAttempts } from '../attempts/wipe.js';
+import { assertCanWipeActivity, wipeParticipantActivityAttempts } from '../attempts/wipe.js';
 import type { z } from 'zod';
 import type { resultListQuerySchema } from './schema.js';
 
@@ -27,7 +27,7 @@ function viewableKinds(actor: ResultsActor): ActivityKind[] {
 function mapResult(r: {
   id: string;
   activityId: string;
-  studentId: string;
+  participantId: string;
   score: Prisma.Decimal;
   maxScore: Prisma.Decimal;
   percent: Prisma.Decimal;
@@ -35,16 +35,16 @@ function mapResult(r: {
   releaseStatus: string;
   publishedAt: Date | null;
   createdAt: Date;
-  student: { name: string; code: string };
+  participant: { name: string; code: string };
   activity: { name: string; kind: string };
   attempt: { id: string; disqualified: boolean };
 }) {
   return {
     id: r.id,
     activityId: r.activityId,
-    studentId: r.studentId,
-    student: r.student.name,
-    studentCode: r.student.code,
+    participantId: r.participantId,
+    participant: r.participant.name,
+    participantCode: r.participant.code,
     activity: r.activity.name,
     activityKind: r.activity.kind,
     attemptId: r.attempt.id,
@@ -80,7 +80,7 @@ export async function listResults(
     ...(query.q
       ? {
           OR: [
-            { student: { name: { contains: query.q, mode: 'insensitive' } } },
+            { participant: { name: { contains: query.q, mode: 'insensitive' } } },
             { activity: { name: { contains: query.q, mode: 'insensitive' } } },
           ],
         }
@@ -91,7 +91,7 @@ export async function listResults(
     prisma.result.count({ where }),
     prisma.result.findMany({
       where,
-      include: { student: true, activity: true, attempt: true },
+      include: { participant: true, activity: true, attempt: true },
       ...prismaCursorArgs(query),
     }),
   ]);
@@ -104,7 +104,7 @@ export async function getResult(organizationId: string, actor: ResultsActor, id:
   const result = await prisma.result.findFirst({
     where: { organizationId, id },
     include: {
-      student: true,
+      participant: true,
       activity: true,
       attempt: true,
       revisions: { orderBy: { createdAt: 'desc' } },
@@ -241,7 +241,7 @@ export async function regradeResult(
 }
 
 /**
- * Removes the student's attempt(s) for this activity (and round, when set)
+ * Removes the participant's attempt(s) for this activity (and round, when set)
  * so they can start again as if they never attempted. Cascades responses,
  * this result, and revisions. Also clears open attempts so Resume is gone.
  */
@@ -251,20 +251,20 @@ export async function deleteResult(organizationId: string, actor: ResultsActor, 
     include: {
       activity: { select: { id: true, kind: true, name: true } },
       attempt: { select: { id: true, roundId: true } },
-      student: { select: { id: true, name: true, code: true } },
+      participant: { select: { id: true, name: true, code: true } },
     },
   });
   if (!existing) throw notFound('Result not found.');
   assertCanWipeActivity(actor, existing.activity.kind);
 
-  const { studentId, activityId } = existing;
+  const { participantId, activityId } = existing;
   const roundId = existing.attempt.roundId;
 
   const deleted = await prisma.$transaction(async (tx) =>
-    wipeStudentActivityAttempts(tx, {
+    wipeParticipantActivityAttempts(tx, {
       organizationId,
       activityId,
-      studentId,
+      participantId,
       attemptId: existing.attempt.id,
       roundId,
       activityKind: existing.activity.kind,
@@ -281,11 +281,11 @@ export async function deleteResult(organizationId: string, actor: ResultsActor, 
     targetId: id,
     metadata: {
       activityId,
-      studentId,
+      participantId,
       attemptId: existing.attempt.id,
       roundId,
       attemptsRemoved: deleted,
-      studentName: existing.student.name,
+      participantName: existing.participant.name,
       activityName: existing.activity.name,
     },
   });

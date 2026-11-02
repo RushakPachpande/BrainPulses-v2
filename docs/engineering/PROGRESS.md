@@ -15,7 +15,7 @@ Next task, only when a real change needs it: add a failing test for one function
    - Token scripts lint as Node. Admin and client lint have 0 errors.
    - `withTenantOrganization` rejects a foreign organization on create rows. Unit test in `api/test/tenant-scope.test.ts`.
    - Excel question-bank export prefixes formula cells. Same test file.
-   - Student start and resume omit `isCorrect` and `answerKey`. `api/test/attempt-payload.test.ts`.
+   - Participant start and resume omit `isCorrect` and `answerKey`. `api/test/attempt-payload.test.ts`.
    - Published assessment review still shows `isCorrect` or `correctLabels`. Quiz `QZ-26002` hides them. `api/test/result-review.test.ts`. Policy unchanged.
    - Unknown file download token returns 403 without a stack. `api/test/file-download.test.ts`.
    - Client login renders Unique ID and Sign in. `client/src/pages/login.test.tsx`. 7 client tests passed.
@@ -73,7 +73,7 @@ Next task, only when a real change needs it: add a failing test for one function
 
 ## Kept product rule
 
-Published assessments still include review fields. Quizzes include them only when `answersVisibleToStudent` is true. `QZ-26002` in the seed is false, and the test expects an empty review.
+Published assessments still include review fields. Quizzes include them only when `answersVisibleToParticipant` is true. `QZ-26002` in the seed is false, and the test expects an empty review.
 
 ## Uncommitted work to preserve
 

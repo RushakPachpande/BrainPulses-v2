@@ -1,13 +1,13 @@
 import type { NextFunction, Request, Response } from 'express';
-import { studentActor } from '../../middleware/auth.js';
+import { participantActor } from '../../middleware/auth.js';
 import * as service from './service.js';
 
 export async function start(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.startAttempt(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.body.activityId,
       req.body.roundId,
     );
@@ -19,10 +19,10 @@ export async function start(req: Request, res: Response, next: NextFunction) {
 
 export async function resume(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.resumeAttempt(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.params.id as string,
     );
     res.json({ data });
@@ -33,10 +33,10 @@ export async function resume(req: Request, res: Response, next: NextFunction) {
 
 export async function save(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.saveAttempt(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.params.id as string,
       req.body,
     );
@@ -48,10 +48,10 @@ export async function save(req: Request, res: Response, next: NextFunction) {
 
 export async function submit(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.submitAttempt(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.params.id as string,
       req.header('idempotency-key') ?? undefined,
     );
@@ -63,10 +63,10 @@ export async function submit(req: Request, res: Response, next: NextFunction) {
 
 export async function advance(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
+    const actor = participantActor(req);
     const data = await service.advanceAttempt(
       actor.organizationId,
-      actor.studentId,
+      actor.participantId,
       req.params.id as string,
     );
     res.json({ data });

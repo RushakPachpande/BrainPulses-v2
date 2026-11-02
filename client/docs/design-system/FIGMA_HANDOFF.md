@@ -2,7 +2,7 @@
 
 ## Design principles
 
-Keep the existing BrainPulses admin and student UX. The requested update is a professional unified design system, **not** a rewrite. The brand master is `../../../assets/brainpulses.svg` (deployed locally as `public/brand.svg`) (Royal Violet `#45058F` plus white). Use application-local variables from `src/styles/tokens.css`; this app generates `docs/design-system/tokens.json` with `npm run design:tokens`. Both theme modes must be represented.
+Keep the existing BrainPulses admin and participant UX. The requested update is a professional unified design system, **not** a rewrite. The brand master is `../../../assets/brainpulses.svg` (deployed locally as `public/brand.svg`) (Royal Violet `#45058F` plus white). Use application-local variables from `src/styles/tokens.css`; this app generates `docs/design-system/tokens.json` with `npm run design:tokens`. Both theme modes must be represented.
 
 ## File organization
 
@@ -10,7 +10,7 @@ Keep the existing BrainPulses admin and student UX. The requested update is a pr
 2. `01 · Foundations` — brand-50…900 palette, light/dark semantic color variables, typography, 4px spacing, corner radii, elevation, grid.
 3. `02 · Components` — actions (button states), fields, toggles, selects, pills/badges, cards, breadcrumbs, tables, navigation, dialogs, toasts, skeletons.
 4. `03 · Admin` — dashboard, quiz and assessment lists, question banks, forms, assignment rules, registrations, reports, settings, design-system showcase.
-5. `04 · Client` — login, student dashboard, library, activity details, instructions, attempt, question navigation, submit confirmation, results, profile, help.
+5. `04 · Client` — login, participant dashboard, library, activity details, instructions, attempt, question navigation, submit confirmation, results, profile, help.
 6. `05 · Mobile & Tablet` — responsive admin navigation, table overflow, form stacking, quiz answer options and timer.
 7. `06 · Interactive Prototypes` — admin create/publish journey and client attempt/review/submit journey; verify empty, pending, error and expired states.
 8. `07 · Specs & Handoff` — CSS variables, type sizes, breakpoints, accessibility requirements, component/state mapping, API data boundary.
@@ -30,7 +30,7 @@ Keep the existing BrainPulses admin and student UX. The requested update is a pr
 
 **Client** → Enter via registration/access link → Validation → Instructions → Attempt → Mark for review / change answer → Confirm submission → Result (when allowed).
 
-Keep quiz and assessment separate where business rules differ; reuse structural components, form patterns, status and validation feedback. Do not invent APIs or modify scoring rules in Figma. The `api/` application remains the single source of truth. Do not assume students must sign in if a link-driven journey is configured.
+Keep quiz and assessment separate where business rules differ; reuse structural components, form patterns, status and validation feedback. Do not invent APIs or modify scoring rules in Figma. The `api/` application remains the single source of truth. Do not assume participants must sign in if a link-driven journey is configured.
 
 ## Quality checklist
 

@@ -12,7 +12,7 @@ export type TenantContext = {
 export const tenantStore = new AsyncLocalStorage<TenantContext>();
 
 const TENANT_MODELS = new Set([
-  'student',
+  'participant',
   'questionBank',
   'passage',
   'question',
@@ -74,7 +74,7 @@ function injectOrgOnCreate(
   }
 }
 
-/** Flatten Prisma compound unique selectors (e.g. organizationId_activityId_studentId) for findFirst. */
+/** Flatten Prisma compound unique selectors (e.g. organizationId_activityId_participantId) for findFirst. */
 function flattenCompoundUniqueWhere(where: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(where)) {

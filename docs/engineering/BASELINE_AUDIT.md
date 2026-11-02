@@ -14,9 +14,9 @@ The ordered backlog is [`REFACTORING_REGISTER.md`](REFACTORING_REGISTER.md). Flo
 |---|---|---|
 | `api/` | Express 5, Prisma 7, PostgreSQL, Redis, JWT access tokens plus refresh cookies | [`api/src/app.ts`](../../api/src/app.ts) listens on port **3002** |
 | `admin/` | React 19, Vite 8, Tailwind v4, Radix/shadcn | Port **5173**. Router: [`admin/src/routes/index.tsx`](../../admin/src/routes/index.tsx) |
-| `client/` | Student portal, same generation of React/Vite | Port **5174**. Router: [`client/src/App.tsx`](../../client/src/App.tsx) |
+| `client/` | Participant portal, same generation of React/Vite | Port **5174**. Router: [`client/src/App.tsx`](../../client/src/App.tsx) |
 
-API modules under `api/src/modules/`: activities, attempts, audit, auth, banks, dashboard, files, leaderboards, registrations, results, settings, student-portal, students, users. Shared code is in `api/src/lib/` and `api/src/middleware/`. Controllers translate HTTP; services own rules; Prisma is called from services and `api/src/lib/prisma.ts`.
+API modules under `api/src/modules/`: activities, attempts, audit, auth, banks, dashboard, files, leaderboards, registrations, results, settings, participant-portal, participants, users. Shared code is in `api/src/lib/` and `api/src/middleware/`. Controllers translate HTTP; services own rules; Prisma is called from services and `api/src/lib/prisma.ts`.
 
 Root [`package.json`](../../package.json) only forwards scripts, plus `concurrently`. `npm run check` expands to:
 
@@ -73,7 +73,7 @@ Large files, line counts **verified** by file length. Line count is a review sig
 
 **Verified** from [`api/src/config/env.ts`](../../api/src/config/env.ts) and example files only. Values are omitted.
 
-API: `NODE_ENV`, `HOST`, `PORT`, `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_ACCESS_EXPIRES_IN`, `STUDENT_JWT_ACCESS_EXPIRES_IN`, `JWT_ORG_SELECT_EXPIRES_IN`, `REFRESH_TOKEN_TTL_SECONDS`, `CORS_ORIGIN`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `UPLOAD_DIR`, `FILE_DOWNLOAD_TTL_SECONDS`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`, `REQUEST_TIMEOUT_MS`, `TRUST_PROXY`, `DASHBOARD_CACHE_TTL_SECONDS`, `TWILIO_ENABLED`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. Tests may also set `ENABLE_RATE_LIMIT_IN_TEST`.
+API: `NODE_ENV`, `HOST`, `PORT`, `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `JWT_ISSUER`, `JWT_AUDIENCE`, `JWT_ACCESS_EXPIRES_IN`, `PARTICIPANT_JWT_ACCESS_EXPIRES_IN`, `JWT_ORG_SELECT_EXPIRES_IN`, `REFRESH_TOKEN_TTL_SECONDS`, `CORS_ORIGIN`, `COOKIE_SECURE`, `COOKIE_SAME_SITE`, `UPLOAD_DIR`, `FILE_DOWNLOAD_TTL_SECONDS`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_MAX`, `AUTH_RATE_LIMIT_MAX`, `REQUEST_TIMEOUT_MS`, `TRUST_PROXY`, `DASHBOARD_CACHE_TTL_SECONDS`, `TWILIO_ENABLED`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`. Tests may also set `ENABLE_RATE_LIMIT_IN_TEST`.
 
 Production startup in `env.ts` rejects a short `JWT_SECRET`, `COOKIE_SECURE` other than true, and missing Twilio settings. Non-production defaults exist for several non-secret settings. `JWT_SECRET` and `DATABASE_URL` have no insecure default; they must be present.
 
@@ -107,12 +107,12 @@ Commands were non-mutating except `npm run build`, which writes gitignored `dist
 | `api` `npm run typecheck` | PASS | `tsc --noEmit` exit 0 |
 | `api` `npm run lint` | PASS | `eslint .` exit 0 |
 | `api` `npm run format:check` | FAIL | Prettier reported 28 files: 15 under gitignored `api/graphify-out/`, plus `prisma/seed.ts`, `src/app.ts`, `src/config/env.ts`, `src/index.ts`, `src/middleware/request-timeout.ts`, activities controller and service, attempts `admin-controller.ts` and `service.ts`, `banks/import-export.ts`, `leaderboards/service.ts`, `test/attempts.test.ts`, `test/scoring.test.ts` |
-| `api` `npm run test` | PASS | 36 passed, 0 failed, 9 suites, about 97s. Suites: attempts, auth, cors-origin, quiz-ops, scoring, security, student portal, tenancy |
+| `api` `npm run test` | PASS | 36 passed, 0 failed, 9 suites, about 97s. Suites: attempts, auth, cors-origin, quiz-ops, scoring, security, participant portal, tenancy |
 | `api` `npm run build` | PASS | `prisma generate` then `tsc` exit 0 |
 | `admin` `npm run typecheck` | PASS | exit 0 |
 | `admin` `npm run lint` | FAIL | 1 error, 23 warnings. Error: `console` is not defined in `admin/scripts/export-design-tokens.mjs:32`. Warnings: `react-refresh/only-export-components` in route and context modules |
 | `admin` `npm run format:check` | FAIL | 33 files, including pages, `src/services/index.ts`, date-time picker, package.json, design-system docs |
-| `admin` `npm run test` | FAIL | 2 failed, 9 passed, 6 files. Both failures are `No QueryClient set` in `dashboard.test.tsx` and `students.test.tsx` |
+| `admin` `npm run test` | FAIL | 2 failed, 9 passed, 6 files. Both failures are `No QueryClient set` in `dashboard.test.tsx` and `participants.test.tsx` |
 | `admin` `npm run build` | PASS | Vite 8 production build exit 0 |
 | `client` `npm run typecheck` | PASS | exit 0 |
 | `client` `npm run lint` | FAIL | 1 error, 0 warnings. `console` is not defined in `client/scripts/export-design-tokens.mjs:32` |
@@ -128,7 +128,7 @@ Commands were non-mutating except `npm run build`, which writes gitignored `dist
 
 Dev servers for this capture were started only after confirming ports 3002, 5173, and 5174 were free, then stopped. Screenshots are in [`baseline/`](baseline/).
 
-The Cursor browser already had an admin session, so `http://localhost:5173/login` redirected to the dashboard. The login form itself was not captured. The student app had no session, so its login screen was captured. Phone OTP was not submitted.
+The Cursor browser already had an admin session, so `http://localhost:5173/login` redirected to the dashboard. The login form itself was not captured. The participant app had no session, so its login screen was captured. Phone OTP was not submitted.
 
 Theme default in code is dark unless storage says light (`brainpulses-theme`, `brainpulses-client-theme`). Both were returned to dark after the light captures.
 
@@ -136,18 +136,18 @@ Widths 375 and 768 were applied with a device-metrics override. The PNG frame is
 
 | File | What it shows |
 |---|---|
-| `baseline/admin-dashboard-dark-1280.png` | Live dashboard, dark, sidebar open. KPIs: 12 students, 1 active assessment, 1 active quiz |
+| `baseline/admin-dashboard-dark-1280.png` | Live dashboard, dark, sidebar open. KPIs: 12 participants, 1 active assessment, 1 active quiz |
 | `baseline/admin-dashboard-dark-768.png` | Same page. Sidebar stays visible; KPI grid wraps to two columns |
 | `baseline/admin-dashboard-dark-375.png` | Sidebar hidden behind the menu control. KPI cards stack |
 | `baseline/admin-dashboard-light-1280.png` | Same dashboard after the theme toggle. Computed body background `rgb(250, 250, 255)` |
-| `baseline/admin-students-light-1280.png` | Students list from the API. Table columns extend past the viewport (horizontal table scroll). City filter is clipped at the right edge |
-| `baseline/admin-students-light-375.png` | Filters and actions stack full width. Table remains horizontally scrollable |
-| `baseline/client-login-dark-1280.png` | Student sign-in, Unique ID tab, dark |
+| `baseline/admin-participants-light-1280.png` | Participants list from the API. Table columns extend past the viewport (horizontal table scroll). City filter is clipped at the right edge |
+| `baseline/admin-participants-light-375.png` | Filters and actions stack full width. Table remains horizontally scrollable |
+| `baseline/client-login-dark-1280.png` | Participant sign-in, Unique ID tab, dark |
 | `baseline/client-login-dark-768.png` | Same card, centered |
 | `baseline/client-login-dark-375.png` | Card fits the 375 column. Footer links sit at the bottom of the column |
 | `baseline/client-login-light-1280.png` | Same screen, light. Computed body background `rgb(250, 250, 255)` |
 
-**Unknown:** keyboard-only pass, contrast measurements, and an authenticated student attempt screen. Not claimed from these images.
+**Unknown:** keyboard-only pass, contrast measurements, and an authenticated participant attempt screen. Not claimed from these images.
 
 ## Doc contradictions
 

@@ -2,7 +2,7 @@
 
 **Version:** 1.0 · **Scope:** Client web app · **Brand master:** `../../../assets/brainpulses.svg` in the repository, deployed as `public/brand.svg`
 
-BrainPulses is a professional quiz and assessment platform. Its visual design should be quiet, accessible, dependable and optimized for dense admin work and distraction-free student attempts. The uploaded SVG is the only master artwork. Its flat background is `#45058F` (Royal Violet); its nearly white paths are part of the SVG and must not be recreated or recolored arbitrarily.
+BrainPulses is a professional quiz and assessment platform. Its visual design should be quiet, accessible, dependable and optimized for dense admin work and distraction-free participant attempts. The uploaded SVG is the only master artwork. Its flat background is `#45058F` (Royal Violet); its nearly white paths are part of the SVG and must not be recreated or recolored arbitrarily.
 
 ## Architecture and ownership
 
@@ -39,9 +39,9 @@ The brand tonal ramp is `--brand-50` through `--brand-900` (`--brand-600` matche
 
 ## Typography
 
-- **Headings:** Plus Jakarta Sans, weights 600–800, tight tracking around `-0.02em` to `-0.035em`.
-- **Body and UI:** Source Sans 3; 16px/1.6 body, 15px/1.45 controls and tables, 13px/1.35 labels and metadata.
-- Page title 24–30px; section 18–22px; card title 16px; KPI value 24px. Sentence case except compact table headers.
+- **Display:** Sora, weight 700 — page titles, question text, option letters, and timer values.
+- **Body and UI:** Manrope, weights 500–700 — subtitles, section and card titles, buttons, tables, and supporting text.
+- Page title 24px / 32px; subtitle 16px / 20px; primary button 16px; section 18–22px; card title 16px; KPI value 24px. Sentence case except compact table headers.
 - External Google Fonts are already requested by the apps. The CSS stacks include local/system fallbacks if offline.
 
 ## Layout and spacing
