@@ -1,0 +1,42 @@
+.login-screen .wm2 {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  left: 120px;
+  top: 150px;
+  width: 520px;
+  height: 525px;
+  opacity: 0.1;
+  transform: rotate(-6deg);
+  filter: blur(1.2px);
+  background: linear-gradient(160deg, #6d45dc, #9a6bf0 55%, #c79bff);
+  -webkit-mask-image: url(/login-bulb.png);
+  mask-image: url(/login-bulb.png);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+}
+
+@media (max-width: 900px) {
+  .login-screen .wm2 {
+    left: auto;
+    right: -110px;
+    top: 90px;
+    bottom: auto;
+    width: 400px;
+    height: 404px;
+    opacity: 0.13;
+    transform: rotate(-8deg);
+  }
+}
+
+@media (max-width: 520px) {
+  .login-screen .wm2 {
+    right: -120px;
+    top: 70px;
+    width: 320px;
+    height: 323px;
+    opacity: 0.13;
+  }
+}

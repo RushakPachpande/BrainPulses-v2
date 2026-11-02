@@ -1,0 +1,347 @@
+.login-screen {
+  min-height: 100dvh;
+  position: relative;
+  isolation: isolate;
+  color: #1b1236;
+  background:
+    radial-gradient(50% 70% at 0 0, #e4d6ff, transparent 70%),
+    radial-gradient(45% 60% at 100% 100%, #fbd9ee, transparent 70%),
+    radial-gradient(40% 50% at 100% 0, #cfddff, transparent 70%), #f8f5fe;
+  font-family: Manrope, sans-serif;
+}
+
+body.dk2 .login-screen {
+  color: #f1ecff;
+  background:
+    radial-gradient(50% 70% at 0 0, rgba(109, 69, 220, 0.4), transparent 70%),
+    radial-gradient(45% 60% at 100% 100%, rgba(240, 169, 214, 0.18), transparent 70%), #0b0a1e;
+}
+
+.login-screen h1,
+.login-screen .br,
+.login-screen .tag2 {
+  font-family: Sora, sans-serif;
+}
+
+.login-screen .wrap {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr minmax(440px, 540px) 4vw;
+  gap: 48px;
+  align-items: center;
+  padding: 36px 56px;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-screen .grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(rgba(58, 26, 166, 0.06) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, rgba(58, 26, 166, 0.06) 1px, transparent 1px) 0 0 / 44px 44px;
+  mask: linear-gradient(90deg, #000, transparent 70%);
+}
+
+.login-screen .l,
+.login-screen .r {
+  position: relative;
+  z-index: 2;
+}
+
+.login-screen .l {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-self: stretch;
+  gap: 28px;
+}
+
+.login-screen .login-head {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 40px;
+}
+
+.login-screen .br {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font:
+    700 30px Sora,
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.login-screen .br img {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+}
+
+.login-screen .tag2 {
+  font:
+    700 44px/1.06 Sora,
+    sans-serif;
+  letter-spacing: -0.04em;
+  margin-top: 18px;
+}
+
+.login-screen .tag2 .lt {
+  color: #6d45dc;
+}
+
+.login-screen .r {
+  display: grid;
+  justify-items: end;
+  min-width: 0;
+}
+
+.login-screen .card {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  border-radius: 20px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, #fff, #fdfbff) padding-box,
+    linear-gradient(135deg, rgba(154, 107, 240, 0.6), #fff 45%, rgba(240, 169, 214, 0.6)) border-box;
+  box-shadow: 0 36px 60px -34px rgba(58, 26, 166, 0.5);
+  padding: 46px 40px;
+}
+
+.login-screen .card h1 {
+  font-size: 31px;
+  letter-spacing: 0.06em;
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.login-screen .f label {
+  display: block;
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.login-screen input.in {
+  width: 100%;
+  box-sizing: border-box;
+  height: 55px;
+  border: 1px solid #ddd3f3;
+  border-radius: 12px;
+  background: #fff;
+  padding: 0 14px;
+  font:
+    500 17.5px Manrope,
+    sans-serif;
+  color: #1b1236;
+  outline: 0;
+}
+
+.login-screen input.in::placeholder {
+  color: #9a8fb8;
+}
+
+.login-screen input.in:focus {
+  border-color: #6d45dc;
+  box-shadow: 0 0 0 4px rgba(109, 69, 220, 0.15);
+}
+
+.login-screen .err {
+  color: #b42318;
+  font:
+    600 13px Manrope,
+    sans-serif;
+  margin-top: 7px;
+}
+
+.login-screen .err:empty {
+  display: none;
+}
+
+.login-screen button.btn {
+  width: 100%;
+  margin-top: 16px;
+  height: 57px;
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: #fff;
+  font:
+    700 18px Manrope,
+    sans-serif;
+  background: #45068f;
+  box-shadow: 0 12px 24px -10px rgba(69, 6, 143, 0.6);
+}
+
+.login-screen button.btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+.login-screen button.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.login-screen .thm {
+  position: static;
+  z-index: 10;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 1px solid rgba(91, 43, 201, 0.25);
+  background: rgba(255, 255, 255, 0.8);
+  color: #45068f;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.login-screen .dec {
+  position: absolute;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.login-screen .dec > svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.login-screen .dMedal {
+  right: 4vw;
+  top: 7%;
+  width: 86px;
+  transform: rotate(8deg);
+  opacity: 0.26;
+}
+
+.login-screen .dCombo {
+  right: 1vw;
+  bottom: 0;
+  width: 258px;
+  opacity: 0.2;
+}
+
+.login-screen .dS1 {
+  left: 40vw;
+  top: 20%;
+  width: 30px;
+}
+
+.login-screen .dS2 {
+  left: 16vw;
+  bottom: 9%;
+  width: 22px;
+}
+
+body.dk2 .login-screen .br,
+body.dk2 .login-screen h1,
+body.dk2 .login-screen .tag2 .dk,
+body.dk2 .login-screen .f label {
+  color: #fff;
+}
+
+body.dk2 .login-screen .tag2 .lt {
+  color: #b79cff;
+}
+
+body.dk2 .login-screen .card {
+  background:
+    linear-gradient(180deg, #1b1740, #15132e) padding-box,
+    linear-gradient(
+        135deg,
+        rgba(154, 107, 240, 0.7),
+        rgba(21, 19, 46, 0.2) 45%,
+        rgba(240, 169, 214, 0.5)
+      )
+      border-box;
+}
+
+body.dk2 .login-screen input.in {
+  background: #1e1a42;
+  border-color: rgba(183, 156, 255, 0.28);
+  color: #fff;
+}
+
+body.dk2 .login-screen .thm {
+  background: #1e1a42;
+  color: #d9ccff;
+  border-color: rgba(183, 156, 255, 0.3);
+}
+
+@media (max-width: 900px) {
+  .login-screen .wrap {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding: 28px 40px 40px;
+    gap: 0;
+  }
+
+  .login-screen .login-head {
+    padding: 16px 22px;
+  }
+
+  .login-screen .l {
+    display: none;
+  }
+
+  .login-screen .tag2 {
+    font-size: 30px;
+  }
+
+  .login-screen .r {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: 40px;
+  }
+
+  .login-screen .card {
+    margin: 0 auto;
+    padding: 30px 24px;
+  }
+
+  .login-screen .dMedal {
+    left: 16px;
+    right: auto;
+    top: auto;
+    bottom: 96px;
+    width: 50px;
+    transform: rotate(-8deg);
+  }
+
+  .login-screen .dCombo {
+    right: -6px;
+    bottom: 6px;
+    width: 240px;
+  }
+}
+
+@media (max-width: 520px) {
+  .login-screen .wrap {
+    padding: 22px 18px 32px;
+  }
+
+  .login-screen .tag2 {
+    font-size: 26px;
+  }
+
+  .login-screen .card h1 {
+    font-size: 26px;
+  }
+}
