@@ -25,7 +25,9 @@
 }
 .api-loading-overlay__label {
   margin: 0;
-  font: 600 0.875rem Manrope, sans-serif;
+  font:
+    600 0.875rem Manrope,
+    sans-serif;
 }
 @keyframes api-loading-spin {
   to {
@@ -71,12 +73,27 @@
 
 .rich-instructions {
   font:
-    500 16px/1.55 Manrope,
+    500 16.5px/1.65 Manrope,
     sans-serif;
+  color: var(--ink);
   margin: 0 0 8px;
 }
 
 .rich-instructions p {
+  margin: 0 0 12px;
+}
+
+.rich-instructions p:last-child {
+  margin-bottom: 0;
+}
+
+.rich-instructions ul,
+.rich-instructions ol {
+  margin: 0 0 12px;
+  padding-left: 1.25rem;
+}
+
+.rich-instructions li {
   margin: 0 0 8px;
 }
 

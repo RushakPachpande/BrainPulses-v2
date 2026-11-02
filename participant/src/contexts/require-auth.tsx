@@ -1,4 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router';
+import { PortalBackdrop } from '../components/portal-backdrop';
 import { AuthSessionSkeleton } from '../components/skeletons';
 import { useAuth } from './auth-context';
 
@@ -14,5 +15,10 @@ export function RequireAuth() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <PortalBackdrop />
+      <Outlet />
+    </>
+  );
 }

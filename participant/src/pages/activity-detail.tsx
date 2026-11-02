@@ -141,10 +141,13 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
               </div>
             </div>
             {hasInstructions ? (
-              <div
-                className="rich-instructions"
-                dangerouslySetInnerHTML={{ __html: safeInstructionsHtml }}
-              />
+              <div className="ins-focus" role="region" aria-label="Activity instructions">
+                <p className="ins-focus__label">Please read carefully</p>
+                <div
+                  className="rich-instructions"
+                  dangerouslySetInnerHTML={{ __html: safeInstructionsHtml }}
+                />
+              </div>
             ) : (
               <ul className="ins">
                 {OVERALL.map((line) => (
