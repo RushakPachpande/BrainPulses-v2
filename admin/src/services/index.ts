@@ -22,7 +22,7 @@ import {
   mapDashboardFromApi,
   mapRegistrationFromApi,
   mapResultFromApi,
-  mapStudentFromApi,
+  mapParticipantFromApi,
   mapUserFromApi,
 } from './api-mappers';
 import {
@@ -33,7 +33,7 @@ import {
   fixturesGetRegistrations,
   fixturesGetReportSummary,
   fixturesGetResults,
-  fixturesGetStudents,
+  fixturesGetParticipants,
   fixturesGetUsers,
 } from './fixtures-sync';
 import type {
@@ -50,7 +50,7 @@ import type {
   QuestionBank,
   ReportSummaryRow,
   ResultDetail,
-  Student,
+  Participant,
 } from './types';
 
 export type {
@@ -66,7 +66,7 @@ export type {
   Contest,
   ImageLibraryPurpose,
   LibraryImage,
-  Student,
+  Participant,
   AdminUser,
   DashboardData,
   ResultDetail,
@@ -75,7 +75,7 @@ export type {
 
 const useFixtures = import.meta.env.VITE_USE_FIXTURES === 'true';
 
-type ApiStudentRow = Parameters<typeof mapStudentFromApi>[0];
+type ApiParticipantRow = Parameters<typeof mapParticipantFromApi>[0];
 type ApiUserRow = Parameters<typeof mapUserFromApi>[0];
 type ApiActivityRow = Parameters<typeof mapActivityFromApi>[0];
 type ApiBankRow = Parameters<typeof mapBankFromApi>[0];
@@ -83,10 +83,10 @@ type ApiRegistrationRow = Parameters<typeof mapRegistrationFromApi>[0];
 type ApiResultRow = Parameters<typeof mapResultFromApi>[0];
 type ApiDashboardSummary = Parameters<typeof mapDashboardFromApi>[0];
 
-export async function getStudents(): Promise<Student[]> {
-  if (useFixtures) return fixturesGetStudents();
-  const rows = await apiGetList<ApiStudentRow>('/api/students', { limit: 100 });
-  return rows.map(mapStudentFromApi);
+export async function getParticipants(): Promise<Participant[]> {
+  if (useFixtures) return fixturesGetParticipants();
+  const rows = await apiGetList<ApiParticipantRow>('/api/participants', { limit: 100 });
+  return rows.map(mapParticipantFromApi);
 }
 
 export async function getUsers(): Promise<AdminUser[]> {
@@ -312,6 +312,7 @@ type ActivityWritePayload = {
   name?: string;
   subtitle?: string;
   instructions?: string | null;
+  endMessage?: string | null;
   imageFileId?: string | null;
   startsAt?: Date | null;
   endsAt?: Date | null;
@@ -358,6 +359,7 @@ function mapActivityDetail(
     passingPercent?: number | null;
     presentation?: string;
     instructions?: string | null;
+    endMessage?: string | null;
     imageFileId?: string | null;
     bankIds?: string[];
     sponsorId?: string | null;
@@ -385,6 +387,7 @@ function mapActivityDetail(
     passingPercent: row.passingPercent ?? null,
     presentation: (row.presentation as ActivityDetail['presentation']) ?? 'one_at_a_time',
     instructions: row.instructions ?? null,
+    endMessage: row.endMessage ?? null,
     imageFileId: row.imageFileId ?? null,
     bankIds: row.bankIds ?? [],
     sponsorId: row.sponsorId ?? null,
@@ -430,6 +433,7 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
       passingPercent: 40,
       presentation: 'one_at_a_time',
       instructions: null,
+      endMessage: null,
       imageFileId: null,
       bankIds: [],
       sponsorId: null,
@@ -605,7 +609,7 @@ export async function deleteActivity(activityId: string, password: string) {
   return data.data;
 }
 
-export async function createStudent(payload: {
+export async function createParticipant(payload: {
   name: string;
   email: string;
   phone?: string;
@@ -615,15 +619,15 @@ export async function createStudent(payload: {
   code?: string;
 }) {
   if (useFixtures) {
-    invalidateAdmin(['students', 'dashboard']);
+    invalidateAdmin(['participants', 'dashboard']);
     return { id: crypto.randomUUID(), code: payload.code ?? 'LOCAL' };
   }
-  const data = await apiPostData<{ id: string; code: string }>('/api/students', payload);
-  invalidateAdmin(['students', 'dashboard']);
+  const data = await apiPostData<{ id: string; code: string }>('/api/participants', payload);
+  invalidateAdmin(['participants', 'dashboard']);
   return data;
 }
 
-export async function updateStudent(
+export async function updateParticipant(
   id: string,
   payload: {
     name?: string;
@@ -636,11 +640,11 @@ export async function updateStudent(
   },
 ) {
   if (useFixtures) {
-    invalidateAdmin(['students', 'dashboard']);
+    invalidateAdmin(['participants', 'dashboard']);
     return { id, ...payload };
   }
-  const data = await apiPatchData(`/api/students/${id}`, payload);
-  invalidateAdmin(['students', 'dashboard']);
+  const data = await apiPatchData(`/api/participants/${id}`, payload);
+  invalidateAdmin(['participants', 'dashboard']);
   return data;
 }
 
@@ -656,51 +660,51 @@ export async function requalifyAttempt(attemptId: string) {
 
 export async function grantReattempt(
   activityId: string,
-  payload: { studentId: string; mode: 'continue' | 'restart'; note?: string },
+  payload: { participantId: string; mode: 'continue' | 'restart'; note?: string },
 ) {
   if (useFixtures) return { id: crypto.randomUUID(), ...payload };
   return apiPostData(`/api/activities/${activityId}/reattempts`, payload);
 }
 
-export async function deactivateStudent(id: string) {
+export async function deactivateParticipant(id: string) {
   if (useFixtures) {
-    invalidateAdmin(['students', 'dashboard']);
+    invalidateAdmin(['participants', 'dashboard']);
     return { id };
   }
-  const data = await apiPostData(`/api/students/${id}/deactivate`);
-  invalidateAdmin(['students', 'dashboard']);
+  const data = await apiPostData(`/api/participants/${id}/deactivate`);
+  invalidateAdmin(['participants', 'dashboard']);
   return data;
 }
 
-export async function deactivateStudents(ids: string[]) {
+export async function deactivateParticipants(ids: string[]) {
   if (useFixtures) {
-    invalidateAdmin(['students', 'dashboard']);
+    invalidateAdmin(['participants', 'dashboard']);
     return { updated: ids.length };
   }
-  const data = await apiPostData<{ updated: number }>('/api/students/deactivate', { ids });
-  invalidateAdmin(['students', 'dashboard']);
+  const data = await apiPostData<{ updated: number }>('/api/participants/deactivate', { ids });
+  invalidateAdmin(['participants', 'dashboard']);
   return data;
 }
 
-export async function activateStudents(ids: string[]) {
+export async function activateParticipants(ids: string[]) {
   if (useFixtures) {
-    invalidateAdmin(['students', 'dashboard']);
+    invalidateAdmin(['participants', 'dashboard']);
     return { updated: ids.length };
   }
-  const data = await apiPostData<{ updated: number }>('/api/students/activate', { ids });
-  invalidateAdmin(['students', 'dashboard']);
+  const data = await apiPostData<{ updated: number }>('/api/participants/activate', { ids });
+  invalidateAdmin(['participants', 'dashboard']);
   return data;
 }
 
-export async function getStudent(id: string) {
+export async function getParticipant(id: string) {
   if (useFixtures) {
-    const rows = await getStudents();
+    const rows = await getParticipants();
     const found = rows.find((s) => s.id === id);
-    if (!found) throw new Error('Student not found');
+    if (!found) throw new Error('Participant not found');
     return found;
   }
-  const row = await apiGetData<ApiStudentRow>(`/api/students/${id}`);
-  return mapStudentFromApi(row);
+  const row = await apiGetData<ApiParticipantRow>(`/api/participants/${id}`);
+  return mapParticipantFromApi(row);
 }
 
 export async function inviteUser(payload: {
@@ -802,7 +806,7 @@ function assertXlsxImportFile(file: File) {
   }
 }
 
-export async function importStudents(file: File): Promise<SpreadsheetImportResult> {
+export async function importParticipants(file: File): Promise<SpreadsheetImportResult> {
   assertXlsxImportFile(file);
   if (useFixtures) {
     return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
@@ -810,29 +814,29 @@ export async function importStudents(file: File): Promise<SpreadsheetImportResul
   const form = new FormData();
   form.append('file', file);
   const data = await apiPostFormData<SpreadsheetImportResult>(
-    '/api/students/import',
+    '/api/participants/import',
     form,
     idempotencyHeaders(),
   );
-  invalidateAdmin(['students', 'dashboard']);
+  invalidateAdmin(['participants', 'dashboard']);
   return data;
 }
 
-export async function downloadStudentsSample(): Promise<void> {
+export async function downloadParticipantsSample(): Promise<void> {
   if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
-  await apiDownloadBlob('/api/students/sample.xlsx', 'brainpulses-students-sample.xlsx');
+  await apiDownloadBlob('/api/participants/sample.xlsx', 'brainpulses-participants-sample.xlsx');
 }
 
-export async function deleteStudent(studentId: string, password: string) {
+export async function deleteParticipant(participantId: string, password: string) {
   if (useFixtures) {
-    invalidateAdmin(['students', 'dashboard']);
+    invalidateAdmin(['participants', 'dashboard']);
     return { deleted: true as const, email: '' };
   }
   const body = await apiRequest<{ data: { deleted: true; email: string } }>(
-    `/api/students/${studentId}`,
+    `/api/participants/${participantId}`,
     { method: 'DELETE', body: JSON.stringify({ password }) },
   );
-  invalidateAdmin(['students', 'dashboard']);
+  invalidateAdmin(['participants', 'dashboard']);
   return body.data;
 }
 
@@ -1076,28 +1080,28 @@ export async function exportBankQuestions(
   );
 }
 
-export async function assignRegistrations(activityId: string, studentIds: string[]) {
+export async function assignRegistrations(activityId: string, participantIds: string[]) {
   if (useFixtures) {
     invalidateAdmin(['registrations', 'activities', 'dashboard']);
     return [];
   }
   const data = await apiPostData(
     '/api/registrations/assign',
-    { activityId, studentIds },
+    { activityId, participantIds },
     idempotencyHeaders(),
   );
   invalidateAdmin(['registrations', 'activities', 'dashboard']);
   return data;
 }
 
-export async function unassignRegistrations(activityId: string, studentIds: string[]) {
+export async function unassignRegistrations(activityId: string, participantIds: string[]) {
   if (useFixtures) {
     invalidateAdmin(['registrations', 'activities']);
     return [];
   }
   const data = await apiPostData(
     '/api/registrations/unassign',
-    { activityId, studentIds },
+    { activityId, participantIds },
     idempotencyHeaders(),
   );
   invalidateAdmin(['registrations', 'activities']);

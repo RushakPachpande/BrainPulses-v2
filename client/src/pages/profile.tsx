@@ -6,8 +6,8 @@ import { Heading, Status } from '../components/ui-bits';
 import { patchMe } from '../services/api';
 
 export function ProfilePage() {
-  const { student, refreshProfile } = useAuth();
-  const [name, setName] = useState(student?.name ?? '');
+  const { participant, refreshProfile } = useAuth();
+  const [name, setName] = useState(participant?.name ?? '');
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export function ProfilePage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     const nextName = name.trim();
-    if (!nextName || !student || nextName === student.name) return;
+    if (!nextName || !participant || nextName === participant.name) return;
     setBusy(true);
     setError('');
     try {
@@ -36,20 +36,20 @@ export function ProfilePage() {
     }
   }
 
-  if (!student) return null;
-  const initials = student.name
+  if (!participant) return null;
+  const initials = participant.name
     .split(' ')
     .map((part) => part[0])
     .slice(0, 2)
     .join('');
-  const dirty = name.trim() !== student.name;
+  const dirty = name.trim() !== participant.name;
   const facts = [
-    { label: 'Unique ID', value: student.code },
-    { label: 'Organization', value: student.organization.name },
-    { label: 'Role', value: 'Student' },
-    ...(student.course ? [{ label: 'Course', value: student.course }] : []),
-    ...(student.city ? [{ label: 'City', value: student.city }] : []),
-    ...(student.phone ? [{ label: 'Phone', value: student.phone }] : []),
+    { label: 'Unique ID', value: participant.code },
+    { label: 'Organization', value: participant.organization.name },
+    { label: 'Role', value: 'Participant' },
+    ...(participant.course ? [{ label: 'Course', value: participant.course }] : []),
+    ...(participant.city ? [{ label: 'City', value: participant.city }] : []),
+    ...(participant.phone ? [{ label: 'Phone', value: participant.phone }] : []),
   ];
 
   return (
@@ -57,7 +57,7 @@ export function ProfilePage() {
       <Heading
         eyebrow="ACCOUNT SETTINGS"
         title="My profile"
-        description="Manage the details associated with your student account."
+        description="Manage the details associated with your participant account."
       />
       {toast ? (
         <div className="toast" role="status">
@@ -74,8 +74,8 @@ export function ProfilePage() {
             {initials}
           </div>
           <div className="profile-identity-copy">
-            <h2 id="profile-identity-title">{student.name}</h2>
-            <p>{student.email}</p>
+            <h2 id="profile-identity-title">{participant.name}</h2>
+            <p>{participant.email}</p>
             <Status value="Available" />
           </div>
         </div>
@@ -121,11 +121,11 @@ export function ProfilePage() {
             )}
           </div>
           <div className="profile-field">
-            <label htmlFor="profile-email">Student email</label>
+            <label htmlFor="profile-email">Participant email</label>
             <input
               id="profile-email"
               type="email"
-              value={student.email}
+              value={participant.email}
               readOnly
               aria-readonly="true"
               aria-describedby="profile-email-hint"
@@ -139,7 +139,7 @@ export function ProfilePage() {
               className="btn outline"
               type="button"
               onClick={() => {
-                setName(student.name);
+                setName(participant.name);
                 setError('');
               }}
               disabled={!dirty || busy}

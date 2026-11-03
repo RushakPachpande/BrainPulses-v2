@@ -104,6 +104,7 @@ function mapActivity(a: {
   name: string;
   subtitle: string | null;
   instructions?: string | null;
+  endMessage?: string | null;
   kind: string;
   status: string;
   startsAt: Date | null;
@@ -134,6 +135,7 @@ function mapActivity(a: {
     name: a.name,
     subtitle: a.subtitle,
     instructions: a.instructions ?? null,
+    endMessage: a.endMessage ?? null,
     kind: a.kind,
     status: statusDisplay,
     statusKey: a.status,
@@ -319,7 +321,7 @@ async function replaceRounds(
       where: { roundId: { in: toDelete.map((r) => r.id) } },
     });
     if (attemptCount > 0) {
-      throw badRequest('Cannot remove rounds that already have student attempts.');
+      throw badRequest('Cannot remove rounds that already have participant attempts.');
     }
   }
 
@@ -508,6 +510,7 @@ export async function createActivity(
           name: input.name,
           subtitle: input.subtitle,
           instructions: input.instructions?.trim() || null,
+          endMessage: input.endMessage?.trim() || null,
           imageFileId: input.imageFileId ?? null,
           startsAt: input.startsAt,
           endsAt: input.endsAt,
@@ -554,6 +557,7 @@ export async function createActivity(
         name: input.name,
         subtitle: input.subtitle,
         instructions: input.instructions?.trim() || null,
+        endMessage: input.endMessage?.trim() || null,
         imageFileId: input.imageFileId ?? null,
         startsAt: input.startsAt,
         endsAt: input.endsAt,
@@ -666,6 +670,9 @@ export async function updateActivity(
           ...(input.instructions !== undefined
             ? { instructions: input.instructions?.trim() || null }
             : {}),
+          ...(input.endMessage !== undefined
+            ? { endMessage: input.endMessage?.trim() || null }
+            : {}),
           ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
           ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
           ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
@@ -678,7 +685,9 @@ export async function updateActivity(
             : input.presentation !== undefined
               ? { presentation: input.presentation }
               : {}),
-          ...(existing.kind === 'assessment' && input.code !== undefined ? { code: input.code } : {}),
+          ...(existing.kind === 'assessment' && input.code !== undefined
+            ? { code: input.code }
+            : {}),
           ...(quizPatch
             ? {
                 sponsorId: quizPatch.sponsorId,
@@ -845,7 +854,7 @@ export async function archiveActivity(
 }
 
 /**
- * Permanently deletes a quiz and all related student data (attempts, results,
+ * Permanently deletes a quiz and all related participant data (attempts, results,
  * registrations, reattempt grants, bank links). The quiz's private question
  * bank is removed. Shared assessment banks are kept.
  */

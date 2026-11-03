@@ -27,13 +27,13 @@ function ClientQueryScope({
   client: ReturnType<typeof createClientQueryClient>;
   children: ReactNode;
 }) {
-  const { student } = useAuth();
-  const studentId = student?.id ?? null;
+  const { participant } = useAuth();
+  const participantId = participant?.id ?? null;
 
   useEffect(() => {
-    // Student switch / logout: never keep another user's list data in memory.
-    clearClientQueryCache(studentId);
-  }, [studentId]);
+    // Participant switch / logout: never keep another user's list data in memory.
+    clearClientQueryCache(participantId);
+  }, [participantId]);
 
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }

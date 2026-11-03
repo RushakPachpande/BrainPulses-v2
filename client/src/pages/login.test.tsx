@@ -9,7 +9,7 @@ import { LoginPage } from '../pages/login';
 
 const auth: AuthState = {
   ready: true,
-  student: null,
+  participant: null,
   signInWithCode: async () => undefined,
   requestPhoneOtp: async () => undefined,
   resendPhoneOtp: async () => undefined,

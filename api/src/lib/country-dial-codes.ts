@@ -1,5 +1,5 @@
 /**
- * Curated dial codes accepted for student phone OTP login.
+ * Curated dial codes accepted for participant phone OTP login.
  * Keep in sync with client/src/lib/country-codes.ts.
  */
 export const KNOWN_DIAL_CODES = new Set<string>([

@@ -4,7 +4,7 @@ export type CountryDialCode = {
   iso: string;
 };
 
-/** Common dial codes for the student phone login combobox. */
+/** Common dial codes for the participant phone login combobox. */
 export const COUNTRY_DIAL_CODES: CountryDialCode[] = [
   { code: '+93', name: 'Afghanistan', iso: 'AF' },
   { code: '+355', name: 'Albania', iso: 'AL' },

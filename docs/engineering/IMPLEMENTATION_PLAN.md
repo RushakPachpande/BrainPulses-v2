@@ -23,11 +23,11 @@ Finalize DB structure/ERD and API/OpenAPI; write migrations/policies; define see
 **Exit:** clean migrations, constraints/policies tested, contracts documented, fixture mode explicit.
 
 ## Phase 4 — Admin workflows
-Suggested order: students/users → question banks/import → activity create/publish → registrations/assignments → reports/results → settings → dashboard/audit.
+Suggested order: participants/users → question banks/import → activity create/publish → registrations/assignments → reports/results → settings → dashboard/audit.
 
 **Per-feature exit:** approved requirements, server validation/authorization, async states, tests, accessibility review and updated docs.
 
-## Phase 5 — Student assessment experience
+## Phase 5 — Participant assessment experience
 Assigned activities, instructions, eligibility/start, question navigation, answer persistence, timer/reconnect, idempotent submission and result release.
 
 **Exit:** server-authoritative lifecycle, recovery tested, no answer-key leakage, critical E2E flows pass.

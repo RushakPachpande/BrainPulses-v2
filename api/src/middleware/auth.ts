@@ -4,7 +4,10 @@ import { badRequest, unauthorized, forbidden } from '../lib/errors.js';
 import { verifyToken } from '../lib/jwt.js';
 import { getPasswordEpoch } from '../lib/password-epoch.js';
 import { tenantStore } from '../lib/prisma.js';
-import { isStudentSessionCurrent, touchStudentSession } from '../lib/student-sessions.js';
+import {
+  isParticipantSessionCurrent,
+  touchParticipantSession,
+} from '../lib/participant-sessions.js';
 import type { AuthActor } from '../types/auth-actor.js';
 
 const accessRank: Record<AccessLevel, number> = {
@@ -58,18 +61,18 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       return next();
     }
 
-    if (payload.typ === 'student') {
+    if (payload.typ === 'participant') {
       if (!payload.sid) throw unauthorized('Invalid access token.');
-      const active = await isStudentSessionCurrent(
+      const active = await isParticipantSessionCurrent(
         payload.organizationId,
         payload.sub,
         payload.sid,
       );
       if (!active) throw unauthorized('Session expired. Sign in again.');
-      await touchStudentSession(payload.organizationId, payload.sub, payload.sid);
+      await touchParticipantSession(payload.organizationId, payload.sub, payload.sid);
       req.actor = {
-        kind: 'student',
-        studentId: payload.sub,
+        kind: 'participant',
+        participantId: payload.sub,
         organizationId: payload.organizationId,
         sessionId: payload.sid,
       };
@@ -94,8 +97,8 @@ export function requireUser(req: Request, _res: Response, next: NextFunction) {
   next();
 }
 
-export function requireStudent(req: Request, _res: Response, next: NextFunction) {
-  if (!req.actor || req.actor.kind !== 'student') {
+export function requireParticipant(req: Request, _res: Response, next: NextFunction) {
+  if (!req.actor || req.actor.kind !== 'participant') {
     next(unauthorized());
     return;
   }
@@ -147,7 +150,7 @@ export function requireAccess(kind: ActivityKind, min: AccessLevel) {
   };
 }
 
-/** Max of assessment/quiz access — for org-wide resources (students, users, settings, files). */
+/** Max of assessment/quiz access — for org-wide resources (participants, users, settings, files). */
 export function requireOrgAccess(min: AccessLevel) {
   return (req: Request, _res: Response, next: NextFunction) => {
     if (!req.actor || req.actor.kind !== 'user') {
@@ -192,7 +195,7 @@ export function userActor(req: Request) {
   return req.actor;
 }
 
-export function studentActor(req: Request) {
-  if (!req.actor || req.actor.kind !== 'student') throw unauthorized();
+export function participantActor(req: Request) {
+  if (!req.actor || req.actor.kind !== 'participant') throw unauthorized();
   return req.actor;
 }

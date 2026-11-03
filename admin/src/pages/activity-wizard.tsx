@@ -60,7 +60,7 @@ import {
   getQuestionBanks,
   getSponsors,
   getQuestionBank,
-  getStudents,
+  getParticipants,
   publishActivity,
   updateActivity,
   uploadCatalogImage,
@@ -75,7 +75,7 @@ const defaultQuizSettings = (): QuizActivitySettings => ({
   shuffleQuestions: true,
   shuffleOptions: true,
   scoreRelease: 'after_submit',
-  answersVisibleToStudent: false,
+  answersVisibleToParticipant: false,
   allowPrevious: true,
   showQuestionPanel: true,
   questionsCompulsory: true,
@@ -206,7 +206,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     { label: 'B', body: '', isCorrect: false, imageUrl: '' },
   ]);
   const [banks, setBanks] = useState<{ id: string; name: string; questions: number }[]>([]);
-  const [assignMode, setAssignMode] = useState<'manual' | 'all_active_students'>('manual');
+  const [assignMode, setAssignMode] = useState<'manual' | 'all_active_participants'>('manual');
   const [assignNotes, setAssignNotes] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [passingPercent, setPassingPercent] = useState('50');
@@ -214,6 +214,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     'one_at_a_time',
   );
   const [instructions, setInstructions] = useState('');
+  const [endMessage, setEndMessage] = useState('');
   const [imageFileId, setImageFileId] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [quizSettings, setQuizSettings] = useState<QuizActivitySettings>(defaultQuizSettings);
@@ -228,6 +229,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         name,
         description,
         instructions,
+        endMessage,
         imageFileId,
         imageFileName: imageFile?.name ?? null,
         code,
@@ -256,6 +258,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       name,
       description,
       instructions,
+      endMessage,
       imageFileId,
       imageFile,
       code,
@@ -394,6 +397,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               : 'one_at_a_time',
         );
         setInstructions(activity.instructions ?? '');
+        setEndMessage(activity.endMessage ?? '');
         setImageFileId(activity.imageFileId ?? '');
         setImageFile(null);
         const settings = activity.settings;
@@ -445,6 +449,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               allowPrevious: durationMode === 'per_question' ? false : quizSettings.allowPrevious,
               showQuestionPanel:
                 durationMode === 'per_question' ? false : quizSettings.showQuestionPanel,
+              questionsCompulsory: quizSettings.negativeMarkingEnabled
+                ? false
+                : quizSettings.questionsCompulsory,
               negativeMarkPoints: quizSettings.negativeMarkingEnabled
                 ? quizSettings.negativeMarkPoints
                 : 0,
@@ -520,6 +527,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         instructions: isInstructionsEmpty(instructions)
           ? null
           : sanitizeInstructionsHtml(instructions),
+        endMessage: isInstructionsEmpty(endMessage) ? null : sanitizeInstructionsHtml(endMessage),
         imageFileId: nextImageFileId,
         startsAt: startDate,
         endsAt: endDate,
@@ -564,9 +572,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         setQuizBankId(saved.bankIds[0] ?? null);
       }
 
-      if (assignMode === 'all_active_students') {
-        const students = await getStudents();
-        const activeIds = students.filter((s) => s.status === 'Active').map((s) => s.id);
+      if (assignMode === 'all_active_participants') {
+        const participants = await getParticipants();
+        const activeIds = participants.filter((s) => s.status === 'Active').map((s) => s.id);
         if (activeIds.length > 0) {
           await assignRegistrations(id, activeIds);
         }
@@ -827,7 +835,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   onChange={(e) => setDescription(e.target.value)}
                   disabled={readOnly}
                 />
-                <FieldDescription>Students see this on the start screen.</FieldDescription>
+                <FieldDescription>Participants see this on the start screen.</FieldDescription>
               </Field>
               {isQuiz ? (
                 <>
@@ -858,8 +866,23 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       aria-label="Quiz instructions"
                     />
                     <FieldDescription>
-                      Shown in a dialog before students start. If set, they must confirm they have
-                      read them. Supports bold, italic, and lists.
+                      Shown in a dialog before participants start. If set, they must confirm they
+                      have read them. Supports bold, italic, and lists.
+                    </FieldDescription>
+                  </Field>
+                  <Field>
+                    <FieldLabel htmlFor="activity-end-message">Quiz End Message</FieldLabel>
+                    <RichTextEditor
+                      id="activity-end-message"
+                      value={endMessage}
+                      disabled={readOnly}
+                      onChange={setEndMessage}
+                      aria-label="Quiz end message"
+                    />
+                    <FieldDescription>
+                      Shown on the result screen after a participant submits. If left empty, the
+                      default pass, fail, or pending message is used. Supports bold, italic, and
+                      lists.
                     </FieldDescription>
                   </Field>
                 </>
@@ -955,7 +978,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           {step === 1 ? (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
-                Optional fields collected before a student starts (stored with the activity).
+                Optional fields collected before a participant starts (stored with the activity).
               </p>
               {regFields.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No registration fields yet.</p>
@@ -1063,7 +1086,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
                 Define ordered rounds. Link reusable question banks and optionally add questions
-                manually to each round. Students take rounds in order.
+                manually to each round. Participants take rounds in order.
               </p>
               {rounds.map((round, index) => (
                 <Card key={round.key} className="border-border shadow-none">
@@ -1351,12 +1374,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   <SelectContent>
                     <SelectGroup>
                       <SelectItem value="manual">Manual (assign from Registrations)</SelectItem>
-                      <SelectItem value="all_active_students">All active students</SelectItem>
+                      <SelectItem value="all_active_participants">
+                        All active participants
+                      </SelectItem>
                     </SelectGroup>
                   </SelectContent>
                 </Select>
                 <FieldDescription>
-                  “All active students” assigns every active student when you save or publish.
+                  “All active participants” assigns every active participant when you save or
+                  publish.
                 </FieldDescription>
               </Field>
               <Field>
@@ -1498,7 +1524,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           <FieldDescription>
                             {durationMode === 'per_question'
                               ? 'Per-question timer always blocks going back.'
-                              : 'When off, students cannot return to earlier questions.'}
+                              : 'When off, participants cannot return to earlier questions.'}
                           </FieldDescription>
                         </div>
                         <Switch
@@ -1518,14 +1544,19 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                             Questions are compulsory
                           </FieldLabel>
                           <FieldDescription>
-                            When on, students must answer before they can go to the next question or
-                            submit. When off, they can skip with a confirmation.
+                            {quizSettings.negativeMarkingEnabled
+                              ? 'Off while negative marking is enabled so unanswered questions stay allowed.'
+                              : 'When on, participants must answer before they can go to the next question or submit. When off, they can skip with a confirmation.'}
                           </FieldDescription>
                         </div>
                         <Switch
                           id="quiz-questionsCompulsory"
-                          checked={quizSettings.questionsCompulsory}
-                          disabled={readOnly}
+                          checked={
+                            quizSettings.negativeMarkingEnabled
+                              ? false
+                              : quizSettings.questionsCompulsory
+                          }
+                          disabled={readOnly || quizSettings.negativeMarkingEnabled}
                           onCheckedChange={(checked) =>
                             setQuizSettings((prev) => ({
                               ...prev,
@@ -1550,6 +1581,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                               setQuizSettings((prev) => ({
                                 ...prev,
                                 negativeMarkingEnabled: checked,
+                                questionsCompulsory: checked ? false : prev.questionsCompulsory,
                                 negativeMarkPoints:
                                   checked && prev.negativeMarkPoints <= 0
                                     ? 0.25
@@ -1588,7 +1620,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           <FieldDescription>
                             {durationMode === 'per_question'
                               ? 'Per-question timer always hides the overview panel.'
-                              : 'When off, students do not see the numbered question panel beside the attempt.'}
+                              : 'When off, participants do not see the numbered question panel beside the attempt.'}
                           </FieldDescription>
                         </div>
                         <Switch
@@ -1606,8 +1638,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                         <div className="min-w-0">
                           <FieldLabel htmlFor="quiz-max-attempts">Number of attempts</FieldLabel>
                           <FieldDescription id="quiz-max-attempts-hint">
-                            How many times a student can submit. Turn on Unlimited for no limit. An
-                            admin can still grant an extra attempt.
+                            How many times a participant can submit. Turn on Unlimited for no limit.
+                            An admin can still grant an extra attempt.
                           </FieldDescription>
                         </div>
                         <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -1656,8 +1688,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           <FieldLabel id="quiz-score-release-label">Score</FieldLabel>
                           <FieldDescription>
                             {quizSettings.scoreRelease === 'after_publish'
-                              ? 'Students see the score after an admin publishes the result.'
-                              : 'Students see the score as soon as they submit.'}
+                              ? 'Participants see the score after an admin publishes the result.'
+                              : 'Participants see the score as soon as they submit.'}
                           </FieldDescription>
                         </div>
                         <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -1701,7 +1733,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                         [
                           ['shuffleQuestions', 'Shuffle questions'],
                           ['shuffleOptions', 'Shuffle options'],
-                          ['answersVisibleToStudent', 'Show answers to students (when published)'],
+                          [
+                            'answersVisibleToParticipant',
+                            'Show answers to participants (when published)',
+                          ],
                         ] as const
                       ).map(([key, label]) => (
                         <div
@@ -1754,7 +1789,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                         void (async () => {
                           const ok = await confirm({
                             title: `Archive this ${noun.toLowerCase()}?`,
-                            description: 'Students will no longer be able to start it.',
+                            description: 'Participants will no longer be able to start it.',
                             confirmLabel: 'Archive',
                             destructive: true,
                           });
@@ -1844,7 +1879,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 <ReviewFact
                   icon={UsersIcon}
                   label="Assignment"
-                  value={assignMode === 'manual' ? 'Manual selection' : 'All active students'}
+                  value={assignMode === 'manual' ? 'Manual selection' : 'All active participants'}
                 />
                 <ReviewFact
                   icon={Clock3Icon}
@@ -1989,7 +2024,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       void (async () => {
                         const ok = await confirm({
                           title: `Publish this ${noun.toLowerCase()}?`,
-                          description: 'Assigned students can start it.',
+                          description: 'Assigned participants can start it.',
                           confirmLabel: 'Publish',
                         });
                         if (!ok) return;

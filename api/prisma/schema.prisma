@@ -84,7 +84,7 @@ enum SettingGroup {
 
 enum ActorType {
   user
-  student
+  participant
   system
 }
 
@@ -102,7 +102,7 @@ model Organization {
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   memberships        Membership[]
-  students           Student[]
+  participants       Participant[]
   questionBanks      QuestionBank[]
   passages           Passage[]
   questions          Question[]
@@ -167,7 +167,7 @@ model Membership {
   @@map("memberships")
 }
 
-model Student {
+model Participant {
   id             String    @id @default(uuid()) @db.Uuid
   organizationId String    @map("organization_id") @db.Uuid
   code           String
@@ -194,7 +194,7 @@ model Student {
   @@index([organizationId, isActive])
   @@index([organizationId, name])
   @@index([organizationId, cohort])
-  @@map("students")
+  @@map("participants")
 }
 
 model QuestionBank {
@@ -316,6 +316,7 @@ model Activity {
   name               String
   subtitle           String?
   instructions       String?          @db.Text
+  endMessage         String?          @map("end_message") @db.Text
   status             FlowStatus       @default(draft)
   startsAt           DateTime?        @map("starts_at") @db.Timestamptz(3)
   endsAt             DateTime?        @map("ends_at") @db.Timestamptz(3)
@@ -445,7 +446,7 @@ model Registration {
   id             String           @id @default(uuid()) @db.Uuid
   organizationId String           @map("organization_id") @db.Uuid
   activityId     String           @map("activity_id") @db.Uuid
-  studentId      String           @map("student_id") @db.Uuid
+  participantId  String           @map("participant_id") @db.Uuid
   status         AssignmentStatus @default(assigned)
   assignedAt     DateTime?        @map("assigned_at") @db.Timestamptz(3)
   createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -453,11 +454,11 @@ model Registration {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  participant  Participant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
 
-  @@unique([organizationId, activityId, studentId])
+  @@unique([organizationId, activityId, participantId])
   @@index([organizationId, activityId, status])
-  @@index([organizationId, studentId])
+  @@index([organizationId, participantId])
   @@map("registrations")
 }
 
@@ -466,7 +467,7 @@ model Attempt {
   organizationId       String        @map("organization_id") @db.Uuid
   activityId           String        @map("activity_id") @db.Uuid
   roundId              String?       @map("round_id") @db.Uuid
-  studentId            String        @map("student_id") @db.Uuid
+  participantId        String        @map("participant_id") @db.Uuid
   status               AttemptStatus @default(in_progress)
   revision             Int           @default(0)
   startedAt            DateTime      @map("started_at") @db.Timestamptz(3)
@@ -486,14 +487,14 @@ model Attempt {
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   activity       Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
   round          ActivityRound?    @relation(fields: [roundId], references: [id], onDelete: Restrict)
-  student        Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  participant    Participant       @relation(fields: [participantId], references: [id], onDelete: Cascade)
   disqualifiedBy User?             @relation("AttemptDisqualifiedBy", fields: [disqualifiedByUserId], references: [id], onDelete: SetNull)
   responses      AttemptResponse[]
   result         Result?
 
-  @@index([organizationId, activityId, studentId, status])
-  @@index([organizationId, activityId, roundId, studentId, status])
-  @@index([organizationId, studentId, status])
+  @@index([organizationId, activityId, participantId, status])
+  @@index([organizationId, activityId, roundId, participantId, status])
+  @@index([organizationId, participantId, status])
   @@index([organizationId, id, submitIdempotencyKey])
   @@index([organizationId, activityId, isAuthoritative, disqualified])
   @@map("attempts")
@@ -503,7 +504,7 @@ model ReattemptGrant {
   id              String        @id @default(uuid()) @db.Uuid
   organizationId  String        @map("organization_id") @db.Uuid
   activityId      String        @map("activity_id") @db.Uuid
-  studentId       String        @map("student_id") @db.Uuid
+  participantId   String        @map("participant_id") @db.Uuid
   mode            ReattemptMode
   note            String?
   grantedByUserId String        @map("granted_by_user_id") @db.Uuid
@@ -513,10 +514,10 @@ model ReattemptGrant {
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   activity     Activity     @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  participant  Participant  @relation(fields: [participantId], references: [id], onDelete: Cascade)
   grantedBy    User         @relation(fields: [grantedByUserId], references: [id], onDelete: Restrict)
 
-  @@index([organizationId, activityId, studentId, consumedAt])
+  @@index([organizationId, activityId, participantId, consumedAt])
   @@map("reattempt_grants")
 }
 
@@ -544,7 +545,7 @@ model Result {
   organizationId String        @map("organization_id") @db.Uuid
   attemptId      String        @unique @map("attempt_id") @db.Uuid
   activityId     String        @map("activity_id") @db.Uuid
-  studentId      String        @map("student_id") @db.Uuid
+  participantId  String        @map("participant_id") @db.Uuid
   score          Decimal       @db.Decimal(10, 2)
   maxScore       Decimal       @map("max_score") @db.Decimal(10, 2)
   percent        Decimal       @db.Decimal(5, 2)
@@ -557,11 +558,11 @@ model Result {
   organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   attempt      Attempt          @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   activity     Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
-  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  participant  Participant      @relation(fields: [participantId], references: [id], onDelete: Cascade)
   revisions    ResultRevision[]
 
   @@index([organizationId, activityId, releaseStatus])
-  @@index([organizationId, studentId])
+  @@index([organizationId, participantId])
   @@map("results")
 }
 

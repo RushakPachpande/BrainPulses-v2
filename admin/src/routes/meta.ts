@@ -6,10 +6,10 @@ export type PageMeta = {
 
 export const pageMeta: Record<string, PageMeta> = {
   '/dashboard': { crumb: 'BrainPulses / Dashboard', title: 'Admin Dashboard' },
-  '/students': {
-    crumb: 'BrainPulses / Students',
-    title: 'Students',
-    description: 'Manage student accounts, view details, and track their learning progress.',
+  '/participants': {
+    crumb: 'BrainPulses / Participants',
+    title: 'Participants',
+    description: 'Manage participant accounts, view details, and track their learning progress.',
   },
   '/sponsors': {
     crumb: 'BrainPulses / Sponsors',
@@ -53,13 +53,13 @@ export const pageMeta: Record<string, PageMeta> = {
   },
   '/assessments/registrations': {
     crumb: 'BrainPulses / Assessment / Registrations',
-    title: 'Registrations & Student Data',
+    title: 'Registrations & Participant Data',
     description:
-      'View all student registrations, their assigned question banks, and assessment status.',
+      'View all participant registrations, their assigned question banks, and assessment status.',
   },
   '/assessments/registrations/new': {
     crumb: 'BrainPulses / Assessment / Registrations / Assign',
-    title: 'Assign Students',
+    title: 'Assign Participants',
   },
   '/assessments/reports': {
     crumb: 'BrainPulses / Assessment / Reports',
@@ -73,20 +73,20 @@ export const pageMeta: Record<string, PageMeta> = {
   '/quizzes/new': { crumb: 'BrainPulses / Quiz / Create Quiz', title: 'Create Quiz' },
   '/quizzes/registrations': {
     crumb: 'BrainPulses / Quiz / Registrations',
-    title: 'Registrations & Student Data',
+    title: 'Registrations & Participant Data',
     description:
-      'View all student registrations, their assigned question banks, and quiz attempt status.',
+      'View all participant registrations, their assigned question banks, and quiz attempt status.',
   },
   '/quizzes/registrations/new': {
     crumb: 'BrainPulses / Quiz / Registrations / Assign',
-    title: 'Assign Students',
+    title: 'Assign Participants',
   },
   '/quizzes/reports': { crumb: 'BrainPulses / Quiz / Reports', title: 'Quiz Reports & Results' },
   '/settings': { crumb: 'BrainPulses / Settings / General Settings', title: 'General Settings' },
-  '/settings/student-portal': {
-    crumb: 'BrainPulses / Settings / Student Portal',
-    title: 'Student Portal Pages',
-    description: 'Choose which pages appear in the student portal navigation.',
+  '/settings/participant-portal': {
+    crumb: 'BrainPulses / Settings / Participant Portal',
+    title: 'Participant Portal Pages',
+    description: 'Choose which pages appear in the participant portal navigation.',
   },
   '/settings/design-system': {
     crumb: 'BrainPulses / Settings / Design System',

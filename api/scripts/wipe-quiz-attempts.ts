@@ -1,5 +1,5 @@
 /**
- * Wipe every quiz attempt (all students), cascading results/responses,
+ * Wipe every quiz attempt (all participants), cascading results/responses,
  * and clear reattempt grants. Assessment attempts are left alone.
  *
  *   npx tsx --conditions=development scripts/wipe-quiz-attempts.ts

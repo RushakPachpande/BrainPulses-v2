@@ -17,17 +17,21 @@ import { formatAttemptAllowance } from '../lib/attempt-allowance';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { listActivities } from '../services/api';
-import { useStudentPages } from '../hooks/use-student-pages';
-import type { ActivityKind, StudentActivity, StudentActivityRound } from '../services/types';
+import { useParticipantPages } from '../hooks/use-participant-pages';
+import type {
+  ActivityKind,
+  ParticipantActivity,
+  ParticipantActivityRound,
+} from '../services/types';
 
-function roundStatusLabel(state: StudentActivityRound['state']) {
+function roundStatusLabel(state: ParticipantActivityRound['state']) {
   if (state === 'completed') return 'Completed';
   if (state === 'in_progress') return 'In progress';
   if (state === 'available') return 'Available';
   return 'Locked';
 }
 
-function activityStatusLabel(item: StudentActivity) {
+function activityStatusLabel(item: ParticipantActivity) {
   if (item.attemptState === 'submitted') return 'Completed';
   if (item.openAttemptId) return 'In progress';
   if (item.canAttempt === false) return 'Closed';
@@ -37,9 +41,9 @@ function activityStatusLabel(item: StudentActivity) {
 export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   const { activityId = '' } = useParams();
   const navigate = useNavigate();
-  const pagesQuery = useStudentPages();
+  const pagesQuery = useParticipantPages();
   const resultsOn = pagesQuery.data?.results ?? true;
-  const [item, setItem] = useState<StudentActivity | null>(null);
+  const [item, setItem] = useState<ParticipantActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [instructionsOpen, setInstructionsOpen] = useState(false);
@@ -128,7 +132,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
     requestStart();
   }
 
-  function startOrResumeRound(round: StudentActivityRound) {
+  function startOrResumeRound(round: ParticipantActivityRound) {
     if (!item) return;
     if (round.state === 'locked') return;
     if (round.state === 'completed') {

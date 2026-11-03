@@ -15,6 +15,7 @@ import { ThemeToggle } from '../components/theme-toggle';
 import { ApiError } from '../lib/api-client';
 import { isKnownDialCode, isValidNationalMobile, isValidUniqueId } from '../lib/login-validation';
 import { SessionActiveError, useAuth } from '../contexts/auth-context';
+import { getParticipantLoginOptions } from '../services/api';
 
 type LoginTab = 'code' | 'phone';
 type PhoneStep = 'enter' | 'otp';
@@ -25,13 +26,14 @@ type PendingSession =
 const OTP_LENGTH = 6;
 
 export function LoginPage() {
-  const { student, ready, signInWithCode, requestPhoneOtp, resendPhoneOtp, verifyPhoneOtp } =
+  const { participant, ready, signInWithCode, requestPhoneOtp, resendPhoneOtp, verifyPhoneOtp } =
     useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/dashboard';
 
   const [tab, setTab] = useState<LoginTab>('code');
+  const [phoneLoginEnabled, setPhoneLoginEnabled] = useState(true);
   const [code, setCode] = useState(import.meta.env.DEV ? 'BP-24101' : '');
   const [countryCode, setCountryCode] = useState('+91');
   const [mobileNumber, setMobileNumber] = useState(import.meta.env.DEV ? '9876510000' : '');
@@ -72,6 +74,25 @@ export function LoginPage() {
       otpRefs.current[0]?.focus();
     }
   }, [phoneStep]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getParticipantLoginOptions()
+      .then((options) => {
+        if (cancelled) return;
+        setPhoneLoginEnabled(options.phoneLogin);
+        if (!options.phoneLogin) {
+          setTab('code');
+          setPhoneStep('enter');
+        }
+      })
+      .catch(() => {
+        /* keep phone login visible if options cannot load */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function completeSignIn(pending: PendingSession, replaceSession: boolean) {
     if (pending.kind === 'code') {
@@ -242,7 +263,7 @@ export function LoginPage() {
   }
 
   if (!ready) return <AuthSessionSkeleton />;
-  if (ready && student) return <Navigate to={from} replace />;
+  if (ready && participant) return <Navigate to={from} replace />;
 
   return (
     <div className="login-page login-page-centered">
@@ -269,29 +290,35 @@ export function LoginPage() {
           <div className="login-card-mark">
             <GraduationCap size={22} aria-hidden />
           </div>
-          <h1>Student sign in</h1>
-          <p>Use your Unique ID or phone number to continue.</p>
+          <h1>LOGIN</h1>
+          <p>
+            {phoneLoginEnabled
+              ? 'Use your Unique ID or phone number to continue.'
+              : 'Use your Unique ID to continue.'}
+          </p>
 
-          <div className="login-tabs" role="tablist" aria-label="Sign-in method">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'code'}
-              className={tab === 'code' ? 'selected' : undefined}
-              onClick={() => switchTab('code')}
-            >
-              Unique ID
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'phone'}
-              className={tab === 'phone' ? 'selected' : undefined}
-              onClick={() => switchTab('phone')}
-            >
-              Phone
-            </button>
-          </div>
+          {phoneLoginEnabled ? (
+            <div className="login-tabs" role="tablist" aria-label="Sign-in method">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'code'}
+                className={tab === 'code' ? 'selected' : undefined}
+                onClick={() => switchTab('code')}
+              >
+                Unique ID
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === 'phone'}
+                className={tab === 'phone' ? 'selected' : undefined}
+                onClick={() => switchTab('phone')}
+              >
+                Phone
+              </button>
+            </div>
+          ) : null}
 
           {tab === 'code' && (
             <div role="tabpanel">
@@ -316,7 +343,7 @@ export function LoginPage() {
               </label>
               {showCodeInvalid && (
                 <div className="error-text" role="alert">
-                  Enter a valid Unique ID (4–40 letters, digits, hyphen, or underscore).
+                  Enter a valid Unique ID
                 </div>
               )}
               {error && !showCodeInvalid && (
@@ -327,15 +354,10 @@ export function LoginPage() {
               <button className="btn primary full" disabled={busy || !codeValid} type="submit">
                 {busy ? 'Signing in…' : 'Sign in'} <ArrowRight size={16} aria-hidden />
               </button>
-              {import.meta.env.DEV && (
-                <div className="sign-in-hint">
-                  <span className="dot" /> Local sign-in · Unique ID BP-24101
-                </div>
-              )}
             </div>
           )}
 
-          {tab === 'phone' && phoneStep === 'enter' && (
+          {phoneLoginEnabled && tab === 'phone' && phoneStep === 'enter' && (
             <div role="tabpanel">
               <div className="phone-row">
                 <label htmlFor={countryFieldId} className="phone-code">
@@ -393,7 +415,7 @@ export function LoginPage() {
             </div>
           )}
 
-          {tab === 'phone' && phoneStep === 'otp' && (
+          {phoneLoginEnabled && tab === 'phone' && phoneStep === 'otp' && (
             <div role="tabpanel">
               <p className="otp-hint">
                 Enter the 6-digit code sent to {countryCode} {mobileNumber.replace(/\D/g, '')}
@@ -473,7 +495,7 @@ export function LoginPage() {
       </div>
 
       <div className="login-footer">
-        © 2026 BrainPulses <span>Student portal</span>
+        © 2026 BrainPulses <span>Participant portal</span>
       </div>
 
       {sessionPrompt && (

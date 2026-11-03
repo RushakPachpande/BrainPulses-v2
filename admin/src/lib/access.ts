@@ -60,7 +60,7 @@ export function canFullKind(
   return meets(membership, accessForKind(membership, kind), 'full');
 }
 
-/** Org-wide student create/update — max(assessment, quiz) ≥ edit. */
+/** Org-wide participant create/update — max(assessment, quiz) ≥ edit. */
 export function canMutateOrg(membership: AuthMembership | null | undefined): boolean {
   return meets(membership, maxOrgAccess(membership), 'edit');
 }

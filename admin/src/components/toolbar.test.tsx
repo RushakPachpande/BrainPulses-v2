@@ -11,7 +11,7 @@ describe('Toolbar', () => {
 
     render(
       <Toolbar
-        searchPlaceholder="Search students"
+        searchPlaceholder="Search participants"
         searchValue=""
         onSearchChange={onSearchChange}
         filters={[
@@ -30,7 +30,7 @@ describe('Toolbar', () => {
       />,
     );
 
-    expect(screen.getByRole('searchbox', { name: 'Search students' })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search participants' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Clear Filters' }));
     expect(onClear).toHaveBeenCalledOnce();
   });
@@ -42,7 +42,7 @@ describe('Toolbar', () => {
 
     render(
       <Toolbar
-        searchPlaceholder="Search students"
+        searchPlaceholder="Search participants"
         searchValue=""
         onSearchChange={onSearchChange}
         filters={[
@@ -61,7 +61,7 @@ describe('Toolbar', () => {
       />,
     );
 
-    const search = screen.getByRole('searchbox', { name: 'Search students' });
+    const search = screen.getByRole('searchbox', { name: 'Search participants' });
     await user.type(search, 'priya');
     expect(search).toHaveValue('priya');
 

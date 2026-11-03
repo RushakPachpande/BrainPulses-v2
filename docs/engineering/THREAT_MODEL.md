@@ -10,9 +10,9 @@
 | --------------------------------------------- | ----------- | ------------------------------------------------ |
 | Admin JWTs (access)                           | High        | Bearer; short-lived; carries org + access levels |
 | Refresh cookie `bp_refresh`                   | High        | HttpOnly; Redis-backed family rotation           |
-| Student attempt answers / scores              | High        | Attempt start/resume omit `isCorrect` and `answerKey`. Published assessments include review labels by product rule. Quizzes follow `answersVisibleToStudent` (default false). |
+| Participant attempt answers / scores              | High        | Attempt start/resume omit `isCorrect` and `answerKey`. Published assessments include review labels by product rule. Quizzes follow `answersVisibleToParticipant` (default false). |
 | Question bank answer keys                     | High        | Stripped from attempt payloads. Published assessment review may include `isCorrect` and `correctLabels`, not the raw `answerKey` object. |
-| Tenant org data (students, activities, files) | High        | Multi-tenant isolation                           |
+| Tenant org data (participants, activities, files) | High        | Multi-tenant isolation                           |
 | Uploaded files                                | Medium–High | Logos, imports; private storage                  |
 | Audit events                                  | Medium      | Super-admin only                                 |
 | Settings / membership roles                   | High        | Privilege changes                                |
@@ -21,18 +21,18 @@
 
 ```text
 [Admin SPA :5173] --HTTPS/credentials--> [API :3002]
-[Student SPA :5174] --------------------/
+[Participant SPA :5174] --------------------/
                                               |
                          +--------------------+--------------------+
                          |                    |                    |
                     [Postgres]            [Redis]            [UPLOAD_DIR]
                     tenant rows           refresh/rate         local disk
                                           download tokens
-                                          student sessions
+                                          participant sessions
 ```
 
 - Browser is untrusted. Roles and access levels come only from verified JWT / DB membership at sign-in.
-- Student portal covers Unique ID / phone OTP login, attempts (save/submit), and results (release-gated scores).
+- Participant portal covers Unique ID / phone OTP login, attempts (save/submit), and results (release-gated scores).
 - Prisma ALS (`withTenantContext`) scopes tenant models; no Postgres RLS in this pass (deferred).
 - Docker Postgres/Redis/CloudBeaver/RedisInsight are operator-trusted on localhost ports.
 
@@ -43,7 +43,7 @@
 | Anonymous                                                   | Health, auth sign-in/refresh, file download with opaque token |
 | Org admin (`view` / `edit` / `full` per assessment or quiz) | Scoped CRUD                                                   |
 | `super_admin`                                               | Full org access + audit                                       |
-| Student                                                     | Portal login, attempts, own results (scores when published)   |
+| Participant                                                     | Portal login, attempts, own results (scores when published)   |
 | Cross-tenant attacker                                       | Stolen/forged token or guessed UUIDs                          |
 
 ## OWASP API Top 10 (2023) mapping
@@ -67,7 +67,7 @@
 | --------------------------------------------------------- | --------------------- | ---------------------------------- | --------------- |
 | `POST /api/auth/sign-in`                                  | Credential stuffing   | Auth rate limit + identical errors | flood → 429     |
 | `POST /api/auth/refresh`                                  | Stolen rotated cookie | Family revoke                      | auth reuse test |
-| `GET /api/students/:id`                                   | Cross-tenant UUID     | 404                                | tenancy         |
+| `GET /api/participants/:id`                                   | Cross-tenant UUID     | 404                                | tenancy         |
 | `POST /api/banks` as view                                 | Privilege escalate    | 403 `requireAccess`                | security matrix |
 | `POST /api/activities` as view                            | Same                  | 403                                | tenancy         |
 | `PATCH /api/settings/*` as view                           | Same                  | 403 `requireOrgAccess`             | security matrix |
@@ -100,7 +100,7 @@ When `NODE_ENV=production`:
 - Download token may appear in query strings (Referer/logs); prefer short TTL; header support optional (`x-download-token`).
 - App-level tenancy without RLS: raw SQL / forgotten `withTenantContext` is a footgun.
 - Concurrent refresh race (two parallel rotates) is mitigated by atomic GETDEL plus family revocation on reuse.
-- Student Unique ID login is single-factor by product choice. Student codes use the predictable `BP-${24000 + seq}` format. One active Redis session (`sid` in JWT) and a short access-token TTL do not prevent code guessing. A guessed code with `replaceSession: true` can replace the current session and revoke the real student's access during an exam. The auth rate limit slows guessing but does not prevent distributed attempts. Consider non-sequential codes, a replace cooldown, and student notification on replacement.
+- Participant Unique ID login is single-factor by product choice. Participant codes use the predictable `BP-${24000 + seq}` format. One active Redis session (`sid` in JWT) and a short access-token TTL do not prevent code guessing. A guessed code with `replaceSession: true` can replace the current session and revoke the real participant's access during an exam. The auth rate limit slows guessing but does not prevent distributed attempts. Consider non-sequential codes, a replace cooldown, and participant notification on replacement.
 
 ## Accepted dependency audit findings (this pass)
 

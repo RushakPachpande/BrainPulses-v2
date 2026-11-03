@@ -20,7 +20,7 @@ export const quizSettingsSchema = z
     shuffleQuestions: z.boolean().default(true),
     shuffleOptions: z.boolean().default(true),
     scoreRelease: z.enum(['after_submit', 'after_publish']).default('after_submit'),
-    answersVisibleToStudent: z.boolean().default(false),
+    answersVisibleToParticipant: z.boolean().default(false),
     allowPrevious: z.boolean().default(true),
     showQuestionPanel: z.boolean().default(true),
     questionsCompulsory: z.boolean().default(true),
@@ -37,7 +37,8 @@ export const quizSettingsSchema = z
         path: ['negativeMarkPoints'],
       });
     }
-  });
+  })
+  .transform((val) => (val.negativeMarkingEnabled ? { ...val, questionsCompulsory: false } : val));
 
 export const activitySettingsSchema = z
   .object({
@@ -49,7 +50,7 @@ export const activitySettingsSchema = z
       .optional(),
     assignmentRules: z
       .object({
-        mode: z.enum(['manual', 'all_active_students']).default('manual'),
+        mode: z.enum(['manual', 'all_active_participants']).default('manual'),
         notes: z.string().trim().max(500).optional(),
       })
       .strict()
@@ -85,6 +86,7 @@ export const createActivitySchema = z
     name: z.string().trim().min(1).max(200),
     subtitle: z.string().trim().max(300).optional(),
     instructions: z.string().trim().max(10_000).optional().nullable(),
+    endMessage: z.string().trim().max(10_000).optional().nullable(),
     startsAt: z.coerce.date().optional(),
     endsAt: z.coerce.date().optional(),
     durationMinutes: z.number().int().positive().nullable().optional(),
@@ -176,6 +178,7 @@ export const updateActivitySchema = z
     name: z.string().trim().min(1).max(200).optional(),
     subtitle: z.string().trim().max(300).optional().nullable(),
     instructions: z.string().trim().max(10_000).optional().nullable(),
+    endMessage: z.string().trim().max(10_000).optional().nullable(),
     startsAt: z.coerce.date().optional().nullable(),
     endsAt: z.coerce.date().optional().nullable(),
     durationMinutes: z.number().int().positive().optional().nullable(),

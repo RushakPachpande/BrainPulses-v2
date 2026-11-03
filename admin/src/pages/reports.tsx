@@ -69,11 +69,11 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
 
   const reportColumns: RecordColumn<ResultRow>[] = [
     {
-      key: 'student',
-      label: 'Student',
+      key: 'participant',
+      label: 'Participant',
       placement: 'title',
       sortable: false,
-      render: (row) => <span className="font-medium">{row.student}</span>,
+      render: (row) => <span className="font-medium">{row.participant}</span>,
     },
     {
       key: 'activity',
@@ -129,7 +129,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
     return (
       <div className="flex flex-col gap-4">
         <Toolbar
-          filters={[`${label}: ${activityFilter}`, 'Student', 'Status']}
+          filters={[`${label}: ${activityFilter}`, 'Participant', 'Status']}
           dateRange={<DateRangeFilter value={dateRange} onApply={setDateRange} />}
           actions={
             <>
@@ -149,7 +149,7 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
   return (
     <div className="flex flex-col gap-4">
       <Toolbar
-        filters={[`${label}: ${activityFilter}`, 'Student', 'Status']}
+        filters={[`${label}: ${activityFilter}`, 'Participant', 'Status']}
         dateRange={<DateRangeFilter value={dateRange} onApply={setDateRange} />}
         actions={
           <>

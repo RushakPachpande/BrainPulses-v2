@@ -2,17 +2,17 @@ import { prisma } from '../src/lib/prisma.js';
 
 const ORG_SLUG = 'nextgeninnov8';
 
-async function orgAndStudent(email: string) {
+async function orgAndParticipant(email: string) {
   const organization = await prisma.organization.findUniqueOrThrow({ where: { slug: ORG_SLUG } });
-  const student = await prisma.student.findFirstOrThrow({
+  const participant = await prisma.participant.findFirstOrThrow({
     where: { organizationId: organization.id, email },
   });
-  return { organization, student };
+  return { organization, participant };
 }
 
 /** Assessment with one round, used by tests that start a round attempt. */
-export async function ensureRoundAssessment(studentEmail = 'student1@mail.com') {
-  const { organization, student } = await orgAndStudent(studentEmail);
+export async function ensureRoundAssessment(participantEmail = 'participant1@mail.com') {
+  const { organization, participant } = await orgAndParticipant(participantEmail);
   const existing = await prisma.activity.findFirst({
     where: { organizationId: organization.id, code: 'ASM-ROUND' },
     include: { rounds: { orderBy: { sortOrder: 'asc' }, take: 1 } },
@@ -20,17 +20,17 @@ export async function ensureRoundAssessment(studentEmail = 'student1@mail.com') 
   if (existing?.rounds[0]) {
     await prisma.registration.upsert({
       where: {
-        organizationId_activityId_studentId: {
+        organizationId_activityId_participantId: {
           organizationId: organization.id,
           activityId: existing.id,
-          studentId: student.id,
+          participantId: participant.id,
         },
       },
       update: { status: 'assigned' },
       create: {
         organizationId: organization.id,
         activityId: existing.id,
-        studentId: student.id,
+        participantId: participant.id,
         status: 'assigned',
         assignedAt: new Date(),
       },
@@ -118,7 +118,7 @@ export async function ensureRoundAssessment(studentEmail = 'student1@mail.com') 
     data: {
       organizationId: organization.id,
       activityId: activity.id,
-      studentId: student.id,
+      participantId: participant.id,
       status: 'assigned',
       assignedAt: now,
     },
@@ -129,7 +129,7 @@ export async function ensureRoundAssessment(studentEmail = 'student1@mail.com') 
 async function publishedResult(input: {
   organizationId: string;
   activityId: string;
-  studentId: string;
+  participantId: string;
   roundId?: string;
   versionId: string;
 }) {
@@ -137,7 +137,7 @@ async function publishedResult(input: {
     where: {
       organizationId: input.organizationId,
       activityId: input.activityId,
-      studentId: input.studentId,
+      participantId: input.participantId,
     },
   });
   if (existing) return existing;
@@ -147,7 +147,7 @@ async function publishedResult(input: {
       organizationId: input.organizationId,
       activityId: input.activityId,
       roundId: input.roundId,
-      studentId: input.studentId,
+      participantId: input.participantId,
       status: 'submitted',
       revision: 1,
       startedAt: new Date(now.getTime() - 60_000),
@@ -170,7 +170,7 @@ async function publishedResult(input: {
       organizationId: input.organizationId,
       attemptId: attempt.id,
       activityId: input.activityId,
-      studentId: input.studentId,
+      participantId: input.participantId,
       score: 1,
       maxScore: 1,
       percent: 100,
@@ -182,9 +182,9 @@ async function publishedResult(input: {
 }
 
 /** Published assessment (answers visible) and quiz (answers hidden) for review policy tests. */
-export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
-  const { organization, student } = await orgAndStudent(studentEmail);
-  const round = await ensureRoundAssessment(studentEmail);
+export async function ensureReviewResults(participantEmail = 'participant2@mail.com') {
+  const { organization, participant } = await orgAndParticipant(participantEmail);
+  const round = await ensureRoundAssessment(participantEmail);
   const question = await prisma.question.findFirstOrThrow({
     where: { organizationId: organization.id, code: 'RQ-1' },
     include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
@@ -194,7 +194,7 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
   await publishedResult({
     organizationId: organization.id,
     activityId: round.activity.id,
-    studentId: student.id,
+    participantId: participant.id,
     roundId: round.round.id,
     versionId: version.id,
   });
@@ -203,57 +203,72 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
     where: { organizationId: organization.id, code: 'QZ-HIDDEN' },
   });
   if (!hidden) {
-    const bank = await prisma.questionBank.create({
-      data: {
-        organizationId: organization.id,
-        kind: 'quiz',
-        code: 'QB-HIDDEN',
-        name: 'Hidden answers',
-        status: 'active',
-        origin: 'quiz_local',
-      },
+    let bank = await prisma.questionBank.findFirst({
+      where: { organizationId: organization.id, code: 'QB-HIDDEN' },
     });
-    const question = await prisma.question.create({
-      data: {
-        organizationId: organization.id,
-        bankId: bank.id,
-        code: 'HQ-1',
-        type: 'single_mcq',
-        question: 'What is 1 + 1?',
-        points: 1,
-      },
-    });
-    const hiddenVersion = await prisma.questionVersion.create({
-      data: {
-        organizationId: organization.id,
-        questionId: question.id,
-        version: 1,
-        type: 'single_mcq',
-        question: 'What is 1 + 1?',
-        points: 1,
-        answerKey: { correctLabels: ['A'] },
-      },
-    });
-    await prisma.questionOption.createMany({
-      data: [
-        {
-          questionId: question.id,
-          questionVersionId: hiddenVersion.id,
-          label: 'A',
-          body: '2',
-          sortOrder: 0,
-          isCorrect: true,
+    if (!bank) {
+      bank = await prisma.questionBank.create({
+        data: {
+          organizationId: organization.id,
+          kind: 'quiz',
+          code: 'QB-HIDDEN',
+          name: 'Hidden answers',
+          status: 'active',
+          origin: 'quiz_local',
         },
-        {
-          questionId: question.id,
-          questionVersionId: hiddenVersion.id,
-          label: 'B',
-          body: '3',
-          sortOrder: 1,
-          isCorrect: false,
-        },
-      ],
+      });
+    }
+    let question = await prisma.question.findFirst({
+      where: { organizationId: organization.id, bankId: bank.id, code: 'HQ-1' },
+      include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
     });
+    let hiddenVersion = question?.versions[0] ?? null;
+    if (!question) {
+      question = await prisma.question.create({
+        data: {
+          organizationId: organization.id,
+          bankId: bank.id,
+          code: 'HQ-1',
+          type: 'single_mcq',
+          question: 'What is 1 + 1?',
+          points: 1,
+        },
+        include: { versions: { orderBy: { version: 'desc' }, take: 1 } },
+      });
+    }
+    if (!hiddenVersion) {
+      hiddenVersion = await prisma.questionVersion.create({
+        data: {
+          organizationId: organization.id,
+          questionId: question.id,
+          version: 1,
+          type: 'single_mcq',
+          question: 'What is 1 + 1?',
+          points: 1,
+          answerKey: { correctLabels: ['A'] },
+        },
+      });
+      await prisma.questionOption.createMany({
+        data: [
+          {
+            questionId: question.id,
+            questionVersionId: hiddenVersion.id,
+            label: 'A',
+            body: '2',
+            sortOrder: 0,
+            isCorrect: true,
+          },
+          {
+            questionId: question.id,
+            questionVersionId: hiddenVersion.id,
+            label: 'B',
+            body: '3',
+            sortOrder: 1,
+            isCorrect: false,
+          },
+        ],
+      });
+    }
     hidden = await prisma.activity.create({
       data: {
         organizationId: organization.id,
@@ -269,7 +284,7 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
             shuffleQuestions: false,
             shuffleOptions: false,
             scoreRelease: 'after_publish',
-            answersVisibleToStudent: false,
+            answersVisibleToParticipant: false,
             maxAttempts: 1,
           },
         },
@@ -280,7 +295,7 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
       data: {
         organizationId: organization.id,
         activityId: hidden.id,
-        studentId: student.id,
+        participantId: participant.id,
         status: 'assigned',
         assignedAt: new Date(),
       },
@@ -288,7 +303,7 @@ export async function ensureReviewResults(studentEmail = 'student2@mail.com') {
     await publishedResult({
       organizationId: organization.id,
       activityId: hidden.id,
-      studentId: student.id,
+      participantId: participant.id,
       versionId: hiddenVersion.id,
     });
   }

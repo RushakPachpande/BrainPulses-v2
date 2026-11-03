@@ -67,7 +67,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   async function onPublish() {
     const ok = await confirm({
       title: 'Publish this result?',
-      description: 'The student will be able to see it according to the activity settings.',
+      description: 'The participant will be able to see it according to the activity settings.',
       confirmLabel: 'Publish result',
     });
     if (!ok) return;
@@ -160,23 +160,23 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   }
 
   async function onGrantReattempt(mode: 'continue' | 'restart') {
-    if (!row?.activityId || !row.studentId) {
-      toast.error('Missing activity or student on this result.');
+    if (!row?.activityId || !row.participantId) {
+      toast.error('Missing activity or participant on this result.');
       return;
     }
     const ok = await confirm({
       title: mode === 'restart' ? 'Grant a restart?' : 'Grant a continue?',
       description:
         mode === 'restart'
-          ? 'The student can take this quiz again.'
-          : 'The student can resume this attempt.',
+          ? 'The participant can take this quiz again.'
+          : 'The participant can resume this attempt.',
       confirmLabel: mode === 'restart' ? 'Grant restart' : 'Grant continue',
     });
     if (!ok) return;
     setSaving(true);
     try {
       await grantReattempt(row.activityId, {
-        studentId: row.studentId,
+        participantId: row.participantId,
         mode,
         note: dqNote.trim() || undefined,
       });
@@ -193,7 +193,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     const password = await confirm({
       title: 'Delete this response?',
       description:
-        "Removes the student's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
+        "Removes the participant's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete response',
       destructive: true,
       requirePassword: true,
@@ -224,7 +224,7 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
         </Button>
         <h2 className="text-xl font-semibold tracking-tight">View Result</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          {row.student} · {row.activity}
+          {row.participant} · {row.activity}
         </p>
       </div>
       <Card>
@@ -234,10 +234,10 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
         </CardHeader>
         <CardContent className="grid gap-3 pt-5 text-sm sm:grid-cols-2">
           <div>
-            <p className="text-muted-foreground">Student</p>
+            <p className="text-muted-foreground">Participant</p>
             <p className="font-medium">
-              {row.student}
-              {row.studentCode ? ` (${row.studentCode})` : ''}
+              {row.participant}
+              {row.participantCode ? ` (${row.participantCode})` : ''}
             </p>
           </div>
           <div>

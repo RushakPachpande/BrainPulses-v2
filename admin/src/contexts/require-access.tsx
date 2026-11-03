@@ -34,7 +34,7 @@ function fallbackPath(gate: AccessGate, pathname: string): string {
   if (gate.type === 'manageUsersOrSettings') {
     return '/users';
   }
-  return '/students';
+  return '/participants';
 }
 
 /** Blocks mutation routes when membership lacks the required access. */

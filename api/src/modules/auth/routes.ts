@@ -1,15 +1,15 @@
 import { Router } from 'express';
-import { requireAuth, requireStudent, requireUser } from '../../middleware/auth.js';
+import { requireAuth, requireParticipant, requireUser } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
   changePasswordSchema,
   selectOrganizationSchema,
   signInSchema,
-  studentRequestOtpSchema,
-  studentResendOtpSchema,
-  studentSignInByCodeSchema,
-  studentVerifyOtpSchema,
+  participantRequestOtpSchema,
+  participantResendOtpSchema,
+  participantSignInByCodeSchema,
+  participantVerifyOtpSchema,
 } from './schema.js';
 
 export const authRouter = Router();
@@ -20,27 +20,33 @@ authRouter.post(
   validate({ body: selectOrganizationSchema }),
   controller.selectOrganization,
 );
+authRouter.get('/participant/login-options', controller.participantLoginOptions);
 authRouter.post(
-  '/student/sign-in-by-code',
-  validate({ body: studentSignInByCodeSchema }),
-  controller.studentSignInByCode,
+  '/participant/sign-in-by-code',
+  validate({ body: participantSignInByCodeSchema }),
+  controller.participantSignInByCode,
 );
 authRouter.post(
-  '/student/request-otp',
-  validate({ body: studentRequestOtpSchema }),
-  controller.studentRequestOtp,
+  '/participant/request-otp',
+  validate({ body: participantRequestOtpSchema }),
+  controller.participantRequestOtp,
 );
 authRouter.post(
-  '/student/resend-otp',
-  validate({ body: studentResendOtpSchema }),
-  controller.studentResendOtp,
+  '/participant/resend-otp',
+  validate({ body: participantResendOtpSchema }),
+  controller.participantResendOtp,
 );
 authRouter.post(
-  '/student/verify-otp',
-  validate({ body: studentVerifyOtpSchema }),
-  controller.studentVerifyOtp,
+  '/participant/verify-otp',
+  validate({ body: participantVerifyOtpSchema }),
+  controller.participantVerifyOtp,
 );
-authRouter.post('/student/sign-out', requireAuth, requireStudent, controller.studentSignOut);
+authRouter.post(
+  '/participant/sign-out',
+  requireAuth,
+  requireParticipant,
+  controller.participantSignOut,
+);
 authRouter.post('/refresh', controller.refresh);
 authRouter.post('/sign-out', controller.signOut);
 authRouter.get('/session', requireAuth, requireUser, controller.session);

@@ -24,9 +24,9 @@ function forbidKey(value: unknown, banned: string) {
   }
 }
 
-async function studentToken(code: string) {
+async function participantToken(code: string) {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
+  const res = await request(app, 'POST', '/api/auth/participant/sign-in-by-code', {
     body: { code, organizationSlug: 'nextgeninnov8', replaceSession: true },
   });
   assert.equal(res.status, 200);
@@ -36,11 +36,11 @@ async function studentToken(code: string) {
 describe('published result review policy', () => {
   it('shows assessment review keys and hides quiz answers when the flag is false', async () => {
     const app = await getTestApp();
-    const token = await studentToken('BP-24102');
+    const token = await participantToken('BP-24102');
     await ensureReviewResults();
     const headers = { authorization: `Bearer ${token}` };
 
-    const list = await request(app, 'GET', '/api/student/results?limit=50', { headers });
+    const list = await request(app, 'GET', '/api/participant/results?limit=50', { headers });
     assert.equal(list.status, 200);
     const rows = (list.body as { data: ResultRow[] }).data;
 
@@ -49,7 +49,7 @@ describe('published result review policy', () => {
     assert.ok(assessment, 'seed should publish an assessment result for BP-24102');
     assert.ok(hiddenQuiz, 'fixture should publish QZ-HIDDEN with answers hidden');
 
-    const assessmentRes = await request(app, 'GET', `/api/student/results/${assessment.id}`, {
+    const assessmentRes = await request(app, 'GET', `/api/participant/results/${assessment.id}`, {
       headers,
     });
     assert.equal(assessmentRes.status, 200);
@@ -64,7 +64,7 @@ describe('published result review policy', () => {
     );
     forbidKey(assessmentRes.body, 'answerKey');
 
-    const quizRes = await request(app, 'GET', `/api/student/results/${hiddenQuiz.id}`, {
+    const quizRes = await request(app, 'GET', `/api/participant/results/${hiddenQuiz.id}`, {
       headers,
     });
     assert.equal(quizRes.status, 200);

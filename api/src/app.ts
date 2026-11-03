@@ -25,8 +25,8 @@ import { sponsorsRouter } from './modules/sponsors/routes.js';
 import { registrationsRouter } from './modules/registrations/routes.js';
 import { resultsRouter } from './modules/results/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
-import { studentPortalRouter } from './modules/student-portal/routes.js';
-import { studentsRouter } from './modules/students/routes.js';
+import { participantPortalRouter } from './modules/participant-portal/routes.js';
+import { participantsRouter } from './modules/participants/routes.js';
 import { usersRouter } from './modules/users/routes.js';
 
 export function createApp() {
@@ -151,8 +151,8 @@ export function createApp() {
     next();
   });
   app.use('/api/auth', authLimiter, authRouter);
-  app.use('/api/student', studentPortalRouter);
-  app.use('/api/students', studentsRouter);
+  app.use('/api/participant', participantPortalRouter);
+  app.use('/api/participants', participantsRouter);
   app.use('/api/sponsors', sponsorsRouter);
   app.use('/api/contests', contestsRouter);
   app.use('/api/users', usersRouter);

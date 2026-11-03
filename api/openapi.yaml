@@ -67,9 +67,20 @@ paths:
       responses:
         '200':
           description: Session
-  /api/auth/student/sign-in-by-code:
+  /api/auth/participant/login-options:
+    get:
+      summary: Public participant login methods (phone login on/off)
+      parameters:
+        - in: query
+          name: organizationSlug
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Login options for the organization
+  /api/auth/participant/sign-in-by-code:
     post:
-      summary: Student sign-in with Unique ID (Student.code)
+      summary: Participant sign-in with Unique ID (Participant.code)
       requestBody:
         required: true
         content:
@@ -83,19 +94,19 @@ paths:
                   minLength: 4
                   maxLength: 40
                   pattern: '^[A-Za-z0-9][A-Za-z0-9_-]{3,39}$'
-                  description: Student Unique ID (Student.code)
+                  description: Participant Unique ID (Participant.code)
                 organizationSlug:
                   type: string
       responses:
         '200':
-          description: Student access token
+          description: Participant access token
         '401':
           description: Unknown Unique ID
         '422':
           description: Invalid Unique ID format
-  /api/auth/student/request-otp:
+  /api/auth/participant/request-otp:
     post:
-      summary: Request SMS OTP for student phone login
+      summary: Request SMS OTP for participant phone login
       requestBody:
         required: true
         content:
@@ -117,17 +128,17 @@ paths:
           description: Generic success (does not reveal whether the phone exists)
         '422':
           description: Invalid country code or phone number
-  /api/auth/student/resend-otp:
+  /api/auth/participant/resend-otp:
     post:
-      summary: Resend SMS OTP for student phone login
+      summary: Resend SMS OTP for participant phone login
       responses:
         '200':
           description: Generic success
         '422':
           description: Invalid country code or phone number
-  /api/auth/student/verify-otp:
+  /api/auth/participant/verify-otp:
     post:
-      summary: Verify SMS OTP and issue student access token
+      summary: Verify SMS OTP and issue participant access token
       requestBody:
         required: true
         content:
@@ -147,39 +158,39 @@ paths:
                   type: string
       responses:
         '200':
-          description: Student access token
+          description: Participant access token
         '401':
           description: Invalid or expired OTP
         '422':
           description: Invalid phone or OTP format
-  /api/student/me:
+  /api/participant/me:
     get:
-      summary: Current student profile
+      summary: Current participant profile
       security: [{ bearerAuth: [] }]
       responses:
         '200':
-          description: Student profile
+          description: Participant profile
     patch:
-      summary: Update student display name
+      summary: Update participant display name
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Updated profile
-  /api/student/activities:
+  /api/participant/activities:
     get:
-      summary: List activities assigned to the signed-in student
+      summary: List activities assigned to the signed-in participant
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Paginated assigned activities
-  /api/student/results:
+  /api/participant/results:
     get:
-      summary: List results for the signed-in student
+      summary: List results for the signed-in participant
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Paginated own results
-  /api/student/results/{id}:
+  /api/participant/results/{id}:
     get:
       summary: Own result detail with answer review
       security: [{ bearerAuth: [] }]
@@ -190,39 +201,39 @@ paths:
           description: Result detail
         '404':
           description: Not found
-  /api/students:
+  /api/participants:
     get:
-      summary: List students
+      summary: List participants
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Paginated list
     post:
-      summary: Create student
+      summary: Create participant
       security: [{ bearerAuth: [] }]
       responses:
         '201':
           description: Created
-  /api/students/{id}:
+  /api/participants/{id}:
     get:
-      summary: Student detail
+      summary: Participant detail
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/Id'
       responses:
         '200':
-          description: Student
+          description: Participant
     patch:
-      summary: Update student
+      summary: Update participant
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/Id'
       responses:
         '200':
           description: Updated
-  /api/students/{id}/deactivate:
+  /api/participants/{id}/deactivate:
     post:
-      summary: Deactivate student
+      summary: Deactivate participant
       security: [{ bearerAuth: [] }]
       parameters:
         - $ref: '#/components/parameters/Id'
@@ -426,14 +437,14 @@ paths:
           description: Paginated list
   /api/registrations/assign:
     post:
-      summary: Assign students to an activity
+      summary: Assign participants to an activity
       security: [{ bearerAuth: [] }]
       responses:
         '200':
           description: Assigned
   /api/registrations/unassign:
     post:
-      summary: Unassign students from an activity
+      summary: Unassign participants from an activity
       security: [{ bearerAuth: [] }]
       responses:
         '200':
@@ -447,7 +458,7 @@ paths:
           description: CSV
   /api/attempts/start:
     post:
-      summary: Start attempt (student)
+      summary: Start attempt (participant)
       security: [{ bearerAuth: [] }]
       responses:
         '201':

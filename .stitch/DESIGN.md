@@ -48,37 +48,37 @@ colors:
   dark-ring: '#c084fc'
 typography:
   page-title:
-    fontFamily: Plus Jakarta Sans
-    fontSize: 24px
+    fontFamily: Sora
+    fontSize: 32px
     fontWeight: '700'
     lineHeight: 1.25
     letterSpacing: -0.035em
   section-title:
-    fontFamily: Plus Jakarta Sans
+    fontFamily: Manrope
     fontSize: 18px
     fontWeight: '650'
     lineHeight: 1.3
     letterSpacing: -0.02em
   body:
-    fontFamily: Source Sans 3
+    fontFamily: Manrope
     fontSize: 16px
-    fontWeight: '400'
+    fontWeight: '500'
     lineHeight: 1.6
     letterSpacing: '0'
   ui:
-    fontFamily: Source Sans 3
+    fontFamily: Manrope
     fontSize: 15px
-    fontWeight: '400'
+    fontWeight: '500'
     lineHeight: 1.45
     letterSpacing: '0'
   label:
-    fontFamily: Source Sans 3
+    fontFamily: Manrope
     fontSize: 13px
     fontWeight: '600'
     lineHeight: 1.35
     letterSpacing: '0'
   table-head:
-    fontFamily: Source Sans 3
+    fontFamily: Manrope
     fontSize: 13px
     fontWeight: '700'
     lineHeight: 1.35
@@ -113,7 +113,7 @@ The stylesheet declares the theme three times. The last `:root` and `.dark` bloc
 
 BrainPulses Admin is a calm operations console for a learning platform: a cool porcelain canvas, white cards, and a single royal violet reserved for the action that matters. The mood is precise and institutional, closer to a well-run registrar’s desk than a consumer marketing site. Surfaces stay flat. Color carries meaning — brand, success, warning, error — and then gets out of the way.
 
-Density is high on purpose. A page is a title, a short description, optional module tabs, a filter row, and a table or a small set of cards. Whitespace is a 4px rhythm, not a gallery margin. Type is humanist and highly legible: Plus Jakarta Sans for titles, Source Sans 3 for everything an administrator reads in a row. Motion is short (about 140–220ms) and yields to reduced-motion preferences. The dark theme is a night navy, not pure black, so long sessions stay readable.
+Density is high on purpose. A page is a title, a short description, optional module tabs, a filter row, and a table or a small set of cards. Whitespace is a 4px rhythm, not a gallery margin. Type is humanist and highly legible: Sora for page titles and attempt display roles, Manrope for everything an administrator reads in a row. Motion is short (about 140–220ms) and yields to reduced-motion preferences. The dark theme is a night navy, not pure black, so long sessions stay readable.
 
 ## 2. Color Palette & Roles
 
@@ -185,16 +185,17 @@ KPI tint tokens exist (`--kpi-0` … `--kpi-4`) and are then flattened: tinted c
 
 | Role | Family | Size | Weight | Tracking |
 |---|---|---|---|---|
-| Page title (`#main h1`) | Plus Jakarta Sans | `clamp(1.5rem, 2vw, 1.875rem)` — 24–30px | 700 | −0.035em |
-| Section title (`h2`, card titles) | Plus Jakarta Sans | Section `clamp(1.125rem, 1.35vw, 1.375rem)`; card title 16px | 650–700 | −0.02em on h2 |
-| Body | Source Sans 3 | 16px, line-height 1.6 | 400 | 0 |
-| UI copy (`.text-sm`) | Source Sans 3 | 15px (0.9375rem), line-height 1.45 | 400–500 | 0 |
-| Labels, breadcrumbs, badges (`.text-xs`) | Source Sans 3 | 13px (0.8125rem) | 600–700 | 0, except table heads |
-| Table body | Source Sans 3 | 15px | 400; names 500 | 0 |
-| Table head | Source Sans 3 | 13px, uppercase | 700 | 0.035em |
-| KPI value | Plus Jakarta Sans | 24px (`text-2xl`) | medium/semibold | tight |
+| Page title (`#main h1`) | Sora | 24px mobile / 32px desktop | 700 | −0.035em |
+| Section title (`h2`, card titles) | Manrope | Section `clamp(1.125rem, 1.35vw, 1.375rem)`; card title 16px | 650–700 | −0.02em on h2 |
+| Body | Manrope | 16px, line-height 1.6 | 400–500 | 0 |
+| UI copy (`.text-sm`) | Manrope | 15px (0.9375rem), line-height 1.45 | 400–500 | 0 |
+| Labels, breadcrumbs, badges (`.text-xs`) | Manrope | 13px (0.8125rem) | 600–700 | 0, except table heads |
+| Table body | Manrope | 15px | 400; names 500 | 0 |
+| Table head | Manrope | 13px, uppercase | 700 | 0.035em |
+| KPI value | Manrope | 24px (`text-2xl`) | medium/semibold | tight |
+| Attempt question / option letter / timer | Sora | See `docs/design/DESIGN.md` | 700 | tight |
 
-Plus Jakarta Sans is geometric and slightly square — confident at titles, loaded at 500, 600, and 700. Source Sans 3 is the workhorse: open counters, comfortable at 13–16px in tables. Fallback for both is Segoe UI, then sans-serif. Body enables `cv02`, `cv03`, `cv04`, `cv11` and antialiasing. Sentence case everywhere. Table heads are the only uppercase.
+Sora is the display face for page titles and attempt prominence. Manrope is the workhorse for UI, tables, and supporting copy (weights 500–700, including 650 for option text). Fallback for both is Segoe UI, then sans-serif. Sentence case everywhere. Table heads are the only uppercase.
 
 The utilities `.text-xs` and `.text-sm` are overridden in `index.css`. A class that looks like Tailwind’s 12px/14px is actually 13px/15px. Use those classes; do not invent a third size scale.
 

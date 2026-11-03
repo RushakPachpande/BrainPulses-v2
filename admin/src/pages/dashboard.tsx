@@ -24,9 +24,9 @@ export function DashboardPage() {
 
   const showAssessment = canEditKind(membership, 'assessment');
   const showQuiz = canEditKind(membership, 'quiz');
-  const showStudents = canMutateOrg(membership);
+  const showParticipants = canMutateOrg(membership);
   const showUsers = canManageUsersOrSettings(membership);
-  const hasQuickActions = showAssessment || showQuiz || showStudents || showUsers;
+  const hasQuickActions = showAssessment || showQuiz || showParticipants || showUsers;
 
   if (loading || !data) {
     return <DashboardSkeleton />;
@@ -82,11 +82,11 @@ export function DashboardPage() {
                     </Link>
                   </Button>
                 ) : null}
-                {showStudents ? (
+                {showParticipants ? (
                   <Button asChild variant="outline">
-                    <Link to="/students">
+                    <Link to="/participants">
                       <UploadIcon data-icon="inline-start" />
-                      Upload Students
+                      Upload Participants
                     </Link>
                   </Button>
                 ) : null}

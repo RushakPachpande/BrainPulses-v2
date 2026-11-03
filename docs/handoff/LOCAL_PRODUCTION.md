@@ -1,13 +1,13 @@
 # Local production-like stack — BrainPulses v2.0
 
-Run Admin, Student Client, and API against Docker Postgres/Redis with the seeded organizations. This is the supported way to test end-to-end before cloud hosting.
+Run Admin, Participant Client, and API against Docker Postgres/Redis with the seeded organizations. This is the supported way to test end-to-end before cloud hosting.
 
 ## Ports
 
 | Service               | Loopback              | LAN (same Wi‑Fi / Ethernet) |
 | --------------------- | --------------------- | --------------------------- |
 | Admin (Vite)          | http://localhost:5173 | `http://<lan-ip>:5173`      |
-| Student client (Vite) | http://localhost:5174 | `http://<lan-ip>:5174`      |
+| Participant client (Vite) | http://localhost:5174 | `http://<lan-ip>:5174`      |
 | API                   | http://127.0.0.1:3002 | `http://<lan-ip>:3002`      |
 | Postgres              | 127.0.0.1:5434        | not published for peers     |
 | Redis                 | 127.0.0.1:6381        | not published for peers     |
@@ -67,7 +67,7 @@ Admin (Admin UI at http://localhost:5173):
 
 Staff accounts belong to both **NextGenInnov8** (`nextgeninnov8`) and **GreyCaps** (`greycaps`).
 
-Students (Student client at http://localhost:5174 — Unique ID or Phone OTP). All twelve students belong to NextGenInnov8:
+Participants (Participant client at http://localhost:5174 — Unique ID or Phone OTP). All twelve participants belong to NextGenInnov8:
 
 | Name        | Unique ID  | Phone (E.164)   | National number      |
 | ----------- | ---------- | --------------- | -------------------- |
@@ -75,15 +75,15 @@ Students (Student client at http://localhost:5174 — Unique ID or Phone OTP). A
 | Rohan Mehta | `BP-24102` | `+919876510001` | `+91` / `9876510001` |
 | Sana Khan   | `BP-24103` | `+919876510002` | `+91` / `9876510002` |
 
-Plus nine more students (`BP-24104` … `BP-24112`) in cohorts Alpha, Beta, and Gamma. Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
+Plus nine more participants (`BP-24104` … `BP-24112`) in cohorts Alpha, Beta, and Gamma. Development OTPs are printed in the API console as `[otp] …` when Twilio is disabled.
 
 Seeded content:
 
 - Question bank `QB-26001` — Foundation Question Bank (20 single-choice questions)
 - Sponsor NextGenInnov8 and contest Launch Cup
-- Quiz `QZ-26001` — Launch Quiz (active; every NextGenInnov8 student is assigned)
+- Quiz `QZ-26001` — Launch Quiz (active; every NextGenInnov8 participant is assigned)
 
-GreyCaps has the same three staff memberships and no students, bank, or quiz.
+GreyCaps has the same three staff memberships and no participants, bank, or quiz.
 
 ## Production-like preview (built assets)
 
@@ -110,7 +110,7 @@ For SPA preview builds, set `VITE_API_URL=http://localhost:3002` in `admin/.env`
 Get-Content docs/ops/postgres-readonly-role.sql | docker exec -i brainpulses-postgres psql -U brainpulses -d brainpulses
 
 # Validate (SELECT ok; INSERT / CREATE fail)
-docker exec brainpulses-postgres psql -U brainpulses_readonly -d brainpulses -c "SELECT COUNT(*) FROM students;"
+docker exec brainpulses-postgres psql -U brainpulses_readonly -d brainpulses -c "SELECT COUNT(*) FROM participants;"
 ```
 
 Local reporting URL (never for the API): `postgresql://brainpulses_readonly:brainpulses_ro@127.0.0.1:5434/brainpulses`
@@ -141,7 +141,7 @@ npm run build:client
 See also the QA handoff `PRODUCTION_GATES.md` themes. Still open for a public launch:
 
 - No cloud IdP / MFA / password reset flows
-- Student JWT is access-token only (sessionStorage); no refresh-cookie rotation for students
+- Participant JWT is access-token only (sessionStorage); no refresh-cookie rotation for participants
 - File upload / CSV import UI is partially disabled (API supports bank import)
 - Hosting, CSP, monitoring, and backup drill are not configured here
 

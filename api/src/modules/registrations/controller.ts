@@ -18,7 +18,7 @@ export async function assign(req: Request, res: Response, next: NextFunction) {
       actor.organizationId,
       actor,
       req.body.activityId,
-      req.body.studentIds,
+      req.body.participantIds,
       req.header('idempotency-key') ?? undefined,
     );
     res.json({ data });
@@ -34,7 +34,7 @@ export async function unassign(req: Request, res: Response, next: NextFunction) 
       actor.organizationId,
       actor,
       req.body.activityId,
-      req.body.studentIds,
+      req.body.participantIds,
     );
     res.json({ data });
   } catch (err) {

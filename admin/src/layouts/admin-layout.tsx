@@ -60,7 +60,7 @@ type NavGroupItem = NavLinkItem & { children?: NavChildItem[] };
 
 const nav: NavGroupItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
-  { to: '/students', label: 'Students', icon: UsersIcon, end: true },
+  { to: '/participants', label: 'Participants', icon: UsersIcon, end: true },
   { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
   { to: '/sponsors', label: 'Sponsors', icon: HandshakeIcon, end: true },
   { to: '/contests', label: 'Contests', icon: TrophyIcon, end: true },
@@ -94,7 +94,7 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/settings', label: 'General', end: true },
-      { to: '/settings/student-portal', label: 'Student portal', end: true },
+      { to: '/settings/participant-portal', label: 'Participant portal', end: true },
       { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },
@@ -220,8 +220,10 @@ function PageHeader({
       </Breadcrumb>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-semibold">{title}</h1>
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+          <h1 className="page-title truncate font-bold">{title}</h1>
+          {description ? (
+            <p className="page-subtitle mt-1 text-muted-foreground">{description}</p>
+          ) : null}
         </div>
         {actions ? (
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">{actions}</div>

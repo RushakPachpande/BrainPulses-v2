@@ -16,8 +16,8 @@ export type AccessTokenPayload = {
   pwdEpoch?: number;
 };
 
-export type StudentAccessTokenPayload = {
-  typ: 'student';
+export type ParticipantAccessTokenPayload = {
+  typ: 'participant';
   sub: string;
   organizationId: string;
   sid: string;
@@ -28,7 +28,7 @@ export type OrgSelectTokenPayload = {
   sub: string;
 };
 
-type AnyPayload = AccessTokenPayload | StudentAccessTokenPayload | OrgSelectTokenPayload;
+type AnyPayload = AccessTokenPayload | ParticipantAccessTokenPayload | OrgSelectTokenPayload;
 
 const signOptions = (): jwt.SignOptions => ({
   algorithm: 'HS256',
@@ -53,13 +53,15 @@ export function signAccessToken(payload: Omit<AccessTokenPayload, 'typ'>): strin
   );
 }
 
-export function signStudentAccessToken(payload: Omit<StudentAccessTokenPayload, 'typ'>): string {
+export function signParticipantAccessToken(
+  payload: Omit<ParticipantAccessTokenPayload, 'typ'>,
+): string {
   return jwt.sign(
-    { ...payload, typ: 'student' satisfies StudentAccessTokenPayload['typ'] },
+    { ...payload, typ: 'participant' satisfies ParticipantAccessTokenPayload['typ'] },
     env.JWT_SECRET,
     {
       ...signOptions(),
-      expiresIn: env.STUDENT_JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+      expiresIn: env.PARTICIPANT_JWT_ACCESS_EXPIRES_IN as jwt.SignOptions['expiresIn'],
     },
   );
 }

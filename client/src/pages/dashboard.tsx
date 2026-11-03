@@ -13,42 +13,42 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../contexts/auth-context';
-import { useStudentPages } from '../hooks/use-student-pages';
+import { useParticipantPages } from '../hooks/use-participant-pages';
 import { GoalPanelSkeleton, MetricsSkeleton } from '../components/skeletons';
 import { KindIcon, Metric, Status } from '../components/ui-bits';
 import { ActivityCover, ActivityCredit } from '../components/activity-images';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { clientQueryKeys } from '../lib/query-keys';
 import { listActivities, listResults } from '../services/api';
-import type { StudentActivity } from '../services/types';
+import type { ParticipantActivity } from '../services/types';
 
 export function DashboardPage() {
-  const { student } = useAuth();
+  const { participant } = useAuth();
   const navigate = useNavigate();
-  const pagesQuery = useStudentPages();
+  const pagesQuery = useParticipantPages();
   const quizzesOn = pagesQuery.data?.quizzes ?? true;
   const assessmentsOn = pagesQuery.data?.assessments ?? true;
   const resultsOn = pagesQuery.data?.results ?? true;
-  const studentId = student?.id ?? '';
-  const name = student?.name?.split(' ')[0] ?? 'there';
+  const participantId = participant?.id ?? '';
+  const name = participant?.name?.split(' ')[0] ?? 'there';
 
   const {
     data: items = [],
     isPending: actsLoading,
     isError: actsError,
   } = useQuery({
-    queryKey: clientQueryKeys.activities(studentId, 'all'),
+    queryKey: clientQueryKeys.activities(participantId, 'all'),
     queryFn: () => listActivities('all'),
-    enabled: Boolean(studentId),
+    enabled: Boolean(participantId),
   });
   const {
     data: results = [],
     isPending: resultsLoading,
     isError: resultsError,
   } = useQuery({
-    queryKey: clientQueryKeys.results(studentId, 'all'),
+    queryKey: clientQueryKeys.results(participantId, 'all'),
     queryFn: () => listResults('all'),
-    enabled: Boolean(studentId) && resultsOn,
+    enabled: Boolean(participantId) && resultsOn,
   });
 
   const loading = actsLoading || (resultsOn && resultsLoading);
@@ -64,7 +64,7 @@ export function DashboardPage() {
       : null;
   const minutes = visibleResults.reduce((total, a) => total + (a.durationMinutes ?? 0), 0);
 
-  function begin(item: StudentActivity) {
+  function begin(item: ParticipantActivity) {
     const base = item.kind === 'quiz' ? '/quizzes' : '/assessments';
     navigate(`${base}/${item.activityId}`);
   }

@@ -9,22 +9,22 @@ Prerequisites: follow [`LOCAL_PRODUCTION.md`](LOCAL_PRODUCTION.md) until all thr
 1. Open http://localhost:5173/login
 2. Sign in as `admin@brainpulses.com` / `Password123!` and choose **NextGenInnov8**
 3. Confirm dashboard KPIs load (not empty fixture zeros unless the DB is empty)
-4. Open **Students** — 12 seeded students appear (`BP-24101` …) with cohorts
+4. Open **Participants** — 12 seeded participants appear (`BP-24101` …) with cohorts
 5. Open **Quizzes** — Launch Quiz is the active quiz
 6. Open **Launch Quiz** — its questions are listed on the quiz (there is no separate quiz Question Banks page)
-7. Open **Registrations** / **Reports** — assigned students and seeded results appear
+7. Open **Registrations** / **Reports** — assigned participants and seeded results appear
 8. Sign out and confirm `/dashboard` redirects to login
 
 ## 2. Admin mutations (persistence)
 
-1. **Students → Add Student** — create a student with name + email (Unique ID optional); confirm they appear after save
+1. **Participants → Add Participant** — create a participant with name + email (Unique ID optional); confirm they appear after save
 2. **Users → Add User** — invite an admin; confirm they appear on Users
 3. **Assessments → Question Banks → Create** — create a bank with a starter MCQ; confirm list refresh
 4. **Assessments → Create Assessment** — create + optionally publish; confirm it appears on the list
-5. **Registrations → Add Registration** — assign a student to an activity; confirm the row appears
+5. **Registrations → Add Registration** — assign a participant to an activity; confirm the row appears
 6. Refresh the browser — created rows remain (DB-backed)
 
-## 3. Student journey (thin E2E)
+## 3. Participant journey (thin E2E)
 
 1. Open http://localhost:5174/login
 2. Sign in with Unique ID `BP-24101` (Unique ID tab) — or use Phone tab with `+91` / `9876510000`, read the OTP from the API console (`[otp] …`), then verify
@@ -41,7 +41,7 @@ Optional: confirm Phone OTP fails with a wrong 6-digit code; Unique ID `BP-NOPE`
 ## 4. Integrity checks
 
 1. Second submit of the same attempt with the same Idempotency-Key does not create a duplicate result
-2. `student2@mail.com` cannot open `student1` result detail URLs (404)
+2. `participant2@mail.com` cannot open `participant1` result detail URLs (404)
 3. Timed attempt at zero auto-submits (or shows submitted result after deadline)
 
 ## 5. Build gates

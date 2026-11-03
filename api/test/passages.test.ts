@@ -39,7 +39,7 @@ describe('shared passage storage', () => {
   let organizationId = '';
   let bankId = '';
   let activityId = '';
-  let studentId = '';
+  let participantId = '';
 
   after(async () => {
     if (activityId) {
@@ -55,9 +55,9 @@ describe('shared passage storage', () => {
     const organization = await prisma.organization.findFirst();
     assert.ok(organization, 'expected a seeded organization');
     organizationId = organization.id;
-    const student = await prisma.student.findFirst({ where: { organizationId } });
-    assert.ok(student, 'expected a seeded student');
-    studentId = student.id;
+    const participant = await prisma.participant.findFirst({ where: { organizationId } });
+    assert.ok(participant, 'expected a seeded participant');
+    participantId = participant.id;
 
     const bank = await prisma.questionBank.create({
       data: {
@@ -150,7 +150,7 @@ describe('shared passage storage', () => {
       data: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         startedAt: new Date(),
         deadlineAt: new Date(Date.now() + 60_000),
         questionOrder: [version.id, siblingVersion.id],

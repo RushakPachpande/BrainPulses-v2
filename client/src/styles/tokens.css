@@ -78,8 +78,22 @@
   --kpi-3: var(--card);
   --kpi-4: var(--card);
   /* Dimensions / effects */
-  --font-heading: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
-  --font-body: 'Source Sans 3', 'Segoe UI', sans-serif;
+  --font-display: 'Sora', 'Segoe UI', sans-serif;
+  --font-heading: 'Manrope', 'Segoe UI', sans-serif;
+  --font-body: 'Manrope', 'Segoe UI', sans-serif;
+  /* Type scale — mobile-first; override at 640px+ */
+  --type-page-title: 24px;
+  --type-subtitle: 16px;
+  --type-supporting: 14px;
+  --type-primary-btn: 16px;
+  --type-question: 24px;
+  --type-option: 18px;
+  --type-option-label: 20px;
+  --type-timer: 24px;
+  --type-timer-label: 16px;
+  --type-question-counter: 20px;
+  --type-question-badge: 16px;
+  --type-progress-pct: 20px;
   --radius: 12px;
   --radius-control: 8px;
   --radius-input: 9px;
@@ -105,6 +119,19 @@
   --scrollbar-track: transparent;
   --scrollbar-thumb: color-mix(in srgb, var(--primary) 55%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 80%, transparent);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --type-page-title: 32px;
+    --type-subtitle: 20px;
+    --type-supporting: 16px;
+    --type-primary-btn: 16px;
+    --type-question: 42px;
+    --type-option: 26px;
+    --type-option-label: 26px;
+    --type-timer: 32px;
+  }
 }
 
 /* Both apps toggle the `dark` class on <html>. Specificity intentionally

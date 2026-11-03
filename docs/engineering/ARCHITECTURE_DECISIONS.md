@@ -7,7 +7,7 @@ Short records for choices made during the engineering excellence mission. Use `d
 **Date:** 2026-10-24
 **Status:** Accepted
 
-`DashboardPage` and `StudentsPage` call `useQuery`. Their tests rendered the pages without a `QueryClientProvider`, so Vitest failed before any assertion.
+`DashboardPage` and `ParticipantsPage` call `useQuery`. Their tests rendered the pages without a `QueryClientProvider`, so Vitest failed before any assertion.
 
 **Decision:** `renderWithAdminQuery` creates a client with `createAdminQueryClient` and wraps the render. Tests do not mount `AdminQueryProvider`, because that provider also persists cache in `sessionStorage` and tracks organization changes.
 
@@ -29,7 +29,7 @@ Short records for choices made during the engineering excellence mission. Use `d
 **Date:** 2026-10-24
 **Status:** Accepted
 
-The student app had no test script. The sign-in page depends on auth context, routing, and theme.
+The participant app had no test script. The sign-in page depends on auth context, routing, and theme.
 
 **Decision:** Add Vitest in `client/` and test `isValidUniqueId` and `isValidNationalMobile` first. Do not add a shared workspace package, and do not render the login page until a test harness for auth exists.
 

@@ -10,7 +10,7 @@ export const disqualifyBodySchema = z
 
 export const grantReattemptBodySchema = z
   .object({
-    studentId: z.string().uuid(),
+    participantId: z.string().uuid(),
     mode: z.enum(['continue', 'restart']),
     note: z.string().trim().max(500).optional(),
   })

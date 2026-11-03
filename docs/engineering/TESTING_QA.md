@@ -5,7 +5,7 @@
 - **Unit:** mapping/formatting, validation, permissions, state transitions and query serialization.
 - **Component:** forms, errors, keyboard interaction, loading/empty/error, themes, tables and dialogs.
 - **Integration:** routes/deep links, service failures, role navigation, imports/exports, settings persistence and authorization.
-- **E2E:** sign-in/session expiry, learner management, activity publishing, bank assignment, registration export, student attempt when implemented.
+- **E2E:** sign-in/session expiry, learner management, activity publishing, bank assignment, registration export, participant attempt when implemented.
 - **Visual regression:** dashboard, lists, settings, dialogs, themes, responsive widths, sidebar states and long content.
 
 ## Viewports

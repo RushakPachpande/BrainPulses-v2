@@ -59,7 +59,7 @@ export function RegistrationDetailPage({
   async function onUnassign() {
     if (!row) return;
     const ok = await confirm({
-      title: 'Unassign this student?',
+      title: 'Unassign this participant?',
       description: 'They will no longer be able to take this activity.',
       confirmLabel: 'Unassign',
       destructive: true,
@@ -67,8 +67,8 @@ export function RegistrationDetailPage({
     if (!ok) return;
     setSaving(true);
     try {
-      await unassignRegistrations(row.activityId, [row.studentId]);
-      toast.success('Student unassigned.');
+      await unassignRegistrations(row.activityId, [row.participantId]);
+      toast.success('Participant unassigned.');
       void navigate(base);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not unassign.');
@@ -83,8 +83,8 @@ export function RegistrationDetailPage({
     const password = await confirm({
       title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
       description: inProgress
-        ? 'Removes the open attempt so the student can start again as if they never began. This cannot be undone.'
-        : "Removes the student's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
+        ? 'Removes the open attempt so the participant can start again as if they never began. This cannot be undone.'
+        : "Removes the participant's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete attempt',
       destructive: true,
       requirePassword: true,
@@ -134,7 +134,7 @@ export function RegistrationDetailPage({
         </CardHeader>
         <CardContent className="grid gap-3 pt-5 text-sm sm:grid-cols-2">
           <div>
-            <p className="text-muted-foreground">Student</p>
+            <p className="text-muted-foreground">Participant</p>
             <p className="font-medium">{row.name}</p>
             <p>{row.email}</p>
             <p>{row.phone}</p>
@@ -199,7 +199,7 @@ export function RegistrationDetailPage({
                 disabled={saving}
                 onClick={() => void onUnassign()}
               >
-                {saving ? 'Working…' : 'Unassign student'}
+                {saving ? 'Working…' : 'Unassign participant'}
               </Button>
             </div>
           ) : null}

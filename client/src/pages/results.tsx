@@ -22,22 +22,22 @@ import {
   SelectTrigger,
 } from '../components/ui/select';
 import { useAuth } from '../contexts/auth-context';
-import { useStudentPages } from '../hooks/use-student-pages';
+import { useParticipantPages } from '../hooks/use-participant-pages';
 import { formatAttemptAllowance } from '../lib/attempt-allowance';
 import { answerLabel, formatDateLabel, formatKind } from '../lib/format';
 import { clientQueryKeys } from '../lib/query-keys';
 import { getResult, listResults } from '../services/api';
-import type { StudentResultDetail } from '../services/types';
+import type { ParticipantResultDetail } from '../services/types';
 
 const RESULT_FILTERS = ['All', 'Quiz', 'Assessment'] as const;
 
 export function ResultsPage() {
   const navigate = useNavigate();
-  const { student } = useAuth();
-  const pagesQuery = useStudentPages();
+  const { participant } = useAuth();
+  const pagesQuery = useParticipantPages();
   const quizzesOn = pagesQuery.data?.quizzes ?? true;
   const assessmentsOn = pagesQuery.data?.assessments ?? true;
-  const studentId = student?.id ?? '';
+  const participantId = participant?.id ?? '';
   const [filter, setFilter] = useState<(typeof RESULT_FILTERS)[number]>('All');
 
   const {
@@ -45,9 +45,9 @@ export function ResultsPage() {
     isPending: loading,
     isError,
   } = useQuery({
-    queryKey: clientQueryKeys.results(studentId, 'all'),
+    queryKey: clientQueryKeys.results(participantId, 'all'),
     queryFn: () => listResults('all'),
-    enabled: Boolean(studentId),
+    enabled: Boolean(participantId),
   });
   const error = isError ? 'Unable to load results.' : '';
 
@@ -279,7 +279,7 @@ export function ResultsPage() {
 export function ResultDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const [attempt, setAttempt] = useState<StudentResultDetail | null>(null);
+  const [attempt, setAttempt] = useState<ParticipantResultDetail | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -370,7 +370,7 @@ export function ResultDetailPage() {
             {waitingOnPublish
               ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Scores appear when your instructor publishes results.`
               : scoreHidden
-                ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Your instructor has not made scores visible to students yet.`
+                ? `This ${formatKind(attempt.kind).toLowerCase()} was submitted. Your instructor has not made scores visible to participants yet.`
                 : `You scored ${attempt.score} of ${attempt.maxScore} points on this ${formatKind(attempt.kind).toLowerCase()}.`}
           </p>
           <div className="result-hero-meta">

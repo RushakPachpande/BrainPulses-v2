@@ -1,6 +1,6 @@
 export type ActivityKind = 'assessment' | 'quiz';
 
-export type Student = {
+export type Participant = {
   id: string;
   code: string;
   name: string;
@@ -56,10 +56,10 @@ export type QuizActivitySettings = {
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
   scoreRelease: ScoreRelease;
-  answersVisibleToStudent: boolean;
+  answersVisibleToParticipant: boolean;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
-  /** When true, students must answer before Next/Submit. */
+  /** When true, participants must answer before Next/Submit. */
   questionsCompulsory: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
@@ -69,7 +69,7 @@ export type QuizActivitySettings = {
 
 export type ActivitySettings = {
   registrationForm?: { fields: ActivityRegistrationField[] };
-  assignmentRules?: { mode: 'manual' | 'all_active_students'; notes?: string };
+  assignmentRules?: { mode: 'manual' | 'all_active_participants'; notes?: string };
   quiz?: QuizActivitySettings;
 };
 
@@ -140,6 +140,7 @@ export type ActivityDetail = Activity & {
   passingPercent: number | null;
   presentation: 'one_at_a_time' | 'all_on_page';
   instructions: string | null;
+  endMessage: string | null;
   imageFileId: string | null;
   bankIds: string[];
   sponsorId: string | null;
@@ -165,7 +166,7 @@ export type QuestionBank = {
 export type RegistrationRow = {
   id: string;
   registrationId: string;
-  studentId: string;
+  participantId: string;
   activityId: string;
   name: string;
   email: string;
@@ -175,7 +176,7 @@ export type RegistrationRow = {
   bank: string;
   assignment: string;
   attempt: string;
-  /** Present when the student has an open or completed attempt. */
+  /** Present when the participant has an open or completed attempt. */
   attemptId?: string | null;
   /** Present when the primary attempt has a submitted result. */
   resultId?: string | null;
@@ -185,7 +186,7 @@ export type RegistrationRow = {
 
 export type ResultRow = {
   id: string;
-  student: string;
+  participant: string;
   activity: string;
   attempt: string;
   score: number;
@@ -195,10 +196,10 @@ export type ResultRow = {
   maxScore?: number;
   percent?: number;
   activityKind?: string;
-  studentCode?: string;
+  participantCode?: string;
   attemptId?: string;
   activityId?: string;
-  studentId?: string;
+  participantId?: string;
   disqualified?: boolean;
 };
 

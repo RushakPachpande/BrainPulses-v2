@@ -33,7 +33,7 @@ vi.mock('@/services', async () => {
     ...actual,
     getDashboard: vi.fn(async () => ({
       kpis: [
-        ['Total Students', '42', '+2%', 0] as const,
+        ['Total Participants', '42', '+2%', 0] as const,
         ['Active Assessments', '3', '', 1] as const,
       ],
       charts: [],
@@ -51,7 +51,7 @@ describe('DashboardPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Total Students')).toBeInTheDocument();
+      expect(screen.getByText('Total Participants')).toBeInTheDocument();
     });
     expect(screen.getByText('Active Assessments')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Create Assessment/i })).toBeInTheDocument();
