@@ -65,6 +65,8 @@ export type QuizActivitySettings = {
   negativeMarkPoints: number;
   /** Null means unlimited submissions. */
   maxAttempts: number | null;
+  /** Null means every active question. */
+  questionLimit: number | null;
 };
 
 export type ActivitySettings = {
@@ -83,19 +85,42 @@ export type ActivityRoundLocalQuestion = {
   options: { id: string; label: string; body: string; sortOrder: number }[];
 };
 
+export type DurationMode = 'overall' | 'per_question';
+
+export type RoundBehaviourSettings = {
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+  scoreRelease: ScoreRelease;
+  answersVisibleToParticipant: boolean;
+  allowPrevious: boolean;
+  showQuestionPanel: boolean;
+  questionsCompulsory: boolean;
+  negativeMarkingEnabled: boolean;
+  negativeMarkPoints: number;
+  maxAttempts: number | null;
+  /** Null means every active question. */
+  questionLimit: number | null;
+};
+
 export type ActivityRoundDetail = {
   id: string;
   name: string;
   sortOrder: number;
   durationMinutes: number | null;
+  durationMode?: DurationMode;
+  perQuestionSeconds?: number | null;
+  presentation?: 'one_at_a_time' | 'all_on_page';
+  passMode?: 'percent' | 'score';
+  passingPercent?: number | null;
+  passingScore?: number | null;
+  settings?: RoundBehaviourSettings | null;
+  imageFileId?: string | null;
   bankIds: string[];
   banksDetail: { id: string; name: string; code: string }[];
   localBankId: string | null;
   localQuestionCount: number;
   localQuestions: ActivityRoundLocalQuestion[];
 };
-
-export type DurationMode = 'overall' | 'per_question';
 
 export type Sponsor = {
   id: string;

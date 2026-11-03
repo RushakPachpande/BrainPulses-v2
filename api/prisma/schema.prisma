@@ -55,6 +55,11 @@ enum DurationMode {
   per_question
 }
 
+enum PassMode {
+  percent
+  score
+}
+
 enum BankOrigin {
   reusable
   round_local
@@ -405,24 +410,34 @@ model ActivityBank {
 }
 
 model ActivityRound {
-  id              String   @id @default(uuid()) @db.Uuid
-  organizationId  String   @map("organization_id") @db.Uuid
-  activityId      String   @map("activity_id") @db.Uuid
-  name            String
-  sortOrder       Int      @map("sort_order")
-  durationMinutes Int?     @map("duration_minutes")
-  localBankId     String?  @unique @map("local_bank_id") @db.Uuid
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String           @id @default(uuid()) @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  activityId         String           @map("activity_id") @db.Uuid
+  name               String
+  sortOrder          Int              @map("sort_order")
+  durationMinutes    Int?             @map("duration_minutes")
+  durationMode       DurationMode     @default(overall) @map("duration_mode")
+  perQuestionSeconds Int?             @map("per_question_seconds")
+  presentation       PresentationMode @default(one_at_a_time)
+  passMode           PassMode         @default(percent) @map("pass_mode")
+  passingPercent     Decimal?         @map("passing_percent") @db.Decimal(5, 2)
+  passingScore       Decimal?         @map("passing_score") @db.Decimal(12, 2)
+  settings           Json?            @db.JsonB
+  imageFileId        String?          @map("image_file_id") @db.Uuid
+  localBankId        String?          @unique @map("local_bank_id") @db.Uuid
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   activity     Activity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  image        FileObject?         @relation("RoundImage", fields: [imageFileId], references: [id], onDelete: SetNull)
   localBank    QuestionBank?       @relation("RoundLocalBank", fields: [localBankId], references: [id], onDelete: SetNull)
   banks        ActivityRoundBank[]
   attempts     Attempt[]
 
   @@unique([activityId, sortOrder])
   @@index([organizationId, activityId])
+  @@index([organizationId, imageFileId])
   @@map("activity_rounds")
 }
 
@@ -648,7 +663,8 @@ model FileObject {
   uploadedBy     User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   sponsorImages  Sponsor[]    @relation("SponsorImage")
   contestImages  Contest[]    @relation("ContestImage")
-  activityImages Activity[]   @relation("ActivityImage")
+  activityImages Activity[]      @relation("ActivityImage")
+  roundImages    ActivityRound[] @relation("RoundImage")
 
   @@index([organizationId, createdAt])
   @@map("file_objects")

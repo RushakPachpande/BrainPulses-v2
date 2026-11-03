@@ -40,8 +40,6 @@ export const ASSESSMENT_AUTHORABLE_TYPES = new Set<string>([
   'numeric',
   'short_text',
   'long_text',
-  'image_mcq',
-  'image_selection',
   'comprehension_mcq',
 ]);
 

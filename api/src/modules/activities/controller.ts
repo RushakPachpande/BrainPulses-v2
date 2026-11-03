@@ -1,6 +1,13 @@
 import type { NextFunction, Request, Response } from 'express';
+import { badRequest } from '../../lib/errors.js';
 import { verifyActingUserPassword } from '../../lib/verify-acting-password.js';
 import { userActor } from '../../middleware/auth.js';
+import {
+  buildAssessmentSampleWorkbook,
+  confirmAssessmentImport,
+  previewAssessmentImport,
+  type ColumnMapping,
+} from './assessment-import.js';
 import * as service from './service.js';
 
 export async function list(req: Request, res: Response, next: NextFunction) {
@@ -141,6 +148,87 @@ export async function deleteRoundQuestion(req: Request, res: Response, next: Nex
       req.params.questionId as string,
     );
     res.status(204).send();
+  } catch (err) {
+    next(err);
+  }
+}
+
+function parseMappingField(raw: unknown): ColumnMapping | undefined {
+  if (raw == null || raw === '') return undefined;
+  if (typeof raw === 'string') {
+    try {
+      return JSON.parse(raw) as ColumnMapping;
+    } catch {
+      throw badRequest('mapping must be a JSON object.');
+    }
+  }
+  if (typeof raw === 'object') return raw as ColumnMapping;
+  return undefined;
+}
+
+export async function sampleAssessmentImport(req: Request, res: Response, next: NextFunction) {
+  try {
+    void req;
+    const buffer = await buildAssessmentSampleWorkbook();
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="brainpulses-assessment-questions-sample.xlsx"',
+    );
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function previewAssessmentQuestions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const file = req.file;
+    if (!file) {
+      throw badRequest(
+        'Upload an Excel (.xlsx) file in the multipart field “file”. Download Sample Excel for the correct template.',
+      );
+    }
+    const mapping = parseMappingField(req.body?.mapping);
+    const data = await previewAssessmentImport(file.buffer, mapping);
+    // Do not echo every row back — keep payload light for the mapping UI.
+    res.json({
+      data: {
+        headers: data.headers,
+        mapping: data.mapping,
+        fields: data.fields,
+        issues: data.issues,
+        validCount: data.validCount,
+        totalRows: data.totalRows,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function confirmAssessmentQuestions(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const file = req.file;
+    if (!file) {
+      throw badRequest(
+        'Upload an Excel (.xlsx) file in the multipart field “file”. Download Sample Excel for the correct template.',
+      );
+    }
+    const mapping = parseMappingField(req.body?.mapping);
+    const data = await confirmAssessmentImport(
+      actor.organizationId,
+      actor,
+      actor.userId,
+      req.params.id as string,
+      file.buffer,
+      mapping,
+    );
+    res.json({ data });
   } catch (err) {
     next(err);
   }

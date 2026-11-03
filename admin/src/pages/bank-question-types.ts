@@ -1,4 +1,4 @@
-/** Authorable types in the bank form (LevelUP-aligned). Legacy passage/match stay API-only. */
+/** Full type catalog for labels / drafts. Assessment picker uses ASSESSMENT_PICKER_TYPES. */
 export const BANK_QUESTION_TYPES = [
   { value: 'single_mcq', label: 'Single choice' },
   { value: 'multiple_mcq', label: 'Multiple choice' },
@@ -8,7 +8,7 @@ export const BANK_QUESTION_TYPES = [
   { value: 'long_text', label: 'Long text' },
   { value: 'image_mcq', label: 'Image multiple choice' },
   { value: 'image_selection', label: 'Image selection' },
-  { value: 'comprehension_mcq', label: 'Reading comprehension' },
+  { value: 'comprehension_mcq', label: 'Comprehension' },
 ] as const;
 
 export type BankAuthorType = (typeof BANK_QUESTION_TYPES)[number]['value'];
@@ -19,6 +19,11 @@ const QUIZ_TYPES = [
   { value: 'single_mcq' as const, label: 'MCQ (single option)' },
   { value: 'multiple_mcq' as const, label: 'MSQ (multiple options)' },
 ];
+
+/** Seven assessment types from the product requirements (no image authoring). */
+const ASSESSMENT_PICKER_TYPES = BANK_QUESTION_TYPES.filter(
+  (t) => t.value !== 'image_mcq' && t.value !== 'image_selection',
+);
 
 const CHOICE_MEDIA_TYPES = new Set<string>([
   'single_mcq',
@@ -43,7 +48,7 @@ export function isBankAuthorType(type: string): type is BankAuthorType {
 
 /** Types shown in the authoring picker for this bank kind. */
 export function typesForKind(kind: BankKind): readonly { value: BankAuthorType; label: string }[] {
-  return kind === 'quiz' ? QUIZ_TYPES : BANK_QUESTION_TYPES;
+  return kind === 'quiz' ? QUIZ_TYPES : ASSESSMENT_PICKER_TYPES;
 }
 
 /** Choice types that support optional stem / option images. */

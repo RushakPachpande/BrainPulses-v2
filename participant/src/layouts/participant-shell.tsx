@@ -95,14 +95,15 @@ export function ParticipantShell({
           </button>
         </div>
         <nav className="nv">
-          {pages?.quizzes !== false ? (
+          {pages?.quizzes !== false && (quizzes.isPending || (quizzes.data?.length ?? 0) > 0) ? (
             <NavLink to="/quizzes" className={({ isActive }) => (isActive ? 'on' : '')}>
               <IconQuiz />
               <span>Quizzes</span>
               <i>{quizzes.data?.length ?? 0}</i>
             </NavLink>
           ) : null}
-          {pages?.assessments ? (
+          {pages?.assessments !== false &&
+          (assessments.isPending || (assessments.data?.length ?? 0) > 0) ? (
             <NavLink to="/assessments" className={({ isActive }) => (isActive ? 'on' : '')}>
               <IconList />
               <span>Assessments</span>

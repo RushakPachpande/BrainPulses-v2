@@ -11,6 +11,10 @@ export type ParticipantActivityRound = {
   state: ParticipantRoundState;
   openAttemptId: string | null;
   latestResultId: string | null;
+  attemptsUsed?: number;
+  maxAttempts?: number | null;
+  passed?: boolean | null;
+  resultPendingPublish?: boolean;
 };
 
 export type ParticipantActivity = {

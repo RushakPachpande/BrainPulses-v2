@@ -15,6 +15,8 @@ export type QuizSettings = {
   negativeMarkPoints: number;
   /** Null means unlimited submissions. */
   maxAttempts: number | null;
+  /** Null means every active question. */
+  questionLimit: number | null;
 };
 
 export const defaultQuizSettings: QuizSettings = {
@@ -28,6 +30,7 @@ export const defaultQuizSettings: QuizSettings = {
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0,
   maxAttempts: 1,
+  questionLimit: null,
 };
 
 function parseScoreRelease(q: Record<string, unknown>): ScoreRelease {
@@ -44,6 +47,14 @@ function parseMaxAttempts(value: unknown): number | null {
     return value;
   }
   return defaultQuizSettings.maxAttempts;
+}
+
+function parseQuestionLimit(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 500) {
+    return value;
+  }
+  return null;
 }
 
 export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined): QuizSettings {
@@ -90,11 +101,15 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
         ? q.negativeMarkPoints
         : defaultQuizSettings.negativeMarkPoints,
     maxAttempts: parseMaxAttempts(q.maxAttempts),
+    questionLimit: parseQuestionLimit(q.questionLimit),
   };
 }
 
 /** Assessments pass null and still require a published result. */
-export function isQuizScoreVisible(settings: QuizSettings | null, published: boolean): boolean {
+export function isQuizScoreVisible(
+  settings: { scoreRelease: ScoreRelease } | null,
+  published: boolean,
+): boolean {
   if (!settings) return published;
   if (settings.scoreRelease === 'after_submit') return true;
   return published;

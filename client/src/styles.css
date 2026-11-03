@@ -1651,6 +1651,19 @@ select,
   border-radius: 10px;
   background: var(--card);
 }
+.activity-round-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.activity-round-photo {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--muted);
+}
 .activity-round-heading {
   display: flex;
   align-items: flex-start;
@@ -1705,6 +1718,16 @@ select,
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+  }
+  .activity-round-main {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+  .activity-round-photo {
+    width: 96px;
+    height: 96px;
+    aspect-ratio: auto;
+    flex-shrink: 0;
   }
   .activity-round-card .btn {
     width: auto;

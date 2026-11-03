@@ -173,17 +173,60 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
               <span>I have read the instructions and I am ready to begin.</span>
             </button>
             {rounds.length > 0 ? (
-              <div className="facts" style={{ marginTop: 18 }}>
-                {rounds.map((round) => (
-                  <RoundAction
-                    key={round.id}
-                    round={round}
-                    ack={ack}
-                    resultsOn={resultsOn}
-                    onStart={() => beginAttempt(round.id)}
-                    onResult={() => viewResult(round.latestResultId)}
-                  />
-                ))}
+              <div className="grid" style={{ marginTop: 18 }}>
+                {rounds.map((round) => {
+                  const locked = round.state === 'locked';
+                  const pending = Boolean(round.resultPendingPublish);
+                  const attemptsLabel =
+                    round.maxAttempts == null
+                      ? `${round.attemptsUsed ?? 0} used · unlimited`
+                      : `${round.attemptsUsed ?? 0} of ${round.maxAttempts}`;
+                  return (
+                    <article
+                      key={round.id}
+                      className={`card ${locked ? 'round-locked' : ''}`}
+                      aria-disabled={locked || undefined}
+                    >
+                      <div className="cb">
+                        <h4>{round.name}</h4>
+                        <p>
+                          {locked
+                            ? 'Locked until you pass the previous round'
+                            : pending
+                              ? 'Result pending publish'
+                              : round.state === 'completed'
+                                ? 'Completed'
+                                : round.state === 'in_progress'
+                                  ? 'In progress'
+                                  : 'Available'}
+                        </p>
+                        <div className="meta">
+                          <div>
+                            <small>Questions</small>
+                            {round.questionCount}
+                          </div>
+                          <div>
+                            <small>Time</small>
+                            {round.durationMinutes != null
+                              ? formatDuration(round.durationMinutes)
+                              : '—'}
+                          </div>
+                          <div className="at2">
+                            <small>Attempts</small>
+                            {attemptsLabel}
+                          </div>
+                        </div>
+                        <RoundAction
+                          round={round}
+                          ack={ack}
+                          resultsOn={resultsOn}
+                          onStart={() => beginAttempt(round.id)}
+                          onResult={() => viewResult(round.latestResultId)}
+                        />
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <>
@@ -231,21 +274,32 @@ function RoundAction({
   onResult: () => void;
 }) {
   if (round.state === 'completed') {
-    if (!resultsOn) return null;
+    if (!resultsOn || !round.latestResultId) return null;
+    if (round.resultPendingPublish) {
+      return (
+        <button className="cta off" type="button" disabled>
+          Waiting for results
+        </button>
+      );
+    }
     return (
       <button className="cta o" type="button" onClick={onResult}>
-        {round.name}: view result
+        View result <IconArrow />
+      </button>
+    );
+  }
+  if (round.resultPendingPublish) {
+    return (
+      <button className="cta off" type="button" disabled>
+        Waiting for results
       </button>
     );
   }
   const locked = round.state === 'locked';
   return (
     <button className="begin" type="button" disabled={!ack || locked} onClick={onStart}>
-      {locked
-        ? `${round.name} locked`
-        : round.state === 'in_progress'
-          ? `Resume ${round.name}`
-          : `Start ${round.name}`}
+      {locked ? 'Locked' : round.state === 'in_progress' ? 'Resume' : 'Start'}{' '}
+      {locked ? null : <IconArrow />}
     </button>
   );
 }

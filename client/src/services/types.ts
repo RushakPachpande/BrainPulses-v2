@@ -6,6 +6,7 @@ export type ParticipantActivityRound = {
   id: string;
   name: string;
   sortOrder: number;
+  imageFileId?: string | null;
   durationMinutes: number | null;
   questionCount: number;
   state: ParticipantRoundState;

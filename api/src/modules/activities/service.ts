@@ -7,6 +7,12 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { parseQuizSettings } from '../../lib/quiz-settings.js';
+import {
+  behaviourToJson,
+  defaultRoundBehaviour,
+  defaultRoundSettings,
+  parseRoundSettings,
+} from '../../lib/round-settings.js';
 import { saveSharedPassage, stripPassageText } from '../banks/passages.js';
 import type { z } from 'zod';
 import type {
@@ -81,11 +87,32 @@ function mapRound(r: Prisma.ActivityRoundGetPayload<{ include: typeof roundInclu
       options: latest?.options ?? [],
     };
   });
+  const settings = parseRoundSettings(r);
   return {
     id: r.id,
     name: r.name,
     sortOrder: r.sortOrder,
-    durationMinutes: r.durationMinutes,
+    durationMinutes: settings.durationMinutes,
+    durationMode: settings.durationMode,
+    perQuestionSeconds: settings.perQuestionSeconds,
+    presentation: settings.presentation,
+    passMode: settings.passMode,
+    passingPercent: settings.passingPercent,
+    passingScore: settings.passingScore,
+    settings: {
+      shuffleQuestions: settings.shuffleQuestions,
+      shuffleOptions: settings.shuffleOptions,
+      allowPrevious: settings.allowPrevious,
+      showQuestionPanel: settings.showQuestionPanel,
+      questionsCompulsory: settings.questionsCompulsory,
+      negativeMarkingEnabled: settings.negativeMarkingEnabled,
+      negativeMarkPoints: settings.negativeMarkPoints,
+      maxAttempts: settings.maxAttempts,
+      scoreRelease: settings.scoreRelease,
+      answersVisibleToParticipant: settings.answersVisibleToParticipant,
+      questionLimit: settings.questionLimit,
+    },
+    imageFileId: r.imageFileId,
     bankIds: r.banks.map((b) => b.bankId),
     banksDetail: r.banks.map((b) => ({
       id: b.bank.id,
@@ -262,42 +289,30 @@ export async function getActivity(organizationId: string, id: string, actor?: Ac
   };
 }
 
-async function assertReusableBanksForKind(
-  organizationId: string,
-  kind: ActivityKind,
-  bankIds: string[],
-) {
-  if (bankIds.length === 0) return;
-  const unique = [...new Set(bankIds)];
-  const banks = await prisma.questionBank.findMany({
-    where: {
-      organizationId,
-      kind,
-      id: { in: unique },
-      origin: 'reusable',
-    },
-    select: {
-      id: true,
-      questions: { where: { isActive: true }, select: { type: true } },
-    },
-  });
-  if (banks.length !== unique.length) {
-    throw badRequest('One or more question banks are invalid for this organization and kind.');
-  }
-  if (kind === 'quiz') {
-    const allowed = new Set(['single_mcq', 'image_mcq']);
-    for (const bank of banks) {
-      const bad = bank.questions.find((q) => !allowed.has(q.type));
-      if (bad) {
-        throw badRequest(
-          'Quiz activities only accept banks whose questions are single choice (or legacy image_mcq).',
-        );
-      }
-    }
-  }
-}
-
 type RoundInput = z.infer<typeof activityRoundInputSchema>;
+
+function roundPersistData(round: RoundInput) {
+  const mode = round.durationMode ?? 'overall';
+  const behaviour = round.settings ?? defaultRoundBehaviour;
+  const passMode = round.passMode ?? 'percent';
+  return {
+    name: round.name,
+    sortOrder: round.sortOrder,
+    durationMinutes:
+      mode === 'overall' ? (round.durationMinutes ?? defaultRoundSettings.durationMinutes) : null,
+    durationMode: mode,
+    perQuestionSeconds: mode === 'per_question' ? (round.perQuestionSeconds ?? null) : null,
+    presentation:
+      mode === 'per_question'
+        ? ('one_at_a_time' as const)
+        : (round.presentation ?? 'one_at_a_time'),
+    passMode,
+    passingPercent: passMode === 'percent' ? (round.passingPercent ?? 40) : null,
+    passingScore: passMode === 'score' ? (round.passingScore ?? null) : null,
+    settings: behaviourToJson(behaviour),
+    imageFileId: round.imageFileId ?? null,
+  };
+}
 
 async function replaceRounds(
   // Prisma interactive-transaction client (extension-aware)
@@ -335,46 +350,26 @@ async function replaceRounds(
     }
   }
 
-  const allBankIds = rounds.flatMap((r) => r.bankIds);
-  await assertReusableBanksForKind(organizationId, 'assessment', allBankIds);
+  if (rounds.length === 0) {
+    throw badRequest('Assessments require at least one round.');
+  }
 
   for (const round of rounds) {
+    const data = roundPersistData(round);
     if (round.id && keepIds.has(round.id)) {
       await tx.activityRound.update({
         where: { id: round.id },
-        data: {
-          name: round.name,
-          sortOrder: round.sortOrder,
-          durationMinutes: round.durationMinutes ?? null,
-        },
+        data,
       });
       await tx.activityRoundBank.deleteMany({ where: { roundId: round.id } });
-      if (round.bankIds.length > 0) {
-        await tx.activityRoundBank.createMany({
-          data: [...new Set(round.bankIds)].map((bankId) => ({
-            organizationId,
-            roundId: round.id!,
-            bankId,
-          })),
-        });
-      }
     } else {
-      const created = await tx.activityRound.create({
+      await tx.activityRound.create({
         data: {
           organizationId,
           activityId,
-          name: round.name,
-          sortOrder: round.sortOrder,
-          durationMinutes: round.durationMinutes ?? null,
-          banks: {
-            create: [...new Set(round.bankIds)].map((bankId) => ({
-              organizationId,
-              bankId,
-            })),
-          },
+          ...data,
         },
       });
-      void created;
     }
   }
 }
@@ -389,6 +384,10 @@ function normalizeAssessmentRounds(
         name: 'Round 1',
         sortOrder: 0,
         bankIds: input.bankIds,
+        durationMode: 'overall',
+        presentation: 'one_at_a_time',
+        passMode: 'percent',
+        passingPercent: 40,
       },
     ];
   }
@@ -495,12 +494,16 @@ export async function createActivity(
       : (input.code ?? (await nextHumanCode(organizationId, prefix, 'activity')));
 
   try {
+    if (!input.sponsorId || !input.contestId) {
+      throw badRequest('Choose a sponsor and a contest.');
+    }
+    await assertSponsorContest(organizationId, input.sponsorId, input.contestId);
+
     if (input.kind === 'quiz') {
-      if (!input.sponsorId || !input.contestId || !input.startsAt || !input.endsAt) {
-        throw badRequest('A quiz needs a sponsor, a contest, and a start and end.');
+      if (!input.startsAt || !input.endsAt) {
+        throw badRequest('A quiz needs a start and end.');
       }
       if (input.endsAt <= input.startsAt) throw badRequest('End must be after start.');
-      await assertSponsorContest(organizationId, input.sponsorId, input.contestId);
       const timing = quizTimingWrite(input);
       const activity = await prisma.activity.create({
         data: {
@@ -541,13 +544,6 @@ export async function createActivity(
     }
 
     const rounds = normalizeAssessmentRounds(input) ?? [];
-    if (rounds.length > 0) {
-      await assertReusableBanksForKind(
-        organizationId,
-        'assessment',
-        rounds.flatMap((r) => r.bankIds),
-      );
-    }
 
     const activity = await prisma.activity.create({
       data: {
@@ -564,20 +560,17 @@ export async function createActivity(
         durationMinutes: input.durationMinutes,
         passingPercent: input.passingPercent,
         presentation: input.presentation,
+        sponsorId: input.sponsorId,
+        contestId: input.contestId,
         settings: input.settings ?? undefined,
         rounds: {
-          create: rounds.map((round) => ({
-            organizationId,
-            name: round.name,
-            sortOrder: round.sortOrder,
-            durationMinutes: round.durationMinutes ?? null,
-            banks: {
-              create: [...new Set(round.bankIds)].map((bankId) => ({
-                organizationId,
-                bankId,
-              })),
-            },
-          })),
+          create: rounds.map((round) => {
+            const data = roundPersistData(round);
+            return {
+              organizationId,
+              ...data,
+            };
+          }),
         },
       },
       include: {
@@ -585,6 +578,8 @@ export async function createActivity(
         rounds: { include: roundInclude, orderBy: { sortOrder: 'asc' } },
       },
     });
+    await ensureActivityRoundBanks(organizationId, activity.id, 'assessment');
+    const withBanks = await reloadActivity(organizationId, activity.id);
 
     await writeAudit({
       organizationId,
@@ -595,7 +590,7 @@ export async function createActivity(
       targetId: activity.id,
     });
     await invalidateDashboard(organizationId);
-    return mapActivity(activity);
+    return mapActivity(withBanks);
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
       throw conflict('An activity with that code already exists.');
@@ -622,6 +617,17 @@ export async function updateActivity(
     throw badRequest('Quizzes do not use a code.');
   }
 
+  const sponsorId = input.sponsorId !== undefined ? input.sponsorId : existing.sponsorId;
+  const contestId = input.contestId !== undefined ? input.contestId : existing.contestId;
+  if (!sponsorId || !contestId) {
+    throw badRequest(
+      existing.kind === 'quiz'
+        ? 'A quiz needs a sponsor and a contest.'
+        : 'An assessment needs a sponsor and a contest.',
+    );
+  }
+  await assertSponsorContest(organizationId, sponsorId, contestId);
+
   let quizPatch: {
     sponsorId: string;
     contestId: string;
@@ -633,14 +639,10 @@ export async function updateActivity(
   } | null = null;
 
   if (existing.kind === 'quiz') {
-    const sponsorId = input.sponsorId !== undefined ? input.sponsorId : existing.sponsorId;
-    const contestId = input.contestId !== undefined ? input.contestId : existing.contestId;
     const startsAt = input.startsAt !== undefined ? input.startsAt : existing.startsAt;
     const endsAt = input.endsAt !== undefined ? input.endsAt : existing.endsAt;
-    if (!sponsorId || !contestId) throw badRequest('A quiz needs a sponsor and a contest.');
     if (!startsAt || !endsAt) throw badRequest('A quiz needs a start and an end.');
     if (endsAt <= startsAt) throw badRequest('End must be after start.');
-    await assertSponsorContest(organizationId, sponsorId, contestId);
     const timing = quizTimingWrite({
       durationMode: input.durationMode ?? existing.durationMode,
       durationMinutes:
@@ -688,10 +690,10 @@ export async function updateActivity(
           ...(existing.kind === 'assessment' && input.code !== undefined
             ? { code: input.code }
             : {}),
+          sponsorId,
+          contestId,
           ...(quizPatch
             ? {
-                sponsorId: quizPatch.sponsorId,
-                contestId: quizPatch.contestId,
                 startsAt: quizPatch.startsAt,
                 endsAt: quizPatch.endsAt,
                 durationMode: quizPatch.durationMode,
@@ -714,6 +716,14 @@ export async function updateActivity(
     await ensureQuizLocalBank(organizationId, id, input.name ?? existing.name);
   }
 
+  const saved =
+    existing.kind === 'assessment'
+      ? await (async () => {
+          await ensureActivityRoundBanks(organizationId, id, 'assessment');
+          return reloadActivity(organizationId, id);
+        })()
+      : activity;
+
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -723,7 +733,7 @@ export async function updateActivity(
     targetId: id,
   });
   await invalidateDashboard(organizationId);
-  return mapActivity(activity);
+  return mapActivity(saved);
 }
 
 async function roundHasQuestions(organizationId: string, roundId: string): Promise<boolean> {
@@ -739,9 +749,7 @@ async function roundHasQuestions(organizationId: string, roundId: string): Promi
     },
   });
   if (!round) return false;
-  const fromBanks = round.banks.reduce((n, b) => n + b.bank._count.questions, 0);
-  const fromLocal = round.localBank?._count.questions ?? 0;
-  return fromBanks + fromLocal > 0;
+  return (round.localBank?._count.questions ?? 0) > 0;
 }
 
 export async function publishActivity(
@@ -910,6 +918,32 @@ export async function deleteActivity(
   });
   await invalidateDashboard(organizationId);
   return { id, deleted: true as const };
+}
+
+async function reloadActivity(organizationId: string, id: string) {
+  const activity = await prisma.activity.findFirst({
+    where: { organizationId, id },
+    include: {
+      ...listInclude,
+      rounds: { include: roundInclude, orderBy: { sortOrder: 'asc' } },
+    },
+  });
+  if (!activity) throw notFound('Activity not found.');
+  return activity;
+}
+
+async function ensureActivityRoundBanks(
+  organizationId: string,
+  activityId: string,
+  kind: ActivityKind,
+) {
+  const rounds = await prisma.activityRound.findMany({
+    where: { organizationId, activityId },
+    select: { id: true },
+  });
+  for (const round of rounds) {
+    await ensureRoundLocalBank(organizationId, activityId, round.id, kind);
+  }
 }
 
 async function ensureRoundLocalBank(

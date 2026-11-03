@@ -36,17 +36,6 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Assessments',
     description: 'Create and manage assessments, track participation, and monitor performance.',
   },
-  '/assessments/banks': {
-    crumb: 'BrainPulses / Assessment / Question Banks',
-    title: 'Assessment Question Banks',
-    description:
-      'Manage reusable question banks for assessments. A bank can be attached to multiple assessments.',
-  },
-  '/assessments/banks/new': {
-    crumb: 'BrainPulses / Assessment / Question Banks / Create',
-    title: 'Create Question Bank',
-    description: 'Save bank details, then add single-MCQ questions on the edit page.',
-  },
   '/assessments/new': {
     crumb: 'BrainPulses / Assessment / Create Assessment',
     title: 'Create Assessment',

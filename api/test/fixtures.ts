@@ -18,6 +18,17 @@ export async function ensureRoundAssessment(participantEmail = 'participant1@mai
     include: { rounds: { orderBy: { sortOrder: 'asc' }, take: 1 } },
   });
   if (existing?.rounds[0]) {
+    const round = existing.rounds[0];
+    if (!round.localBankId) {
+      const link = await prisma.activityRoundBank.findFirst({ where: { roundId: round.id } });
+      if (link) {
+        await prisma.activityRound.update({
+          where: { id: round.id },
+          data: { localBankId: link.bankId },
+        });
+        round.localBankId = link.bankId;
+      }
+    }
     await prisma.registration.upsert({
       where: {
         organizationId_activityId_participantId: {
@@ -109,10 +120,8 @@ export async function ensureRoundAssessment(participantEmail = 'participant1@mai
       name: 'Round 1',
       sortOrder: 0,
       durationMinutes: 30,
+      localBankId: bank.id,
     },
-  });
-  await prisma.activityRoundBank.create({
-    data: { organizationId: organization.id, roundId: round.id, bankId: bank.id },
   });
   await prisma.registration.create({
     data: {

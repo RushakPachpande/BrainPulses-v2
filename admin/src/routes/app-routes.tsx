@@ -30,12 +30,6 @@ const ActivityListPage = lazy(() =>
 const ActivityWizardPage = lazy(() =>
   import('@/pages/activity-wizard').then((m) => ({ default: m.ActivityWizardPage })),
 );
-const QuestionBanksPage = lazy(() =>
-  import('@/pages/question-banks').then((m) => ({ default: m.QuestionBanksPage })),
-);
-const BankFormPage = lazy(() =>
-  import('@/pages/bank-form').then((m) => ({ default: m.BankFormPage })),
-);
 const RegistrationsPage = lazy(() =>
   import('@/pages/registrations').then((m) => ({ default: m.RegistrationsPage })),
 );
@@ -138,11 +132,6 @@ export function AppRoutes() {
           <Route path="users/:userId" element={<LegacyUserRoute />} />
 
           <Route path="assessments" element={<ActivityListPage kind="assessment" />} />
-          <Route path="assessments/banks" element={<QuestionBanksPage kind="assessment" />} />
-          <Route
-            path="assessments/banks/:bankId"
-            element={<BankFormPage kind="assessment" mode="view" />}
-          />
           <Route
             path="assessments/registrations"
             element={<RegistrationsPage kind="assessment" />}
@@ -161,14 +150,6 @@ export function AppRoutes() {
             element={<ActivityWizardPage kind="assessment" mode="view" />}
           />
           <Route element={<RequireAccess gate={{ type: 'editKind', kind: 'assessment' }} />}>
-            <Route
-              path="assessments/banks/new"
-              element={<BankFormPage kind="assessment" mode="create" />}
-            />
-            <Route
-              path="assessments/banks/:bankId/edit"
-              element={<BankFormPage kind="assessment" mode="edit" />}
-            />
             <Route
               path="assessments/new"
               element={<ActivityWizardPage kind="assessment" mode="create" />}

@@ -526,6 +526,14 @@ body.pc .grid {
   display: flex;
   flex-direction: column;
 }
+.card.round-locked {
+  opacity: 0.55;
+  filter: grayscale(0.35);
+}
+.card.round-locked .begin,
+.card.round-locked .cta {
+  pointer-events: none;
+}
 .poster {
   aspect-ratio: 1200/525;
   position: relative;
