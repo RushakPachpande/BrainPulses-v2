@@ -74,8 +74,8 @@ export function invalidateAdmin(domains: Array<keyof typeof adminQueryKeys | 'al
     }
     if (domain === 'dashboard') {
       void qc.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
-    } else if (domain === 'students') {
-      void qc.invalidateQueries({ queryKey: ['admin', 'students'] });
+    } else if (domain === 'participants') {
+      void qc.invalidateQueries({ queryKey: ['admin', 'participants'] });
     } else if (domain === 'sponsors') {
       void qc.invalidateQueries({ queryKey: ['admin', 'sponsors'] });
     } else if (domain === 'contests') {

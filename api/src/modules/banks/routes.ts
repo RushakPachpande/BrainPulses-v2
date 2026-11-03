@@ -11,6 +11,7 @@ import * as controller from './controller.js';
 import {
   bankListQuerySchema,
   bankQuestionParamsSchema,
+  bulkQuestionStatusSchema,
   createBankSchema,
   createQuestionSchema,
   idParamSchema,
@@ -52,6 +53,12 @@ banksRouter.post(
   requireOrgAccess('edit'),
   validate({ params: idParamSchema, body: createQuestionSchema }),
   controller.createQuestion,
+);
+banksRouter.post(
+  '/:id/questions/bulk-status',
+  requireOrgAccess('edit'),
+  validate({ params: idParamSchema, body: bulkQuestionStatusSchema }),
+  controller.setQuestionsActive,
 );
 banksRouter.get(
   '/:id/questions/sample.xlsx',

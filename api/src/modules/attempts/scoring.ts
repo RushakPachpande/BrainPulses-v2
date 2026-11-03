@@ -84,7 +84,7 @@ export function scoreObjective(
   return scoreLabelSet(type, correct, selected, points);
 }
 
-/** True when the student submitted a non-empty answer (used for negative marking). */
+/** True when the participant submitted a non-empty answer (used for negative marking). */
 export function hasSubmittedAnswer(type: string, answer: unknown): boolean {
   if (answer == null) return false;
   if (type === 'short_text' || type === 'long_text') {

@@ -7,14 +7,14 @@ export async function getDashboardSummary(organizationId: string) {
   if (cached) return cached;
 
   const [
-    totalStudents,
+    totalParticipants,
     activeAssessments,
     activeQuizzes,
     completedAttempts,
     recentAudit,
     registrationsByMonth,
   ] = await Promise.all([
-    prisma.student.count({ where: { organizationId, isActive: true } }),
+    prisma.participant.count({ where: { organizationId, isActive: true } }),
     prisma.activity.count({
       where: { organizationId, kind: 'assessment', status: 'active' },
     }),
@@ -54,7 +54,7 @@ export async function getDashboardSummary(organizationId: string) {
 
   const summary = {
     kpis: [
-      { label: 'Total Students', value: totalStudents },
+      { label: 'Total Participants', value: totalParticipants },
       { label: 'Active Assessments', value: activeAssessments },
       { label: 'Active Quizzes', value: activeQuizzes },
       { label: 'Completed Attempts', value: completedAttempts },

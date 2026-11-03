@@ -80,7 +80,7 @@ let refreshPromise: Promise<boolean> | null = null;
 
 export type RefreshedSession = {
   accessToken: string;
-  user: { id: string; email: string; name: string };
+  user: { id: string; email: string; name: string; mustChangePassword?: boolean };
   organization: { id: string; name: string; slug: string };
   membership: {
     id: string;

@@ -11,7 +11,7 @@ import type {
   QuestionBank,
   RegistrationRow,
   ResultRow,
-  Student,
+  Participant,
 } from './types';
 
 function formatAccessLevel(level: string): string {
@@ -52,7 +52,7 @@ function formatAssignment(value: string): string {
   return value;
 }
 
-export function mapStudentFromApi(row: {
+export function mapParticipantFromApi(row: {
   id: string;
   code: string;
   name: string;
@@ -65,7 +65,7 @@ export function mapStudentFromApi(row: {
   registered: string | Date;
   activities: number;
   lastLoginAt: string | Date | null;
-}): Student {
+}): Participant {
   return {
     id: row.id,
     code: row.code,
@@ -84,6 +84,7 @@ export function mapStudentFromApi(row: {
 
 export function mapUserFromApi(row: {
   id: string;
+  userId?: string;
   name: string;
   email: string;
   role: string;
@@ -94,6 +95,7 @@ export function mapUserFromApi(row: {
 }): AdminUser {
   return {
     id: row.id,
+    userId: row.userId,
     name: row.name,
     email: row.email,
     role: row.role,
@@ -159,7 +161,7 @@ export function mapBankFromApi(row: {
 
 export function mapRegistrationFromApi(row: {
   id: string;
-  studentId: string;
+  participantId: string;
   activityId: string;
   code: string;
   name: string;
@@ -177,7 +179,7 @@ export function mapRegistrationFromApi(row: {
   return {
     id: row.code,
     registrationId: row.id,
-    studentId: row.studentId,
+    participantId: row.participantId,
     activityId: row.activityId,
     name: row.name,
     email: row.email,
@@ -196,7 +198,7 @@ export function mapRegistrationFromApi(row: {
 
 export function mapResultFromApi(row: {
   id: string;
-  student: string;
+  participant: string;
   activity: string;
   attemptId: string;
   percent: number;
@@ -206,16 +208,16 @@ export function mapResultFromApi(row: {
   status: string;
   releaseStatus?: string;
   activityKind?: string;
-  studentCode?: string;
+  participantCode?: string;
   activityId?: string;
-  studentId?: string;
+  participantId?: string;
   disqualified?: boolean;
 }): ResultRow {
   const percent = Math.round(row.percent);
   const score = row.score != null ? row.score : percent;
   return {
     id: row.id,
-    student: row.student,
+    participant: row.participant,
     activity: row.activity,
     attempt: '#1',
     score,
@@ -225,10 +227,10 @@ export function mapResultFromApi(row: {
     maxScore: row.maxScore,
     percent,
     activityKind: row.activityKind,
-    studentCode: row.studentCode,
+    participantCode: row.participantCode,
     attemptId: row.attemptId,
     activityId: row.activityId,
-    studentId: row.studentId,
+    participantId: row.participantId,
     disqualified: row.disqualified,
   };
 }

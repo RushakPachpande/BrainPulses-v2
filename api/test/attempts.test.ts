@@ -4,9 +4,9 @@ import { prisma } from '../src/lib/prisma.js';
 import { ensureRoundAssessment } from './fixtures.js';
 import { getTestApp, request } from './helpers.js';
 
-async function studentToken() {
+async function participantToken() {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
+  const res = await request(app, 'POST', '/api/auth/participant/sign-in-by-code', {
     body: {
       code: 'BP-24101',
       organizationSlug: 'nextgeninnov8',
@@ -20,22 +20,22 @@ async function studentToken() {
 describe('attempts', () => {
   it('rejects stale revision and accepts idempotent submit', async () => {
     const app = await getTestApp();
-    const token = await studentToken();
+    const token = await participantToken();
     const { activity, round } = await ensureRoundAssessment();
 
-    // Clear prior open attempts for this student/activity
-    const student = await prisma.student.findFirst({
-      where: { email: 'student1@mail.com' },
+    // Clear prior open attempts for this participant/activity
+    const participant = await prisma.participant.findFirst({
+      where: { email: 'participant1@mail.com' },
     });
-    assert.ok(student);
+    assert.ok(participant);
     await prisma.attemptResponse.deleteMany({
-      where: { attempt: { studentId: student.id, activityId: activity.id } },
+      where: { attempt: { participantId: participant.id, activityId: activity.id } },
     });
     await prisma.result.deleteMany({
-      where: { studentId: student.id, activityId: activity.id },
+      where: { participantId: participant.id, activityId: activity.id },
     });
     await prisma.attempt.deleteMany({
-      where: { studentId: student.id, activityId: activity.id },
+      where: { participantId: participant.id, activityId: activity.id },
     });
 
     const start = await request(app, 'POST', '/api/attempts/start', {
@@ -120,21 +120,21 @@ describe('attempts', () => {
 
   it('resumes an in-progress attempt with saved answers and remaining deadline', async () => {
     const app = await getTestApp();
-    const token = await studentToken();
+    const token = await participantToken();
     const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
     assert.ok(activity);
-    const student = await prisma.student.findFirst({
-      where: { email: 'student1@mail.com' },
+    const participant = await prisma.participant.findFirst({
+      where: { email: 'participant1@mail.com' },
     });
-    assert.ok(student);
+    assert.ok(participant);
     await prisma.attemptResponse.deleteMany({
-      where: { attempt: { studentId: student.id, activityId: activity.id } },
+      where: { attempt: { participantId: participant.id, activityId: activity.id } },
     });
     await prisma.result.deleteMany({
-      where: { studentId: student.id, activityId: activity.id },
+      where: { participantId: participant.id, activityId: activity.id },
     });
     await prisma.attempt.deleteMany({
-      where: { studentId: student.id, activityId: activity.id },
+      where: { participantId: participant.id, activityId: activity.id },
     });
 
     const start = await request(app, 'POST', '/api/attempts/start', {

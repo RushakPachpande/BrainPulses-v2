@@ -14,15 +14,15 @@ export type WipeActor = {
 type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 /**
- * Deletes all attempts for a student on an activity (quiz) or round (assessment),
+ * Deletes all attempts for a participant on an activity (quiz) or round (assessment),
  * cascading responses/results, and clearing quiz reattempt grants.
  */
-export async function wipeStudentActivityAttempts(
+export async function wipeParticipantActivityAttempts(
   tx: Tx,
   input: {
     organizationId: string;
     activityId: string;
-    studentId: string;
+    participantId: string;
     attemptId: string;
     roundId: string | null;
     activityKind: ActivityKind;
@@ -34,7 +34,7 @@ export async function wipeStudentActivityAttempts(
     where: {
       organizationId: input.organizationId,
       activityId: input.activityId,
-      studentId: input.studentId,
+      participantId: input.participantId,
       ...(isQuiz ? {} : input.roundId ? { roundId: input.roundId } : { id: input.attemptId }),
     },
   });
@@ -47,7 +47,7 @@ export async function wipeStudentActivityAttempts(
     where: {
       organizationId: input.organizationId,
       activityId: input.activityId,
-      studentId: input.studentId,
+      participantId: input.participantId,
       ...(isQuiz ? {} : input.resultId ? { id: input.resultId } : {}),
     },
   });
@@ -57,7 +57,7 @@ export async function wipeStudentActivityAttempts(
       where: {
         organizationId: input.organizationId,
         activityId: input.activityId,
-        studentId: input.studentId,
+        participantId: input.participantId,
       },
     });
   }
@@ -66,13 +66,13 @@ export async function wipeStudentActivityAttempts(
     where: {
       organizationId: input.organizationId,
       activityId: input.activityId,
-      studentId: input.studentId,
+      participantId: input.participantId,
       status: 'in_progress',
       ...(isQuiz ? {} : input.roundId ? { roundId: input.roundId } : {}),
     },
   });
   if (leftoverOpen > 0) {
-    throw badRequest('Could not clear all open attempts for this student.');
+    throw badRequest('Could not clear all open attempts for this participant.');
   }
 
   return removed.count;

@@ -27,7 +27,7 @@ async function accessTokenFor(email: string, orgSlug: string) {
 }
 
 describe('security hardening', () => {
-  it('blocks view-only from bank create, student create, and settings patch', async () => {
+  it('blocks view-only from bank create, participant create, and settings patch', async () => {
     const app = await getTestApp();
     const token = await accessTokenFor('viewer@brainpulses.com', 'nextgeninnov8');
     const headers = { authorization: `Bearer ${token}` };
@@ -38,11 +38,11 @@ describe('security hardening', () => {
     });
     assert.equal(bank.status, 403);
 
-    const student = await request(app, 'POST', '/api/students', {
+    const participant = await request(app, 'POST', '/api/participants', {
       headers,
       body: { name: 'Nope', email: 'nope@example.com' },
     });
-    assert.equal(student.status, 403);
+    assert.equal(participant.status, 403);
 
     const settings = await request(app, 'PATCH', '/api/settings/general', {
       headers,
@@ -86,7 +86,7 @@ describe('security hardening', () => {
   it('rejects unknown body fields (strict Zod)', async () => {
     const app = await getTestApp();
     const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
-    const res = await request(app, 'POST', '/api/students', {
+    const res = await request(app, 'POST', '/api/participants', {
       headers: { authorization: `Bearer ${token}` },
       body: { name: 'Strict', email: 'strict-test@example.com', role: 'super_admin' },
     });
@@ -113,7 +113,7 @@ describe('security hardening', () => {
         expiresIn: '5m',
       },
     );
-    const res = await request(app, 'GET', '/api/students', {
+    const res = await request(app, 'GET', '/api/participants', {
       headers: { authorization: `Bearer ${bad}` },
     });
     assert.equal(res.status, 401);
@@ -131,7 +131,7 @@ describe('security hardening', () => {
         expiresIn: '5m',
       },
     );
-    const res = await request(app, 'GET', '/api/students', {
+    const res = await request(app, 'GET', '/api/participants', {
       headers: { authorization: `Bearer ${token}` },
     });
     assert.equal(res.status, 401);

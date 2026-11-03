@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { studentActor, userActor } from '../../middleware/auth.js';
+import { participantActor, userActor } from '../../middleware/auth.js';
 import * as authService from './service.js';
 
 export async function signIn(req: Request, res: Response, next: NextFunction) {
@@ -58,46 +58,67 @@ export async function session(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function studentSignInByCode(req: Request, res: Response, next: NextFunction) {
+export async function changePassword(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await authService.studentSignInByCode(req.body);
+    const actor = userActor(req);
+    const result = await authService.changeOwnPassword(actor, req.body, res);
     res.json({ data: result });
   } catch (err) {
     next(err);
   }
 }
 
-export async function studentRequestOtp(req: Request, res: Response, next: NextFunction) {
+export async function participantLoginOptions(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await authService.studentRequestOtp(req.body);
+    const slug =
+      typeof req.query.organizationSlug === 'string' ? req.query.organizationSlug : undefined;
+    const result = await authService.participantLoginOptions(slug);
     res.json({ data: result });
   } catch (err) {
     next(err);
   }
 }
 
-export async function studentResendOtp(req: Request, res: Response, next: NextFunction) {
+export async function participantSignInByCode(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await authService.studentResendOtp(req.body);
+    const result = await authService.participantSignInByCode(req.body);
     res.json({ data: result });
   } catch (err) {
     next(err);
   }
 }
 
-export async function studentVerifyOtp(req: Request, res: Response, next: NextFunction) {
+export async function participantRequestOtp(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await authService.studentVerifyOtp(req.body);
+    const result = await authService.participantRequestOtp(req.body);
     res.json({ data: result });
   } catch (err) {
     next(err);
   }
 }
 
-export async function studentSignOut(req: Request, res: Response, next: NextFunction) {
+export async function participantResendOtp(req: Request, res: Response, next: NextFunction) {
   try {
-    const actor = studentActor(req);
-    const result = await authService.studentSignOutSession(actor);
+    const result = await authService.participantResendOtp(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function participantVerifyOtp(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await authService.participantVerifyOtp(req.body);
+    res.json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function participantSignOut(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = participantActor(req);
+    const result = await authService.participantSignOutSession(actor);
     res.json({ data: result });
   } catch (err) {
     next(err);

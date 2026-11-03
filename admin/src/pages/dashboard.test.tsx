@@ -7,7 +7,12 @@ import { DashboardPage } from './dashboard';
 vi.mock('@/contexts/auth-context', () => ({
   useAuth: () => ({
     status: 'authenticated',
-    user: { id: 'u1', email: 'admin@brainpulses.com', name: 'Admin' },
+    user: {
+      id: 'u1',
+      email: 'admin@brainpulses.com',
+      name: 'Admin',
+      mustChangePassword: false,
+    },
     organization: { id: 'o1', name: 'NextGenInnov8', slug: 'nextgeninnov8' },
     membership: {
       id: 'm1',
@@ -18,6 +23,7 @@ vi.mock('@/contexts/auth-context', () => ({
     signIn: vi.fn(),
     selectOrganization: vi.fn(),
     signOut: vi.fn(),
+    acceptSession: vi.fn(),
   }),
 }));
 
@@ -27,7 +33,7 @@ vi.mock('@/services', async () => {
     ...actual,
     getDashboard: vi.fn(async () => ({
       kpis: [
-        ['Total Students', '42', '+2%', 0] as const,
+        ['Total Participants', '42', '+2%', 0] as const,
         ['Active Assessments', '3', '', 1] as const,
       ],
       charts: [],
@@ -45,7 +51,7 @@ describe('DashboardPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Total Students')).toBeInTheDocument();
+      expect(screen.getByText('Total Participants')).toBeInTheDocument();
     });
     expect(screen.getByText('Active Assessments')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Create Assessment/i })).toBeInTheDocument();

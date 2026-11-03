@@ -29,7 +29,7 @@ function mapRegistration(r: {
   status: string;
   assignedAt: Date | null;
   createdAt: Date;
-  student: {
+  participant: {
     id: string;
     code: string;
     name: string;
@@ -39,9 +39,9 @@ function mapRegistration(r: {
     course: string | null;
   };
   activity: { id: string; name: string; kind: string; code: string };
-  studentAttempts?: { id: string; status: string; resultId: string | null }[];
+  participantAttempts?: { id: string; status: string; resultId: string | null }[];
 }) {
-  const statuses = r.studentAttempts ?? [];
+  const statuses = r.participantAttempts ?? [];
   const primary =
     statuses.find((a) => a.status === 'in_progress') ??
     statuses.find((a) => a.status === 'submitted' || a.status === 'auto_submitted') ??
@@ -50,13 +50,13 @@ function mapRegistration(r: {
   const attemptStatus = primary?.status ?? 'not_started';
   return {
     id: r.id,
-    studentId: r.student.id,
-    code: r.student.code,
-    name: r.student.name,
-    email: r.student.email,
-    phone: r.student.phone,
-    city: r.student.city,
-    course: r.student.course,
+    participantId: r.participant.id,
+    code: r.participant.code,
+    name: r.participant.name,
+    email: r.participant.email,
+    phone: r.participant.phone,
+    city: r.participant.city,
+    course: r.participant.course,
     activityId: r.activity.id,
     activity: r.activity.name,
     activityKind: r.activity.kind,
@@ -90,9 +90,9 @@ export async function listRegistrations(
     ...(query.q
       ? {
           OR: [
-            { student: { name: { contains: query.q, mode: 'insensitive' } } },
-            { student: { email: { contains: query.q, mode: 'insensitive' } } },
-            { student: { code: { contains: query.q, mode: 'insensitive' } } },
+            { participant: { name: { contains: query.q, mode: 'insensitive' } } },
+            { participant: { email: { contains: query.q, mode: 'insensitive' } } },
+            { participant: { code: { contains: query.q, mode: 'insensitive' } } },
           ],
         }
       : {}),
@@ -103,7 +103,7 @@ export async function listRegistrations(
     prisma.registration.findMany({
       where,
       include: {
-        student: true,
+        participant: true,
         activity: true,
       },
       ...prismaCursorArgs(query),
@@ -115,19 +115,19 @@ export async function listRegistrations(
     const attempts = await prisma.attempt.findMany({
       where: {
         organizationId,
-        OR: rows.map((r) => ({ activityId: r.activityId, studentId: r.studentId })),
+        OR: rows.map((r) => ({ activityId: r.activityId, participantId: r.participantId })),
       },
       select: {
         id: true,
         activityId: true,
-        studentId: true,
+        participantId: true,
         status: true,
         result: { select: { id: true } },
       },
       orderBy: { createdAt: 'desc' },
     });
     for (const a of attempts) {
-      const key = `${a.activityId}:${a.studentId}`;
+      const key = `${a.activityId}:${a.participantId}`;
       if (!attemptMap.has(key)) attemptMap.set(key, []);
       attemptMap.get(key)!.push({
         id: a.id,
@@ -140,7 +140,7 @@ export async function listRegistrations(
   const mapped = rows.map((r) =>
     mapRegistration({
       ...r,
-      studentAttempts: attemptMap.get(`${r.activityId}:${r.studentId}`),
+      participantAttempts: attemptMap.get(`${r.activityId}:${r.participantId}`),
     }),
   );
   const { items, page } = buildPage(mapped, query.limit, total);
@@ -151,7 +151,7 @@ export async function assign(
   organizationId: string,
   actor: RegistrationActor,
   activityId: string,
-  studentIds: string[],
+  participantIds: string[],
   idempotencyKey?: string,
 ) {
   const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
@@ -174,23 +174,25 @@ export async function assign(
   }
 
   const results = [];
-  for (const studentId of studentIds) {
-    const student = await prisma.student.findFirst({ where: { organizationId, id: studentId } });
-    if (!student) continue;
+  for (const participantId of participantIds) {
+    const participant = await prisma.participant.findFirst({
+      where: { organizationId, id: participantId },
+    });
+    if (!participant) continue;
 
     const row = await prisma.registration.upsert({
       where: {
-        organizationId_activityId_studentId: { organizationId, activityId, studentId },
+        organizationId_activityId_participantId: { organizationId, activityId, participantId },
       },
       create: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         status: 'assigned',
         assignedAt: new Date(),
       },
       update: { status: 'assigned', assignedAt: new Date() },
-      include: { student: true, activity: true },
+      include: { participant: true, activity: true },
     });
     results.push(mapRegistration(row));
   }
@@ -202,7 +204,7 @@ export async function assign(
     action: 'registration.assign',
     targetType: 'activity',
     targetId: activityId,
-    metadata: { idempotencyKey, studentIds, result: results },
+    metadata: { idempotencyKey, participantIds, result: results },
   });
 
   return results;
@@ -212,14 +214,14 @@ export async function unassign(
   organizationId: string,
   actor: RegistrationActor,
   activityId: string,
-  studentIds: string[],
+  participantIds: string[],
 ) {
   const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
   if (!activity) throw notFound('Activity not found.');
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, activity.kind, 'edit');
 
   await prisma.registration.updateMany({
-    where: { organizationId, activityId, studentId: { in: studentIds } },
+    where: { organizationId, activityId, participantId: { in: participantIds } },
     data: { status: 'unassigned', assignedAt: null },
   });
 
@@ -230,10 +232,10 @@ export async function unassign(
     action: 'registration.unassign',
     targetType: 'activity',
     targetId: activityId,
-    metadata: { studentIds },
+    metadata: { participantIds },
   });
 
-  return { ok: true, count: studentIds.length };
+  return { ok: true, count: participantIds.length };
 }
 
 export async function exportCsv(
@@ -247,16 +249,16 @@ export async function exportCsv(
 
   const rows = await prisma.registration.findMany({
     where: { organizationId, activityId },
-    include: { student: true, activity: true },
+    include: { participant: true, activity: true },
     orderBy: { createdAt: 'asc' },
   });
 
   const csv = stringify(
     rows.map((r) => ({
-      code: sanitizeCsvCell(r.student.code),
-      name: sanitizeCsvCell(r.student.name),
-      email: sanitizeCsvCell(r.student.email),
-      phone: sanitizeCsvCell(r.student.phone ?? ''),
+      code: sanitizeCsvCell(r.participant.code),
+      name: sanitizeCsvCell(r.participant.name),
+      email: sanitizeCsvCell(r.participant.email),
+      phone: sanitizeCsvCell(r.participant.phone ?? ''),
       status: r.status,
       activity: sanitizeCsvCell(r.activity.name),
     })),

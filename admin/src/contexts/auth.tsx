@@ -10,6 +10,7 @@ import {
   AuthContext,
   type AuthContextValue,
   type AuthState,
+  type AuthUser,
   type OrgOption,
   type SessionPayload,
 } from '@/contexts/auth-context';
@@ -18,11 +19,25 @@ import { clearAdminQueryCache } from '@/lib/query-client';
 
 type SessionWithToken = SessionPayload & { accessToken: string };
 
+function normalizeUser(user: {
+  id: string;
+  email: string;
+  name: string;
+  mustChangePassword?: boolean;
+}): AuthUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    mustChangePassword: user.mustChangePassword === true,
+  };
+}
+
 function applySession(session: SessionWithToken, setState: (state: AuthState) => void) {
   setAccessToken(session.accessToken);
   setState({
     status: 'authenticated',
-    user: session.user,
+    user: normalizeUser(session.user),
     organization: session.organization,
     membership: session.membership,
   });
@@ -31,7 +46,7 @@ function applySession(session: SessionWithToken, setState: (state: AuthState) =>
 function toSessionWithToken(session: RefreshedSession): SessionWithToken {
   return {
     accessToken: session.accessToken,
-    user: session.user,
+    user: normalizeUser(session.user),
     organization: session.organization,
     membership: {
       id: session.membership.id,
@@ -75,7 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    applySession(result.session, setState);
+    applySession(
+      {
+        ...result.session,
+        user: normalizeUser(result.session.user),
+      },
+      setState,
+    );
   }, []);
 
   const selectOrganization = useCallback(
@@ -88,7 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         selectionToken: state.selectionToken,
         organizationId,
       });
-      applySession(result.session, setState);
+      applySession(
+        {
+          ...result.session,
+          user: normalizeUser(result.session.user),
+        },
+        setState,
+      );
     },
     [state],
   );
@@ -106,14 +133,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ status: 'anonymous' });
   }, [state]);
 
+  const acceptSession = useCallback((session: SessionWithToken) => {
+    applySession(
+      {
+        ...session,
+        user: normalizeUser(session.user),
+        membership: {
+          id: session.membership.id,
+          role: session.membership.role as SessionPayload['membership']['role'],
+          assessmentAccess: session.membership.assessmentAccess,
+          quizAccess: session.membership.quizAccess,
+        },
+      },
+      setState,
+    );
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
       signIn,
       selectOrganization,
       signOut,
+      acceptSession,
     }),
-    [state, signIn, selectOrganization, signOut],
+    [state, signIn, selectOrganization, signOut, acceptSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

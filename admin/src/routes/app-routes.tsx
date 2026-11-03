@@ -11,8 +11,8 @@ const AdminLayout = lazy(() =>
 const DashboardPage = lazy(() =>
   import('@/pages/dashboard').then((m) => ({ default: m.DashboardPage })),
 );
-const StudentsPage = lazy(() =>
-  import('@/pages/students').then((m) => ({ default: m.StudentsPage })),
+const ParticipantsPage = lazy(() =>
+  import('@/pages/participants').then((m) => ({ default: m.ParticipantsPage })),
 );
 const SponsorsPage = lazy(() =>
   import('@/pages/sponsors').then((m) => ({ default: m.SponsorsPage })),
@@ -21,6 +21,9 @@ const ContestsPage = lazy(() =>
   import('@/pages/contests').then((m) => ({ default: m.ContestsPage })),
 );
 const UsersPage = lazy(() => import('@/pages/users').then((m) => ({ default: m.UsersPage })));
+const ChangePasswordPage = lazy(() =>
+  import('@/pages/change-password').then((m) => ({ default: m.ChangePasswordPage })),
+);
 const ActivityListPage = lazy(() =>
   import('@/pages/activity-list').then((m) => ({ default: m.ActivityListPage })),
 );
@@ -49,9 +52,9 @@ const ResultDetailPage = lazy(() =>
 const GeneralSettingsPage = lazy(() =>
   import('@/pages/settings-general').then((m) => ({ default: m.GeneralSettingsPage })),
 );
-const StudentPortalSettingsPage = lazy(() =>
-  import('@/pages/settings-student-portal').then((m) => ({
-    default: m.StudentPortalSettingsPage,
+const ParticipantPortalSettingsPage = lazy(() =>
+  import('@/pages/settings-participant-portal').then((m) => ({
+    default: m.ParticipantPortalSettingsPage,
   })),
 );
 const DesignSystemPage = lazy(() =>
@@ -66,9 +69,11 @@ function SuspenseOutlet() {
   );
 }
 
-function LegacyStudentRoute({ edit }: { edit?: boolean }) {
-  const { studentId = '' } = useParams();
-  const target = edit ? `/students?edit=${studentId}` : `/students?view=${studentId}`;
+function LegacyParticipantRoute({ edit }: { edit?: boolean }) {
+  const { participantId = '' } = useParams();
+  const target = edit
+    ? `/participants?edit=${participantId}`
+    : `/participants?view=${participantId}`;
   return <Navigate to={target} replace />;
 }
 
@@ -97,13 +102,22 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route element={<AdminLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
+          <Route path="change-password" element={<ChangePasswordPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="students" element={<StudentsPage />} />
+          <Route path="participants" element={<ParticipantsPage />} />
+          <Route path="students" element={<Navigate to="/participants" replace />} />
+          <Route path="students/*" element={<Navigate to="/participants" replace />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
-            <Route path="students/new" element={<Navigate to="/students?create=1" replace />} />
-            <Route path="students/:studentId/edit" element={<LegacyStudentRoute edit />} />
+            <Route
+              path="participants/new"
+              element={<Navigate to="/participants?create=1" replace />}
+            />
+            <Route
+              path="participants/:participantId/edit"
+              element={<LegacyParticipantRoute edit />}
+            />
           </Route>
-          <Route path="students/:studentId" element={<LegacyStudentRoute />} />
+          <Route path="participants/:participantId" element={<LegacyParticipantRoute />} />
           <Route path="sponsors" element={<SponsorsPage />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
             <Route path="sponsors/new" element={<Navigate to="/sponsors?create=1" replace />} />
@@ -202,7 +216,11 @@ export function AppRoutes() {
           </Route>
 
           <Route path="settings" element={<GeneralSettingsPage />} />
-          <Route path="settings/student-portal" element={<StudentPortalSettingsPage />} />
+          <Route path="settings/participant-portal" element={<ParticipantPortalSettingsPage />} />
+          <Route
+            path="settings/student-portal"
+            element={<Navigate to="/settings/participant-portal" replace />}
+          />
           <Route path="settings/design-system" element={<DesignSystemPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

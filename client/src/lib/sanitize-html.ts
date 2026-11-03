@@ -2,7 +2,7 @@ import DOMPurify from 'isomorphic-dompurify';
 
 const ALLOWED_TAGS = ['p', 'br', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li', 'h2', 'h3'];
 
-/** Sanitize activity instructions HTML for student rendering. */
+/** Sanitize activity instructions HTML for participant rendering. */
 export function sanitizeInstructionsHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS,

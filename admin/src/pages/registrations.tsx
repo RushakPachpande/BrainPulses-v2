@@ -40,7 +40,12 @@ import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { deleteAttempt, getRegistrations, type ActivityKind } from '@/services';
-import { assessmentNames, quizNames, studentCities, studentCourses } from '@/services/fixtures';
+import {
+  assessmentNames,
+  quizNames,
+  participantCities,
+  participantCourses,
+} from '@/services/fixtures';
 import type { RegistrationRow as Registration } from '@/services/types';
 
 const EMPTY_ROWS: Registration[] = [];
@@ -98,13 +103,13 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
-  const attemptLabel = isQuiz ? 'Attempt Status' : 'Student Status';
+  const attemptLabel = isQuiz ? 'Attempt Status' : 'Participant Status';
   const activityOptions = isQuiz ? quizNames : assessmentNames;
   const acrossLabel = isQuiz ? 'Across all quizzes' : 'Across all assessments';
 
   const sortColumns: { key: SortKey; label: string }[] = [
     { key: 'id', label: 'Unique ID' },
-    { key: 'name', label: 'Student Name' },
+    { key: 'name', label: 'Participant Name' },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone' },
     { key: 'registered', label: 'Registration Date' },
@@ -137,8 +142,8 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     const password = await confirm({
       title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
       description: inProgress
-        ? 'Removes the open attempt so the student can start again as if they never began. This cannot be undone.'
-        : "Removes the student's attempt and score. They can start again as if they never attempted.",
+        ? 'Removes the open attempt so the participant can start again as if they never began. This cannot be undone.'
+        : "Removes the participant's attempt and score. They can start again as if they never attempted.",
       confirmLabel: 'Delete attempt',
       destructive: true,
       requirePassword: true,
@@ -219,7 +224,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     },
     {
       name: 'City',
-      options: ['All', ...studentCities],
+      options: ['All', ...participantCities],
       value: city,
       onValueChange: (value) => {
         setCity(value);
@@ -228,7 +233,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     },
     {
       name: 'Course',
-      options: ['All', ...studentCourses],
+      options: ['All', ...participantCourses],
       value: course,
       onValueChange: (value) => {
         setCourse(value);

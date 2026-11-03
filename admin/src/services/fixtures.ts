@@ -41,7 +41,7 @@ export const bankNames = [
 export const flow = ['Active', 'Active', 'Draft', 'Completed', 'Active', 'Draft'];
 export const months = ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 
-export const studentStatuses = ['Active', 'Active', 'Inactive', 'Active', 'Active', 'Inactive'];
+export const participantStatuses = ['Active', 'Active', 'Inactive', 'Active', 'Active', 'Inactive'];
 export const assignmentStatuses = [
   'Assigned',
   'Assigned',
@@ -90,8 +90,8 @@ export const attemptCounts = [356, 201, 640, 98, 0, 0];
 export const questionCounts = [120, 200, 90, 150, 80, 300];
 export const usedInCounts = [3, 5, 2, 1, 4, 6];
 export const activityCounts = [3, 2, 4, 1, 5, 2];
-export const studentCourses = ['JEE', 'Aptitude', 'Scholarship', 'Olympiad', 'Career', 'Logic'];
-export const studentCities = ['Pune', 'Ahmedabad', 'Mumbai', 'Bengaluru', 'Delhi', 'Chennai'];
+export const participantCourses = ['JEE', 'Aptitude', 'Scholarship', 'Olympiad', 'Career', 'Logic'];
+export const participantCities = ['Pune', 'Ahmedabad', 'Mumbai', 'Bengaluru', 'Delhi', 'Chennai'];
 export const assessmentSubtitles = [
   'Engineering • Mock Test',
   'Aptitude • Screening',

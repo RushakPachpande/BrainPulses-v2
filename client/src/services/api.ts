@@ -10,25 +10,32 @@ import { invalidateClient } from '../lib/query-client';
 import type {
   AttemptQuestion,
   AttemptState,
-  StudentActivity,
-  StudentProfile,
-  StudentResultDetail,
-  StudentResultSummary,
+  ParticipantActivity,
+  ParticipantProfile,
+  ParticipantResultDetail,
+  ParticipantResultSummary,
 } from './types';
-import type { StudentPages } from '../lib/student-pages';
+import type { ParticipantPages } from '../lib/participant-pages';
 
-type StudentAuthPayload = {
+type ParticipantAuthPayload = {
   accessToken: string;
-  student: { id: string; code: string; name: string; email: string };
+  participant: { id: string; code: string; name: string; email: string };
   organization: { id: string; name: string; slug: string };
 };
 
-export async function studentSignInByCode(
+export function getParticipantLoginOptions(organizationSlug?: string) {
+  const query = organizationSlug
+    ? `?organizationSlug=${encodeURIComponent(organizationSlug)}`
+    : '';
+  return apiGetData<{ phoneLogin: boolean }>(`/api/auth/participant/login-options${query}`);
+}
+
+export async function participantSignInByCode(
   code: string,
   organizationSlug?: string,
   replaceSession?: boolean,
 ) {
-  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/sign-in-by-code', {
+  const data = await apiPostData<ParticipantAuthPayload>('/api/auth/participant/sign-in-by-code', {
     code,
     ...(organizationSlug ? { organizationSlug } : {}),
     ...(replaceSession ? { replaceSession: true } : {}),
@@ -37,38 +44,38 @@ export async function studentSignInByCode(
   return data;
 }
 
-export async function studentRequestOtp(
+export async function participantRequestOtp(
   countryCode: string,
   mobileNumber: string,
   organizationSlug?: string,
 ) {
-  return apiPostData<{ ok: boolean; message: string }>('/api/auth/student/request-otp', {
+  return apiPostData<{ ok: boolean; message: string }>('/api/auth/participant/request-otp', {
     countryCode,
     mobileNumber,
     ...(organizationSlug ? { organizationSlug } : {}),
   });
 }
 
-export async function studentResendOtp(
+export async function participantResendOtp(
   countryCode: string,
   mobileNumber: string,
   organizationSlug?: string,
 ) {
-  return apiPostData<{ ok: boolean; message: string }>('/api/auth/student/resend-otp', {
+  return apiPostData<{ ok: boolean; message: string }>('/api/auth/participant/resend-otp', {
     countryCode,
     mobileNumber,
     ...(organizationSlug ? { organizationSlug } : {}),
   });
 }
 
-export async function studentVerifyOtp(
+export async function participantVerifyOtp(
   countryCode: string,
   mobileNumber: string,
   otp: string,
   organizationSlug?: string,
   replaceSession?: boolean,
 ) {
-  const data = await apiPostData<StudentAuthPayload>('/api/auth/student/verify-otp', {
+  const data = await apiPostData<ParticipantAuthPayload>('/api/auth/participant/verify-otp', {
     countryCode,
     mobileNumber,
     otp,
@@ -79,11 +86,11 @@ export async function studentVerifyOtp(
   return data;
 }
 
-export async function studentSignOut() {
+export async function participantSignOut() {
   const token = getAccessToken();
   if (token) {
     try {
-      await apiPostData<{ ok: boolean }>('/api/auth/student/sign-out', {});
+      await apiPostData<{ ok: boolean }>('/api/auth/participant/sign-out', {});
     } catch {
       /* best-effort; clear local token anyway */
     }
@@ -92,33 +99,33 @@ export async function studentSignOut() {
 }
 
 export function getMe() {
-  return apiGetData<StudentProfile>('/api/student/me');
+  return apiGetData<ParticipantProfile>('/api/participant/me');
 }
 
-export function getStudentPages() {
-  return apiGetData<StudentPages>('/api/student/pages');
+export function getParticipantPages() {
+  return apiGetData<ParticipantPages>('/api/participant/pages');
 }
 
 export function patchMe(name: string) {
-  return apiPatchData<StudentProfile>('/api/student/me', { name });
+  return apiPatchData<ParticipantProfile>('/api/participant/me', { name });
 }
 
 export function listActivities(kind?: 'assessment' | 'quiz' | 'all') {
-  return apiGetList<StudentActivity>('/api/student/activities', {
+  return apiGetList<ParticipantActivity>('/api/participant/activities', {
     limit: 100,
     kind: kind ?? 'all',
   });
 }
 
 export function listResults(kind?: 'assessment' | 'quiz' | 'all') {
-  return apiGetList<StudentResultSummary>('/api/student/results', {
+  return apiGetList<ParticipantResultSummary>('/api/participant/results', {
     limit: 100,
     kind: kind ?? 'all',
   });
 }
 
 export function getResult(id: string) {
-  return apiGetData<StudentResultDetail>(`/api/student/results/${id}`);
+  return apiGetData<ParticipantResultDetail>(`/api/participant/results/${id}`);
 }
 
 export async function startAttempt(activityId: string, roundId?: string) {

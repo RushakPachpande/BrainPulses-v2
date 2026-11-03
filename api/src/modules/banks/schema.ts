@@ -125,20 +125,57 @@ export const optionSchema = z
     }
   });
 
+const CHOICE_STEM_TYPES = new Set([
+  'single_mcq',
+  'multiple_mcq',
+  'true_false',
+  'image_mcq',
+  'image_selection',
+  'comprehension_mcq',
+  'passage',
+  'match',
+]);
+
 const questionBaseSchema = z.object({
   type: questionTypeSchema,
-  question: z.string().trim().min(1),
+  /** May be empty for image-only choice stems when answerKey.questionImageUrl is set. */
+  question: z.string().trim().default(''),
   points: z.number().positive().default(1),
   code: z.string().trim().min(1).max(40).optional(),
   options: z.array(optionSchema).default([]),
   answerKey: z.record(z.unknown()).default({}),
 });
 
+function stemImageUrl(answerKey: Record<string, unknown>): string {
+  const fromQuestion =
+    typeof answerKey.questionImageUrl === 'string' ? answerKey.questionImageUrl.trim() : '';
+  const fromStem = typeof answerKey.stemImageUrl === 'string' ? answerKey.stemImageUrl.trim() : '';
+  return fromQuestion || fromStem;
+}
+
 function validateQuestionPayload(data: z.infer<typeof questionBaseSchema>, ctx: z.RefinementCtx) {
-  const { type, options, answerKey } = data;
+  const { type, options, answerKey, question } = data;
   const filled = options.filter((o) => isOptionFilled(o));
   const correctCount = filled.filter((o) => o.isCorrect).length;
   const key = answerKey ?? {};
+  const hasStemText = Boolean(question.trim());
+  const hasStemImage = Boolean(stemImageUrl(key));
+
+  if (CHOICE_STEM_TYPES.has(type)) {
+    if (!hasStemText && !hasStemImage) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Question text or image is required.',
+        path: ['question'],
+      });
+    }
+  } else if (!hasStemText) {
+    ctx.addIssue({
+      code: 'custom',
+      message: 'Question is required.',
+      path: ['question'],
+    });
+  }
 
   switch (type) {
     case 'single_mcq':
@@ -282,3 +319,10 @@ export const bankQuestionParamsSchema = z.object({
   id: z.string().uuid(),
   questionId: z.string().uuid(),
 });
+
+export const bulkQuestionStatusSchema = z
+  .object({
+    ids: z.array(z.string().uuid()).min(1).max(500),
+    isActive: z.boolean(),
+  })
+  .strict();

@@ -29,23 +29,23 @@ describe('tenancy and access', () => {
     await disconnectPrisma();
   });
 
-  it('denies cross-tenant student read', async () => {
+  it('denies cross-tenant participant read', async () => {
     const app = await getTestApp();
     const token = await accessTokenFor('admin@brainpulses.com', 'nextgeninnov8');
     const grey = await prisma.organization.findUniqueOrThrow({ where: { slug: 'greycaps' } });
-    const other = await prisma.student.upsert({
+    const other = await prisma.participant.upsert({
       where: { organizationId_code: { organizationId: grey.id, code: 'BP-99001' } },
       update: { isActive: true },
       create: {
         organizationId: grey.id,
         code: 'BP-99001',
-        name: 'Other Student',
-        email: 'other.student@greycaps.com',
+        name: 'Other Participant',
+        email: 'other.participant@greycaps.com',
       },
     });
     assert.ok(other);
 
-    const res = await request(app, 'GET', `/api/students/${other.id}`, {
+    const res = await request(app, 'GET', `/api/participants/${other.id}`, {
       headers: { authorization: `Bearer ${token}` },
     });
     assert.equal(res.status, 404);

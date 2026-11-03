@@ -5,7 +5,7 @@ import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { isQuizScoreVisible, parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
 import { clusterByPassage } from '../banks/passages.js';
-import { assertActivityPageEnabled } from '../../lib/student-pages.js';
+import { assertActivityPageEnabled } from '../../lib/participant-pages.js';
 import {
   applyNegativeMarking,
   clampScore,
@@ -13,7 +13,7 @@ import {
   scoreObjective,
   toNumber,
 } from './scoring.js';
-import { assertCanWipeActivity, wipeStudentActivityAttempts, type WipeActor } from './wipe.js';
+import { assertCanWipeActivity, wipeParticipantActivityAttempts, type WipeActor } from './wipe.js';
 
 type OptionRow = {
   id: string;
@@ -30,7 +30,7 @@ async function autoSubmitIfExpired(attempt: {
   status: string;
   deadlineAt: Date;
   activityId: string;
-  studentId: string;
+  participantId: string;
   revision: number;
 }) {
   if (attempt.status !== 'in_progress') return attempt;
@@ -50,7 +50,7 @@ async function autoSubmitIfExpired(attempt: {
   // unless the activity end time has passed.
   if (activity?.kind === 'quiz' && activity.durationMode === 'per_question') {
     if (activity.endsAt && activity.endsAt.getTime() <= Date.now()) {
-      return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.studentId, {
+      return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.participantId, {
         auto: true,
         idempotencyKey: `auto:${attempt.id}`,
       });
@@ -58,7 +58,7 @@ async function autoSubmitIfExpired(attempt: {
     return renewPerQuestionDeadline(attempt.organizationId, attempt.id, activity);
   }
 
-  return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.studentId, {
+  return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.participantId, {
     auto: true,
     idempotencyKey: `auto:${attempt.id}`,
   });
@@ -106,7 +106,7 @@ function mapAttempt(
     submittedAt: Date | null;
     activityId: string;
     roundId?: string | null;
-    studentId: string;
+    participantId: string;
     disqualified?: boolean;
     isAuthoritative?: boolean;
     responses?: {
@@ -132,6 +132,9 @@ function mapAttempt(
       : extras?.activityKind === 'quiz'
         ? (quizSettings?.showQuestionPanel ?? true)
         : true;
+  /** Assessments always require answers; quizzes use settings (default true). */
+  const questionsCompulsory =
+    extras?.activityKind === 'quiz' ? (quizSettings?.questionsCompulsory ?? true) : true;
   return {
     id: a.id,
     status: a.status,
@@ -141,7 +144,7 @@ function mapAttempt(
     submittedAt: a.submittedAt,
     activityId: a.activityId,
     roundId: a.roundId ?? null,
-    studentId: a.studentId,
+    participantId: a.participantId,
     disqualified: a.disqualified ?? false,
     isAuthoritative: a.isAuthoritative ?? true,
     activityKind: extras?.activityKind ?? null,
@@ -154,6 +157,7 @@ function mapAttempt(
         : null,
     allowPrevious,
     showQuestionPanel,
+    questionsCompulsory,
     forwardOnly,
     responses: (a.responses ?? []).map((r) => ({
       questionVersionId: r.questionVersionId,
@@ -327,8 +331,8 @@ function versionIdsFromBank(
   ).map((question) => question.id);
 }
 
-/** Student-facing result. `scoreVisible` is the final decision, including publish rules. */
-function mapStudentResult(
+/** Participant-facing result. `scoreVisible` is the final decision, including publish rules. */
+function mapParticipantResult(
   r: {
     id: string;
     score: Prisma.Decimal | number;
@@ -354,7 +358,7 @@ function mapStudentResult(
 
 export async function startAttempt(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   activityId: string,
   roundId?: string,
 ) {
@@ -391,11 +395,11 @@ export async function startAttempt(
     where: {
       organizationId,
       activityId,
-      studentId,
+      participantId,
       status: 'assigned',
     },
   });
-  if (!registration) throw forbidden('Student is not registered for this activity.');
+  if (!registration) throw forbidden('Participant is not registered for this activity.');
 
   let resolvedRoundId: string | null = null;
   let durationMinutes = activity.durationMinutes ?? 60;
@@ -413,7 +417,7 @@ export async function startAttempt(
         where: {
           organizationId,
           activityId,
-          studentId,
+          participantId,
           roundId: { in: prevIds },
           status: { in: ['submitted', 'auto_submitted'] },
         },
@@ -430,7 +434,7 @@ export async function startAttempt(
       where: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         roundId,
         status: { in: ['submitted', 'auto_submitted'] },
       },
@@ -443,7 +447,7 @@ export async function startAttempt(
       where: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         roundId,
         status: 'in_progress',
       },
@@ -460,7 +464,7 @@ export async function startAttempt(
       where: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         status: 'in_progress',
         NOT: { roundId },
       },
@@ -477,14 +481,14 @@ export async function startAttempt(
   } else {
     if (roundId) throw badRequest('Quizzes do not use rounds.');
     const open = await prisma.attempt.findFirst({
-      where: { organizationId, activityId, studentId, status: 'in_progress' },
+      where: { organizationId, activityId, participantId, status: 'in_progress' },
     });
     if (open) {
       const grantContinue = await prisma.reattemptGrant.findFirst({
         where: {
           organizationId,
           activityId,
-          studentId,
+          participantId,
           mode: 'continue',
           consumedAt: null,
         },
@@ -522,7 +526,7 @@ export async function startAttempt(
       where: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         status: { in: ['submitted', 'auto_submitted'] },
       },
     });
@@ -534,7 +538,7 @@ export async function startAttempt(
           where: {
             organizationId,
             activityId,
-            studentId,
+            participantId,
             status: { in: ['submitted', 'auto_submitted'] },
             isAuthoritative: true,
           },
@@ -545,7 +549,7 @@ export async function startAttempt(
           where: {
             organizationId,
             activityId,
-            studentId,
+            participantId,
             consumedAt: null,
           },
           orderBy: { createdAt: 'asc' },
@@ -558,7 +562,7 @@ export async function startAttempt(
             where: {
               organizationId,
               activityId,
-              studentId,
+              participantId,
               status: { in: ['submitted', 'auto_submitted'] },
               isAuthoritative: true,
             },
@@ -613,7 +617,7 @@ export async function startAttempt(
   // Last-chance guard against duplicate open quiz attempts (e.g. double Start).
   if (activity.kind === 'quiz') {
     const stillOpen = await prisma.attempt.findFirst({
-      where: { organizationId, activityId, studentId, status: 'in_progress' },
+      where: { organizationId, activityId, participantId, status: 'in_progress' },
       orderBy: { startedAt: 'desc' },
     });
     if (stillOpen) {
@@ -626,7 +630,7 @@ export async function startAttempt(
       organizationId,
       activityId,
       roundId: resolvedRoundId,
-      studentId,
+      participantId,
       status: 'in_progress',
       revision: 0,
       startedAt: now,
@@ -659,9 +663,13 @@ export async function startAttempt(
   };
 }
 
-export async function resumeAttempt(organizationId: string, studentId: string, attemptId: string) {
+export async function resumeAttempt(
+  organizationId: string,
+  participantId: string,
+  attemptId: string,
+) {
   const attempt = await prisma.attempt.findFirst({
-    where: { organizationId, id: attemptId, studentId },
+    where: { organizationId, id: attemptId, participantId },
     include: {
       responses: true,
       activity: {
@@ -690,12 +698,12 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
         ...activityExtras,
       },
       submitted: true,
-      result: mapStudentResult(maybe.result as never, {
+      result: mapParticipantResult(maybe.result as never, {
         scoreVisible: isQuizScoreVisible(
           quizSettings,
           (maybe.result as { releaseStatus?: string }).releaseStatus === 'published',
         ),
-        answersVisible: quizSettings?.answersVisibleToStudent ?? false,
+        answersVisible: quizSettings?.answersVisibleToParticipant ?? false,
       }),
     };
   }
@@ -724,7 +732,7 @@ export async function resumeAttempt(organizationId: string, studentId: string, a
 
 export async function saveAttempt(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   attemptId: string,
   input: {
     revision: number;
@@ -732,7 +740,7 @@ export async function saveAttempt(
   },
 ) {
   const attempt = await prisma.attempt.findFirst({
-    where: { organizationId, id: attemptId, studentId },
+    where: { organizationId, id: attemptId, participantId },
     include: {
       activity: {
         select: {
@@ -831,10 +839,14 @@ export async function saveAttempt(
   };
 }
 
-/** Renew the per-question deadline when the student moves to the next question. */
-export async function advanceAttempt(organizationId: string, studentId: string, attemptId: string) {
+/** Renew the per-question deadline when the participant moves to the next question. */
+export async function advanceAttempt(
+  organizationId: string,
+  participantId: string,
+  attemptId: string,
+) {
   const attempt = await prisma.attempt.findFirst({
-    where: { organizationId, id: attemptId, studentId },
+    where: { organizationId, id: attemptId, participantId },
     include: {
       activity: {
         select: {
@@ -859,7 +871,7 @@ export async function advanceAttempt(organizationId: string, studentId: string, 
   }
 
   if (attempt.activity.endsAt && attempt.activity.endsAt.getTime() <= Date.now()) {
-    const submitted = await submitAttemptInternal(organizationId, attemptId, studentId, {
+    const submitted = await submitAttemptInternal(organizationId, attemptId, participantId, {
       auto: true,
       idempotencyKey: `auto:${attemptId}`,
     });
@@ -886,21 +898,21 @@ export async function advanceAttempt(organizationId: string, studentId: string, 
 async function submitAttemptInternal(
   organizationId: string,
   attemptId: string,
-  studentId: string,
+  participantId: string,
   opts: { auto: boolean; idempotencyKey: string },
 ) {
   const existingByKey = await prisma.attempt.findFirst({
     where: {
       organizationId,
       id: attemptId,
-      studentId,
+      participantId,
       submitIdempotencyKey: opts.idempotencyKey,
     },
     include: { result: true, responses: true, activity: true },
   });
 
   const attempt = await prisma.attempt.findFirst({
-    where: { organizationId, id: attemptId, studentId },
+    where: { organizationId, id: attemptId, participantId },
     include: {
       responses: true,
       activity: true,
@@ -914,7 +926,7 @@ async function submitAttemptInternal(
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
   const visibilityFor = (releaseStatus: string) => ({
     scoreVisible: isQuizScoreVisible(quizSettings, releaseStatus === 'published'),
-    answersVisible: quizSettings?.answersVisibleToStudent ?? false,
+    answersVisible: quizSettings?.answersVisibleToParticipant ?? false,
   });
 
   if (existingByKey?.result) {
@@ -923,7 +935,7 @@ async function submitAttemptInternal(
         activityKind: attempt.activity.kind,
         softProctoring: attempt.activity.kind === 'quiz',
       }),
-      result: mapStudentResult(
+      result: mapParticipantResult(
         existingByKey.result,
         visibilityFor(existingByKey.result.releaseStatus),
       ),
@@ -936,7 +948,7 @@ async function submitAttemptInternal(
         activityKind: attempt.activity.kind,
         softProctoring: attempt.activity.kind === 'quiz',
       }),
-      result: mapStudentResult(attempt.result, visibilityFor(attempt.result.releaseStatus)),
+      result: mapParticipantResult(attempt.result, visibilityFor(attempt.result.releaseStatus)),
     };
   }
 
@@ -947,7 +959,7 @@ async function submitAttemptInternal(
           activityKind: attempt.activity.kind,
           softProctoring: attempt.activity.kind === 'quiz',
         }),
-        result: mapStudentResult(attempt.result, visibilityFor(attempt.result.releaseStatus)),
+        result: mapParticipantResult(attempt.result, visibilityFor(attempt.result.releaseStatus)),
       };
     }
     throw conflict('Attempt already submitted.');
@@ -1018,7 +1030,7 @@ async function submitAttemptInternal(
         organizationId,
         attemptId,
         activityId: attempt.activityId,
-        studentId,
+        participantId,
         score,
         maxScore,
         percent,
@@ -1041,7 +1053,7 @@ async function submitAttemptInternal(
 
   await writeAudit({
     organizationId,
-    actorType: 'student',
+    actorType: 'participant',
     action: opts.auto ? 'attempt.auto_submit' : 'attempt.submit',
     targetType: 'attempt',
     targetId: attemptId,
@@ -1053,20 +1065,20 @@ async function submitAttemptInternal(
       activityKind: attempt.activity.kind,
       softProctoring: attempt.activity.kind === 'quiz',
     }),
-    result: mapStudentResult(result, visibilityFor(result.releaseStatus)),
+    result: mapParticipantResult(result, visibilityFor(result.releaseStatus)),
   };
 }
 
 export async function submitAttempt(
   organizationId: string,
-  studentId: string,
+  participantId: string,
   attemptId: string,
   idempotencyKey: string | undefined,
 ) {
   if (!idempotencyKey) {
     throw badRequest('Idempotency-Key header is required for submit.');
   }
-  return submitAttemptInternal(organizationId, attemptId, studentId, {
+  return submitAttemptInternal(organizationId, attemptId, participantId, {
     auto: false,
     idempotencyKey,
   });
@@ -1133,7 +1145,7 @@ export async function requalifyAttempt(
       where: {
         organizationId,
         activityId: attempt.activityId,
-        studentId: attempt.studentId,
+        participantId: attempt.participantId,
         id: { not: attemptId },
         status: { in: ['submitted', 'auto_submitted'] },
       },
@@ -1169,7 +1181,7 @@ export async function grantReattempt(
   organizationId: string,
   actorUserId: string,
   activityId: string,
-  studentId: string,
+  participantId: string,
   mode: 'continue' | 'restart',
   note?: string,
 ) {
@@ -1177,14 +1189,16 @@ export async function grantReattempt(
   if (!activity) throw notFound('Activity not found.');
   if (activity.kind !== 'quiz') throw badRequest('Reattempts are only for quizzes.');
 
-  const student = await prisma.student.findFirst({ where: { organizationId, id: studentId } });
-  if (!student) throw notFound('Student not found.');
+  const participant = await prisma.participant.findFirst({
+    where: { organizationId, id: participantId },
+  });
+  if (!participant) throw notFound('Participant not found.');
 
   const grant = await prisma.reattemptGrant.create({
     data: {
       organizationId,
       activityId,
-      studentId,
+      participantId,
       mode,
       note: note?.trim() || null,
       grantedByUserId: actorUserId,
@@ -1203,7 +1217,7 @@ export async function grantReattempt(
   return {
     id: grant.id,
     activityId: grant.activityId,
-    studentId: grant.studentId,
+    participantId: grant.participantId,
     mode: grant.mode,
     note: grant.note,
     consumedAt: grant.consumedAt,
@@ -1218,7 +1232,7 @@ export async function listReattemptGrants(organizationId: string, activityId: st
   const rows = await prisma.reattemptGrant.findMany({
     where: { organizationId, activityId },
     include: {
-      student: { select: { id: true, name: true, code: true } },
+      participant: { select: { id: true, name: true, code: true } },
       grantedBy: { select: { id: true, name: true } },
     },
     orderBy: { createdAt: 'desc' },
@@ -1230,14 +1244,14 @@ export async function listReattemptGrants(organizationId: string, activityId: st
     note: g.note,
     consumedAt: g.consumedAt,
     createdAt: g.createdAt,
-    student: g.student,
+    participant: g.participant,
     grantedBy: g.grantedBy,
   }));
 }
 
 /**
  * Admin delete for any attempt status (including in_progress). Clears the
- * student's attempts for that quiz/round as if they never started.
+ * participant's attempts for that quiz/round as if they never started.
  */
 export async function deleteAttemptAdmin(
   organizationId: string,
@@ -1248,7 +1262,7 @@ export async function deleteAttemptAdmin(
     where: { organizationId, id: attemptId },
     include: {
       activity: { select: { id: true, kind: true, name: true } },
-      student: { select: { id: true, name: true, code: true } },
+      participant: { select: { id: true, name: true, code: true } },
       result: { select: { id: true } },
     },
   });
@@ -1256,10 +1270,10 @@ export async function deleteAttemptAdmin(
   assertCanWipeActivity(actor, existing.activity.kind);
 
   const attemptsRemoved = await prisma.$transaction(async (tx) =>
-    wipeStudentActivityAttempts(tx, {
+    wipeParticipantActivityAttempts(tx, {
       organizationId,
       activityId: existing.activityId,
-      studentId: existing.studentId,
+      participantId: existing.participantId,
       attemptId: existing.id,
       roundId: existing.roundId,
       activityKind: existing.activity.kind,
@@ -1276,11 +1290,11 @@ export async function deleteAttemptAdmin(
     targetId: attemptId,
     metadata: {
       activityId: existing.activityId,
-      studentId: existing.studentId,
+      participantId: existing.participantId,
       roundId: existing.roundId,
       status: existing.status,
       attemptsRemoved,
-      studentName: existing.student.name,
+      participantName: existing.participant.name,
       activityName: existing.activity.name,
     },
   });

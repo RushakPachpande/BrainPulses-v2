@@ -1,4 +1,4 @@
-/** Layout-matching loading shells for the student client. */
+/** Layout-matching loading shells for the participant client. */
 
 function SrOnly({ children }: { children: string }) {
   return <span className="sr-only">{children}</span>;
@@ -65,22 +65,6 @@ export function GoalPanelSkeleton() {
   );
 }
 
-export function LibraryStatsSkeleton() {
-  return (
-    <div className="summary-stats skeleton-library-stats" aria-busy="true" aria-live="polite">
-      <SrOnly>Loading library stats</SrOnly>
-      <div aria-hidden>
-        <span className="skeleton-line skeleton-summary-value" />
-        <span className="skeleton-line w-sm" />
-      </div>
-      <div aria-hidden>
-        <span className="skeleton-line skeleton-summary-value" />
-        <span className="skeleton-line w-sm" />
-      </div>
-    </div>
-  );
-}
-
 export function ExamShellSkeleton() {
   return (
     <div className="exam-page" aria-busy="true" aria-live="polite">
@@ -91,8 +75,11 @@ export function ExamShellSkeleton() {
         <span className="skeleton-line skeleton-exam-timer" />
         <span className="skeleton-line h-btn skeleton-exam-exit" />
       </header>
-      <div className="exam-progress" aria-hidden>
-        <div className="skeleton-exam-progress-fill" />
+      <div className="exam-progress-row" aria-hidden>
+        <div className="exam-progress">
+          <div className="skeleton-exam-progress-fill" />
+        </div>
+        <span className="exam-progress-pct skeleton-line" style={{ width: '3ch' }} />
       </div>
       <div className="exam-layout">
         <section className="question-column" aria-hidden>

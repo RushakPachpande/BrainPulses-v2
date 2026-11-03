@@ -1,8 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500..700&family=Sora:wght@700&display=swap');
 @import 'tailwindcss';
 
 :root {
-  font-family: 'Source Sans 3', 'Segoe UI', sans-serif;
+  font-family: 'Manrope', 'Segoe UI', sans-serif;
   color-scheme: light;
   --background: #fafaff;
   --foreground: #0f172a;
@@ -31,11 +31,37 @@
   --shadow: 0 1px 2px rgb(15 23 42 / 0.04);
   --radius: 12px;
   --control-h: 44px;
-  --font-heading: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  --font-display: 'Sora', 'Segoe UI', sans-serif;
+  --font-heading: 'Manrope', 'Segoe UI', sans-serif;
+  --font-body: 'Manrope', 'Segoe UI', sans-serif;
+  --type-page-title: 24px;
+  --type-subtitle: 16px;
+  --type-supporting: 14px;
+  --type-primary-btn: 16px;
+  --type-question: 24px;
+  --type-option: 18px;
+  --type-option-label: 20px;
+  --type-timer: 24px;
+  --type-timer-label: 16px;
+  --type-question-counter: 20px;
+  --type-question-badge: 16px;
+  --type-progress-pct: 20px;
   --scrollbar-size: 6px;
   --scrollbar-thumb: color-mix(in srgb, var(--primary) 55%, transparent);
   --scrollbar-thumb-hover: color-mix(in srgb, var(--primary) 80%, transparent);
   --scrollbar-track: transparent;
+}
+@media (min-width: 640px) {
+  :root {
+    --type-page-title: 32px;
+    --type-subtitle: 20px;
+    --type-supporting: 16px;
+    --type-primary-btn: 16px;
+    --type-question: 42px;
+    --type-option: 26px;
+    --type-option-label: 26px;
+    --type-timer: 32px;
+  }
 }
 :root.dark {
   color-scheme: dark;
@@ -178,9 +204,11 @@ h3 {
   letter-spacing: -0.025em;
 }
 h1 {
-  font-size: clamp(24px, 2vw, 30px);
+  font-family: var(--font-display);
+  font-size: var(--type-page-title);
   line-height: 1.25;
   font-weight: 700;
+  letter-spacing: -0.035em;
 }
 h2 {
   font-size: 18px;
@@ -289,7 +317,7 @@ h3 {
   display: grid;
   gap: 4px;
 }
-.student-mini {
+.participant-mini {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -310,23 +338,23 @@ h3 {
   font-size: 12px;
   flex-shrink: 0;
 }
-.student-mini-info {
+.participant-mini-info {
   display: flex;
   flex: 1;
   min-width: 0;
   flex-direction: column;
 }
-.student-mini-info b {
+.participant-mini-info b {
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.student-mini-info span {
+.participant-mini-info span {
   font-size: 12px;
   color: var(--muted-foreground);
 }
-.student-mini-actions {
+.participant-mini-actions {
   display: flex;
   align-items: center;
   gap: 2px;
@@ -369,12 +397,6 @@ h3 {
   gap: 9px;
   min-width: 0;
   font-size: 14px;
-}
-.topbar-title .crumb {
-  color: var(--muted-foreground);
-}
-.topbar-title .crumb-sep {
-  color: var(--border);
 }
 .topbar-title b {
   font-weight: 600;
@@ -434,7 +456,10 @@ h3 {
 .page-heading p {
   margin: 0;
   color: var(--muted-foreground);
-  font-size: 15px;
+  font-family: var(--font-body);
+  font-size: var(--type-subtitle);
+  font-weight: 500;
+  line-height: 1.4;
 }
 .page-heading-action {
   display: flex;
@@ -476,6 +501,11 @@ h3 {
 .btn.primary {
   background: var(--primary);
   color: var(--primary-foreground);
+  font-family: var(--font-body);
+  font-size: var(--type-primary-btn);
+  font-weight: 700;
+  line-height: 1.15;
+  min-height: max(var(--control-h), calc(var(--type-primary-btn) * 1.15 + 1rem));
 }
 .btn.primary:hover {
   background: var(--primary-hover);
@@ -909,7 +939,9 @@ h3 {
   font-size: 15px;
 }
 .empty-state span {
-  font-size: 13px;
+  font-family: var(--font-body);
+  font-size: var(--type-supporting);
+  font-weight: 500;
   color: var(--muted-foreground);
   max-width: 360px;
 }
@@ -986,53 +1018,6 @@ h3 {
   gap: 10px;
   color: var(--muted-foreground);
   font-size: 12px;
-}
-.library-summary {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--card);
-  padding: 17px 20px;
-}
-.summary-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  display: grid;
-  place-items: center;
-  background: var(--secondary);
-  color: var(--secondary-foreground);
-  flex-shrink: 0;
-}
-.library-summary > div:nth-child(2) {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  flex: 1;
-}
-.library-summary b {
-  font-size: 15px;
-}
-.library-summary span {
-  font-size: 13px;
-  color: var(--muted-foreground);
-}
-.summary-stats {
-  display: flex;
-  gap: 25px;
-  padding-left: 20px;
-  border-left: 1px solid var(--border);
-}
-.summary-stats div {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-.summary-stats b {
-  font: 700 20px var(--font-heading);
 }
 .library-toolbar {
   display: flex;
@@ -1520,7 +1505,7 @@ select,
 }
 .activity-detail-title {
   margin: 0;
-  font-family: 'Plus Jakarta Sans', 'Segoe UI', sans-serif;
+  font-family: var(--font-heading);
   font-size: 1.125rem;
   font-weight: 650;
   letter-spacing: -0.02em;
@@ -1883,16 +1868,6 @@ select,
   width: 40%;
   height: 100%;
   border-radius: 999px;
-}
-.skeleton-library-stats {
-  display: flex;
-  gap: 18px;
-}
-.skeleton-library-stats > div {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 64px;
 }
 .skeleton-exam-topbar {
   gap: 16px;
@@ -2761,11 +2736,16 @@ select,
   line-height: 1.3;
 }
 .exam-timer span {
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: var(--type-timer-label);
+  font-weight: 600;
   color: var(--muted-foreground);
 }
 .exam-timer b {
-  font: 700 15px var(--font-heading);
+  font-family: var(--font-display);
+  font-size: var(--type-timer);
+  font-weight: 700;
+  line-height: 1.2;
   font-variant-numeric: tabular-nums;
 }
 .exam-timer.timer-warning {
@@ -2780,14 +2760,35 @@ select,
 .exit-btn {
   min-height: 40px;
 }
+.exam-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 28px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
 .exam-progress {
+  flex: 1;
   height: 4px;
   background: var(--muted);
+  border-radius: 999px;
+  overflow: hidden;
 }
 .exam-progress div {
   height: 100%;
   background: var(--primary);
   transition: width 0.18s;
+}
+.exam-progress-pct {
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: var(--type-progress-pct);
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+  padding: 8px 0;
 }
 .exam-layout {
   width: 100%;
@@ -2814,9 +2815,10 @@ select,
   gap: 12px;
   min-height: 32px;
   margin-bottom: 14px;
-  font-size: 12px;
+  font-family: var(--font-body);
+  font-size: var(--type-question-counter);
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.02em;
   color: var(--muted-foreground);
 }
 .question-total {
@@ -2876,9 +2878,11 @@ select,
 }
 .question-stem {
   margin: 0;
-  font-size: clamp(1.25rem, 2.4vw, 1.75rem);
+  font-family: var(--font-display);
+  font-size: var(--type-question);
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
+  letter-spacing: -0.03em;
   color: var(--foreground);
 }
 .option-body {
@@ -2930,9 +2934,10 @@ select,
   max-width: none;
 }
 .question-context {
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: var(--type-question-badge);
   font-weight: 700;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   color: var(--primary);
   margin-bottom: 15px;
 }
@@ -2944,7 +2949,9 @@ select,
   max-width: 760px;
 }
 .question-instruction {
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--type-supporting);
+  font-weight: 500;
   color: var(--muted-foreground);
   margin: 0 0 24px;
 }
@@ -2964,7 +2971,10 @@ select,
   border-radius: 9px;
   padding: 10px 14px;
   color: var(--foreground);
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: var(--type-option);
+  font-weight: 650;
+  line-height: 1.3;
   transition:
     border-color 0.14s,
     background 0.14s;
@@ -2980,14 +2990,22 @@ select,
 .option-letter {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 7px;
   background: var(--muted);
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: 12px;
+  font-size: var(--type-option-label);
+  line-height: 1;
+}
+@media (min-width: 640px) {
+  .option-letter {
+    width: 44px;
+    height: 44px;
+  }
 }
 .chosen .option-letter {
   background: var(--primary);
@@ -3056,12 +3074,14 @@ select,
   margin: 0;
 }
 .question-counter {
-  font-size: 11px;
+  font-family: var(--font-body);
+  font-size: var(--type-question-counter);
   font-weight: 700;
   border-radius: 6px;
   background: var(--secondary);
   color: var(--secondary-foreground);
-  padding: 4px 6px;
+  padding: 4px 8px;
+  line-height: 1.2;
 }
 .legend {
   display: grid;
@@ -3427,10 +3447,6 @@ select,
   }
 }
 @media (max-width: 640px) {
-  .topbar-title .crumb,
-  .topbar-title .crumb-sep {
-    display: none;
-  }
   .topbar {
     gap: 8px;
   }
@@ -3555,18 +3571,6 @@ select,
     padding: 14px max(20px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom))
       max(20px, env(safe-area-inset-left));
     font-size: 11px;
-  }
-  .library-summary {
-    padding: 13px;
-    gap: 10px;
-    align-items: flex-start;
-  }
-  .summary-icon {
-    width: 37px;
-    height: 37px;
-  }
-  .summary-stats {
-    display: none;
   }
   .library-toolbar {
     align-items: stretch;
@@ -3775,11 +3779,8 @@ select,
   .exam-timer > svg {
     width: 15px;
   }
-  .exam-timer span {
-    font-size: 9px;
-  }
-  .exam-timer b {
-    font-size: 13px;
+  .exam-progress-row {
+    padding: 0 10px;
   }
   .exit-btn {
     font-size: 0;
@@ -3803,10 +3804,7 @@ select,
     padding: 18px 15px;
   }
   .question-card h1 {
-    font-size: 21px;
-  }
-  .question-topline {
-    font-size: 11px;
+    font-size: var(--type-question);
   }
   .review-chip {
     font-size: 11px;
@@ -3819,11 +3817,6 @@ select,
     padding: 9px 10px;
     gap: 9px;
     min-height: 52px;
-    font-size: 13px;
-  }
-  .option-letter {
-    width: 27px;
-    height: 27px;
   }
   .question-footer {
     flex-wrap: wrap;
@@ -3945,7 +3938,7 @@ select,
   }
 }
 
-/* Centered student login (Unique ID + Phone OTP) */
+/* Centered participant login (Unique ID + Phone OTP) */
 .login-page-centered {
   align-items: center;
 }

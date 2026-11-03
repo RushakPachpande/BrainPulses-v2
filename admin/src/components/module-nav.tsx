@@ -43,8 +43,8 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
     links: [
       { to: '/settings', label: 'General', icon: SettingsIcon, end: true },
       {
-        to: '/settings/student-portal',
-        label: 'Student portal',
+        to: '/settings/participant-portal',
+        label: 'Participant portal',
         icon: PanelsTopLeftIcon,
         end: true,
       },

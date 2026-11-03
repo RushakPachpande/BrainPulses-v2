@@ -5,15 +5,15 @@ type Prefix = 'BP' | 'ASM' | 'QUZ' | 'QB' | 'Q';
 export async function nextHumanCode(
   organizationId: string,
   prefix: Prefix,
-  kind: 'student' | 'activity' | 'bank' | 'question',
+  kind: 'participant' | 'activity' | 'bank' | 'question',
 ): Promise<string> {
   const year = new Date().getFullYear() % 100;
   const base = `${prefix}-${year}`;
 
   let latest: string | null = null;
-  if (kind === 'student') {
-    // Student codes are BP-24NNN (offset form); sequence is the trailing digits after BP-.
-    const row = await prisma.student.findFirst({
+  if (kind === 'participant') {
+    // Participant codes are BP-24NNN (offset form); sequence is the trailing digits after BP-.
+    const row = await prisma.participant.findFirst({
       where: { organizationId, code: { startsWith: `${prefix}-` } },
       orderBy: { code: 'desc' },
       select: { code: true },
@@ -37,7 +37,7 @@ export async function nextHumanCode(
 
   let seq = 1;
   if (latest) {
-    if (kind === 'student') {
+    if (kind === 'participant') {
       const match = latest.match(/^[A-Z]+-(\d+)$/);
       if (match?.[1]) {
         const n = Number(match[1]);
@@ -54,7 +54,7 @@ export async function nextHumanCode(
     }
   }
 
-  if (kind === 'student') {
+  if (kind === 'participant') {
     return `${prefix}-${24000 + seq}`;
   }
   return `${base}${String(seq).padStart(3, '0')}`;

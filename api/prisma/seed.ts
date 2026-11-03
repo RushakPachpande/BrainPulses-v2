@@ -20,7 +20,7 @@ type McqSeed = {
   points?: number;
 };
 
-type StudentSeed = {
+type ParticipantSeed = {
   code: string;
   name: string;
   email: string;
@@ -102,7 +102,7 @@ const quizBehaviourSettings = {
     shuffleQuestions: true,
     shuffleOptions: true,
     scoreRelease: 'after_publish' as const,
-    answersVisibleToStudent: true,
+    answersVisibleToParticipant: true,
     maxAttempts: 1,
   },
 };
@@ -161,7 +161,7 @@ async function wipeOrganizationContent(organizationId: string) {
     }
     await prisma.questionBank.deleteMany({ where: { organizationId, id: { in: bankIds } } });
   }
-  await prisma.student.deleteMany({ where: { organizationId } });
+  await prisma.participant.deleteMany({ where: { organizationId } });
 }
 
 async function upsertMcq(organizationId: string, bankId: string, q: McqSeed) {
@@ -286,13 +286,17 @@ async function ensureBankWithQuestions(input: {
   return bank;
 }
 
-async function registerStudents(organizationId: string, activityId: string, studentIds: string[]) {
-  for (const studentId of studentIds) {
+async function registerParticipants(
+  organizationId: string,
+  activityId: string,
+  participantIds: string[],
+) {
+  for (const participantId of participantIds) {
     await prisma.registration.create({
       data: {
         organizationId,
         activityId,
-        studentId,
+        participantId,
         status: 'assigned',
         assignedAt: daysAgo(5),
       },
@@ -361,11 +365,11 @@ const foundationQuestions: McqSeed[] = [
     }) as McqSeed,
 );
 
-const studentRoster: StudentSeed[] = [
+const participantRoster: ParticipantSeed[] = [
   {
     code: 'BP-24101',
     name: 'Priya Patel',
-    email: 'student1@mail.com',
+    email: 'participant1@mail.com',
     phone: '+919876510000',
     course: 'JEE',
     city: 'Pune',
@@ -374,7 +378,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24102',
     name: 'Rohan Mehta',
-    email: 'student2@mail.com',
+    email: 'participant2@mail.com',
     phone: '+919876510001',
     course: 'JEE',
     city: 'Mumbai',
@@ -383,7 +387,7 @@ const studentRoster: StudentSeed[] = [
   {
     code: 'BP-24103',
     name: 'Sana Khan',
-    email: 'student3@mail.com',
+    email: 'participant3@mail.com',
     phone: '+919876510002',
     course: 'NEET',
     city: 'Delhi',
@@ -534,9 +538,9 @@ async function main() {
     await membership(organizationId, viewer.id, 'admin', 'view');
   }
 
-  const students: { id: string }[] = [];
-  for (const [index, row] of studentRoster.entries()) {
-    const student = await prisma.student.create({
+  const participants: { id: string }[] = [];
+  for (const [index, row] of participantRoster.entries()) {
+    const participant = await prisma.participant.create({
       data: {
         organizationId: nextgen.id,
         ...row,
@@ -544,7 +548,7 @@ async function main() {
         lastLoginAt: row.code === 'BP-24101' ? daysAgo(0) : daysAgo(1 + (index % 5)),
       },
     });
-    students.push(student);
+    participants.push(participant);
   }
 
   const bank = await ensureBankWithQuestions({
@@ -578,7 +582,7 @@ async function main() {
       organizationId: nextgen.id,
       sponsorId: sponsor.id,
       name: 'Launch Cup',
-      description: 'Opening contest for NextGenInnov8 students.',
+      description: 'Opening contest for NextGenInnov8 participants.',
       imageFileId: contestMark.id,
     },
   });
@@ -601,7 +605,7 @@ async function main() {
       contestId: contest.id,
       settings: {
         registrationForm: { fields: [] },
-        assignmentRules: { mode: 'manual', notes: 'Assigned to every NextGenInnov8 student.' },
+        assignmentRules: { mode: 'manual', notes: 'Assigned to every NextGenInnov8 participant.' },
         quiz: quizBehaviourSettings.quiz,
       },
       activityBanks: {
@@ -609,10 +613,10 @@ async function main() {
       },
     },
   });
-  await registerStudents(
+  await registerParticipants(
     nextgen.id,
     quiz.id,
-    students.map((student) => student.id),
+    participants.map((participant) => participant.id),
   );
 
   await prisma.setting.createMany({
@@ -632,7 +636,7 @@ async function main() {
   console.log('  superadmin@brainpulses.com / Password123! (both orgs)');
   console.log('  admin@brainpulses.com / Password123! (both orgs)');
   console.log('  viewer@brainpulses.com / Password123! (view only, both orgs)');
-  console.log('  Student Unique ID: BP-24101');
+  console.log('  Participant Unique ID: BP-24101');
   console.log('  Quiz: QZ-26001 Launch Quiz, bank QB-26001 (20 questions)');
 }
 

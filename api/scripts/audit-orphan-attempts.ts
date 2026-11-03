@@ -1,6 +1,6 @@
 /**
  * One-shot: report attempt/result mismatch, then remove orphaned attempts
- * so students show Not started when there is no result.
+ * so participants show Not started when there is no result.
  *
  * Usage:
  *   npx tsx --conditions=development scripts/audit-orphan-attempts.ts
@@ -24,12 +24,12 @@ async function main() {
       id: true,
       organizationId: true,
       activityId: true,
-      studentId: true,
+      participantId: true,
       roundId: true,
       startedAt: true,
       deadlineAt: true,
       activity: { select: { name: true, kind: true, code: true } },
-      student: { select: { name: true, code: true } },
+      participant: { select: { name: true, code: true } },
     },
     orderBy: { startedAt: 'desc' },
   });
@@ -42,10 +42,10 @@ async function main() {
       id: true,
       organizationId: true,
       activityId: true,
-      studentId: true,
+      participantId: true,
       status: true,
       activity: { select: { name: true, kind: true } },
-      student: { select: { name: true, code: true } },
+      participant: { select: { name: true, code: true } },
     },
   });
   const openGrants = await prisma.reattemptGrant.count({ where: { consumedAt: null } });
@@ -61,7 +61,7 @@ async function main() {
         openGrants,
         inProgress: inProgress.map((a) => ({
           id: a.id,
-          student: `${a.student.name} (${a.student.code})`,
+          participant: `${a.participant.name} (${a.participant.code})`,
           activity: `${a.activity.name} [${a.activity.kind}]`,
           roundId: a.roundId,
           startedAt: a.startedAt,
@@ -70,7 +70,7 @@ async function main() {
         submittedNoResult: submittedNoResult.map((a) => ({
           id: a.id,
           status: a.status,
-          student: `${a.student.name} (${a.student.code})`,
+          participant: `${a.participant.name} (${a.participant.code})`,
           activity: `${a.activity.name} [${a.activity.kind}]`,
         })),
       },
@@ -98,14 +98,14 @@ async function main() {
     for (const orgId of orgIds) {
       const pairs = await tx.reattemptGrant.findMany({
         where: { organizationId: orgId },
-        select: { id: true, activityId: true, studentId: true },
+        select: { id: true, activityId: true, participantId: true },
       });
       for (const g of pairs) {
         const still = await tx.attempt.count({
           where: {
             organizationId: orgId,
             activityId: g.activityId,
-            studentId: g.studentId,
+            participantId: g.participantId,
           },
         });
         if (still === 0) {

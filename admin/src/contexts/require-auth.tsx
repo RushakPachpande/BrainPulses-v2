@@ -14,5 +14,16 @@ export function RequireAuth() {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
+  const mustChange = auth.user.mustChangePassword;
+  const onChangePasswordPage = location.pathname === '/change-password';
+
+  if (mustChange && !onChangePasswordPage) {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  if (!mustChange && onChangePasswordPage) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   return <Outlet />;
 }

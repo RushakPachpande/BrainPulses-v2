@@ -23,6 +23,7 @@ import {
   assertTypeAllowedForKind,
   normalizeAnswerKeyImages,
   type bankListQuerySchema,
+  type bulkQuestionStatusSchema,
   type createBankSchema,
   type createQuestionSchema,
   type updateBankSchema,
@@ -194,7 +195,6 @@ export async function getBank(organizationId: string, id: string, actor?: Access
     include: {
       _count: { select: { questions: true, activityBanks: true } },
       questions: {
-        where: { isActive: true },
         orderBy: { createdAt: 'asc' },
         include: {
           passage: true,
@@ -645,6 +645,38 @@ export async function updateQuestion(
         ]
       : [],
   });
+}
+
+export async function setBankQuestionsActive(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  bankId: string,
+  input: z.infer<typeof bulkQuestionStatusSchema>,
+) {
+  const bank = await prisma.questionBank.findFirst({
+    where: { organizationId, id: bankId },
+    select: { id: true, kind: true },
+  });
+  if (!bank) throw notFound('Question bank not found.');
+  assertBankAccess(actor, bank.kind, 'edit');
+
+  const result = await prisma.question.updateMany({
+    where: { organizationId, bankId, id: { in: input.ids } },
+    data: { isActive: input.isActive },
+  });
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: input.isActive ? 'question.bulk_activate' : 'question.bulk_deactivate',
+    targetType: 'question_bank',
+    targetId: bankId,
+    metadata: { ids: input.ids, isActive: input.isActive, updated: result.count },
+  });
+
+  return { updated: result.count };
 }
 
 function importRowMessage(sheetRow: number, err: unknown): string {

@@ -5,9 +5,9 @@ import { parseQuizSettings } from '../src/lib/quiz-settings.js';
 import { attemptDurationMs } from '../src/modules/attempts/service.js';
 import { getTestApp, request } from './helpers.js';
 
-async function studentToken(code = 'BP-24101') {
+async function participantToken(code = 'BP-24101') {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
+  const res = await request(app, 'POST', '/api/auth/participant/sign-in-by-code', {
     body: {
       code,
       organizationSlug: 'nextgeninnov8',
@@ -35,13 +35,13 @@ async function adminToken() {
   return (selected.body as { data: { session: { accessToken: string } } }).data.session.accessToken;
 }
 
-async function clearQuizAttempts(studentId: string, activityId: string) {
-  await prisma.reattemptGrant.deleteMany({ where: { studentId, activityId } });
+async function clearQuizAttempts(participantId: string, activityId: string) {
+  await prisma.reattemptGrant.deleteMany({ where: { participantId, activityId } });
   await prisma.attemptResponse.deleteMany({
-    where: { attempt: { studentId, activityId } },
+    where: { attempt: { participantId, activityId } },
   });
-  await prisma.result.deleteMany({ where: { studentId, activityId } });
-  await prisma.attempt.deleteMany({ where: { studentId, activityId } });
+  await prisma.result.deleteMany({ where: { participantId, activityId } });
+  await prisma.attempt.deleteMany({ where: { participantId, activityId } });
 }
 
 describe('quiz ops', () => {
@@ -51,19 +51,20 @@ describe('quiz ops', () => {
     assert.equal(defaults.scoreRelease, 'after_submit');
     assert.equal(defaults.maxAttempts, 1);
     assert.equal(defaults.showQuestionPanel, true);
+    assert.equal(defaults.questionsCompulsory, true);
 
     const custom = parseQuizSettings({
       quiz: {
         shuffleQuestions: false,
-        scoreVisibleToStudent: true,
-        answersVisibleToStudent: true,
+        scoreVisibleToParticipant: true,
+        answersVisibleToParticipant: true,
         showQuestionPanel: false,
         maxAttempts: null,
       },
     });
     assert.equal(custom.shuffleQuestions, false);
     assert.equal(custom.scoreRelease, 'after_publish');
-    assert.equal(custom.answersVisibleToStudent, true);
+    assert.equal(custom.answersVisibleToParticipant, true);
     assert.equal(custom.showQuestionPanel, false);
     assert.equal(custom.maxAttempts, null);
   });
@@ -96,16 +97,18 @@ describe('quiz ops', () => {
 
   it('freezes question order across resume and allows a granted reattempt', async () => {
     const app = await getTestApp();
-    const token = await studentToken();
+    const token = await participantToken();
     const admin = await adminToken();
     const adminHeaders = { authorization: `Bearer ${admin}` };
 
     const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
     assert.ok(activity);
-    const student = await prisma.student.findFirst({ where: { email: 'student1@mail.com' } });
-    assert.ok(student);
+    const participant = await prisma.participant.findFirst({
+      where: { email: 'participant1@mail.com' },
+    });
+    assert.ok(participant);
 
-    await clearQuizAttempts(student.id, activity.id);
+    await clearQuizAttempts(participant.id, activity.id);
 
     await prisma.activity.update({
       where: { id: activity.id },
@@ -115,7 +118,7 @@ describe('quiz ops', () => {
             shuffleQuestions: true,
             shuffleOptions: true,
             scoreRelease: 'after_submit',
-            answersVisibleToStudent: true,
+            answersVisibleToParticipant: true,
             maxAttempts: 1,
           },
         },
@@ -193,7 +196,7 @@ describe('quiz ops', () => {
 
     const grant = await request(app, 'POST', `/api/activities/${activity.id}/reattempts`, {
       headers: adminHeaders,
-      body: { studentId: student.id, mode: 'restart', note: 'retry' },
+      body: { participantId: participant.id, mode: 'restart', note: 'retry' },
     });
     assert.equal(grant.status, 201);
 

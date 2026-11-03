@@ -6,12 +6,20 @@ export const signInSchema = z.object({
   password: z.string().min(1),
 });
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1).max(128).optional(),
+    newPassword: z.string().min(8).max(128),
+    confirmPassword: z.string().min(8).max(128),
+  })
+  .strict();
+
 export const selectOrganizationSchema = z.object({
   selectionToken: z.string().min(1),
   organizationId: z.string().uuid(),
 });
 
-export const studentSignInByCodeSchema = z.object({
+export const participantSignInByCodeSchema = z.object({
   code: z
     .string()
     .trim()
@@ -39,11 +47,11 @@ function refinePhoneParts<T extends z.ZodTypeAny>(schema: T) {
   });
 }
 
-export const studentRequestOtpSchema = refinePhoneParts(phonePartsObject);
+export const participantRequestOtpSchema = refinePhoneParts(phonePartsObject);
 
-export const studentResendOtpSchema = refinePhoneParts(phonePartsObject);
+export const participantResendOtpSchema = refinePhoneParts(phonePartsObject);
 
-export const studentVerifyOtpSchema = refinePhoneParts(
+export const participantVerifyOtpSchema = refinePhoneParts(
   phonePartsObject.extend({
     otp: z
       .string()

@@ -10,14 +10,14 @@ export const registrationListQuerySchema = listQuerySchema.extend({
 export const assignSchema = z
   .object({
     activityId: z.string().uuid(),
-    studentIds: z.array(z.string().uuid()).min(1),
+    participantIds: z.array(z.string().uuid()).min(1),
   })
   .strict();
 
 export const unassignSchema = z
   .object({
     activityId: z.string().uuid(),
-    studentIds: z.array(z.string().uuid()).min(1),
+    participantIds: z.array(z.string().uuid()).min(1),
   })
   .strict();
 

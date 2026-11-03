@@ -6,9 +6,11 @@ export type QuizSettings = {
   shuffleQuestions: boolean;
   shuffleOptions: boolean;
   scoreRelease: ScoreRelease;
-  answersVisibleToStudent: boolean;
+  answersVisibleToParticipant: boolean;
   allowPrevious: boolean;
   showQuestionPanel: boolean;
+  /** When true, participants must answer before Next/Submit. */
+  questionsCompulsory: boolean;
   negativeMarkingEnabled: boolean;
   negativeMarkPoints: number;
   /** Null means unlimited submissions. */
@@ -19,9 +21,10 @@ export const defaultQuizSettings: QuizSettings = {
   shuffleQuestions: true,
   shuffleOptions: true,
   scoreRelease: 'after_submit',
-  answersVisibleToStudent: false,
+  answersVisibleToParticipant: false,
   allowPrevious: true,
   showQuestionPanel: true,
+  questionsCompulsory: true,
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0,
   maxAttempts: 1,
@@ -31,7 +34,7 @@ function parseScoreRelease(q: Record<string, unknown>): ScoreRelease {
   if (q.scoreRelease === 'after_submit' || q.scoreRelease === 'after_publish') {
     return q.scoreRelease;
   }
-  if (q.scoreVisibleToStudent === true) return 'after_publish';
+  if (q.scoreVisibleToParticipant === true) return 'after_publish';
   return 'after_submit';
 }
 
@@ -52,6 +55,14 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
     return { ...defaultQuizSettings };
   }
   const q = quiz as Record<string, unknown>;
+  const negativeMarkingEnabled =
+    typeof q.negativeMarkingEnabled === 'boolean'
+      ? q.negativeMarkingEnabled
+      : defaultQuizSettings.negativeMarkingEnabled;
+  const questionsCompulsoryRaw =
+    typeof q.questionsCompulsory === 'boolean'
+      ? q.questionsCompulsory
+      : defaultQuizSettings.questionsCompulsory;
   return {
     shuffleQuestions:
       typeof q.shuffleQuestions === 'boolean'
@@ -60,20 +71,18 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
     shuffleOptions:
       typeof q.shuffleOptions === 'boolean' ? q.shuffleOptions : defaultQuizSettings.shuffleOptions,
     scoreRelease: parseScoreRelease(q),
-    answersVisibleToStudent:
-      typeof q.answersVisibleToStudent === 'boolean'
-        ? q.answersVisibleToStudent
-        : defaultQuizSettings.answersVisibleToStudent,
+    answersVisibleToParticipant:
+      typeof q.answersVisibleToParticipant === 'boolean'
+        ? q.answersVisibleToParticipant
+        : defaultQuizSettings.answersVisibleToParticipant,
     allowPrevious:
       typeof q.allowPrevious === 'boolean' ? q.allowPrevious : defaultQuizSettings.allowPrevious,
     showQuestionPanel:
       typeof q.showQuestionPanel === 'boolean'
         ? q.showQuestionPanel
         : defaultQuizSettings.showQuestionPanel,
-    negativeMarkingEnabled:
-      typeof q.negativeMarkingEnabled === 'boolean'
-        ? q.negativeMarkingEnabled
-        : defaultQuizSettings.negativeMarkingEnabled,
+    questionsCompulsory: negativeMarkingEnabled ? false : questionsCompulsoryRaw,
+    negativeMarkingEnabled,
     negativeMarkPoints:
       typeof q.negativeMarkPoints === 'number' &&
       Number.isFinite(q.negativeMarkPoints) &&

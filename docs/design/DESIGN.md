@@ -65,14 +65,23 @@ Charts: `#7E22CE`, `#3B82F6`, `#10B981`, `#F59E0B`, `#EF4444`. Earlier bars use 
 
 ## 3. Typography and spacing
 
-Headings: `Plus Jakarta Sans`, `Segoe UI`, sans-serif. Body and UI: `Source Sans 3`, `Segoe UI`, sans-serif. Sentence case. Table heads are the only uppercase.
+Display (page titles, question text, option letters, timer value): `Sora`, `Segoe UI`, sans-serif. Body and UI (including section and card titles): `Manrope`, `Segoe UI`, sans-serif. Sentence case. Table heads are the only uppercase. Mobile sizes apply under 640px; desktop from 640px up.
 
-| Role                                  | Size                                           | Weight         | Notes                                                      |
+| Role                                  | Size (mobile / desktop)                        | Weight         | Notes                                                      |
 | ------------------------------------- | ---------------------------------------------- | -------------- | ---------------------------------------------------------- |
-| Page title                            | `clamp(1.5rem, 2vw, 1.875rem)` (24–30 px)      | 700            | Tracking −0.035em, line-height 1.25                        |
-| Section title                         | `clamp(1.125rem, 1.35vw, 1.375rem)` (18–22 px) | 650–700        | Tracking −0.02em                                           |
-| Card title                            | 16 px                                          | 650            | Heading font                                               |
-| Body                                  | 16 px                                          | 400            | Line-height 1.6                                            |
+| Page title                            | 24 px / 32 px                                  | 700            | Sora. Tracking −0.035em, line-height 1.25                  |
+| Subtitle                              | 16 px / 20 px                                  | 500            | Manrope. Page description under the title                  |
+| Supporting text                       | 14 px / 16 px                                  | 500            | Manrope. Field hints, question instructions                |
+| Primary button                        | 16 px                                          | 700            | Manrope. Default primary only                              |
+| Question text (attempt)               | 24 px / 42 px                                  | 700            | Sora                                                       |
+| Option text (attempt)                 | 18 px / 26 px                                  | 650            | Manrope                                                    |
+| Option label A–D (attempt)            | 20 px / 26 px                                  | 700            | Sora                                                       |
+| Timer value (attempt)                 | 24 px / 32 px                                  | 700            | Sora                                                       |
+| Timer label, type badge               | 16 px                                          | 600–700        | Manrope                                                    |
+| Question counter, progress %          | 20 px                                          | 700            | Manrope                                                    |
+| Section title                         | `clamp(1.125rem, 1.35vw, 1.375rem)` (18–22 px) | 650–700        | Manrope. Tracking −0.02em                                  |
+| Card title                            | 16 px                                          | 650            | Manrope                                                    |
+| Body                                  | 16 px                                          | 400–500        | Line-height 1.6                                            |
 | UI (`.text-sm`)                       | 15 px                                          | 400–500        | Line-height 1.45. The utility is overridden in `index.css` |
 | Label, breadcrumb, badge (`.text-xs`) | 13 px                                          | 600–700        | Line-height 1.35                                           |
 | Table body                            | 15 px                                          | 400; names 500 |                                                            |
@@ -113,7 +122,7 @@ Import primitives from `@/components/ui`. `admin/components.json` uses shadcn wi
 | Boolean setting       | `Switch` inside `ToggleRow`                                                                                          |
 | Menu                  | `DropdownMenu`                                                                                                       |
 | Confirmation          | `Dialog`                                                                                                             |
-| Record create/view/edit | `FormDialog` (icon header, sticky footer, scroll body, optional size); students/users/sponsors/contests; confirmations stay on plain `Dialog` |
+| Record create/view/edit | `FormDialog` (icon header, sticky footer, scroll body, optional size); participants/users/sponsors/contests; confirmations stay on plain `Dialog` |
 | Mobile side panel     | `Sheet`                                                                                                              |
 | Alert / toast         | `Alert` / Sonner                                                                                                     |
 | List table            | `ResponsiveRecords`: shadcn `Table` inside `Card` at 720px and wider, stacked panels below                           |
@@ -152,7 +161,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 **List.** Meta title and description in `admin/src/routes/meta.ts` → breadcrumb → title and `PageHeaderActions` → `ModuleNav` when the section has one → optional flat KPI row → `Toolbar` (search, filters, Clear Filters, and Sort while panels are showing) → card table or record panels → footer. Create, upload, and download stay in the page header.
 
-**Media card grid.** Only for image-led catalogs (Sponsors, Contests). Match the student client library activity cards (`activity-card` in `client/src/styles.css`), not the flat admin table panels. Same header, KPI row, and `Toolbar` as a list, then `MediaCardGrid` (`repeat(auto-fill, minmax(min(100%, 340px), 1fr))`, 22px gap). Each card: full-bleed cover (`object-cover`, ~2.15∶1), overlay kind pill (+ optional badge), body with optional organizer row, title, two-line summary, meta chips, and a bottom bar (muted label + primary View CTA with stretched hit area; Edit outline sits above the stretch when mutate is allowed). Hover lifts the card; keyboard focus outlines the card. No selection. Sort is always a toolbar select. Pager: “Showing X to Y of Z”, cards per page 12 / 24 / 48. Empty state is one muted sentence in a card.
+**Media card grid.** Only for image-led catalogs (Sponsors, Contests). Match the participant client library activity cards (`activity-card` in `client/src/styles.css`), not the flat admin table panels. Same header, KPI row, and `Toolbar` as a list, then `MediaCardGrid` (`repeat(auto-fill, minmax(min(100%, 340px), 1fr))`, 22px gap). Each card: full-bleed cover (`object-cover`, ~2.15∶1), overlay kind pill (+ optional badge), body with optional organizer row, title, two-line summary, meta chips, and a bottom bar (muted label + primary View CTA with stretched hit area; Edit outline sits above the stretch when mutate is allowed). Hover lifts the card; keyboard focus outlines the card. No selection. Sort is always a toolbar select. Pager: “Showing X to Y of Z”, cards per page 12 / 24 / 48. Empty state is one muted sentence in a card.
 
 **Settings.** `ModuleNav` → grouped cards (icon tile, title, description, fields) → sticky bar with a status line, Reset, and Save. Two columns only from `xl` when the aside is a real second group.
 

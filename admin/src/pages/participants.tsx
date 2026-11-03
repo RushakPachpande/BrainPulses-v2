@@ -1,0 +1,633 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ClockIcon,
+  FileSpreadsheetIcon,
+  MailIcon,
+  PhoneIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  UploadIcon,
+} from 'lucide-react';
+import { ImportResultDialog } from '@/components/import-result-dialog';
+import {
+  importResultFromCounts,
+  importResultFromError,
+  type ImportResultView,
+} from '@/components/import-result';
+import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { RecordSortSelect } from '@/components/record-sort-select';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
+import { RowActions } from '@/components/row-actions';
+import { AccountStatusPill } from '@/components/status-pill';
+import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { useConfirm } from '@/components/use-confirm';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { useAuth } from '@/contexts/auth-context';
+import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { useRecordSelection } from '@/hooks/use-list-selection';
+import { useOrgId } from '@/hooks/use-org-id';
+import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import { ApiError } from '@/lib/api-client';
+import { adminQueryKeys } from '@/lib/query-keys';
+import {
+  activateParticipants,
+  deactivateParticipants,
+  deleteParticipant,
+  downloadParticipantsSample,
+  getParticipants,
+  importParticipants,
+  type Participant,
+} from '@/services';
+import { ParticipantEditorDialog } from '@/pages/participant-editor-dialog';
+import { ParticipantViewDialog } from '@/pages/participant-view-dialog';
+import { participantCities, participantCourses } from '@/services/fixtures';
+
+const EMPTY_PARTICIPANTS: Participant[] = [];
+
+type SortKey =
+  'code' | 'name' | 'email' | 'phone' | 'registered' | 'activities' | 'status' | 'lastLogin';
+
+const participantColumns: RecordColumn<Participant>[] = [
+  {
+    key: 'code',
+    label: 'Unique ID',
+    placement: 'identity',
+    identityPrefix: 'ID: ',
+    tableClassName: 'tabular-nums',
+    render: (participant) => participant.code,
+  },
+  {
+    key: 'name',
+    label: 'Participant',
+    placement: 'title',
+    render: (participant) => <span className="font-medium">{participant.name}</span>,
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    placement: 'wide',
+    icon: MailIcon,
+    render: (participant) => participant.email,
+  },
+  {
+    key: 'phone',
+    label: 'Phone',
+    placement: 'wide',
+    icon: PhoneIcon,
+    tableClassName: 'tabular-nums',
+    render: (participant) => participant.phone,
+  },
+  {
+    key: 'registered',
+    label: 'Registration Date',
+    cardLabel: 'Registered',
+    placement: 'half',
+    icon: CalendarIcon,
+    render: (participant) => participant.registered,
+  },
+  {
+    key: 'activities',
+    label: 'Assigned Activities',
+    placement: 'pill',
+    render: (participant) => `${participant.activities} active`,
+    card: (participant) =>
+      `${participant.activities} active ${participant.activities === 1 ? 'activity' : 'activities'}`,
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    placement: 'status',
+    render: (participant) => <AccountStatusPill value={participant.status} />,
+  },
+  {
+    key: 'lastLogin',
+    label: 'Last Login',
+    cardLabel: 'Last login',
+    placement: 'half',
+    icon: ClockIcon,
+    render: (participant) => participant.lastLogin,
+  },
+];
+
+function compareParticipants(a: Participant, b: Participant, key: SortKey) {
+  const left = a[key];
+  const right = b[key];
+  if (typeof left === 'number' && typeof right === 'number') return left - right;
+  return String(left).localeCompare(String(right), undefined, { numeric: true });
+}
+
+export function ParticipantsPage() {
+  const { narrow, ref } = useContainerNarrow();
+  const auth = useAuth();
+  const orgId = useOrgId();
+  const queryClient = useQueryClient();
+  const membership = auth.status === 'authenticated' ? auth.membership : null;
+  const canMutate = canMutateOrg(membership);
+  const canBulkStatus = canManageUsersOrSettings(membership);
+  const canDelete = canManageUsersOrSettings(membership);
+  const confirm = useConfirm();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [editor, setEditor] = useState<string | null>(null);
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [bulkAction, setBulkAction] = useState<'deactivate' | 'activate' | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<ImportResultView | null>(null);
+  const { data, isPending: loading } = useQuery({
+    queryKey: adminQueryKeys.participants(orgId),
+    queryFn: () => getParticipants(),
+    enabled: Boolean(orgId),
+  });
+  const participants = data ?? EMPTY_PARTICIPANTS;
+
+  async function onDeleteParticipant(participant: Participant) {
+    if (!canDelete) return;
+    const password = await confirm({
+      title: `Delete “${participant.name}”?`,
+      description:
+        'Permanently removes this participant and their registrations, attempts, and results. This cannot be undone.',
+      confirmLabel: 'Delete permanently',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteParticipant(participant.id, password);
+      toast.success('Participant deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'participants'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      if (viewId === participant.id) setViewId(null);
+      if (editor === participant.id) setEditor(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete participant.');
+    }
+  }
+
+  async function onSampleDownload() {
+    try {
+      await downloadParticipantsSample();
+      toast.success('Sample Excel downloaded.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
+    }
+  }
+
+  async function onImportFile(file: File | undefined) {
+    if (!file || !canMutate) return;
+    setImporting(true);
+    try {
+      const result = await importParticipants(file);
+      setImportResult(
+        importResultFromCounts(
+          result.created,
+          result.issues.map((issue) => issue.message),
+          'participant',
+        ),
+      );
+      if (result.created > 0) {
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'participants'] });
+        await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
+      }
+    } catch (err) {
+      setImportResult(importResultFromError(err));
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+  const [search, setSearch] = useState('');
+  const [status, setStatus] = useState('All');
+  const [course, setCourse] = useState('All');
+  const [city, setCity] = useState('All');
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState('10');
+
+  useEffect(() => {
+    const view = searchParams.get('view');
+    const edit = searchParams.get('edit');
+    const create = searchParams.get('create') === '1';
+    if (!view && !edit && !create) return;
+    if (view && loading) return;
+    if (view) {
+      if (participants.some((participant) => participant.id === view)) setViewId(view);
+      else toast.error('Could not load participant.');
+    }
+    if (canMutate && create) setEditor('create');
+    if (canMutate && edit) setEditor(edit);
+    const next = new URLSearchParams(searchParams);
+    next.delete('view');
+    next.delete('edit');
+    next.delete('create');
+    setSearchParams(next, { replace: true });
+  }, [canMutate, loading, searchParams, setSearchParams, participants]);
+
+  const filters: ToolbarFilter[] = [
+    {
+      name: 'Status',
+      options: ['All', 'Active', 'Inactive'],
+      value: status,
+      onValueChange: (value) => {
+        setStatus(value);
+        setPage(1);
+      },
+    },
+    {
+      name: 'Course',
+      options: ['All', ...participantCourses],
+      value: course,
+      onValueChange: (value) => {
+        setCourse(value);
+        setPage(1);
+      },
+    },
+    {
+      name: 'City',
+      options: ['All', ...participantCities],
+      value: city,
+      onValueChange: (value) => {
+        setCity(value);
+        setPage(1);
+      },
+    },
+  ];
+
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    let rows = participants.filter((participant) => {
+      if (status !== 'All' && participant.status !== status) return false;
+      if (course !== 'All' && participant.course !== course) return false;
+      if (city !== 'All' && participant.city !== city) return false;
+      if (!query) return true;
+      return (
+        participant.code.toLowerCase().includes(query) ||
+        participant.name.toLowerCase().includes(query) ||
+        participant.email.toLowerCase().includes(query)
+      );
+    });
+
+    if (sortKey) {
+      rows = [...rows].sort((a, b) => {
+        const result = compareParticipants(a, b, sortKey);
+        return sortDir === 'asc' ? result : -result;
+      });
+    }
+
+    return rows;
+  }, [participants, search, status, course, city, sortKey, sortDir]);
+
+  const size = Number(pageSize);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / size));
+  const currentPage = Math.min(page, pageCount);
+  const start = (currentPage - 1) * size;
+  const pageRows = filtered.slice(start, start + size);
+  const end = filtered.length === 0 ? 0 : Math.min(start + size, filtered.length);
+
+  const pageIds = pageRows.map((row) => row.id);
+  const records = useRecordSelection(
+    orgId,
+    'participants',
+    'participants',
+    pageIds,
+    filtered.map((row) => row.id),
+  );
+
+  function clearFilters() {
+    setSearch('');
+    setStatus('All');
+    setCourse('All');
+    setCity('All');
+    setPage(1);
+  }
+
+  function toggleSort(key: SortKey) {
+    if (sortKey !== key) {
+      setSortKey(key);
+      setSortDir('asc');
+      return;
+    }
+    if (sortDir === 'asc') {
+      setSortDir('desc');
+      return;
+    }
+    setSortKey(null);
+    setSortDir('asc');
+  }
+
+  const selectedRows = participants.filter((participant) => records.selected.has(participant.id));
+  const activeIds = selectedRows
+    .filter((participant) => participant.status === 'Active')
+    .map((participant) => participant.id);
+  const inactiveIds = selectedRows
+    .filter((participant) => participant.status !== 'Active')
+    .map((participant) => participant.id);
+
+  async function changeSelectedStatus(kind: 'activate' | 'deactivate') {
+    const activating = kind === 'activate';
+    const ids = activating ? inactiveIds : activeIds;
+    if (ids.length === 0 || bulkAction) return;
+    const ok = await confirm({
+      title:
+        ids.length === 1
+          ? activating
+            ? 'Activate 1 participant?'
+            : 'Deactivate 1 participant?'
+          : activating
+            ? `Activate ${ids.length} participants?`
+            : `Deactivate ${ids.length} participants?`,
+      description: activating
+        ? 'They will be marked Active and can sign in.'
+        : 'They will be marked Inactive and cannot sign in.',
+      confirmLabel: activating ? 'Activate' : 'Deactivate',
+      destructive: !activating,
+    });
+    if (!ok) return;
+    setBulkAction(kind);
+    try {
+      if (activating) await activateParticipants(ids);
+      else await deactivateParticipants(ids);
+      toast.success(
+        ids.length === 1
+          ? activating
+            ? 'Participant activated.'
+            : 'Participant deactivated.'
+          : activating
+            ? `${ids.length} participants activated.`
+            : `${ids.length} participants deactivated.`,
+      );
+      records.onClear();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : activating
+            ? 'Could not activate participants.'
+            : 'Could not deactivate participants.',
+      );
+    } finally {
+      setBulkAction(null);
+    }
+  }
+
+  const viewing = viewId
+    ? participants.find((participant) => participant.id === viewId)
+    : undefined;
+  const viewDialog = viewing ? (
+    <ParticipantViewDialog
+      participant={viewing}
+      canEdit={canMutate}
+      onOpenChange={(open) => {
+        if (!open) setViewId(null);
+      }}
+      onEdit={
+        canMutate
+          ? () => {
+              setViewId(null);
+              setEditor(viewing.id);
+            }
+          : undefined
+      }
+    />
+  ) : null;
+
+  const editorDialog =
+    editor !== null ? (
+      <ParticipantEditorDialog
+        mode={editor === 'create' ? 'create' : 'edit'}
+        participantId={editor === 'create' ? undefined : editor}
+        onOpenChange={(open) => {
+          if (!open) setEditor(null);
+        }}
+      />
+    ) : null;
+
+  const uploadActions = canMutate ? (
+    <PageHeaderActions>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        className="sr-only"
+        aria-label="Import participants Excel file"
+        onChange={(e) => void onImportFile(e.target.files?.[0])}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={importing}
+        onClick={() => void onSampleDownload()}
+      >
+        <FileSpreadsheetIcon data-icon="inline-start" />
+        Sample Excel
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full sm:w-auto"
+        disabled={importing}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <UploadIcon data-icon="inline-start" />
+        {importing ? 'Importing…' : 'Upload Participants'}
+      </Button>
+      <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
+        <PlusIcon data-icon="inline-start" />
+        Add Participant
+      </Button>
+    </PageHeaderActions>
+  ) : null;
+
+  if (loading) {
+    return (
+      <>
+        <div className="flex flex-col gap-4">
+          {uploadActions}
+          <ListPageSkeleton columns={8} />
+        </div>
+        {viewDialog}
+        {editorDialog}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <div ref={ref} className="flex flex-col gap-4">
+        {uploadActions}
+
+        <Toolbar
+          filters={filters}
+          searchPlaceholder="Search by name, email or ID..."
+          searchValue={search}
+          onSearchChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          actions={
+            <>
+              {narrow ? (
+                <RecordSortSelect
+                  columns={participantColumns}
+                  activeKey={sortKey}
+                  direction={sortDir}
+                  onSort={(key) => toggleSort(key as SortKey)}
+                />
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={clearFilters}
+                className="w-full sm:w-auto"
+              >
+                <RotateCcwIcon data-icon="inline-start" />
+                Clear Filters
+              </Button>
+            </>
+          }
+        />
+
+        <Card>
+          <CardContent className="flex flex-col gap-4">
+            <ResponsiveRecords
+              caption="Participants"
+              rows={pageRows}
+              getRowId={(participant) => participant.id}
+              columns={participantColumns}
+              narrow={narrow}
+              empty="No participants match the current filters."
+              sort={{
+                key: sortKey,
+                direction: sortDir,
+                onSort: (key) => toggleSort(key as SortKey),
+              }}
+              selection={{
+                ...records,
+                rowLabel: (participant) => `Select ${participant.name}`,
+                actions:
+                  canBulkStatus && (inactiveIds.length > 0 || activeIds.length > 0) ? (
+                    <>
+                      {inactiveIds.length > 0 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void changeSelectedStatus('activate')}
+                          disabled={bulkAction !== null}
+                        >
+                          {bulkAction === 'activate' ? 'Activating…' : 'Activate'}
+                        </Button>
+                      ) : null}
+                      {activeIds.length > 0 ? (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => void changeSelectedStatus('deactivate')}
+                          disabled={bulkAction !== null}
+                        >
+                          {bulkAction === 'deactivate' ? 'Deactivating…' : 'Deactivate'}
+                        </Button>
+                      ) : null}
+                    </>
+                  ) : undefined,
+              }}
+              renderActions={(participant) => (
+                <RowActions
+                  view={{ onClick: () => setViewId(participant.id) }}
+                  edit={canMutate ? { onClick: () => setEditor(participant.id) } : undefined}
+                  remove={
+                    canDelete ? { onClick: () => void onDeleteParticipant(participant) } : undefined
+                  }
+                />
+              )}
+              onRowOpen={(participant) => setViewId(participant.id)}
+            />
+
+            <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length}{' '}
+                participants
+              </p>
+              <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                    Rows per page
+                  </span>
+                  <Select
+                    value={pageSize}
+                    onValueChange={(value) => {
+                      setPageSize(value);
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger aria-label="Rows per page" className="w-16 shrink-0 sm:w-20">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {['10', '20', '50'].map((value) => (
+                          <SelectItem key={value} value={value}>
+                            {value}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Previous page"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    <ChevronLeftIcon />
+                  </Button>
+                  <Button type="button" variant="default" size="icon" aria-current="page">
+                    {currentPage}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    aria-label="Next page"
+                    disabled={currentPage >= pageCount}
+                    onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  >
+                    <ChevronRightIcon />
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      {viewDialog}
+      {editorDialog}
+      <ImportResultDialog
+        result={importResult}
+        onOpenChange={(open) => {
+          if (!open) setImportResult(null);
+        }}
+      />
+    </>
+  );
+}

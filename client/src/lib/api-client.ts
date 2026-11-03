@@ -128,7 +128,7 @@ function isMutationMethod(method: string | undefined): boolean {
 }
 
 export type RequestOptions = {
-  /** Skip the blocking overlay, e.g. for autosave while the student keeps working. */
+  /** Skip the blocking overlay, e.g. for autosave while the participant keeps working. */
   background?: boolean;
 };
 

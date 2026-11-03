@@ -1,6 +1,6 @@
 # Technical Requirements Document (TRD)
 
-**Status:** Admin, student client, and API are implemented for local development. Hosting and some operational choices remain proposals. Critical request flows are in [../architecture/DEPENDENCY_MAP.md](../architecture/DEPENDENCY_MAP.md).
+**Status:** Admin, participant client, and API are implemented for local development. Hosting and some operational choices remain proposals. Critical request flows are in [../architecture/DEPENDENCY_MAP.md](../architecture/DEPENDENCY_MAP.md).
 
 ## 1. Current stack
 | Area | Current |

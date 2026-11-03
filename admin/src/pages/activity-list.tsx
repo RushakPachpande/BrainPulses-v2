@@ -92,7 +92,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const sortColumns: { key: SortKey; label: string }[] = [
     { key: 'name', label: nameLabel },
     { key: 'status', label: 'Status' },
-    { key: 'registered', label: 'Registered Students' },
+    { key: 'registered', label: 'Registered Participants' },
     { key: 'attempts', label: 'Attempts' },
     { key: 'start', label: 'Start Date' },
     { key: 'end', label: 'End Date' },

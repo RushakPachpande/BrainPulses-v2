@@ -22,9 +22,9 @@ async function adminToken() {
   return (selected.body as { data: { session: { accessToken: string } } }).data.session.accessToken;
 }
 
-async function studentToken() {
+async function participantToken() {
   const app = await getTestApp();
-  const res = await request(app, 'POST', '/api/auth/student/sign-in-by-code', {
+  const res = await request(app, 'POST', '/api/auth/participant/sign-in-by-code', {
     body: { code: 'BP-24101', organizationSlug: 'nextgeninnov8', replaceSession: true },
   });
   return (res.body as { data: { accessToken: string } }).data.accessToken;
@@ -78,15 +78,15 @@ describe('image library', () => {
     assert.deepEqual(await listNames('question', token), [`${TAG}-anim.gif`, `${TAG}-logo.png`]);
   });
 
-  it('rejects unauthenticated callers, students, and a missing purpose', async () => {
+  it('rejects unauthenticated callers, participants, and a missing purpose', async () => {
     const app = await getTestApp();
     const anon = await request(app, 'GET', '/api/files/images?purpose=catalog');
     assert.equal(anon.status, 401);
 
-    const student = await request(app, 'GET', '/api/files/images?purpose=catalog', {
-      headers: { authorization: `Bearer ${await studentToken()}` },
+    const participant = await request(app, 'GET', '/api/files/images?purpose=catalog', {
+      headers: { authorization: `Bearer ${await participantToken()}` },
     });
-    assert.equal(student.status, 401);
+    assert.equal(participant.status, 401);
 
     const missing = await request(app, 'GET', '/api/files/images', {
       headers: { authorization: `Bearer ${await adminToken()}` },

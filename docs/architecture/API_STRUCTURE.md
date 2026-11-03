@@ -3,7 +3,7 @@
 **Status: Implemented for local UAT.** Canonical contract: [`api/openapi.yaml`](../../api/openapi.yaml).
 
 ## Current state
-Express API on port **3002** (`api/`) with Prisma/Postgres. Admin and student client call live endpoints when `VITE_USE_FIXTURES=false`. Student portal routes live under `/api/student/*`; attempts under `/api/attempts/*`.
+Express API on port **3002** (`api/`) with Prisma/Postgres. Admin and participant client call live endpoints when `VITE_USE_FIXTURES=false`. Participant portal routes live under `/api/participant/*`; attempts under `/api/attempts/*`.
 
 ## Proposed principles
 Use HTTPS outside local development; decide versioning/auth conventions after backend selection; enforce server-side auth/tenant scope; validate path/query/body/files; return only authorized fields; use consistent errors and pagination; make retry-sensitive mutations idempotent; document limits; maintain typed service contracts; never expose privileged DB keys in browser code.
@@ -32,7 +32,7 @@ Confirm response format before implementation.
 |---|---|---|
 | Session | sign-in/session/refresh/sign-out | Provider-dependent |
 | Dashboard | summary/activity | Define metric meaning |
-| Students | list/detail/create/update/deactivate | Pagination and scope |
+| Participants | list/detail/create/update/deactivate | Pagination and scope |
 | Users | list/invite/role change/deactivate | Audit privilege changes |
 | Activities | list/detail/create/update/publish/archive | Validate state transitions |
 | Banks | list/detail/create/update/import | Versioning and references |

@@ -39,7 +39,7 @@ export async function grantReattempt(req: Request, res: Response, next: NextFunc
       actor.organizationId,
       actor.userId,
       req.params.id as string,
-      req.body.studentId,
+      req.body.participantId,
       req.body.mode,
       req.body.note,
     );

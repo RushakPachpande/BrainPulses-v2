@@ -2,27 +2,27 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { ApiError, getAccessToken, isSessionActiveConflict } from '../lib/api-client';
 import {
   getMe,
-  studentRequestOtp,
-  studentResendOtp,
-  studentSignInByCode,
-  studentSignOut,
-  studentVerifyOtp,
+  participantRequestOtp,
+  participantResendOtp,
+  participantSignInByCode,
+  participantSignOut,
+  participantVerifyOtp,
 } from '../services/api';
-import type { StudentProfile } from '../services/types';
+import type { ParticipantProfile } from '../services/types';
 import { clearClientQueryCache } from '../lib/query-client';
 import { AuthContext, SessionActiveError } from './auth-context';
 
 const DEFAULT_ORG_SLUG = 'nextgeninnov8';
 
 async function profileFromAuth(data: {
-  student: { id: string; code: string; name: string; email: string };
+  participant: { id: string; code: string; name: string; email: string };
   organization: { id: string; name: string; slug: string };
-}): Promise<StudentProfile> {
+}): Promise<ParticipantProfile> {
   return getMe().catch(() => ({
-    id: data.student.id,
-    code: data.student.code,
-    name: data.student.name,
-    email: data.student.email,
+    id: data.participant.id,
+    code: data.participant.code,
+    name: data.participant.name,
+    email: data.participant.email,
     phone: null,
     course: null,
     city: null,
@@ -32,15 +32,15 @@ async function profileFromAuth(data: {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [student, setStudent] = useState<StudentProfile | null>(null);
+  const [participant, setParticipant] = useState<ParticipantProfile | null>(null);
 
   const refreshProfile = useCallback(async () => {
     if (!getAccessToken()) {
-      setStudent(null);
+      setParticipant(null);
       return;
     }
     const me = await getMe();
-    setStudent(me);
+    setParticipant(me);
   }, []);
 
   useEffect(() => {
@@ -49,13 +49,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         if (getAccessToken()) {
           const me = await getMe();
-          if (!cancelled) setStudent(me);
+          if (!cancelled) setParticipant(me);
         }
       } catch (err) {
         if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
-          studentSignOut();
+          participantSignOut();
         }
-        if (!cancelled) setStudent(null);
+        if (!cancelled) setParticipant(null);
       } finally {
         if (!cancelled) setReady(true);
       }
@@ -67,8 +67,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signInWithCode = useCallback(async (code: string, replaceSession?: boolean) => {
     try {
-      const data = await studentSignInByCode(code.trim(), DEFAULT_ORG_SLUG, replaceSession);
-      setStudent(await profileFromAuth(data));
+      const data = await participantSignInByCode(code.trim(), DEFAULT_ORG_SLUG, replaceSession);
+      setParticipant(await profileFromAuth(data));
     } catch (err) {
       if (!replaceSession && isSessionActiveConflict(err)) throw new SessionActiveError();
       throw err;
@@ -76,24 +76,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const requestPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
-    await studentRequestOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
+    await participantRequestOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
   }, []);
 
   const resendPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
-    await studentResendOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
+    await participantResendOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
   }, []);
 
   const verifyPhoneOtp = useCallback(
     async (countryCode: string, mobileNumber: string, otp: string, replaceSession?: boolean) => {
       try {
-        const data = await studentVerifyOtp(
+        const data = await participantVerifyOtp(
           countryCode,
           mobileNumber,
           otp,
           DEFAULT_ORG_SLUG,
           replaceSession,
         );
-        setStudent(await profileFromAuth(data));
+        setParticipant(await profileFromAuth(data));
       } catch (err) {
         if (!replaceSession && isSessionActiveConflict(err)) throw new SessionActiveError();
         throw err;
@@ -103,17 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signOut = useCallback(() => {
-    const studentId = student?.id ?? null;
-    void studentSignOut().finally(() => {
-      clearClientQueryCache(studentId);
-      setStudent(null);
+    const participantId = participant?.id ?? null;
+    void participantSignOut().finally(() => {
+      clearClientQueryCache(participantId);
+      setParticipant(null);
     });
-  }, [student?.id]);
+  }, [participant?.id]);
 
   const value = useMemo(
     () => ({
       ready,
-      student,
+      participant,
       signInWithCode,
       requestPhoneOtp,
       resendPhoneOtp,
@@ -123,7 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }),
     [
       ready,
-      student,
+      participant,
       signInWithCode,
       requestPhoneOtp,
       resendPhoneOtp,

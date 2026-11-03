@@ -41,11 +41,11 @@ function removeSessionKeysWithPrefix(prefix: string) {
   }
 }
 
-export function clearClientQueryCache(studentId?: string | null) {
+export function clearClientQueryCache(participantId?: string | null) {
   appQueryClient?.clear();
-  if (studentId) {
+  if (participantId) {
     try {
-      sessionStorage.removeItem(clientPersistKey(studentId));
+      sessionStorage.removeItem(clientPersistKey(participantId));
     } catch {
       /* ignore */
     }

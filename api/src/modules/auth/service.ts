@@ -6,33 +6,39 @@ import { unauthorized, forbidden, badRequest, conflict } from '../../lib/errors.
 import {
   signAccessToken,
   signOrgSelectToken,
-  signStudentAccessToken,
+  signParticipantAccessToken,
   verifyToken,
 } from '../../lib/jwt.js';
-import { verifyPassword } from '../../lib/password.js';
+import { hashPassword, verifyPassword } from '../../lib/password.js';
+import { bumpPasswordEpoch, getPasswordEpoch } from '../../lib/password-epoch.js';
 import { normalizePhone, toE164 } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import {
   issueRefreshToken,
+  revokeAllRefreshForUser,
   revokeRefreshToken,
   rotateRefreshToken,
 } from '../../lib/refresh-tokens.js';
 import {
   assertOtpSendAllowed,
-  consumeStudentOtp,
+  consumeParticipantOtp,
   generateOtpDigits,
   markOtpSend,
-  storeStudentOtp,
-  verifyStudentOtp,
-} from '../../lib/student-otp.js';
+  storeParticipantOtp,
+  verifyParticipantOtp,
+} from '../../lib/participant-otp.js';
 import {
-  clearStudentSession,
-  getStudentSessionId,
-  storeStudentSession,
+  clearParticipantSession,
+  getParticipantSessionId,
+  storeParticipantSession,
   ttlSecondsFromAccessToken,
-} from '../../lib/student-sessions.js';
+} from '../../lib/participant-sessions.js';
+import {
+  getParticipantLoginOptions,
+  isParticipantPhoneLoginEnabled,
+} from '../../lib/participant-login.js';
 import { DEV_FIXED_OTP, DEV_FIXED_OTP_PHONE, sendSmsOtp } from '../../lib/twilio.js';
-import type { Student } from '#prisma';
+import type { Participant } from '#prisma';
 
 const REFRESH_COOKIE = 'bp_refresh';
 
@@ -65,9 +71,12 @@ async function issueSession(
     assessmentAccess: 'full' | 'edit' | 'view' | 'none';
     quizAccess: 'full' | 'edit' | 'view' | 'none';
     organization: { id: string; name: string; slug: string };
-    user: { id: string; email: string; name: string };
+    user: { id: string; email: string; name: string; mustChangePassword: boolean };
   },
+  opts: { touchLastLogin?: boolean } = {},
 ) {
+  const mustChangePassword = membership.user.mustChangePassword;
+  const pwdEpoch = await getPasswordEpoch(membership.userId);
   const accessToken = signAccessToken({
     sub: membership.userId,
     organizationId: membership.organizationId,
@@ -75,6 +84,8 @@ async function issueSession(
     role: membership.role,
     assessmentAccess: membership.assessmentAccess,
     quizAccess: membership.quizAccess,
+    mustChangePassword: mustChangePassword || undefined,
+    pwdEpoch,
   });
 
   const familyId = randomUUID();
@@ -86,10 +97,12 @@ async function issueSession(
   });
   setRefreshCookie(res, refreshToken);
 
-  await prisma.user.update({
-    where: { id: membership.userId },
-    data: { lastLoginAt: new Date() },
-  });
+  if (opts.touchLastLogin !== false) {
+    await prisma.user.update({
+      where: { id: membership.userId },
+      data: { lastLoginAt: new Date() },
+    });
+  }
 
   return {
     accessToken,
@@ -97,6 +110,7 @@ async function issueSession(
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      mustChangePassword,
     },
     organization: membership.organization,
     membership: {
@@ -227,6 +241,8 @@ export async function refresh(reqCookies: Record<string, string | undefined>, re
 
   setRefreshCookie(res, rotated.nextToken);
 
+  const mustChangePassword = membership.user.mustChangePassword;
+  const pwdEpoch = await getPasswordEpoch(membership.userId);
   const accessToken = signAccessToken({
     sub: membership.userId,
     organizationId: membership.organizationId,
@@ -234,6 +250,8 @@ export async function refresh(reqCookies: Record<string, string | undefined>, re
     role: membership.role,
     assessmentAccess: membership.assessmentAccess,
     quizAccess: membership.quizAccess,
+    mustChangePassword: mustChangePassword || undefined,
+    pwdEpoch,
   });
 
   return {
@@ -242,6 +260,7 @@ export async function refresh(reqCookies: Record<string, string | undefined>, re
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      mustChangePassword,
     },
     organization: membership.organization,
     membership: {
@@ -281,6 +300,7 @@ export async function getSession(actor: {
       id: membership.user.id,
       email: membership.user.email,
       name: membership.user.name,
+      mustChangePassword: membership.user.mustChangePassword,
     },
     organization: {
       id: membership.organization.id,
@@ -296,18 +316,105 @@ export async function getSession(actor: {
   };
 }
 
-type StudentWithOrg = Student & {
+export async function changeOwnPassword(
+  actor: {
+    userId: string;
+    organizationId: string;
+    membershipId: string;
+  },
+  input: {
+    currentPassword?: string;
+    newPassword: string;
+    confirmPassword: string;
+  },
+  res: Response,
+) {
+  if (input.newPassword !== input.confirmPassword) {
+    throw badRequest('Passwords do not match.', { confirmPassword: 'Passwords do not match.' });
+  }
+
+  const user = await prisma.user.findUnique({ where: { id: actor.userId } });
+  if (!user || !user.isActive) throw unauthorized();
+
+  if (!user.mustChangePassword) {
+    if (!input.currentPassword) {
+      throw badRequest('Current password is required.', {
+        currentPassword: 'Current password is required.',
+      });
+    }
+    const ok = await verifyPassword(input.currentPassword, user.passwordHash);
+    if (!ok) {
+      throw badRequest('Current password is incorrect.', {
+        currentPassword: 'Current password is incorrect.',
+      });
+    }
+  }
+
+  const sameAsCurrent = await verifyPassword(input.newPassword, user.passwordHash);
+  if (sameAsCurrent) {
+    throw badRequest('New password must be different from the current password.', {
+      newPassword: 'New password must be different from the current password.',
+    });
+  }
+
+  const wasForced = user.mustChangePassword;
+  const passwordHash = await hashPassword(input.newPassword);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      passwordHash,
+      mustChangePassword: false,
+    },
+  });
+
+  await bumpPasswordEpoch(user.id);
+  await revokeAllRefreshForUser(user.id);
+  clearRefreshCookie(res);
+
+  await writeAudit({
+    organizationId: actor.organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'user.password_change',
+    targetType: 'user',
+    targetId: user.id,
+    metadata: { forced: wasForced },
+  });
+
+  if (!wasForced) {
+    return { status: 'signed_out' as const, ok: true as const };
+  }
+
+  const membership = await prisma.membership.findFirst({
+    where: {
+      id: actor.membershipId,
+      userId: actor.userId,
+      organizationId: actor.organizationId,
+      isActive: true,
+    },
+    include: { organization: true, user: true },
+  });
+  if (!membership) throw unauthorized();
+
+  return {
+    status: 'authenticated' as const,
+    session: await issueSession(res, membership, { touchLastLogin: false }),
+  };
+}
+
+type ParticipantWithOrg = Participant & {
   organization: { id: string; name: string; slug: string };
 };
 
-async function issueStudentSession(
-  student: StudentWithOrg,
+async function issueParticipantSession(
+  participant: ParticipantWithOrg,
   opts: { replaceSession?: boolean; auditAction?: string } = {},
 ) {
-  const existingSid = await getStudentSessionId(student.organizationId, student.id);
+  const existingSid = await getParticipantSessionId(participant.organizationId, participant.id);
   if (existingSid && !opts.replaceSession) {
     throw conflict(
-      'Another active session exists for this student. Confirm to revoke it and continue.',
+      'Another active session exists for this participant. Confirm to revoke it and continue.',
       { reason: 'SESSION_ACTIVE' },
     );
   }
@@ -315,65 +422,65 @@ async function issueStudentSession(
   const replacing = Boolean(existingSid && opts.replaceSession);
   const sessionId = randomUUID();
 
-  await prisma.student.update({
-    where: { id: student.id },
+  await prisma.participant.update({
+    where: { id: participant.id },
     data: { lastLoginAt: new Date() },
   });
 
-  const accessToken = signStudentAccessToken({
-    sub: student.id,
-    organizationId: student.organizationId,
+  const accessToken = signParticipantAccessToken({
+    sub: participant.id,
+    organizationId: participant.organizationId,
     sid: sessionId,
   });
-  await storeStudentSession(
-    student.organizationId,
-    student.id,
+  await storeParticipantSession(
+    participant.organizationId,
+    participant.id,
     sessionId,
     ttlSecondsFromAccessToken(accessToken),
   );
 
   if (opts.auditAction) {
     await writeAudit({
-      organizationId: student.organizationId,
-      actorType: 'student',
+      organizationId: participant.organizationId,
+      actorType: 'participant',
       action: opts.auditAction,
-      targetType: 'student',
-      targetId: student.id,
+      targetType: 'participant',
+      targetId: participant.id,
       metadata: { replacedSession: replacing },
     });
   }
   if (replacing) {
     await writeAudit({
-      organizationId: student.organizationId,
-      actorType: 'student',
-      action: 'student.session.replace',
-      targetType: 'student',
-      targetId: student.id,
+      organizationId: participant.organizationId,
+      actorType: 'participant',
+      action: 'participant.session.replace',
+      targetType: 'participant',
+      targetId: participant.id,
     });
   }
 
   return {
     accessToken,
-    student: {
-      id: student.id,
-      code: student.code,
-      name: student.name,
-      email: student.email,
+    participant: {
+      id: participant.id,
+      code: participant.code,
+      name: participant.name,
+      email: participant.email,
     },
     organization: {
-      id: student.organization.id,
-      name: student.organization.name,
-      slug: student.organization.slug,
+      id: participant.organization.id,
+      name: participant.organization.name,
+      slug: participant.organization.slug,
     },
   };
 }
 
-export async function studentSignOutSession(actor: {
-  studentId: string;
+export async function participantSignOutSession(actor: {
+  participantId: string;
   organizationId: string;
   sessionId: string;
 }) {
-  await clearStudentSession(actor.organizationId, actor.studentId, actor.sessionId);
+  await clearParticipantSession(actor.organizationId, actor.participantId, actor.sessionId);
   return { ok: true as const };
 }
 
@@ -383,11 +490,11 @@ function orgFilter(organizationSlug?: string) {
     : { organization: { isActive: true } };
 }
 
-async function findActiveStudents(
+async function findActiveParticipants(
   where: Record<string, unknown>,
   organizationSlug?: string,
-): Promise<StudentWithOrg[]> {
-  return prisma.student.findMany({
+): Promise<ParticipantWithOrg[]> {
+  return prisma.participant.findMany({
     where: {
       ...where,
       isActive: true,
@@ -397,46 +504,50 @@ async function findActiveStudents(
   });
 }
 
-function requireSingleStudent(
-  students: StudentWithOrg[],
+function requireSingleParticipant(
+  participants: ParticipantWithOrg[],
   organizationSlug: string | undefined,
   notFoundMessage: string,
-): StudentWithOrg {
-  if (students.length === 0) throw unauthorized(notFoundMessage);
-  if (students.length > 1 && !organizationSlug) {
+): ParticipantWithOrg {
+  if (participants.length === 0) throw unauthorized(notFoundMessage);
+  if (participants.length > 1 && !organizationSlug) {
     throw badRequest('Multiple organizations match; provide organizationSlug.');
   }
-  return students[0]!;
+  return participants[0]!;
 }
 
-export async function studentSignInByCode(input: {
+export async function participantSignInByCode(input: {
   code: string;
   organizationSlug?: string;
   replaceSession?: boolean;
 }) {
   const code = input.code.trim();
-  const students = await findActiveStudents({ code }, input.organizationSlug);
-  const student = requireSingleStudent(students, input.organizationSlug, 'Invalid Unique ID.');
-  return issueStudentSession(student, {
+  const participants = await findActiveParticipants({ code }, input.organizationSlug);
+  const participant = requireSingleParticipant(
+    participants,
+    input.organizationSlug,
+    'Invalid Unique ID.',
+  );
+  return issueParticipantSession(participant, {
     replaceSession: input.replaceSession,
-    auditAction: 'student.sign_in_by_code',
+    auditAction: 'participant.sign_in_by_code',
   });
 }
 
-async function resolveStudentForPhone(input: {
+async function resolveParticipantForPhone(input: {
   countryCode: string;
   mobileNumber: string;
   organizationSlug?: string;
-}): Promise<StudentWithOrg | null> {
+}): Promise<ParticipantWithOrg | null> {
   const phone = toE164(input.countryCode, input.mobileNumber);
   if (!phone) return null;
 
-  const students = await findActiveStudents({ phone }, input.organizationSlug);
-  if (students.length === 0) {
+  const participants = await findActiveParticipants({ phone }, input.organizationSlug);
+  if (participants.length === 0) {
     // Fallback: match common spaced format still present in older rows
     const spaced = normalizePhone(`${input.countryCode} ${input.mobileNumber}`);
     if (spaced && spaced !== phone) {
-      const alt = await findActiveStudents({ phone: spaced }, input.organizationSlug);
+      const alt = await findActiveParticipants({ phone: spaced }, input.organizationSlug);
       if (alt.length === 1) return alt[0]!;
       if (alt.length > 1 && !input.organizationSlug) {
         throw badRequest('Multiple organizations match; provide organizationSlug.');
@@ -444,27 +555,27 @@ async function resolveStudentForPhone(input: {
     }
     return null;
   }
-  if (students.length > 1 && !input.organizationSlug) {
+  if (participants.length > 1 && !input.organizationSlug) {
     throw badRequest('Multiple organizations match; provide organizationSlug.');
   }
-  return students[0]!;
+  return participants[0]!;
 }
 
-async function issueAndSendOtp(student: StudentWithOrg, phone: string): Promise<string> {
-  await assertOtpSendAllowed(student.organizationId, phone);
+async function issueAndSendOtp(participant: ParticipantWithOrg, phone: string): Promise<string> {
+  await assertOtpSendAllowed(participant.organizationId, phone);
 
   const otp =
     env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED && phone === DEV_FIXED_OTP_PHONE
       ? DEV_FIXED_OTP
       : generateOtpDigits();
 
-  await storeStudentOtp({
-    organizationId: student.organizationId,
+  await storeParticipantOtp({
+    organizationId: participant.organizationId,
     phone,
-    studentId: student.id,
+    participantId: participant.id,
     otp,
   });
-  await markOtpSend(student.organizationId, phone);
+  await markOtpSend(participant.organizationId, phone);
 
   // SMS must not delay or alter the generic response; failures stay private.
   void sendSmsOtp(phone, otp).catch((err: unknown) => {
@@ -473,8 +584,12 @@ async function issueAndSendOtp(student: StudentWithOrg, phone: string): Promise<
   return otp;
 }
 
+export async function participantLoginOptions(organizationSlug?: string) {
+  return getParticipantLoginOptions(organizationSlug);
+}
+
 /** Always returns a generic success payload (no user enumeration). */
-export async function studentRequestOtp(input: {
+export async function participantRequestOtp(input: {
   countryCode: string;
   mobileNumber: string;
   organizationSlug?: string;
@@ -483,11 +598,11 @@ export async function studentRequestOtp(input: {
   if (!phone) throw badRequest('Invalid phone number.');
 
   let debugOtp: string | undefined;
-  const student = await resolveStudentForPhone(input);
-  if (student) {
-    const storedPhone = student.phone ? (normalizePhone(student.phone) ?? phone) : phone;
+  const participant = await resolveParticipantForPhone(input);
+  if (participant && (await isParticipantPhoneLoginEnabled(participant.organizationId))) {
+    const storedPhone = participant.phone ? (normalizePhone(participant.phone) ?? phone) : phone;
     try {
-      const otp = await issueAndSendOtp(student, storedPhone);
+      const otp = await issueAndSendOtp(participant, storedPhone);
       if (env.NODE_ENV === 'test') debugOtp = otp;
     } catch (err) {
       // Cooldown / daily limit: still return generic success to avoid enumeration,
@@ -497,7 +612,9 @@ export async function studentRequestOtp(input: {
   } else if (env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED) {
     // Do not invent digits here — a logged code looks real but was never stored,
     // so verify always fails with "Invalid or expired OTP".
-    console.info(`[otp] TWILIO_ENABLED=false — no matching student for ${phone}; OTP not issued`);
+    console.info(
+      `[otp] TWILIO_ENABLED=false — no matching participant for ${phone}; OTP not issued`,
+    );
   }
 
   return {
@@ -507,15 +624,15 @@ export async function studentRequestOtp(input: {
   };
 }
 
-export async function studentResendOtp(input: {
+export async function participantResendOtp(input: {
   countryCode: string;
   mobileNumber: string;
   organizationSlug?: string;
 }) {
-  return studentRequestOtp(input);
+  return participantRequestOtp(input);
 }
 
-export async function studentVerifyOtp(input: {
+export async function participantVerifyOtp(input: {
   countryCode: string;
   mobileNumber: string;
   otp: string;
@@ -525,13 +642,16 @@ export async function studentVerifyOtp(input: {
   const phone = toE164(input.countryCode, input.mobileNumber);
   if (!phone) throw badRequest('Invalid phone number.');
 
-  const student = await resolveStudentForPhone(input);
-  if (!student) throw unauthorized('Invalid or expired OTP.');
+  const participant = await resolveParticipantForPhone(input);
+  if (!participant) throw unauthorized('Invalid or expired OTP.');
+  if (!(await isParticipantPhoneLoginEnabled(participant.organizationId))) {
+    throw forbidden('Phone sign-in is turned off for your organization.');
+  }
 
-  const storedPhone = student.phone ? (normalizePhone(student.phone) ?? phone) : phone;
+  const storedPhone = participant.phone ? (normalizePhone(participant.phone) ?? phone) : phone;
   // Validate without consuming so SESSION_ACTIVE can retry with replaceSession.
-  const result = await verifyStudentOtp({
-    organizationId: student.organizationId,
+  const result = await verifyParticipantOtp({
+    organizationId: participant.organizationId,
     phone: storedPhone,
     otp: input.otp,
     consume: false,
@@ -544,12 +664,12 @@ export async function studentVerifyOtp(input: {
     throw unauthorized('Invalid or expired OTP.');
   }
 
-  if (result.studentId !== student.id) throw unauthorized('Invalid or expired OTP.');
+  if (result.participantId !== participant.id) throw unauthorized('Invalid or expired OTP.');
 
-  const session = await issueStudentSession(student, {
+  const session = await issueParticipantSession(participant, {
     replaceSession: input.replaceSession,
-    auditAction: 'student.sign_in_otp',
+    auditAction: 'participant.sign_in_otp',
   });
-  await consumeStudentOtp(student.organizationId, storedPhone);
+  await consumeParticipantOtp(participant.organizationId, storedPhone);
   return session;
 }

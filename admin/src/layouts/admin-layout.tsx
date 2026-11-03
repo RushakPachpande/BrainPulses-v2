@@ -4,6 +4,7 @@ import {
   ChevronDownIcon,
   CircleHelpIcon,
   HandshakeIcon,
+  KeyRoundIcon,
   LayoutDashboardIcon,
   ListIcon,
   LogOutIcon,
@@ -13,12 +14,16 @@ import {
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { ConfirmProvider } from '@/components/confirm-dialog';
 import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ApiError } from '@/lib/api-client';
+import { ChangePasswordDialog } from '@/pages/change-password-dialog';
+import { changeOwnPassword } from '@/services';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
   Breadcrumb,
@@ -55,7 +60,7 @@ type NavGroupItem = NavLinkItem & { children?: NavChildItem[] };
 
 const nav: NavGroupItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
-  { to: '/students', label: 'Students', icon: UsersIcon, end: true },
+  { to: '/participants', label: 'Participants', icon: UsersIcon, end: true },
   { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
   { to: '/sponsors', label: 'Sponsors', icon: HandshakeIcon, end: true },
   { to: '/contests', label: 'Contests', icon: TrophyIcon, end: true },
@@ -89,7 +94,7 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/settings', label: 'General', end: true },
-      { to: '/settings/student-portal', label: 'Student portal', end: true },
+      { to: '/settings/participant-portal', label: 'Participant portal', end: true },
       { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },
@@ -215,8 +220,10 @@ function PageHeader({
       </Breadcrumb>
       <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-xl font-semibold">{title}</h1>
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+          <h1 className="page-title truncate font-bold">{title}</h1>
+          {description ? (
+            <p className="page-subtitle mt-1 text-muted-foreground">{description}</p>
+          ) : null}
         </div>
         {actions ? (
           <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0">{actions}</div>
@@ -254,6 +261,72 @@ function SignOutButton() {
     >
       <LogOutIcon />
     </Button>
+  );
+}
+
+function ChangePasswordButton() {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  if (auth.status !== 'authenticated' || auth.membership.role !== 'super_admin') {
+    return null;
+  }
+
+  if (auth.user.mustChangePassword) {
+    return null;
+  }
+
+  return (
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Change password"
+        title="Change password"
+        onClick={() => setOpen(true)}
+      >
+        <KeyRoundIcon />
+      </Button>
+      <ChangePasswordDialog
+        open={open}
+        saving={saving}
+        onOpenChange={(next) => {
+          if (!saving) setOpen(next);
+        }}
+        onSubmit={async (payload) => {
+          setSaving(true);
+          try {
+            const result = await changeOwnPassword(payload);
+            setOpen(false);
+            if (result.status === 'authenticated') {
+              auth.acceptSession({
+                accessToken: result.session.accessToken,
+                user: result.session.user,
+                organization: result.session.organization,
+                membership: {
+                  id: result.session.membership.id,
+                  role: result.session.membership.role as 'super_admin' | 'admin',
+                  assessmentAccess: result.session.membership.assessmentAccess,
+                  quizAccess: result.session.membership.quizAccess,
+                },
+              });
+              toast.success('Password updated.');
+              return;
+            }
+            await auth.signOut();
+            toast.success('Password updated. Sign in with your new password.');
+            void navigate('/login', { replace: true });
+          } catch (err) {
+            toast.error(err instanceof ApiError ? err.message : 'Could not change password.');
+          } finally {
+            setSaving(false);
+          }
+        }}
+      />
+    </>
   );
 }
 
@@ -342,6 +415,7 @@ export function AdminLayout() {
               </div>
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
                 <ThemeToggle />
+                <ChangePasswordButton />
                 <SignOutButton />
               </div>
             </div>

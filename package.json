@@ -63,7 +63,7 @@
     "design:tokens:admin": "npm run design:tokens --prefix admin",
     "tailwindcss:upgrade:admin": "npm run tailwindcss:upgrade --prefix admin",
 
-    "// client": "Client package (client/) — student Vite app",
+    "// client": "Client package (client/) — participant Vite app",
     "dev:client": "npm run dev --prefix client",
     "build:client": "npm run build --prefix client",
     "start:client": "npm run start --prefix client",
@@ -81,7 +81,17 @@
     "check:fix:client": "npm run check:fix --prefix client",
     "verify:client": "npm run verify --prefix client",
     "design:tokens:client": "npm run design:tokens --prefix client",
-    "tailwindcss:upgrade:client": "npm run tailwindcss:upgrade --prefix client"
+    "tailwindcss:upgrade:client": "npm run tailwindcss:upgrade --prefix client",
+
+    "// participant": "Participant package (participant/) — new portal clone, separate from client",
+    "dev:participant": "npm run dev --prefix participant",
+    "build:participant": "npm run build --prefix participant",
+    "start:participant": "npm run start --prefix participant",
+    "preview:participant": "npm run preview --prefix participant",
+    "typecheck:participant": "npm run typecheck --prefix participant",
+    "lint:participant": "npm run lint --prefix participant",
+    "test:participant": "npm run test --prefix participant",
+    "format:check:participant": "npm run format:check --prefix participant"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
