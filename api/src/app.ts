@@ -23,6 +23,7 @@ import { contestsRouter } from './modules/contests/routes.js';
 import { filesRouter } from './modules/files/routes.js';
 import { sponsorsRouter } from './modules/sponsors/routes.js';
 import { registrationsRouter } from './modules/registrations/routes.js';
+import { quizReportsRouter } from './modules/quiz-reports/routes.js';
 import { resultsRouter } from './modules/results/routes.js';
 import { settingsRouter } from './modules/settings/routes.js';
 import { participantPortalRouter } from './modules/participant-portal/routes.js';
@@ -162,6 +163,7 @@ export function createApp() {
   app.use('/api/attempts', attemptsRouter);
   app.use('/api/admin/attempts', adminAttemptsRouter);
   app.use('/api/results', resultsRouter);
+  app.use('/api/quiz-reports', quizReportsRouter);
   app.use('/api/dashboard', dashboardRouter);
   app.use('/api/settings', settingsRouter);
   app.use('/api/audit', auditRouter);

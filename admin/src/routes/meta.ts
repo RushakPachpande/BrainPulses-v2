@@ -70,7 +70,11 @@ export const pageMeta: Record<string, PageMeta> = {
     crumb: 'BrainPulses / Quiz / Registrations / Assign',
     title: 'Assign Participants',
   },
-  '/quizzes/reports': { crumb: 'BrainPulses / Quiz / Reports', title: 'Quiz Reports & Results' },
+  '/quizzes/reports': {
+    crumb: 'BrainPulses / Quiz / Reports',
+    title: 'Quiz Reports & Results',
+    description: "One row per student per quiz. Scores show each student's best attempt.",
+  },
   '/settings': { crumb: 'BrainPulses / Settings / General Settings', title: 'General Settings' },
   '/settings/participant-portal': {
     crumb: 'BrainPulses / Settings / Participant Portal',

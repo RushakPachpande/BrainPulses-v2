@@ -83,6 +83,12 @@ enum ReleaseStatus {
   published
 }
 
+enum AutoSubmitReason {
+  timer
+  quiz_ended
+  quiz_deactivated
+}
+
 enum SettingGroup {
   general
 }
@@ -334,6 +340,7 @@ model Activity {
   imageFileId        String?          @map("image_file_id") @db.Uuid
   sponsorId          String?          @map("sponsor_id") @db.Uuid
   contestId          String?          @map("contest_id") @db.Uuid
+  resultsPublishedAt DateTime?        @map("results_published_at") @db.Timestamptz(3)
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -495,9 +502,10 @@ model Attempt {
   disqualified         Boolean       @default(false)
   disqualifiedAt       DateTime?     @map("disqualified_at") @db.Timestamptz(3)
   disqualifiedByUserId String?       @map("disqualified_by_user_id") @db.Uuid
-  disqualifiedNote     String?       @map("disqualified_note")
-  createdAt            DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt            DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  disqualifiedNote     String?            @map("disqualified_note")
+  autoSubmitReason     AutoSubmitReason? @map("auto_submit_reason")
+  createdAt            DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   activity       Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)

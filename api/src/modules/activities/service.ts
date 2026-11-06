@@ -13,6 +13,7 @@ import {
   defaultRoundSettings,
   parseRoundSettings,
 } from '../../lib/round-settings.js';
+import { settleOpenQuizAttempts } from '../attempts/service.js';
 import { saveSharedPassage, stripPassageText } from '../banks/passages.js';
 import { placeActivityImages, placeQuestionImages } from '../files/place.js';
 import type { z } from 'zod';
@@ -853,6 +854,13 @@ export async function archiveActivity(
       rounds: { include: roundInclude, orderBy: { sortOrder: 'asc' } },
     },
   });
+
+  if (existing.kind === 'quiz') {
+    await settleOpenQuizAttempts(organizationId, {
+      activityId: id,
+      reason: 'quiz_deactivated',
+    });
+  }
 
   await writeAudit({
     organizationId,

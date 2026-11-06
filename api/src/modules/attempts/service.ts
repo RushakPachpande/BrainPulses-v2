@@ -1,7 +1,7 @@
 import { Prisma } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { isQuizScoreVisible, parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
 import {
@@ -111,6 +111,57 @@ async function renewPerQuestionDeadline(
     where: { id: attemptId },
     data: { deadlineAt },
   });
+}
+
+/** Close quiz attempts the product would already auto-submit, and record why. */
+export async function settleOpenQuizAttempts(
+  organizationId: string,
+  opts?: { activityId?: string; reason?: AutoSubmitReasonCode },
+) {
+  const open = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      status: 'in_progress',
+      activity: {
+        kind: 'quiz',
+        ...(opts?.activityId ? { id: opts.activityId } : {}),
+      },
+    },
+    select: {
+      id: true,
+      participantId: true,
+      deadlineAt: true,
+      activity: { select: { endsAt: true, durationMode: true } },
+    },
+  });
+
+  const now = Date.now();
+  for (const attempt of open) {
+    let reason = opts?.reason ?? null;
+    if (!reason) {
+      const ended = attempt.activity.endsAt != null && attempt.activity.endsAt.getTime() <= now;
+      if (ended) reason = 'quiz_ended';
+      else if (
+        attempt.activity.durationMode !== 'per_question' &&
+        attempt.deadlineAt.getTime() <= now
+      ) {
+        reason = 'timer';
+      }
+    }
+    if (!reason) continue;
+    try {
+      await submitAttemptInternal(organizationId, attempt.id, attempt.participantId, {
+        auto: true,
+        idempotencyKey: `auto:${attempt.id}`,
+        autoSubmitReason: reason,
+      });
+    } catch (err) {
+      if (err instanceof AppError && (err.code === 'CONFLICT' || err.code === 'NOT_FOUND')) {
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 type AttemptPresentation = 'one_at_a_time' | 'all_on_page';
@@ -973,11 +1024,18 @@ export async function advanceAttempt(
   };
 }
 
+export type AutoSubmitReasonCode = 'timer' | 'quiz_ended' | 'quiz_deactivated';
+
+function inferAutoSubmitReason(endsAt: Date | null): AutoSubmitReasonCode {
+  if (endsAt && endsAt.getTime() <= Date.now()) return 'quiz_ended';
+  return 'timer';
+}
+
 async function submitAttemptInternal(
   organizationId: string,
   attemptId: string,
   participantId: string,
-  opts: { auto: boolean; idempotencyKey: string },
+  opts: { auto: boolean; idempotencyKey: string; autoSubmitReason?: AutoSubmitReasonCode },
 ) {
   const existingByKey = await prisma.attempt.findFirst({
     where: {
@@ -1112,14 +1170,19 @@ async function submitAttemptInternal(
 
   const needsManualPublish =
     attempt.activity.kind === 'assessment' && roundNeedsManualPublish(questionTypes);
+  const quizPublished =
+    attempt.activity.kind === 'quiz' && attempt.activity.resultsPublishedAt != null;
   const releaseStatus =
-    attempt.activity.kind === 'assessment' && !needsManualPublish
+    quizPublished || (attempt.activity.kind === 'assessment' && !needsManualPublish)
       ? ('published' as const)
       : ('withheld' as const);
   const publishedAt = releaseStatus === 'published' ? new Date() : null;
 
   const submittedAt = new Date();
   const status = opts.auto ? 'auto_submitted' : 'submitted';
+  const autoSubmitReason = opts.auto
+    ? (opts.autoSubmitReason ?? inferAutoSubmitReason(attempt.activity.endsAt))
+    : null;
 
   const [updated, result] = await prisma.$transaction(async (tx) => {
     const locked = await tx.attempt.updateMany({
@@ -1128,6 +1191,7 @@ async function submitAttemptInternal(
         status,
         submittedAt,
         submitIdempotencyKey: opts.idempotencyKey,
+        ...(autoSubmitReason ? { autoSubmitReason } : {}),
       },
     });
     if (locked.count !== 1) {

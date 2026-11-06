@@ -40,6 +40,9 @@ const RegistrationDetailPage = lazy(() =>
   import('@/pages/registration-detail').then((m) => ({ default: m.RegistrationDetailPage })),
 );
 const ReportsPage = lazy(() => import('@/pages/reports').then((m) => ({ default: m.ReportsPage })));
+const QuizReportsPage = lazy(() =>
+  import('@/pages/quiz-reports').then((m) => ({ default: m.QuizReportsPage })),
+);
 const ResultDetailPage = lazy(() =>
   import('@/pages/result-detail').then((m) => ({ default: m.ResultDetailPage })),
 );
@@ -174,7 +177,7 @@ export function AppRoutes() {
             path="quizzes/registrations/:registrationId"
             element={<RegistrationDetailPage kind="quiz" mode="view" />}
           />
-          <Route path="quizzes/reports" element={<ReportsPage kind="quiz" />} />
+          <Route path="quizzes/reports" element={<QuizReportsPage />} />
           <Route path="quizzes/reports/:resultId" element={<ResultDetailPage kind="quiz" />} />
           <Route
             path="quizzes/:activityId"
