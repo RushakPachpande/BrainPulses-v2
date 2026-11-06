@@ -18,6 +18,7 @@ import {
   type ExportableQuestion,
   type ImportIssue,
 } from './import-export.js';
+import { placeQuestionImages } from '../files/place.js';
 import { saveSharedPassage, stripPassageText } from './passages.js';
 import {
   assertTypeAllowedForKind,
@@ -441,6 +442,8 @@ export async function createQuestion(
     1,
   );
 
+  await placeQuestionImages(organizationId, bankId, linked.answerKey, input.options);
+
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -592,6 +595,8 @@ export async function updateQuestion(
       answerKey: version.answerKey,
       options: version.options,
     };
+
+    await placeQuestionImages(organizationId, bankId, linked.answerKey, options);
 
     await writeAudit({
       organizationId,

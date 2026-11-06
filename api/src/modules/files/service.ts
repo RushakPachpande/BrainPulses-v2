@@ -6,6 +6,7 @@ import { pipeline } from 'node:stream/promises';
 import { Transform, type Readable } from 'node:stream';
 import { env } from '../../config/env.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
+import { resolveUnderRoot, storageRelativeForInitiate } from './paths.js';
 import { buildPage, listEnvelope, prismaCursorArgs, type ListQuery } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { getRedis } from '../../lib/redis.js';
@@ -56,12 +57,6 @@ function assertAllowedFile(originalName: string, mimeType: string) {
   }
 }
 
-async function ensureUploadDir(organizationId: string) {
-  const dir = path.resolve(env.UPLOAD_DIR, organizationId);
-  await mkdir(dir, { recursive: true });
-  return dir;
-}
-
 function byteLimitTransform(maxBytes: number) {
   let total = 0;
   return new Transform({
@@ -92,9 +87,12 @@ export async function initiateUpload(
   }
   assertAllowedFile(input.originalName, input.mimeType);
 
-  const dir = await ensureUploadDir(organizationId);
   const storageName = `${randomUUID()}${path.extname(input.originalName).toLowerCase()}`;
-  const storagePath = path.join(dir, storageName);
+  const storagePath = resolveUnderRoot(
+    env.UPLOAD_DIR,
+    storageRelativeForInitiate(organizationId, storageName, input.purpose),
+  );
+  await mkdir(path.dirname(storagePath), { recursive: true });
 
   const file = await prisma.fileObject.create({
     data: {

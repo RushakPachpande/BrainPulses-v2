@@ -14,6 +14,7 @@ import {
   parseRoundSettings,
 } from '../../lib/round-settings.js';
 import { saveSharedPassage, stripPassageText } from '../banks/passages.js';
+import { placeActivityImages, placeQuestionImages } from '../files/place.js';
 import type { z } from 'zod';
 import type {
   activityListQuerySchema,
@@ -530,6 +531,7 @@ export async function createActivity(
         include: listInclude,
       });
       await ensureQuizLocalBank(organizationId, activity.id, activity.name);
+      await placeActivityImages(organizationId, activity);
 
       await writeAudit({
         organizationId,
@@ -580,6 +582,7 @@ export async function createActivity(
     });
     await ensureActivityRoundBanks(organizationId, activity.id, 'assessment');
     const withBanks = await reloadActivity(organizationId, activity.id);
+    await placeActivityImages(organizationId, withBanks);
 
     await writeAudit({
       organizationId,
@@ -723,6 +726,8 @@ export async function updateActivity(
           return reloadActivity(organizationId, id);
         })()
       : activity;
+
+  await placeActivityImages(organizationId, saved);
 
   await writeAudit({
     organizationId,
@@ -1091,6 +1096,8 @@ export async function createRoundQuestion(
     where: { questionVersionId: version.id },
     orderBy: { sortOrder: 'asc' },
   });
+
+  await placeQuestionImages(organizationId, localBankId, answerKey, options);
 
   await writeAudit({
     organizationId,
