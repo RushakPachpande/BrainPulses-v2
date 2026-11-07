@@ -9,7 +9,12 @@ export const pageMeta: Record<string, PageMeta> = {
   '/participants': {
     crumb: 'BrainPulses / Participants',
     title: 'Participants',
-    description: 'Manage participant accounts, view details, and track their learning progress.',
+    description:
+      'One row per participant per contest. Participants join a contest through its registration form.',
+  },
+  '/participants/forms/new': {
+    crumb: 'BrainPulses / Participants / Create registration form',
+    title: 'Create registration form',
   },
   '/sponsors': {
     crumb: 'BrainPulses / Sponsors',
@@ -90,6 +95,20 @@ export const pageMeta: Record<string, PageMeta> = {
 
 export function resolvePageMeta(pathname: string): PageMeta {
   if (pageMeta[pathname]) return pageMeta[pathname]!;
+  const formEdit = pathname.match(/^\/participants\/forms\/([^/]+)\/edit$/);
+  if (formEdit) {
+    return {
+      crumb: 'BrainPulses / Participants / Edit registration form',
+      title: 'Edit registration form',
+    };
+  }
+  const formView = pathname.match(/^\/participants\/forms\/([^/]+)$/);
+  if (formView && formView[1] !== 'new') {
+    return {
+      crumb: 'BrainPulses / Participants / Registration form',
+      title: 'Registration form',
+    };
+  }
   const activityEdit = pathname.match(/^\/(assessments|quizzes)\/([^/]+)\/edit$/);
   if (activityEdit && !['banks', 'registrations', 'reports', 'new'].includes(activityEdit[2]!)) {
     const kind = activityEdit[1] === 'quizzes' ? 'Quiz' : 'Assessment';

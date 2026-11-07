@@ -104,6 +104,16 @@ enum ReattemptMode {
   restart
 }
 
+enum ContestFormStatus {
+  draft
+  saved
+}
+
+enum ContestMatchRule {
+  name_and_contact
+  contact_only
+}
+
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
@@ -132,8 +142,11 @@ model Organization {
   auditEvents        AuditEvent[]
   fileObjects        FileObject[]
   reattemptGrants    ReattemptGrant[]
-  sponsors           Sponsor[]
-  contests           Contest[]
+  sponsors                 Sponsor[]
+  contests                 Contest[]
+  contestForms             ContestRegistrationForm[]
+  contestFormQuizzes       ContestFormQuiz[]
+  contestFormSubmissions   ContestFormSubmission[]
 
   @@map("organizations")
 }
@@ -154,6 +167,8 @@ model User {
   fileObjects          FileObject[]
   disqualifiedAttempts Attempt[]        @relation("AttemptDisqualifiedBy")
   reattemptGrants      ReattemptGrant[]
+  contestFormsCreated  ContestRegistrationForm[] @relation("ContestFormCreatedBy")
+  contestFormsUpdated  ContestRegistrationForm[] @relation("ContestFormUpdatedBy")
 
   @@map("users")
 }
@@ -183,6 +198,8 @@ model Participant {
   organizationId String    @map("organization_id") @db.Uuid
   code           String
   name           String
+  firstName      String?   @map("first_name")
+  lastName       String?   @map("last_name")
   email          String
   phone          String?
   course         String?
@@ -193,15 +210,16 @@ model Participant {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  registrations   Registration[]
-  attempts        Attempt[]
-  results         Result[]
-  reattemptGrants ReattemptGrant[]
+  organization       Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  registrations      Registration[]
+  attempts           Attempt[]
+  results            Result[]
+  reattemptGrants    ReattemptGrant[]
+  contestSubmissions ContestFormSubmission[]
 
-  @@unique([organizationId, code])
-  @@unique([organizationId, email])
-  @@unique([organizationId, phone])
+  @@unique([code])
+  @@index([organizationId, email])
+  @@index([organizationId, phone])
   @@index([organizationId, isActive])
   @@index([organizationId, name])
   @@index([organizationId, cohort])
@@ -350,10 +368,11 @@ model Activity {
   contest         Contest?         @relation(fields: [contestId], references: [id], onDelete: Restrict)
   activityBanks   ActivityBank[]
   rounds          ActivityRound[]
-  registrations   Registration[]
-  attempts        Attempt[]
-  results         Result[]
-  reattemptGrants ReattemptGrant[]
+  registrations      Registration[]
+  attempts           Attempt[]
+  results            Result[]
+  reattemptGrants    ReattemptGrant[]
+  contestFormQuizzes ContestFormQuiz[]
 
   @@unique([organizationId, code])
   @@index([organizationId, kind, status])
@@ -371,10 +390,11 @@ model Sponsor {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  image        FileObject   @relation("SponsorImage", fields: [imageFileId], references: [id], onDelete: Restrict)
-  contests     Contest[]
-  activities   Activity[]
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  image             FileObject                  @relation("SponsorImage", fields: [imageFileId], references: [id], onDelete: Restrict)
+  contests          Contest[]
+  activities        Activity[]
+  registrationForms ContestRegistrationForm[]
 
   @@index([organizationId, name])
   @@map("sponsors")
@@ -390,10 +410,11 @@ model Contest {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sponsor      Sponsor      @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
-  image        FileObject   @relation("ContestImage", fields: [imageFileId], references: [id], onDelete: Restrict)
-  activities   Activity[]
+  organization     Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sponsor          Sponsor                    @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  image            FileObject                 @relation("ContestImage", fields: [imageFileId], references: [id], onDelete: Restrict)
+  activities       Activity[]
+  registrationForm ContestRegistrationForm?
 
   @@index([organizationId, sponsorId])
   @@index([organizationId, name])
@@ -635,6 +656,82 @@ model Notification {
 
   @@index([organizationId, createdAt])
   @@map("notifications")
+}
+
+model ContestRegistrationForm {
+  id                     String            @id @default(uuid()) @db.Uuid
+  organizationId         String            @map("organization_id") @db.Uuid
+  sponsorId              String?           @map("sponsor_id") @db.Uuid
+  contestId              String?           @unique @map("contest_id") @db.Uuid
+  status                 ContestFormStatus @default(draft)
+  opensAt                DateTime?         @map("opens_at") @db.Timestamptz(3)
+  closesAt               DateTime?         @map("closes_at") @db.Timestamptz(3)
+  seats                  Int?
+  welcomeMessage         String?           @map("welcome_message") @db.VarChar(300)
+  showContestImage       Boolean           @default(true) @map("show_contest_image")
+  showSponsorName        Boolean           @default(true) @map("show_sponsor_name")
+  showRegistrationCloses Boolean           @default(true) @map("show_registration_closes")
+  showSeatsLeft          Boolean           @default(true) @map("show_seats_left")
+  fields                 Json
+  slug                   String?           @unique
+  retiredSlugs           String[]          @default([]) @map("retired_slugs")
+  linkActive             Boolean           @default(true) @map("link_active")
+  emailOnQuiz            Boolean           @default(true) @map("email_on_quiz")
+  domainRestriction      Boolean           @default(false) @map("domain_restriction")
+  allowedDomains         String[]          @default([]) @map("allowed_domains")
+  domainMessage          String            @default("Please use your {domains} email address to register.") @map("domain_message") @db.VarChar(160)
+  keepExistingId         Boolean           @default(true) @map("keep_existing_id")
+  matchRule              ContestMatchRule  @default(name_and_contact) @map("match_rule")
+  createdByUserId        String?           @map("created_by_user_id") @db.Uuid
+  updatedByUserId        String?           @map("updated_by_user_id") @db.Uuid
+  createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sponsor      Sponsor?                @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
+  contest      Contest?                @relation(fields: [contestId], references: [id], onDelete: Restrict)
+  createdBy    User?                   @relation("ContestFormCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy    User?                   @relation("ContestFormUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  quizzes      ContestFormQuiz[]
+  submissions  ContestFormSubmission[]
+
+  @@index([organizationId, createdAt])
+  @@map("contest_registration_forms")
+}
+
+model ContestFormQuiz {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  formId         String   @map("form_id") @db.Uuid
+  activityId     String   @map("activity_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  form         ContestRegistrationForm  @relation(fields: [formId], references: [id], onDelete: Cascade)
+  activity     Activity                 @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, activityId])
+  @@index([organizationId, formId])
+  @@map("contest_form_quizzes")
+}
+
+model ContestFormSubmission {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  formId         String   @map("form_id") @db.Uuid
+  participantId  String   @map("participant_id") @db.Uuid
+  email          String
+  mobile         String?
+  answers        Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  form         ContestRegistrationForm @relation(fields: [formId], references: [id], onDelete: Cascade)
+  participant  Participant             @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([formId, participantId])
+  @@index([organizationId, formId])
+  @@map("contest_form_submissions")
 }
 
 model AuditEvent {

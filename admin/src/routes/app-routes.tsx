@@ -14,6 +14,12 @@ const DashboardPage = lazy(() =>
 const ParticipantsPage = lazy(() =>
   import('@/pages/participants').then((m) => ({ default: m.ParticipantsPage })),
 );
+const ContestFormWizardPage = lazy(() =>
+  import('@/pages/contest-form-wizard').then((m) => ({ default: m.ContestFormWizardPage })),
+);
+const ContestFormViewPage = lazy(() =>
+  import('@/pages/contest-form-view').then((m) => ({ default: m.ContestFormViewPage })),
+);
 const SponsorsPage = lazy(() =>
   import('@/pages/sponsors').then((m) => ({ default: m.SponsorsPage })),
 );
@@ -66,14 +72,6 @@ function SuspenseOutlet() {
   );
 }
 
-function LegacyParticipantRoute({ edit }: { edit?: boolean }) {
-  const { participantId = '' } = useParams();
-  const target = edit
-    ? `/participants?edit=${participantId}`
-    : `/participants?view=${participantId}`;
-  return <Navigate to={target} replace />;
-}
-
 function LegacyUserRoute({ edit }: { edit?: boolean }) {
   const { userId = '' } = useParams();
   const target = edit ? `/users?edit=${userId}` : `/users?view=${userId}`;
@@ -102,19 +100,31 @@ export function AppRoutes() {
           <Route path="change-password" element={<ChangePasswordPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="participants" element={<ParticipantsPage />} />
+          <Route path="participants/forms/:formId" element={<ContestFormViewPage />} />
           <Route path="students" element={<Navigate to="/participants" replace />} />
           <Route path="students/*" element={<Navigate to="/participants" replace />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
             <Route
+              path="participants/forms/new"
+              element={<ContestFormWizardPage mode="create" />}
+            />
+            <Route
+              path="participants/forms/:formId/edit"
+              element={<ContestFormWizardPage mode="edit" />}
+            />
+            <Route
               path="participants/new"
-              element={<Navigate to="/participants?create=1" replace />}
+              element={<Navigate to="/participants/forms/new" replace />}
             />
             <Route
               path="participants/:participantId/edit"
-              element={<LegacyParticipantRoute edit />}
+              element={<Navigate to="/participants" replace />}
             />
           </Route>
-          <Route path="participants/:participantId" element={<LegacyParticipantRoute />} />
+          <Route
+            path="participants/:participantId"
+            element={<Navigate to="/participants" replace />}
+          />
           <Route path="sponsors" element={<SponsorsPage />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
             <Route path="sponsors/new" element={<Navigate to="/sponsors?create=1" replace />} />

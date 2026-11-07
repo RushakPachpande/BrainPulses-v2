@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ApiError, getAccessToken, isSessionActiveConflict } from '../lib/api-client';
-import {
-  getMe,
-  participantRequestOtp,
-  participantResendOtp,
-  participantSignInByCode,
-  participantSignOut,
-  participantVerifyOtp,
-} from '../services/api';
+import { getMe, participantSignInByCode, participantSignOut } from '../services/api';
 import type { ParticipantProfile } from '../services/types';
 import { clearClientQueryCache } from '../lib/query-client';
 import { AuthContext, SessionActiveError } from './auth-context';
@@ -75,33 +68,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const requestPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
-    await participantRequestOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
-  }, []);
-
-  const resendPhoneOtp = useCallback(async (countryCode: string, mobileNumber: string) => {
-    await participantResendOtp(countryCode, mobileNumber, DEFAULT_ORG_SLUG);
-  }, []);
-
-  const verifyPhoneOtp = useCallback(
-    async (countryCode: string, mobileNumber: string, otp: string, replaceSession?: boolean) => {
-      try {
-        const data = await participantVerifyOtp(
-          countryCode,
-          mobileNumber,
-          otp,
-          DEFAULT_ORG_SLUG,
-          replaceSession,
-        );
-        setParticipant(await profileFromAuth(data));
-      } catch (err) {
-        if (!replaceSession && isSessionActiveConflict(err)) throw new SessionActiveError();
-        throw err;
-      }
-    },
-    [],
-  );
-
   const signOut = useCallback(() => {
     const participantId = participant?.id ?? null;
     void participantSignOut().finally(() => {
@@ -115,22 +81,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ready,
       participant,
       signInWithCode,
-      requestPhoneOtp,
-      resendPhoneOtp,
-      verifyPhoneOtp,
       signOut,
       refreshProfile,
     }),
-    [
-      ready,
-      participant,
-      signInWithCode,
-      requestPhoneOtp,
-      resendPhoneOtp,
-      verifyPhoneOtp,
-      signOut,
-      refreshProfile,
-    ],
+    [ready, participant, signInWithCode, signOut, refreshProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
