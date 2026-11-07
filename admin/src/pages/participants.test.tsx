@@ -28,30 +28,60 @@ vi.mock('@/contexts/auth-context', () => ({
   }),
 }));
 
-vi.mock('@/services', async () => {
-  const actual = await vi.importActual<typeof import('@/services')>('@/services');
-  return {
-    ...actual,
-    getParticipants: vi.fn(async () => [
+vi.mock('@/services/contest-forms', () => ({
+  getContestFormOverview: vi.fn(async () => ({
+    kpis: { forms: 1, liveLinks: 1, participants: 1, formsWithoutQuiz: 0 },
+    forms: [
       {
-        id: 'uuid-stu-1',
-        code: 'STU-1',
+        id: 'form-1',
+        status: 'saved',
+        sponsorId: 's1',
+        sponsorName: 'Acme',
+        sponsorImageFileId: null,
+        contestId: 'c1',
+        contestName: 'Code Quest',
+        contestImageFileId: null,
+        opensAt: null,
+        closesAt: null,
+        seats: null,
+        welcomeMessage: '',
+        showContestImage: true,
+        showSponsorName: true,
+        showRegistrationCloses: true,
+        showSeatsLeft: true,
+        fields: [],
+        slug: 'code-quest',
+        linkActive: true,
+        domainRestriction: false,
+        allowedDomains: [],
+        domainMessage: '',
+        keepExistingId: true,
+        matchRule: 'name_and_contact',
+        registrationCount: 1,
+        quizzes: [
+          { id: 'q1', name: 'Round 1', startsAt: null, endsAt: null, availability: 'Active' },
+        ],
+        createdAt: '2026-11-01T00:00:00.000Z',
+        updatedAt: '2026-11-01T00:00:00.000Z',
+      },
+    ],
+    people: [
+      {
+        id: 'sub-1',
+        code: 'BP48210937',
         name: 'Ada Lovelace',
         email: 'ada@example.com',
-        phone: '555-0100',
-        registered: '01 Jan 2026, 10:00 AM',
-        activities: 2,
-        status: 'Active',
-        lastLogin: '02 Jan 2026, 09:00 AM',
-        course: 'CSE',
-        city: 'London',
+        sponsorName: 'Acme',
+        contestName: 'Code Quest',
+        quizzesGiven: 1,
+        registeredAt: '2026-11-02T04:30:00.000Z',
       },
-    ]),
-  };
-});
+    ],
+  })),
+}));
 
 describe('ParticipantsPage', () => {
-  it('shows the participants footer count after load', async () => {
+  it('shows saved forms and people who registered through them', async () => {
     renderWithAdminQuery(
       <MemoryRouter>
         <PageHeaderProvider>
@@ -61,8 +91,9 @@ describe('ParticipantsPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText(/Showing 1 to 1 of 1 participants/i)).toBeInTheDocument();
+      expect(screen.getByText('Code Quest')).toBeInTheDocument();
     });
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getByText(/Showing 1 to 1 of 1 participants/i)).toBeInTheDocument();
   });
 });

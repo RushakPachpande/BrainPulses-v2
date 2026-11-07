@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { SortHeader } from '@/components/sort-header';
 import { Button } from '@/components/ui/button';
@@ -74,6 +74,14 @@ function fieldSpan(placement: RecordPlacement): 'wide' | 'half' | null {
   return null;
 }
 
+function rowKeyDown<Row>(event: KeyboardEvent, row: Row, onRowOpen?: (row: Row) => void) {
+  if (!onRowOpen) return;
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  if (event.target !== event.currentTarget) return;
+  event.preventDefault();
+  onRowOpen(row);
+}
+
 function clickOpensRow(event: { target: EventTarget | null }) {
   const target = event.target;
   if (!(target instanceof Element)) return false;
@@ -135,7 +143,14 @@ function RecordPanel<Row>({
     <li
       data-slot="record-panel"
       data-state={selected ? 'selected' : undefined}
-      className={cn('p-3.5', onRowOpen && 'cursor-pointer')}
+      data-row-id={onRowOpen ? id : undefined}
+      tabIndex={onRowOpen ? 0 : undefined}
+      className={cn(
+        'p-3.5',
+        onRowOpen &&
+          'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
+      )}
+      onKeyDown={(event) => rowKeyDown(event, row, onRowOpen)}
       onClick={
         onRowOpen
           ? (event) => {
@@ -388,7 +403,14 @@ export function ResponsiveRecords<Row>({
                 <TableRow
                   key={id}
                   data-state={selection?.selected.has(id) ? 'selected' : undefined}
-                  className={onRowOpen ? 'cursor-pointer' : undefined}
+                  data-row-id={onRowOpen ? id : undefined}
+                  tabIndex={onRowOpen ? 0 : undefined}
+                  className={
+                    onRowOpen
+                      ? 'cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring'
+                      : undefined
+                  }
+                  onKeyDown={(event) => rowKeyDown(event, row, onRowOpen)}
                   onClick={
                     onRowOpen
                       ? (event) => {

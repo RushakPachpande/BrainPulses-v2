@@ -1,12 +1,4 @@
-import {
-  ArrowRight,
-  BookOpen,
-  CalendarDays,
-  Clock3,
-  FileText,
-  Target,
-  Timer,
-} from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarDays, Clock3, FileText, Target, Timer } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { ActivityCardMedia, ActivityOrganizer } from '../components/activity-images';
@@ -142,7 +134,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
             <b>{isQuiz ? 'No quizzes yet' : 'No assessments yet'}</b>
             <span>
               {isQuiz
-                ? 'When your coordinator assigns a quiz, it will appear here.'
+                ? "No quizzes yet. You'll get an email when one is ready."
                 : 'When your coordinator assigns an assessment, it will appear here.'}
             </span>
           </div>

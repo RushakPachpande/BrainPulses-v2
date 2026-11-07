@@ -12,12 +12,22 @@ import {
 } from '@/components/ui/select';
 import { useDebouncedValue } from '@/hooks/use-debounced-value';
 
+export type ToolbarFilterOption = string | { value: string; label: string };
+
 export type ToolbarFilter = {
   name: string;
-  options: string[];
+  options: ToolbarFilterOption[];
   value: string;
   onValueChange: (value: string) => void;
 };
+
+function optionValue(option: ToolbarFilterOption) {
+  return typeof option === 'string' ? option : option.value;
+}
+
+function optionLabel(option: ToolbarFilterOption) {
+  return typeof option === 'string' ? option : option.label;
+}
 
 function isFilterDefs(filters: string[] | ToolbarFilter[]): filters is ToolbarFilter[] {
   return filters.length > 0 && typeof filters[0] !== 'string';
@@ -30,6 +40,7 @@ export function Toolbar({
   searchPlaceholder = 'Search',
   searchValue,
   onSearchChange,
+  disabled = false,
 }: {
   filters: string[] | ToolbarFilter[];
   actions?: ReactNode;
@@ -37,6 +48,7 @@ export function Toolbar({
   searchPlaceholder?: string;
   searchValue?: string;
   onSearchChange?: (value: string) => void;
+  disabled?: boolean;
 }) {
   const structured = isFilterDefs(filters);
   const [inputValue, setInputValue] = useState(searchValue ?? '');
@@ -67,22 +79,32 @@ export function Toolbar({
           aria-label={searchPlaceholder}
           autoComplete="off"
           value={inputValue}
+          disabled={disabled}
           onChange={(event) => setInputValue(event.target.value)}
         />
       </InputGroup>
       {structured
         ? filters.map((filter) => (
-            <Select key={filter.name} value={filter.value} onValueChange={filter.onValueChange}>
+            <Select
+              key={filter.name}
+              value={filter.value}
+              onValueChange={filter.onValueChange}
+              disabled={disabled}
+            >
               <SelectTrigger aria-label={filter.name} className="w-full shrink-0 sm:w-40">
                 <span className="truncate">
-                  {filter.name}: {filter.value}
+                  {filter.name}:{' '}
+                  {optionLabel(
+                    filter.options.find((option) => optionValue(option) === filter.value) ??
+                      filter.value,
+                  )}
                 </span>
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
                   {filter.options.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
+                    <SelectItem key={optionValue(option)} value={optionValue(option)}>
+                      {optionLabel(option)}
                     </SelectItem>
                   ))}
                 </SelectGroup>

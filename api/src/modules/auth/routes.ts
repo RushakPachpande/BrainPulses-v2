@@ -6,10 +6,7 @@ import {
   changePasswordSchema,
   selectOrganizationSchema,
   signInSchema,
-  participantRequestOtpSchema,
-  participantResendOtpSchema,
   participantSignInByCodeSchema,
-  participantVerifyOtpSchema,
 } from './schema.js';
 
 export const authRouter = Router();
@@ -25,21 +22,6 @@ authRouter.post(
   '/participant/sign-in-by-code',
   validate({ body: participantSignInByCodeSchema }),
   controller.participantSignInByCode,
-);
-authRouter.post(
-  '/participant/request-otp',
-  validate({ body: participantRequestOtpSchema }),
-  controller.participantRequestOtp,
-);
-authRouter.post(
-  '/participant/resend-otp',
-  validate({ body: participantResendOtpSchema }),
-  controller.participantResendOtp,
-);
-authRouter.post(
-  '/participant/verify-otp',
-  validate({ body: participantVerifyOtpSchema }),
-  controller.participantVerifyOtp,
 );
 authRouter.post(
   '/participant/sign-out',

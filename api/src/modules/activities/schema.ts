@@ -27,6 +27,7 @@ export const quizSettingsSchema = z
     negativeMarkingEnabled: z.boolean().default(false),
     negativeMarkPoints: z.number().min(0).max(1000).default(0),
     maxAttempts: z.number().int().min(1).max(100).nullable().default(1),
+    questionLimit: z.number().int().min(1).max(500).nullable().default(null),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -59,15 +60,83 @@ export const activitySettingsSchema = z
   })
   .strict();
 
+export const roundBehaviourSettingsSchema = z
+  .object({
+    shuffleQuestions: z.boolean().default(true),
+    shuffleOptions: z.boolean().default(true),
+    scoreRelease: z.enum(['after_submit', 'after_publish']).default('after_submit'),
+    answersVisibleToParticipant: z.boolean().default(false),
+    allowPrevious: z.boolean().default(true),
+    showQuestionPanel: z.boolean().default(true),
+    questionsCompulsory: z.boolean().default(true),
+    negativeMarkingEnabled: z.boolean().default(false),
+    negativeMarkPoints: z.number().min(0).max(1000).default(0),
+    maxAttempts: z.number().int().min(1).max(100).nullable().default(1),
+    questionLimit: z.number().int().min(1).max(500).nullable().default(null),
+  })
+  .strict()
+  .superRefine((val, ctx) => {
+    if (val.negativeMarkingEnabled && !(val.negativeMarkPoints > 0)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter marks to deduct when negative marking is on.',
+        path: ['negativeMarkPoints'],
+      });
+    }
+  })
+  .transform((val) => (val.negativeMarkingEnabled ? { ...val, questionsCompulsory: false } : val));
+
 export const activityRoundInputSchema = z
   .object({
     id: z.string().uuid().optional(),
     name: z.string().trim().min(1).max(120),
     sortOrder: z.number().int().min(0),
     durationMinutes: z.number().int().positive().optional().nullable(),
+    durationMode: durationModeSchema.optional().default('overall'),
+    perQuestionSeconds: z.number().int().positive().max(86_400).optional().nullable(),
+    presentation: z.enum(['one_at_a_time', 'all_on_page']).optional().default('one_at_a_time'),
+    passMode: z.enum(['percent', 'score']).optional().default('percent'),
+    passingPercent: z.number().min(0).max(100).optional().nullable(),
+    passingScore: z.number().min(0).max(1_000_000).optional().nullable(),
+    settings: roundBehaviourSettingsSchema.optional(),
+    imageFileId: z.string().uuid().optional().nullable(),
     bankIds: z.array(z.string().uuid()).default([]),
   })
-  .strict();
+  .strict()
+  .superRefine((val, ctx) => {
+    const mode = val.durationMode ?? 'overall';
+    if (mode === 'per_question') {
+      if (!val.perQuestionSeconds) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter seconds for each question.',
+          path: ['perQuestionSeconds'],
+        });
+      }
+    } else if (val.durationMinutes != null && val.durationMinutes <= 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter the overall duration in minutes.',
+        path: ['durationMinutes'],
+      });
+    }
+    const passMode = val.passMode ?? 'percent';
+    if (passMode === 'percent') {
+      if (val.passingPercent == null) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Enter a passing percent.',
+          path: ['passingPercent'],
+        });
+      }
+    } else if (val.passingScore == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Enter a passing score.',
+        path: ['passingScore'],
+      });
+    }
+  });
 
 export const activityListStatusSchema = flowStatusSchema
   .or(z.literal('all'))
@@ -104,21 +173,21 @@ export const createActivitySchema = z
   })
   .strict()
   .superRefine((val, ctx) => {
+    if (!val.sponsorId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose a sponsor.',
+        path: ['sponsorId'],
+      });
+    }
+    if (!val.contestId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose a contest.',
+        path: ['contestId'],
+      });
+    }
     if (val.kind === 'quiz') {
-      if (!val.sponsorId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Choose a sponsor.',
-          path: ['sponsorId'],
-        });
-      }
-      if (!val.contestId) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Choose a contest.',
-          path: ['contestId'],
-        });
-      }
       if (!val.startsAt) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -213,10 +282,6 @@ export const createRoundQuestionSchema = z
       'numeric',
       'short_text',
       'long_text',
-      'passage',
-      'match',
-      'image_mcq',
-      'image_selection',
       'comprehension_mcq',
     ]),
     question: z.string().trim().min(1).max(5000),

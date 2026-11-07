@@ -13,6 +13,14 @@ import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { useConfirm } from '@/components/use-confirm';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -58,9 +66,11 @@ export function QuizQuestionsPanel({
   readOnly,
   onEnsureBank,
   onCount,
+  kind = 'quiz',
 }: {
   bankId: string | null;
   readOnly: boolean;
+  kind?: 'quiz' | 'assessment';
   onEnsureBank: () => Promise<string | null>;
   onCount?: (count: number) => void;
 }) {
@@ -77,6 +87,8 @@ export function QuizQuestionsPanel({
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(() => emptyDraft('single_mcq'));
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState('10');
 
   function reportCount(items: BankQuestionItem[]) {
     onCount?.(items.filter((item) => isQuestionActive(item)).length);
@@ -97,7 +109,7 @@ export function QuizQuestionsPanel({
         const bank = await getQuestionBank(bankId);
         if (cancelled) return;
         setQuestions(bank.items);
-        reportCount(bank.items);
+        onCount?.(bank.items.filter((item) => isQuestionActive(item)).length);
       } catch (err) {
         if (!cancelled) {
           toast.error(err instanceof ApiError ? err.message : 'Could not load questions.');
@@ -137,7 +149,14 @@ export function QuizQuestionsPanel({
     });
   }, [questions, search, statusFilter]);
 
-  const filteredIds = filteredQuestions.map((item) => item.id);
+  const size = Number(pageSize);
+  const pageCount = Math.max(1, Math.ceil(filteredQuestions.length / size));
+  const safePage = Math.min(page, pageCount);
+  const start = (safePage - 1) * size;
+  const pageRows = filteredQuestions.slice(start, start + size);
+  const end = start + pageRows.length;
+
+  const filteredIds = pageRows.map((item) => item.id);
   const allFilteredSelected = filteredIds.length > 0 && filteredIds.every((id) => selected.has(id));
   const someFilteredSelected = filteredIds.some((id) => selected.has(id));
 
@@ -171,7 +190,7 @@ export function QuizQuestionsPanel({
 
   async function onSave() {
     if (!dialog || dialog.kind === 'view') return;
-    const error = validateDraft(draft, 'quiz');
+    const error = validateDraft(draft, kind);
     if (error) {
       toast.error(error);
       return;
@@ -180,7 +199,7 @@ export function QuizQuestionsPanel({
     try {
       const id = await resolveBankId();
       if (!id) return;
-      const payload = draftToPayloadForKind(draft, 'quiz');
+      const payload = draftToPayloadForKind(draft, kind);
       if (dialog.kind === 'add') {
         await addBankQuestion(id, payload);
         toast.success('Question added.');
@@ -457,7 +476,7 @@ export function QuizQuestionsPanel({
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredQuestions.map((item) => {
+                      {pageRows.map((item) => {
                         const active = isQuestionActive(item);
                         return (
                           <TableRow key={item.id}>
@@ -521,6 +540,59 @@ export function QuizQuestionsPanel({
                   </Table>
                 </div>
               )}
+              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  Showing {filteredQuestions.length === 0 ? 0 : start + 1} to {end} of{' '}
+                  {filteredQuestions.length} questions
+                </p>
+                <div className="flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                      Rows per page
+                    </span>
+                    <Select
+                      value={pageSize}
+                      onValueChange={(value) => {
+                        setPageSize(value);
+                        setPage(1);
+                      }}
+                    >
+                      <SelectTrigger aria-label="Rows per page" className="w-16 shrink-0 sm:w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          {['10', '20', '50'].map((value) => (
+                            <SelectItem key={value} value={value}>
+                              {value}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage <= 1}
+                      onClick={() => setPage(safePage - 1)}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={safePage >= pageCount}
+                      onClick={() => setPage(safePage + 1)}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </>
           )}
         </CardContent>
@@ -530,7 +602,7 @@ export function QuizQuestionsPanel({
             mode={dialog.kind}
             draft={draft}
             saving={saving}
-            kind="quiz"
+            kind={kind}
             onOpenChange={(open) => {
               if (!open) setDialog(null);
             }}

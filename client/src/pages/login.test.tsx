@@ -11,14 +11,11 @@ const auth: AuthState = {
   ready: true,
   participant: null,
   signInWithCode: async () => undefined,
-  requestPhoneOtp: async () => undefined,
-  resendPhoneOtp: async () => undefined,
-  verifyPhoneOtp: async () => undefined,
   signOut: () => undefined,
   refreshProfile: async () => undefined,
 };
 
-it('shows the Unique ID field and sign-in button', () => {
+it('shows the Registration ID field and sign-in button', () => {
   render(
     <MemoryRouter>
       <AuthContext.Provider value={auth}>
@@ -27,6 +24,7 @@ it('shows the Unique ID field and sign-in button', () => {
     </MemoryRouter>,
   );
 
-  expect(screen.getByRole('textbox', { name: 'Unique ID' })).toBeInTheDocument();
+  expect(screen.getByRole('textbox', { name: 'Registration ID' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
+  expect(screen.queryByRole('tab', { name: 'Phone' })).not.toBeInTheDocument();
 });

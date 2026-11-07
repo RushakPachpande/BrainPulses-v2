@@ -1,11 +1,18 @@
 import '../src/config/load-env.js';
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { crc32, deflateSync } from 'node:zlib';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcryptjs';
 import { Pool } from 'pg';
 import { PrismaClient, type ActivityKind, type FlowStatus } from '#prisma';
+import {
+  destinationRelative,
+  pendingRelative,
+  relativeFromRoot,
+  resolveUnderRoot,
+  type ImageDestination,
+} from '../src/modules/files/paths.js';
 
 const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
@@ -73,16 +80,20 @@ function solidPng(size: number, rgb: [number, number, number]) {
   ]);
 }
 
+const uploadRoot = process.env.UPLOAD_DIR ?? './uploads';
+
 async function seedImage(input: {
   organizationId: string;
   uploadedById: string;
   fileName: string;
   rgb: [number, number, number];
 }) {
-  const dir = path.resolve(process.env.UPLOAD_DIR ?? './uploads', input.organizationId);
-  await mkdir(dir, { recursive: true });
+  const storagePath = resolveUnderRoot(
+    uploadRoot,
+    pendingRelative(input.organizationId, input.fileName),
+  );
+  await mkdir(path.dirname(storagePath), { recursive: true });
   const bytes = solidPng(64, input.rgb);
-  const storagePath = path.join(dir, input.fileName);
   await writeFile(storagePath, bytes);
   return prisma.fileObject.create({
     data: {
@@ -95,6 +106,25 @@ async function seedImage(input: {
       finalizedAt: new Date(),
     },
   });
+}
+
+async function placeSeedImage(
+  organizationId: string,
+  fileId: string,
+  storagePath: string,
+  dest: ImageDestination,
+) {
+  const relative = relativeFromRoot(uploadRoot, storagePath);
+  const fileName = relative?.split('/').pop();
+  if (!fileName) return;
+  const nextPath = resolveUnderRoot(
+    uploadRoot,
+    destinationRelative(organizationId, fileName, dest),
+  );
+  if (path.resolve(nextPath) === path.resolve(storagePath)) return;
+  await mkdir(path.dirname(nextPath), { recursive: true });
+  await rename(storagePath, nextPath);
+  await prisma.fileObject.update({ where: { id: fileId }, data: { storagePath: nextPath } });
 }
 
 const quizBehaviourSettings = {
@@ -585,6 +615,18 @@ async function main() {
       description: 'Opening contest for NextGenInnov8 participants.',
       imageFileId: contestMark.id,
     },
+  });
+  await placeSeedImage(nextgen.id, sponsorMark.id, sponsorMark.storagePath, {
+    kind: 'sponsor',
+    sponsorName: sponsor.name,
+    sponsorId: sponsor.id,
+  });
+  await placeSeedImage(nextgen.id, contestMark.id, contestMark.storagePath, {
+    kind: 'contest',
+    sponsorName: sponsor.name,
+    sponsorId: sponsor.id,
+    contestName: contest.name,
+    contestId: contest.id,
   });
 
   const quiz = await prisma.activity.create({

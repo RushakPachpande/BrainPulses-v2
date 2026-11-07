@@ -9,7 +9,12 @@ export const pageMeta: Record<string, PageMeta> = {
   '/participants': {
     crumb: 'BrainPulses / Participants',
     title: 'Participants',
-    description: 'Manage participant accounts, view details, and track their learning progress.',
+    description:
+      'One row per participant per contest. Participants join a contest through its registration form.',
+  },
+  '/participants/forms/new': {
+    crumb: 'BrainPulses / Participants / Create registration form',
+    title: 'Create registration form',
   },
   '/sponsors': {
     crumb: 'BrainPulses / Sponsors',
@@ -36,17 +41,6 @@ export const pageMeta: Record<string, PageMeta> = {
     title: 'Assessments',
     description: 'Create and manage assessments, track participation, and monitor performance.',
   },
-  '/assessments/banks': {
-    crumb: 'BrainPulses / Assessment / Question Banks',
-    title: 'Assessment Question Banks',
-    description:
-      'Manage reusable question banks for assessments. A bank can be attached to multiple assessments.',
-  },
-  '/assessments/banks/new': {
-    crumb: 'BrainPulses / Assessment / Question Banks / Create',
-    title: 'Create Question Bank',
-    description: 'Save bank details, then add single-MCQ questions on the edit page.',
-  },
   '/assessments/new': {
     crumb: 'BrainPulses / Assessment / Create Assessment',
     title: 'Create Assessment',
@@ -64,6 +58,8 @@ export const pageMeta: Record<string, PageMeta> = {
   '/assessments/reports': {
     crumb: 'BrainPulses / Assessment / Reports',
     title: 'Assessment Reports & Results',
+    description:
+      "One row per student per round. Scores show each student's best attempt on that round.",
   },
   '/quizzes': {
     crumb: 'BrainPulses / Quiz',
@@ -81,7 +77,11 @@ export const pageMeta: Record<string, PageMeta> = {
     crumb: 'BrainPulses / Quiz / Registrations / Assign',
     title: 'Assign Participants',
   },
-  '/quizzes/reports': { crumb: 'BrainPulses / Quiz / Reports', title: 'Quiz Reports & Results' },
+  '/quizzes/reports': {
+    crumb: 'BrainPulses / Quiz / Reports',
+    title: 'Quiz Reports & Results',
+    description: "One row per student per quiz. Scores show each student's best attempt.",
+  },
   '/settings': { crumb: 'BrainPulses / Settings / General Settings', title: 'General Settings' },
   '/settings/participant-portal': {
     crumb: 'BrainPulses / Settings / Participant Portal',
@@ -97,6 +97,20 @@ export const pageMeta: Record<string, PageMeta> = {
 
 export function resolvePageMeta(pathname: string): PageMeta {
   if (pageMeta[pathname]) return pageMeta[pathname]!;
+  const formEdit = pathname.match(/^\/participants\/forms\/([^/]+)\/edit$/);
+  if (formEdit) {
+    return {
+      crumb: 'BrainPulses / Participants / Edit registration form',
+      title: 'Edit registration form',
+    };
+  }
+  const formView = pathname.match(/^\/participants\/forms\/([^/]+)$/);
+  if (formView && formView[1] !== 'new') {
+    return {
+      crumb: 'BrainPulses / Participants / Registration form',
+      title: 'Registration form',
+    };
+  }
   const activityEdit = pathname.match(/^\/(assessments|quizzes)\/([^/]+)\/edit$/);
   if (activityEdit && !['banks', 'registrations', 'reports', 'new'].includes(activityEdit[2]!)) {
     const kind = activityEdit[1] === 'quizzes' ? 'Quiz' : 'Assessment';

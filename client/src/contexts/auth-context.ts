@@ -12,14 +12,6 @@ export type AuthState = {
   ready: boolean;
   participant: ParticipantProfile | null;
   signInWithCode: (code: string, replaceSession?: boolean) => Promise<void>;
-  requestPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
-  resendPhoneOtp: (countryCode: string, mobileNumber: string) => Promise<void>;
-  verifyPhoneOtp: (
-    countryCode: string,
-    mobileNumber: string,
-    otp: string,
-    replaceSession?: boolean,
-  ) => Promise<void>;
   signOut: () => void;
   refreshProfile: () => Promise<void>;
 };

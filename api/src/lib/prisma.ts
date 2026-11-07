@@ -29,6 +29,9 @@ const TENANT_MODELS = new Set([
   'auditEvent',
   'fileObject',
   'membership',
+  'contestRegistrationForm',
+  'contestFormQuiz',
+  'contestFormSubmission',
 ]);
 
 /** Operations whose where clause accepts non-unique filters. */

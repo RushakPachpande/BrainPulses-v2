@@ -14,6 +14,12 @@ const DashboardPage = lazy(() =>
 const ParticipantsPage = lazy(() =>
   import('@/pages/participants').then((m) => ({ default: m.ParticipantsPage })),
 );
+const ContestFormWizardPage = lazy(() =>
+  import('@/pages/contest-form-wizard').then((m) => ({ default: m.ContestFormWizardPage })),
+);
+const ContestFormViewPage = lazy(() =>
+  import('@/pages/contest-form-view').then((m) => ({ default: m.ContestFormViewPage })),
+);
 const SponsorsPage = lazy(() =>
   import('@/pages/sponsors').then((m) => ({ default: m.SponsorsPage })),
 );
@@ -30,12 +36,6 @@ const ActivityListPage = lazy(() =>
 const ActivityWizardPage = lazy(() =>
   import('@/pages/activity-wizard').then((m) => ({ default: m.ActivityWizardPage })),
 );
-const QuestionBanksPage = lazy(() =>
-  import('@/pages/question-banks').then((m) => ({ default: m.QuestionBanksPage })),
-);
-const BankFormPage = lazy(() =>
-  import('@/pages/bank-form').then((m) => ({ default: m.BankFormPage })),
-);
 const RegistrationsPage = lazy(() =>
   import('@/pages/registrations').then((m) => ({ default: m.RegistrationsPage })),
 );
@@ -45,7 +45,12 @@ const AssignRegistrationPage = lazy(() =>
 const RegistrationDetailPage = lazy(() =>
   import('@/pages/registration-detail').then((m) => ({ default: m.RegistrationDetailPage })),
 );
-const ReportsPage = lazy(() => import('@/pages/reports').then((m) => ({ default: m.ReportsPage })));
+const QuizReportsPage = lazy(() =>
+  import('@/pages/quiz-reports').then((m) => ({ default: m.QuizReportsPage })),
+);
+const AssessmentReportsPage = lazy(() =>
+  import('@/pages/assessment-reports').then((m) => ({ default: m.AssessmentReportsPage })),
+);
 const ResultDetailPage = lazy(() =>
   import('@/pages/result-detail').then((m) => ({ default: m.ResultDetailPage })),
 );
@@ -67,14 +72,6 @@ function SuspenseOutlet() {
       <Outlet />
     </Suspense>
   );
-}
-
-function LegacyParticipantRoute({ edit }: { edit?: boolean }) {
-  const { participantId = '' } = useParams();
-  const target = edit
-    ? `/participants?edit=${participantId}`
-    : `/participants?view=${participantId}`;
-  return <Navigate to={target} replace />;
 }
 
 function LegacyUserRoute({ edit }: { edit?: boolean }) {
@@ -105,19 +102,31 @@ export function AppRoutes() {
           <Route path="change-password" element={<ChangePasswordPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="participants" element={<ParticipantsPage />} />
+          <Route path="participants/forms/:formId" element={<ContestFormViewPage />} />
           <Route path="students" element={<Navigate to="/participants" replace />} />
           <Route path="students/*" element={<Navigate to="/participants" replace />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
             <Route
+              path="participants/forms/new"
+              element={<ContestFormWizardPage mode="create" />}
+            />
+            <Route
+              path="participants/forms/:formId/edit"
+              element={<ContestFormWizardPage mode="edit" />}
+            />
+            <Route
               path="participants/new"
-              element={<Navigate to="/participants?create=1" replace />}
+              element={<Navigate to="/participants/forms/new" replace />}
             />
             <Route
               path="participants/:participantId/edit"
-              element={<LegacyParticipantRoute edit />}
+              element={<Navigate to="/participants" replace />}
             />
           </Route>
-          <Route path="participants/:participantId" element={<LegacyParticipantRoute />} />
+          <Route
+            path="participants/:participantId"
+            element={<Navigate to="/participants" replace />}
+          />
           <Route path="sponsors" element={<SponsorsPage />} />
           <Route element={<RequireAccess gate={{ type: 'mutateOrg' }} />}>
             <Route path="sponsors/new" element={<Navigate to="/sponsors?create=1" replace />} />
@@ -138,11 +147,6 @@ export function AppRoutes() {
           <Route path="users/:userId" element={<LegacyUserRoute />} />
 
           <Route path="assessments" element={<ActivityListPage kind="assessment" />} />
-          <Route path="assessments/banks" element={<QuestionBanksPage kind="assessment" />} />
-          <Route
-            path="assessments/banks/:bankId"
-            element={<BankFormPage kind="assessment" mode="view" />}
-          />
           <Route
             path="assessments/registrations"
             element={<RegistrationsPage kind="assessment" />}
@@ -151,7 +155,7 @@ export function AppRoutes() {
             path="assessments/registrations/:registrationId"
             element={<RegistrationDetailPage kind="assessment" mode="view" />}
           />
-          <Route path="assessments/reports" element={<ReportsPage kind="assessment" />} />
+          <Route path="assessments/reports" element={<AssessmentReportsPage />} />
           <Route
             path="assessments/reports/:resultId"
             element={<ResultDetailPage kind="assessment" />}
@@ -161,14 +165,6 @@ export function AppRoutes() {
             element={<ActivityWizardPage kind="assessment" mode="view" />}
           />
           <Route element={<RequireAccess gate={{ type: 'editKind', kind: 'assessment' }} />}>
-            <Route
-              path="assessments/banks/new"
-              element={<BankFormPage kind="assessment" mode="create" />}
-            />
-            <Route
-              path="assessments/banks/:bankId/edit"
-              element={<BankFormPage kind="assessment" mode="edit" />}
-            />
             <Route
               path="assessments/new"
               element={<ActivityWizardPage kind="assessment" mode="create" />}
@@ -193,7 +189,7 @@ export function AppRoutes() {
             path="quizzes/registrations/:registrationId"
             element={<RegistrationDetailPage kind="quiz" mode="view" />}
           />
-          <Route path="quizzes/reports" element={<ReportsPage kind="quiz" />} />
+          <Route path="quizzes/reports" element={<QuizReportsPage />} />
           <Route path="quizzes/reports/:resultId" element={<ResultDetailPage kind="quiz" />} />
           <Route
             path="quizzes/:activityId"

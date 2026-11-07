@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Heading, KindIcon, Status } from '../components/ui-bits';
 import { ActivityCover, ActivityCredit } from '../components/activity-images';
+import { StoredImage } from '../components/stored-image';
 import { formatAttemptAllowance } from '../lib/attempt-allowance';
 import { formatDateLabel, formatDuration, formatKind } from '../lib/format';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
@@ -290,6 +291,13 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
                   {item.rounds.map((round, index) => (
                     <li key={round.id} className="activity-round-card">
                       <div className="activity-round-main">
+                        {round.imageFileId ? (
+                          <StoredImage
+                            src={`/api/files/${round.imageFileId}`}
+                            alt=""
+                            className="activity-round-photo"
+                          />
+                        ) : null}
                         <div className="activity-round-heading">
                           <span className="activity-round-index" aria-hidden>
                             {String(index + 1).padStart(2, '0')}

@@ -2,7 +2,6 @@ import { NavLink } from 'react-router';
 import {
   BarChart3Icon,
   ClipboardListIcon,
-  FolderOpenIcon,
   PanelsTopLeftIcon,
   SettingsIcon,
   UsersIcon,
@@ -23,7 +22,6 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
     label: 'Assessment',
     links: [
       { to: '/assessments', label: 'Overview', icon: ClipboardListIcon, end: true },
-      { to: '/assessments/banks', label: 'Question Banks', icon: FolderOpenIcon, end: true },
       { to: '/assessments/registrations', label: 'Registrations', icon: UsersIcon, end: true },
       { to: '/assessments/reports', label: 'Reports & Results', icon: BarChart3Icon, end: true },
     ],

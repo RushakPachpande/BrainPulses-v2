@@ -19,6 +19,7 @@ import {
 } from './schema.js';
 import { z } from 'zod';
 import { activityReattemptsRouter } from '../attempts/admin-routes.js';
+import { bankImportUpload } from '../banks/upload.js';
 
 export const activitiesRouter = Router();
 
@@ -72,6 +73,27 @@ activitiesRouter.delete(
 const roundQuestionParamsSchema = roundIdParamSchema.extend({
   questionId: z.string().uuid(),
 });
+
+activitiesRouter.get(
+  '/:id/questions/sample.xlsx',
+  requireOrgAccess('edit'),
+  validate({ params: idParamSchema }),
+  controller.sampleAssessmentImport,
+);
+activitiesRouter.post(
+  '/:id/questions/import/preview',
+  requireOrgAccess('edit'),
+  validate({ params: idParamSchema }),
+  bankImportUpload.single('file'),
+  controller.previewAssessmentQuestions,
+);
+activitiesRouter.post(
+  '/:id/questions/import',
+  requireOrgAccess('edit'),
+  validate({ params: idParamSchema }),
+  bankImportUpload.single('file'),
+  controller.confirmAssessmentQuestions,
+);
 
 activitiesRouter.get(
   '/:id/rounds/:roundId/questions',

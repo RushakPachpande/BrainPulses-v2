@@ -1,0 +1,5 @@
+# Shell scripts must use LF so they run on the Linux VPS after a Windows checkout.
+*.sh text eol=lf
+setup.sh text eol=lf
+update-deploy.sh text eol=lf
+docs/ops/deploy.sh text eol=lf

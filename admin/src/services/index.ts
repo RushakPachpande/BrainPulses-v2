@@ -41,6 +41,7 @@ import type {
   ActivityKind,
   ActivityRoundLocalQuestion,
   ActivitySettings,
+  RoundBehaviourSettings,
   AdminUser,
   Contest,
   ImageLibraryPurpose,
@@ -61,6 +62,7 @@ export type {
   ActivityRegistrationField,
   ActivitySettings,
   QuizActivitySettings,
+  RoundBehaviourSettings,
   DurationMode,
   Sponsor,
   Contest,
@@ -304,6 +306,14 @@ export type ActivityRoundWrite = {
   name: string;
   sortOrder: number;
   durationMinutes?: number | null;
+  durationMode?: 'overall' | 'per_question';
+  perQuestionSeconds?: number | null;
+  presentation?: 'one_at_a_time' | 'all_on_page';
+  passMode?: 'percent' | 'score';
+  passingPercent?: number | null;
+  passingScore?: number | null;
+  settings?: RoundBehaviourSettings;
+  imageFileId?: string | null;
   bankIds: string[];
 };
 
@@ -447,6 +457,26 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
           name: 'Round 1',
           sortOrder: 0,
           durationMinutes: 60,
+          durationMode: 'overall',
+          perQuestionSeconds: null,
+          presentation: 'one_at_a_time',
+          passMode: 'percent',
+          passingPercent: 40,
+          passingScore: null,
+          settings: {
+            shuffleQuestions: true,
+            shuffleOptions: true,
+            scoreRelease: 'after_submit',
+            answersVisibleToParticipant: false,
+            allowPrevious: true,
+            showQuestionPanel: true,
+            questionsCompulsory: true,
+            negativeMarkingEnabled: false,
+            negativeMarkPoints: 0,
+            maxAttempts: 1,
+            questionLimit: null,
+          },
+          imageFileId: null,
           bankIds: [],
           banksDetail: [],
           localBankId: null,
@@ -1067,6 +1097,75 @@ export async function downloadBankQuestionsSample(bankId: string): Promise<void>
     `/api/banks/${bankId}/questions/sample.xlsx`,
     'brainpulses-question-sample.xlsx',
   );
+}
+
+export type AssessmentImportPreview = {
+  headers: string[];
+  mapping: Record<string, string | null>;
+  fields: { key: string; label: string }[];
+  issues: BankImportIssue[];
+  validCount: number;
+  totalRows: number;
+};
+
+export type AssessmentImportResult = {
+  imported: number;
+  skipped: number;
+  issues: BankImportIssue[];
+};
+
+export async function downloadAssessmentQuestionsSample(activityId: string): Promise<void> {
+  if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
+  await apiDownloadBlob(
+    `/api/activities/${activityId}/questions/sample.xlsx`,
+    'brainpulses-assessment-questions-sample.xlsx',
+  );
+}
+
+export async function previewAssessmentQuestionsImport(
+  activityId: string,
+  file: File,
+  mapping?: Record<string, string | null>,
+): Promise<AssessmentImportPreview> {
+  assertXlsxImportFile(file);
+  if (useFixtures) {
+    return {
+      headers: [],
+      mapping: {},
+      fields: [],
+      issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }],
+      validCount: 0,
+      totalRows: 0,
+    };
+  }
+  const form = new FormData();
+  form.append('file', file);
+  if (mapping) form.append('mapping', JSON.stringify(mapping));
+  return apiPostFormData<AssessmentImportPreview>(
+    `/api/activities/${activityId}/questions/import/preview`,
+    form,
+  );
+}
+
+export async function confirmAssessmentQuestionsImport(
+  activityId: string,
+  file: File,
+  mapping?: Record<string, string | null>,
+): Promise<AssessmentImportResult> {
+  assertXlsxImportFile(file);
+  if (useFixtures) {
+    return { imported: 0, skipped: 0, issues: [{ row: 0, message: 'Import unavailable.' }] };
+  }
+  const form = new FormData();
+  form.append('file', file);
+  if (mapping) form.append('mapping', JSON.stringify(mapping));
+  const data = await apiPostFormData<AssessmentImportResult>(
+    `/api/activities/${activityId}/questions/import`,
+    form,
+    idempotencyHeaders(),
+  );
+  invalidateAdmin(['activities', 'banks']);
+  return data;
 }
 
 export async function exportBankQuestions(

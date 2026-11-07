@@ -1,10 +1,22 @@
 import { Prisma } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
+import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { isQuizScoreVisible, parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
-import { clusterByPassage } from '../banks/passages.js';
+import {
+  applyQuestionLimit,
+  blocksFromItems,
+  orderBlocks,
+  type QuestionOrderItem,
+} from '../../lib/question-order.js';
+import {
+  canRetryRound,
+  parseRoundRow,
+  roundIsCleared,
+  roundNeedsManualPublish,
+} from '../../lib/round-unlock.js';
+import { meetsPassRule } from '../../lib/round-settings.js';
 import { assertActivityPageEnabled } from '../../lib/participant-pages.js';
 import {
   applyNegativeMarking,
@@ -32,6 +44,7 @@ async function autoSubmitIfExpired(attempt: {
   activityId: string;
   participantId: string;
   revision: number;
+  roundId?: string | null;
 }) {
   if (attempt.status !== 'in_progress') return attempt;
   if (attempt.deadlineAt.getTime() > Date.now()) return attempt;
@@ -46,16 +59,32 @@ async function autoSubmitIfExpired(attempt: {
     },
   });
 
+  let durationMode = activity?.durationMode ?? 'overall';
+  let perQuestionSeconds = activity?.perQuestionSeconds ?? null;
+  if (activity?.kind === 'assessment' && attempt.roundId) {
+    const round = await prisma.activityRound.findFirst({
+      where: { organizationId: attempt.organizationId, id: attempt.roundId },
+    });
+    if (round) {
+      const settings = parseRoundRow(round);
+      durationMode = settings.durationMode;
+      perQuestionSeconds = settings.perQuestionSeconds;
+    }
+  }
+
   // Per-question: expired deadline is the question window, not the whole attempt,
   // unless the activity end time has passed.
-  if (activity?.kind === 'quiz' && activity.durationMode === 'per_question') {
-    if (activity.endsAt && activity.endsAt.getTime() <= Date.now()) {
+  if (durationMode === 'per_question') {
+    if (activity?.endsAt && activity.endsAt.getTime() <= Date.now()) {
       return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.participantId, {
         auto: true,
         idempotencyKey: `auto:${attempt.id}`,
       });
     }
-    return renewPerQuestionDeadline(attempt.organizationId, attempt.id, activity);
+    return renewPerQuestionDeadline(attempt.organizationId, attempt.id, {
+      perQuestionSeconds,
+      endsAt: activity?.endsAt ?? null,
+    });
   }
 
   return submitAttemptInternal(attempt.organizationId, attempt.id, attempt.participantId, {
@@ -82,6 +111,109 @@ async function renewPerQuestionDeadline(
     where: { id: attemptId },
     data: { deadlineAt },
   });
+}
+
+/** Close quiz attempts the product would already auto-submit, and record why. */
+export async function settleOpenQuizAttempts(
+  organizationId: string,
+  opts?: { activityId?: string; reason?: AutoSubmitReasonCode },
+) {
+  const open = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      status: 'in_progress',
+      activity: {
+        kind: 'quiz',
+        ...(opts?.activityId ? { id: opts.activityId } : {}),
+      },
+    },
+    select: {
+      id: true,
+      participantId: true,
+      deadlineAt: true,
+      activity: { select: { endsAt: true, durationMode: true } },
+    },
+  });
+
+  const now = Date.now();
+  for (const attempt of open) {
+    let reason = opts?.reason ?? null;
+    if (!reason) {
+      const ended = attempt.activity.endsAt != null && attempt.activity.endsAt.getTime() <= now;
+      if (ended) reason = 'quiz_ended';
+      else if (
+        attempt.activity.durationMode !== 'per_question' &&
+        attempt.deadlineAt.getTime() <= now
+      ) {
+        reason = 'timer';
+      }
+    }
+    if (!reason) continue;
+    try {
+      await submitAttemptInternal(organizationId, attempt.id, attempt.participantId, {
+        auto: true,
+        idempotencyKey: `auto:${attempt.id}`,
+        autoSubmitReason: reason,
+      });
+    } catch (err) {
+      if (err instanceof AppError && (err.code === 'CONFLICT' || err.code === 'NOT_FOUND')) {
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+/** Close assessment-round attempts the product would already auto-submit. */
+export async function settleOpenAssessmentAttempts(
+  organizationId: string,
+  opts?: { activityId?: string; reason?: AutoSubmitReasonCode },
+) {
+  const open = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      status: 'in_progress',
+      activity: {
+        kind: 'assessment',
+        ...(opts?.activityId ? { id: opts.activityId } : {}),
+      },
+    },
+    select: {
+      id: true,
+      participantId: true,
+      deadlineAt: true,
+      activity: { select: { endsAt: true } },
+      round: { select: { durationMode: true } },
+    },
+  });
+
+  const now = Date.now();
+  for (const attempt of open) {
+    let reason = opts?.reason ?? null;
+    if (!reason) {
+      const ended = attempt.activity.endsAt != null && attempt.activity.endsAt.getTime() <= now;
+      if (ended) reason = 'quiz_ended';
+      else if (
+        attempt.round?.durationMode !== 'per_question' &&
+        attempt.deadlineAt.getTime() <= now
+      ) {
+        reason = 'timer';
+      }
+    }
+    if (!reason) continue;
+    try {
+      await submitAttemptInternal(organizationId, attempt.id, attempt.participantId, {
+        auto: true,
+        idempotencyKey: `auto:${attempt.id}`,
+        autoSubmitReason: reason,
+      });
+    } catch (err) {
+      if (err instanceof AppError && (err.code === 'CONFLICT' || err.code === 'NOT_FOUND')) {
+        continue;
+      }
+      throw err;
+    }
+  }
 }
 
 type AttemptPresentation = 'one_at_a_time' | 'all_on_page';
@@ -121,20 +253,20 @@ function mapAttempt(
     extras?.presentation === 'all_on_page' ? 'all_on_page' : 'one_at_a_time';
   const durationMode = extras?.durationMode === 'per_question' ? 'per_question' : 'overall';
   const quizSettings = extras?.activityKind === 'quiz' ? parseQuizSettings(extras.settings) : null;
+  const roundBehaviour =
+    extras?.activityKind === 'assessment' &&
+    extras.settings &&
+    typeof extras.settings === 'object' &&
+    !Array.isArray(extras.settings)
+      ? parseRoundRow({ settings: extras.settings })
+      : null;
+  const behaviour = quizSettings ?? roundBehaviour;
   const allowPrevious =
-    extras?.allowPrevious !== undefined
-      ? extras.allowPrevious
-      : (quizSettings?.allowPrevious ?? true);
+    extras?.allowPrevious !== undefined ? extras.allowPrevious : (behaviour?.allowPrevious ?? true);
   const forwardOnly = durationMode === 'per_question' || allowPrevious === false;
   const showQuestionPanel =
-    durationMode === 'per_question'
-      ? false
-      : extras?.activityKind === 'quiz'
-        ? (quizSettings?.showQuestionPanel ?? true)
-        : true;
-  /** Assessments always require answers; quizzes use settings (default true). */
-  const questionsCompulsory =
-    extras?.activityKind === 'quiz' ? (quizSettings?.questionsCompulsory ?? true) : true;
+    durationMode === 'per_question' ? false : (behaviour?.showQuestionPanel ?? true);
+  const questionsCompulsory = behaviour?.questionsCompulsory ?? true;
   return {
     id: a.id,
     status: a.status,
@@ -164,6 +296,24 @@ function mapAttempt(
       answer: r.answer,
       revision: r.revision,
     })),
+  };
+}
+
+function extrasFromRound(round: {
+  presentation?: string | null;
+  durationMode?: string | null;
+  perQuestionSeconds?: number | null;
+  settings?: Prisma.JsonValue | null;
+}): AttemptMapExtras {
+  const settings = parseRoundRow(round);
+  return {
+    activityKind: 'assessment',
+    softProctoring: false,
+    presentation: settings.presentation,
+    durationMode: settings.durationMode,
+    perQuestionSeconds: settings.perQuestionSeconds,
+    allowPrevious: settings.allowPrevious,
+    settings: round.settings ?? null,
   };
 }
 
@@ -270,13 +420,15 @@ async function presentOpenQuizAttempt(attemptId: string, organizationId: string)
   };
 }
 
-function buildShuffleOrders(
-  versionIds: string[],
+function buildAttemptOrders(
+  items: QuestionOrderItem[],
+  questionLimit: number | null,
   optionsByVersion: Map<string, OptionRow[]>,
   shuffleQuestions: boolean,
   shuffleOptions: boolean,
 ): { questionOrder: string[]; optionOrders: OptionOrders } {
-  const questionOrder = shuffleQuestions ? shuffleInPlace(versionIds) : [...versionIds];
+  const blocks = applyQuestionLimit(blocksFromItems(items), questionLimit);
+  const questionOrder = orderBlocks(blocks, shuffleQuestions);
   const optionOrders: OptionOrders = {};
   if (shuffleOptions) {
     for (const id of questionOrder) {
@@ -310,25 +462,23 @@ export function attemptDurationMs(
   questionCount: number,
   fallbackMinutes: number,
 ) {
-  if (activity.kind === 'quiz' && activity.durationMode === 'per_question') {
+  if (activity.durationMode === 'per_question') {
     const seconds = activity.perQuestionSeconds ?? 0;
-    if (seconds <= 0) throw badRequest('This quiz has no per-question time.');
+    if (seconds <= 0) throw badRequest('This activity has no per-question time.');
     if (questionCount <= 0) throw badRequest('No questions available for this attempt.');
     return seconds * 1000;
   }
   return fallbackMinutes * 60_000;
 }
 
-function versionIdsFromBank(
+function orderItemsFromBank(
   bank: Prisma.QuestionBankGetPayload<{ include: typeof questionBankInclude }>,
-): string[] {
-  return clusterByPassage(
-    bank.questions.flatMap((question) => {
-      const id = question.versions[0]?.id;
-      if (!id) return [];
-      return [{ id, passageId: question.passageId, sortOrder: question.sortOrder }];
-    }),
-  ).map((question) => question.id);
+): QuestionOrderItem[] {
+  return bank.questions.flatMap((question) => {
+    const id = question.versions[0]?.id;
+    if (!id) return [];
+    return [{ id, passageId: question.passageId, sortOrder: question.sortOrder }];
+  });
 }
 
 /** Participant-facing result. `scoreVisible` is the final decision, including publish rules. */
@@ -403,55 +553,42 @@ export async function startAttempt(
 
   let resolvedRoundId: string | null = null;
   let durationMinutes = activity.durationMinutes ?? 60;
-  let versionIds: string[];
+  let orderItems: QuestionOrderItem[];
+  let questionLimit: number | null;
+  let assessmentTiming: {
+    durationMode: 'overall' | 'per_question';
+    perQuestionSeconds: number | null;
+  } | null = null;
+  let assessmentShuffle: { shuffleQuestions: boolean; shuffleOptions: boolean } | null = null;
+  let assessmentExtras: AttemptMapExtras | null = null;
 
   if (activity.kind === 'assessment') {
     if (!roundId) throw badRequest('roundId is required to start an assessment attempt.');
     const round = activity.rounds.find((r) => r.id === roundId);
     if (!round) throw notFound('Round not found on this assessment.');
 
-    const previous = activity.rounds.filter((r) => r.sortOrder < round.sortOrder);
-    if (previous.length > 0) {
-      const prevIds = previous.map((r) => r.id);
-      const completed = await prisma.attempt.findMany({
-        where: {
-          organizationId,
-          activityId,
-          participantId,
-          roundId: { in: prevIds },
-          status: { in: ['submitted', 'auto_submitted'] },
-        },
-        select: { roundId: true },
-      });
-      const completedSet = new Set(completed.map((c) => c.roundId));
-      const missing = previous.find((r) => !completedSet.has(r.id));
-      if (missing) {
-        throw forbidden(`Complete "${missing.name}" before starting this round.`);
+    const roundSettings = parseRoundRow(round);
+    const allAttempts = await prisma.attempt.findMany({
+      where: { organizationId, activityId, participantId },
+      include: { result: true },
+    });
+
+    // Objective rounds auto-publish on submit; withheld results never unlock the next round.
+    const requirePublished = true;
+    for (const prev of activity.rounds.filter((r) => r.sortOrder < round.sortOrder)) {
+      if (!roundIsCleared(allAttempts, prev.id, parseRoundRow(prev), requirePublished)) {
+        throw forbidden(`Pass "${prev.name}" before starting this round.`);
       }
     }
 
-    const alreadyDone = await prisma.attempt.findFirst({
-      where: {
-        organizationId,
-        activityId,
-        participantId,
-        roundId,
-        status: { in: ['submitted', 'auto_submitted'] },
-      },
-    });
-    if (alreadyDone) {
-      throw conflict('This round has already been completed.');
+    if (roundIsCleared(allAttempts, round.id, roundSettings, requirePublished)) {
+      throw conflict('This round has already been passed.');
+    }
+    if (!canRetryRound(allAttempts, round.id, roundSettings, requirePublished)) {
+      throw conflict('No attempts remaining for this round.');
     }
 
-    const open = await prisma.attempt.findFirst({
-      where: {
-        organizationId,
-        activityId,
-        participantId,
-        roundId,
-        status: 'in_progress',
-      },
-    });
+    const open = allAttempts.find((a) => a.roundId === round.id && a.status === 'in_progress');
     if (open) {
       const refreshed = await autoSubmitIfExpired(open);
       if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
@@ -459,25 +596,27 @@ export async function startAttempt(
       }
     }
 
-    // Also block starting another round while any assessment attempt is open
-    const anyOpen = await prisma.attempt.findFirst({
-      where: {
-        organizationId,
-        activityId,
-        participantId,
-        status: 'in_progress',
-        NOT: { roundId },
-      },
-    });
+    const anyOpen = allAttempts.find((a) => a.status === 'in_progress' && a.roundId !== round.id);
     if (anyOpen) {
       throw conflict('Finish or resume your open round attempt first.');
     }
 
     resolvedRoundId = round.id;
-    durationMinutes = round.durationMinutes ?? activity.durationMinutes ?? 60;
-    const fromLinked = round.banks.flatMap((rb) => versionIdsFromBank(rb.bank));
-    const fromLocal = round.localBank ? versionIdsFromBank(round.localBank) : [];
-    versionIds = [...new Set([...fromLinked, ...fromLocal])];
+    durationMinutes =
+      roundSettings.durationMode === 'overall'
+        ? (roundSettings.durationMinutes ?? activity.durationMinutes ?? 60)
+        : 60;
+    assessmentTiming = {
+      durationMode: roundSettings.durationMode,
+      perQuestionSeconds: roundSettings.perQuestionSeconds,
+    };
+    assessmentShuffle = {
+      shuffleQuestions: roundSettings.shuffleQuestions,
+      shuffleOptions: roundSettings.shuffleOptions,
+    };
+    assessmentExtras = extrasFromRound(round);
+    orderItems = round.localBank ? orderItemsFromBank(round.localBank) : [];
+    questionLimit = roundSettings.questionLimit;
   } else {
     if (roundId) throw badRequest('Quizzes do not use rounds.');
     const open = await prisma.attempt.findFirst({
@@ -576,42 +715,61 @@ export async function startAttempt(
       }
     }
 
-    versionIds = activity.activityBanks.flatMap((ab) => versionIdsFromBank(ab.bank));
+    orderItems = activity.activityBanks.flatMap((ab) => orderItemsFromBank(ab.bank));
+    questionLimit = parseQuizSettings(activity.settings).questionLimit;
   }
 
-  if (versionIds.length === 0) {
+  if (orderItems.length === 0) {
     throw badRequest('No questions available for this attempt.');
   }
 
-  const durationMs = attemptDurationMs(activity, versionIds.length, durationMinutes);
+  const timingSource = assessmentTiming
+    ? {
+        kind: activity.kind,
+        durationMode: assessmentTiming.durationMode,
+        durationMinutes: activity.durationMinutes,
+        perQuestionSeconds: assessmentTiming.perQuestionSeconds,
+      }
+    : activity;
+  const quizSettings = activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
+  const shuffle =
+    activity.kind === 'quiz' && quizSettings
+      ? {
+          shuffleQuestions: quizSettings.shuffleQuestions,
+          shuffleOptions: quizSettings.shuffleOptions,
+        }
+      : assessmentShuffle;
+
+  const candidateIds = applyQuestionLimit(blocksFromItems(orderItems), questionLimit).flatMap(
+    (block) => block.map((item) => item.id),
+  );
+  if (candidateIds.length === 0) {
+    throw badRequest('No questions available for this attempt.');
+  }
+  const versionsForOpts = await prisma.questionVersion.findMany({
+    where: { organizationId, id: { in: candidateIds } },
+    include: {
+      options: {
+        orderBy: { sortOrder: 'asc' },
+        select: { id: true, label: true, body: true, sortOrder: true },
+      },
+    },
+  });
+  const optionsByVersion = new Map(versionsForOpts.map((v) => [v.id, v.options]));
+  const built = buildAttemptOrders(
+    orderItems,
+    questionLimit,
+    optionsByVersion,
+    shuffle?.shuffleQuestions ?? false,
+    shuffle?.shuffleOptions ?? false,
+  );
+  const questionOrder = built.questionOrder;
+  const optionOrders = built.optionOrders;
+
+  const durationMs = attemptDurationMs(timingSource, questionOrder.length, durationMinutes);
   let deadlineAt = new Date(now.getTime() + durationMs);
   if (activity.endsAt && activity.endsAt < deadlineAt) {
     deadlineAt = activity.endsAt;
-  }
-
-  const quizSettings = activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
-
-  let questionOrder = [...versionIds];
-  let optionOrders: OptionOrders = {};
-  if (activity.kind === 'quiz' && quizSettings) {
-    const versionsForOpts = await prisma.questionVersion.findMany({
-      where: { organizationId, id: { in: versionIds } },
-      include: {
-        options: {
-          orderBy: { sortOrder: 'asc' },
-          select: { id: true, label: true, body: true, sortOrder: true },
-        },
-      },
-    });
-    const optionsByVersion = new Map(versionsForOpts.map((v) => [v.id, v.options]));
-    const built = buildShuffleOrders(
-      versionIds,
-      optionsByVersion,
-      quizSettings.shuffleQuestions,
-      quizSettings.shuffleOptions,
-    );
-    questionOrder = built.questionOrder;
-    optionOrders = built.optionOrders;
   }
 
   // Last-chance guard against duplicate open quiz attempts (e.g. double Start).
@@ -658,7 +816,7 @@ export async function startAttempt(
   );
 
   return {
-    attempt: mapAttempt(attempt, extrasFromActivity(activity)),
+    attempt: mapAttempt(attempt, assessmentExtras ?? extrasFromActivity(activity)),
     questions,
   };
 }
@@ -672,6 +830,7 @@ export async function resumeAttempt(
     where: { organizationId, id: attemptId, participantId },
     include: {
       responses: true,
+      round: true,
       activity: {
         select: {
           kind: true,
@@ -688,10 +847,16 @@ export async function resumeAttempt(
 
   const quizSettings =
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
-  const activityExtras = extrasFromActivity(attempt.activity);
+  const roundSettings =
+    attempt.activity.kind === 'assessment' && attempt.round ? parseRoundRow(attempt.round) : null;
+  const activityExtras =
+    attempt.activity.kind === 'assessment' && attempt.round
+      ? extrasFromRound(attempt.round)
+      : extrasFromActivity(attempt.activity);
 
   const maybe = await autoSubmitIfExpired(attempt);
   if (maybe && 'result' in maybe) {
+    const published = (maybe.result as { releaseStatus?: string }).releaseStatus === 'published';
     return {
       attempt: {
         ...maybe.attempt,
@@ -699,11 +864,11 @@ export async function resumeAttempt(
       },
       submitted: true,
       result: mapParticipantResult(maybe.result as never, {
-        scoreVisible: isQuizScoreVisible(
-          quizSettings,
-          (maybe.result as { releaseStatus?: string }).releaseStatus === 'published',
-        ),
-        answersVisible: quizSettings?.answersVisibleToParticipant ?? false,
+        scoreVisible: isQuizScoreVisible(quizSettings ?? roundSettings, published),
+        answersVisible:
+          quizSettings?.answersVisibleToParticipant ??
+          roundSettings?.answersVisibleToParticipant ??
+          false,
       }),
     };
   }
@@ -866,8 +1031,18 @@ export async function advanceAttempt(
   if (attempt.status !== 'in_progress') {
     throw conflict('Attempt is no longer in progress.');
   }
-  if (attempt.activity.kind !== 'quiz' || attempt.activity.durationMode !== 'per_question') {
-    throw badRequest('Advance is only available for per-question timed quizzes.');
+  const round =
+    attempt.activity.kind === 'assessment' && attempt.roundId
+      ? await prisma.activityRound.findFirst({
+          where: { organizationId, id: attempt.roundId },
+        })
+      : null;
+  const durationMode =
+    round != null ? parseRoundRow(round).durationMode : attempt.activity.durationMode;
+  const perQuestionSeconds =
+    round != null ? parseRoundRow(round).perQuestionSeconds : attempt.activity.perQuestionSeconds;
+  if (durationMode !== 'per_question') {
+    throw badRequest('Advance is only available for per-question timed attempts.');
   }
 
   if (attempt.activity.endsAt && attempt.activity.endsAt.getTime() <= Date.now()) {
@@ -882,7 +1057,10 @@ export async function advanceAttempt(
     };
   }
 
-  await renewPerQuestionDeadline(organizationId, attemptId, attempt.activity);
+  await renewPerQuestionDeadline(organizationId, attemptId, {
+    perQuestionSeconds,
+    endsAt: attempt.activity.endsAt,
+  });
   const live = await prisma.attempt.findFirst({
     where: { organizationId, id: attemptId },
     include: { responses: true },
@@ -890,16 +1068,26 @@ export async function advanceAttempt(
   if (!live) throw notFound('Attempt not found.');
 
   return {
-    attempt: mapAttempt(live, extrasFromActivity(attempt.activity)),
+    attempt: mapAttempt(
+      live,
+      round ? extrasFromRound(round) : extrasFromActivity(attempt.activity),
+    ),
     submitted: false as const,
   };
+}
+
+export type AutoSubmitReasonCode = 'timer' | 'quiz_ended' | 'quiz_deactivated';
+
+function inferAutoSubmitReason(endsAt: Date | null): AutoSubmitReasonCode {
+  if (endsAt && endsAt.getTime() <= Date.now()) return 'quiz_ended';
+  return 'timer';
 }
 
 async function submitAttemptInternal(
   organizationId: string,
   attemptId: string,
   participantId: string,
-  opts: { auto: boolean; idempotencyKey: string },
+  opts: { auto: boolean; idempotencyKey: string; autoSubmitReason?: AutoSubmitReasonCode },
 ) {
   const existingByKey = await prisma.attempt.findFirst({
     where: {
@@ -917,6 +1105,7 @@ async function submitAttemptInternal(
       responses: true,
       activity: true,
       result: true,
+      round: true,
     },
   });
   if (!attempt) throw notFound('Attempt not found.');
@@ -924,10 +1113,30 @@ async function submitAttemptInternal(
 
   const quizSettings =
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
-  const visibilityFor = (releaseStatus: string) => ({
-    scoreVisible: isQuizScoreVisible(quizSettings, releaseStatus === 'published'),
-    answersVisible: quizSettings?.answersVisibleToParticipant ?? false,
-  });
+  const roundSettings =
+    attempt.activity.kind === 'assessment' && attempt.round ? parseRoundRow(attempt.round) : null;
+  const visibilityFor = (releaseStatus: string) => {
+    const published = releaseStatus === 'published';
+    if (quizSettings) {
+      return {
+        scoreVisible: isQuizScoreVisible(quizSettings, published),
+        answersVisible: quizSettings.answersVisibleToParticipant,
+      };
+    }
+    if (roundSettings) {
+      return {
+        scoreVisible: isQuizScoreVisible(
+          { ...roundSettings, scoreRelease: roundSettings.scoreRelease },
+          published,
+        ),
+        answersVisible: roundSettings.answersVisibleToParticipant,
+      };
+    }
+    return {
+      scoreVisible: published,
+      answersVisible: false,
+    };
+  };
 
   if (existingByKey?.result) {
     return {
@@ -973,17 +1182,20 @@ async function submitAttemptInternal(
   });
   const byId = new Map(versions.map((v) => [v.id, v]));
 
-  const negativeEnabled = Boolean(quizSettings?.negativeMarkingEnabled);
+  const behaviour = quizSettings ?? roundSettings;
+  const negativeEnabled = Boolean(behaviour?.negativeMarkingEnabled);
   const negativePenalty =
-    negativeEnabled && quizSettings && quizSettings.negativeMarkPoints > 0
-      ? quizSettings.negativeMarkPoints
+    negativeEnabled && behaviour && behaviour.negativeMarkPoints > 0
+      ? behaviour.negativeMarkPoints
       : 0;
 
   let score = 0;
   let maxScore = 0;
+  const questionTypes: string[] = [];
   for (const response of attempt.responses) {
     const version = byId.get(response.questionVersionId);
     if (!version) continue;
+    questionTypes.push(version.type);
     const pts = toNumber(version.points);
     const earned = scoreObjective(version.type, version.answerKey, response.answer, pts);
     if (earned === null) continue;
@@ -998,13 +1210,36 @@ async function submitAttemptInternal(
   score = clampScore(score);
 
   const percent = maxScore > 0 ? (score / maxScore) * 100 : 0;
-  const passing = attempt.activity.passingPercent
-    ? toNumber(attempt.activity.passingPercent)
-    : null;
-  const passed = passing === null ? null : percent >= passing;
+  let passed: boolean | null;
+  if (roundSettings) {
+    passed = meetsPassRule(roundSettings, score, percent);
+  } else {
+    const passing = attempt.activity.passingPercent
+      ? toNumber(attempt.activity.passingPercent)
+      : null;
+    passed = passing === null ? null : percent >= passing;
+  }
+
+  const quizPublished =
+    attempt.activity.kind === 'quiz' && attempt.activity.resultsPublishedAt != null;
+  const roundPublished =
+    attempt.activity.kind === 'assessment' && attempt.round?.resultsPublishedAt != null;
+  const holdUntilPublish =
+    attempt.activity.kind === 'assessment' &&
+    !roundPublished &&
+    (roundSettings?.scoreRelease === 'after_publish' ||
+      roundNeedsManualPublish(questionTypes));
+  const releaseStatus =
+    quizPublished || roundPublished || (attempt.activity.kind === 'assessment' && !holdUntilPublish)
+      ? ('published' as const)
+      : ('withheld' as const);
+  const publishedAt = releaseStatus === 'published' ? new Date() : null;
 
   const submittedAt = new Date();
   const status = opts.auto ? 'auto_submitted' : 'submitted';
+  const autoSubmitReason = opts.auto
+    ? (opts.autoSubmitReason ?? inferAutoSubmitReason(attempt.activity.endsAt))
+    : null;
 
   const [updated, result] = await prisma.$transaction(async (tx) => {
     const locked = await tx.attempt.updateMany({
@@ -1013,6 +1248,7 @@ async function submitAttemptInternal(
         status,
         submittedAt,
         submitIdempotencyKey: opts.idempotencyKey,
+        ...(autoSubmitReason ? { autoSubmitReason } : {}),
       },
     });
     if (locked.count !== 1) {
@@ -1035,7 +1271,8 @@ async function submitAttemptInternal(
         maxScore,
         percent,
         passed,
-        releaseStatus: 'withheld',
+        releaseStatus,
+        publishedAt,
         revisions: {
           create: {
             organizationId,

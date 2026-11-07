@@ -24,6 +24,8 @@
 | [Security & privacy](engineering/SECURITY_PRIVACY.md) | Security baseline | Requirements |
 | [Testing & QA](engineering/TESTING_QA.md) | Test strategy | Requirements |
 | [Release checklist](engineering/RELEASE_CHECKLIST.md) | Release gate | Template |
+| [VPS deploy (short)](../DEPLOY.md) | Root quick reference: `setup.sh` / `update-deploy.sh` | Current |
+| [VPS deploy (detailed)](ops/DEPLOY.md) | Production bootstrap, PM2, nginx, update runbook | Current |
 | [ADR template](templates/ADR-TEMPLATE.md) | Architecture decisions | Ready to use |
 
 ## Verified current-state facts

@@ -7,7 +7,14 @@ import {
 } from '../../lib/participant-pages.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { servedQuestionCount } from '../../lib/question-order.js';
 import { isQuizScoreVisible, parseQuizSettings } from '../../lib/quiz-settings.js';
+import {
+  canRetryRound,
+  parseRoundRow,
+  resultClearsRound,
+  roundIsCleared,
+} from '../../lib/round-unlock.js';
 import { scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
 import type {
@@ -112,7 +119,10 @@ export async function listMyActivities(
               include: {
                 bank: {
                   include: {
-                    _count: { select: { questions: { where: { isActive: true } } } },
+                    questions: {
+                      where: { isActive: true },
+                      select: { id: true, passageId: true, sortOrder: true },
+                    },
                   },
                 },
               },
@@ -120,18 +130,12 @@ export async function listMyActivities(
             rounds: {
               orderBy: { sortOrder: 'asc' },
               include: {
-                banks: {
-                  include: {
-                    bank: {
-                      include: {
-                        _count: { select: { questions: { where: { isActive: true } } } },
-                      },
-                    },
-                  },
-                },
                 localBank: {
                   include: {
-                    _count: { select: { questions: { where: { isActive: true } } } },
+                    questions: {
+                      where: { isActive: true },
+                      select: { id: true, passageId: true, sortOrder: true },
+                    },
                   },
                 },
               },
@@ -161,13 +165,18 @@ export async function listMyActivities(
       const activity = row.activity;
       const isAssessment = activity.kind === 'assessment';
 
+      const quizSettings = isAssessment ? null : parseQuizSettings(activity.settings);
       const questionCount = isAssessment
         ? activity.rounds.reduce((n, round) => {
-            const fromBanks = round.banks.reduce((m, b) => m + b.bank._count.questions, 0);
-            const fromLocal = round.localBank?._count.questions ?? 0;
-            return n + fromBanks + fromLocal;
+            const settings = parseRoundRow(round);
+            return (
+              n + servedQuestionCount(round.localBank?.questions ?? [], settings.questionLimit)
+            );
           }, 0)
-        : activity.activityBanks.reduce((n, ab) => n + ab.bank._count.questions, 0);
+        : servedQuestionCount(
+            activity.activityBanks.flatMap((ab) => ab.bank.questions),
+            quizSettings?.questionLimit ?? null,
+          );
 
       const attempts = activity.attempts;
       const openAttempt = attempts.find((a) => a.status === 'in_progress');
@@ -175,15 +184,11 @@ export async function listMyActivities(
 
       let attemptState: 'not_started' | 'in_progress' | 'submitted' = 'not_started';
       if (isAssessment && activity.rounds.length > 0) {
-        const allDone = activity.rounds.every((round) =>
-          attempts.some(
-            (a) =>
-              a.roundId === round.id &&
-              (a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result)),
-          ),
+        const allCleared = activity.rounds.every((round) =>
+          roundIsCleared(attempts, round.id, parseRoundRow(round), true),
         );
         if (openAttempt) attemptState = 'in_progress';
-        else if (allDone) attemptState = 'submitted';
+        else if (allCleared) attemptState = 'submitted';
         else if (attempts.length > 0) attemptState = 'in_progress';
       } else if (latest) {
         if (latest.status === 'in_progress') attemptState = 'in_progress';
@@ -216,43 +221,61 @@ export async function listMyActivities(
         ? activity.rounds.map((round, index) => {
             const roundAttempts = attempts.filter((a) => a.roundId === round.id);
             const open = roundAttempts.find((a) => a.status === 'in_progress');
-            const done = roundAttempts.find(
+            const submitted = roundAttempts.filter(
               (a) => a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result),
             );
+            const latestDone = submitted[0] ?? null;
+            const latestResult = latestDone?.result ?? null;
+            const roundSettings = parseRoundRow(round);
+            // Objective rounds auto-publish on submit; manual rounds stay withheld until
+            // an admin publishes. Unlock always requires a published passing result.
+            const requirePublished = true;
+            const cleared = roundIsCleared(attempts, round.id, roundSettings, requirePublished);
+
+            let previousCleared = true;
+            if (index > 0) {
+              const prev = activity.rounds[index - 1]!;
+              previousCleared = roundIsCleared(
+                attempts,
+                prev.id,
+                parseRoundRow(prev),
+                requirePublished,
+              );
+            }
+
             let state: 'locked' | 'available' | 'in_progress' | 'completed';
-            if (done) {
+            if (cleared) {
               state = 'completed';
             } else if (open) {
               state = 'in_progress';
-            } else if (!canAttempt) {
+            } else if (!canAttempt || !previousCleared) {
               state = 'locked';
-            } else if (index === 0) {
+            } else if (canRetryRound(attempts, round.id, roundSettings, requirePublished)) {
               state = 'available';
             } else {
-              const prev = activity.rounds[index - 1];
-              const prevDone = prev
-                ? attempts.some(
-                    (a) =>
-                      a.roundId === prev.id &&
-                      (a.status === 'submitted' ||
-                        a.status === 'auto_submitted' ||
-                        Boolean(a.result)),
-                  )
-                : false;
-              state = prevDone ? 'available' : 'locked';
+              state = 'locked';
             }
-            const qCount =
-              round.banks.reduce((n, b) => n + b.bank._count.questions, 0) +
-              (round.localBank?._count.questions ?? 0);
+
+            const qCount = servedQuestionCount(
+              round.localBank?.questions ?? [],
+              roundSettings.questionLimit,
+            );
             return {
               id: round.id,
               name: round.name,
               sortOrder: round.sortOrder,
-              durationMinutes: round.durationMinutes ?? activity.durationMinutes,
+              imageFileId: round.imageFileId,
+              durationMinutes: roundSettings.durationMinutes ?? activity.durationMinutes,
               questionCount: qCount,
               state,
               openAttemptId: open?.id ?? null,
-              latestResultId: done?.result?.id ?? null,
+              latestResultId: latestDone?.result?.id ?? null,
+              attemptsUsed: submitted.length,
+              maxAttempts: roundSettings.maxAttempts,
+              passed: latestResult ? resultClearsRound(latestResult, roundSettings, false) : null,
+              resultPendingPublish: Boolean(
+                latestResult && latestResult.releaseStatus !== 'published',
+              ),
             };
           })
         : undefined;
@@ -261,7 +284,6 @@ export async function listMyActivities(
         (a) => a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result),
       );
 
-      const quizSettings = activity.kind === 'quiz' ? parseQuizSettings(activity.settings) : null;
       const attemptsUsed = attempts.filter(
         (a) => a.status === 'submitted' || a.status === 'auto_submitted',
       ).length;

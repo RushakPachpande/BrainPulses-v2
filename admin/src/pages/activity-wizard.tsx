@@ -19,15 +19,22 @@ import {
   TrashIcon,
   UsersIcon,
 } from 'lucide-react';
+import { AuthImage } from '@/components/auth-image';
 import { CatalogImageField } from '@/components/catalog-image-field';
 import { DateTimePicker } from '@/components/date-time-picker';
-import { QuestionImageField } from '@/components/question-image-field';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { FlowStatusPill } from '@/components/status-pill';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
@@ -52,12 +59,9 @@ import {
   archiveActivity,
   assignRegistrations,
   createActivity,
-  createRoundQuestion,
   deleteActivity,
-  deleteRoundQuestion,
   getActivity,
   getContests,
-  getQuestionBanks,
   getSponsors,
   getQuestionBank,
   getParticipants,
@@ -69,6 +73,7 @@ import {
   type ActivityRoundLocalQuestion,
   type ActivitySettings,
   type QuizActivitySettings,
+  type RoundBehaviourSettings,
 } from '@/services';
 
 const defaultQuizSettings = (): QuizActivitySettings => ({
@@ -82,22 +87,111 @@ const defaultQuizSettings = (): QuizActivitySettings => ({
   negativeMarkingEnabled: false,
   negativeMarkPoints: 0.25,
   maxAttempts: 1,
+  questionLimit: null,
+});
+
+const defaultRoundBehaviour = (): RoundBehaviourSettings => ({
+  shuffleQuestions: true,
+  shuffleOptions: true,
+  scoreRelease: 'after_submit',
+  answersVisibleToParticipant: false,
+  allowPrevious: true,
+  showQuestionPanel: true,
+  questionsCompulsory: true,
+  negativeMarkingEnabled: false,
+  negativeMarkPoints: 0.25,
+  maxAttempts: 1,
+  questionLimit: null,
 });
 
 type RoundDraft = {
   key: string;
   id?: string;
   name: string;
+  imageFileId: string;
+  imageFileName: string | null;
+  localBankId: string | null;
+  questionCount: number;
   bankIds: string[];
   localQuestions: ActivityRoundLocalQuestion[];
+  durationMode: 'overall' | 'per_question';
+  durationMinutes: string;
+  perQuestionSeconds: string;
+  presentation: 'one_at_a_time' | 'all_on_page';
+  passMode: 'percent' | 'score';
+  passingPercent: string;
+  passingScore: string;
+  settings: RoundBehaviourSettings;
 };
 
 const emptyRound = (index: number): RoundDraft => ({
   key: `round_${Math.random().toString(36).slice(2, 9)}`,
   name: `Round ${index + 1}`,
+  imageFileId: '',
+  imageFileName: null,
+  localBankId: null,
+  questionCount: 0,
   bankIds: [],
   localQuestions: [],
+  durationMode: 'overall',
+  durationMinutes: '60',
+  perQuestionSeconds: '60',
+  presentation: 'one_at_a_time',
+  passMode: 'percent',
+  passingPercent: '40',
+  passingScore: '30',
+  settings: defaultRoundBehaviour(),
 });
+
+function roundDraftFromActivity(r: {
+  id: string;
+  name: string;
+  imageFileId?: string | null;
+  localBankId?: string | null;
+  localQuestionCount?: number;
+  bankIds: string[];
+  localQuestions?: ActivityRoundLocalQuestion[];
+  durationMinutes?: number | null;
+  durationMode?: 'overall' | 'per_question';
+  perQuestionSeconds?: number | null;
+  presentation?: 'one_at_a_time' | 'all_on_page';
+  passMode?: 'percent' | 'score';
+  passingPercent?: number | null;
+  passingScore?: number | null;
+  settings?: RoundBehaviourSettings | null;
+}): RoundDraft {
+  const durationMode = r.durationMode === 'per_question' ? 'per_question' : 'overall';
+  return {
+    key: r.id,
+    id: r.id,
+    name: r.name,
+    imageFileId: r.imageFileId ?? '',
+    imageFileName: null,
+    localBankId: r.localBankId ?? null,
+    questionCount: r.localQuestionCount ?? r.localQuestions?.length ?? 0,
+    bankIds: r.bankIds,
+    localQuestions: r.localQuestions ?? [],
+    durationMode,
+    durationMinutes: String(r.durationMinutes ?? 60),
+    perQuestionSeconds: String(r.perQuestionSeconds ?? 60),
+    presentation:
+      durationMode === 'per_question'
+        ? 'one_at_a_time'
+        : r.presentation === 'all_on_page'
+          ? 'all_on_page'
+          : 'one_at_a_time',
+    passMode: r.passMode === 'score' ? 'score' : 'percent',
+    passingPercent: String(r.passingPercent ?? 40),
+    passingScore: String(r.passingScore ?? 30),
+    settings: {
+      ...defaultRoundBehaviour(),
+      ...(r.settings ?? {}),
+      allowPrevious: durationMode === 'per_question' ? false : (r.settings?.allowPrevious ?? true),
+      showQuestionPanel:
+        durationMode === 'per_question' ? false : (r.settings?.showQuestionPanel ?? true),
+    },
+  };
+}
 
 type WizardMode = 'create' | 'edit' | 'view';
 
@@ -165,13 +259,14 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         'Registration Form',
         isQuiz ? 'Questions' : 'Define Rounds',
         'Assignment Rules',
-        'Behaviour Settings',
+        ...(isQuiz ? (['Behaviour Settings'] as const) : []),
         'Review & Publish',
       ] as const,
     [isQuiz],
   );
 
   const [step, setStep] = useState(0);
+  const stepName = steps[step];
   const [loading, setLoading] = useState(mode !== 'create');
   const [saving, setSaving] = useState(false);
   const [activityId, setActivityId] = useState<string | null>(
@@ -198,14 +293,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [regFields, setRegFields] = useState<FieldDraft[]>([]);
   const [bankIds, setBankIds] = useState<string[]>([]);
   const [rounds, setRounds] = useState<RoundDraft[]>(() => [emptyRound(0)]);
-  const [addingQuestionFor, setAddingQuestionFor] = useState<string | null>(null);
-  const [newQuestionStem, setNewQuestionStem] = useState('');
-  const [newQuestionImageUrl, setNewQuestionImageUrl] = useState('');
-  const [newQuestionOptions, setNewQuestionOptions] = useState([
-    { label: 'A', body: '', isCorrect: true, imageUrl: '' },
-    { label: 'B', body: '', isCorrect: false, imageUrl: '' },
-  ]);
-  const [banks, setBanks] = useState<{ id: string; name: string; questions: number }[]>([]);
+  const roundImageFiles = useRef(new Map<string, File>());
   const [assignMode, setAssignMode] = useState<'manual' | 'all_active_participants'>('manual');
   const [assignNotes, setAssignNotes] = useState('');
   const [durationMinutes, setDurationMinutes] = useState('60');
@@ -246,6 +334,14 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           name: r.name,
           bankIds: r.bankIds,
           localQuestions: r.localQuestions,
+          durationMode: r.durationMode,
+          durationMinutes: r.durationMinutes,
+          perQuestionSeconds: r.perQuestionSeconds,
+          presentation: r.presentation,
+          passMode: r.passMode,
+          passingPercent: r.passingPercent,
+          passingScore: r.passingScore,
+          settings: r.settings,
         })),
         assignMode,
         assignNotes,
@@ -290,24 +386,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const rows = await getQuestionBanks(kind);
-        if (!cancelled) {
-          setBanks(rows.map((b) => ({ id: b.id, name: b.name, questions: b.questions })));
-        }
-      } catch {
-        if (!cancelled) setBanks([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [kind]);
-
-  useEffect(() => {
-    if (!isQuiz) return;
-    let cancelled = false;
     void (async () => {
       try {
         const [sponsorRows, contestRows] = await Promise.all([getSponsors(), getContests()]);
@@ -326,7 +404,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     return () => {
       cancelled = true;
     };
-  }, [isQuiz]);
+  }, []);
 
   useEffect(() => {
     if (mode === 'create') return;
@@ -364,15 +442,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           }
         }
         if (activity.rounds && activity.rounds.length > 0) {
-          setRounds(
-            activity.rounds.map((r) => ({
-              key: r.id,
-              id: r.id,
-              name: r.name,
-              bankIds: r.bankIds,
-              localQuestions: r.localQuestions ?? [],
-            })),
-          );
+          setRounds(activity.rounds.map((r) => roundDraftFromActivity(r)));
         } else if (activity.kind === 'assessment') {
           setRounds([
             {
@@ -465,13 +535,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   async function syncRoundsFromServer(id: string): Promise<RoundDraft[]> {
     const activity = await getActivity(id);
     if (activity.rounds && activity.rounds.length > 0) {
-      const next = activity.rounds.map((r) => ({
-        key: r.id,
-        id: r.id,
-        name: r.name,
-        bankIds: r.bankIds,
-        localQuestions: r.localQuestions ?? [],
-      }));
+      const next = activity.rounds.map((r) => roundDraftFromActivity(r));
       setRounds(next);
       return next;
     }
@@ -495,7 +559,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       setStep(2);
       return null;
     }
-    if (isQuiz && (!sponsorId || !contestId)) {
+    if (!sponsorId || !contestId) {
       toast.error('Choose a sponsor and a contest.');
       setStep(0);
       return null;
@@ -533,22 +597,56 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         endsAt: endDate,
         passingPercent: Number.isFinite(passing) ? passing : undefined,
         presentation: isQuiz && durationMode === 'per_question' ? 'one_at_a_time' : presentation,
+        sponsorId,
+        contestId,
         ...(isQuiz
           ? {
-              sponsorId,
-              contestId,
               durationMode,
               durationMinutes: durationMode === 'overall' ? duration : null,
               perQuestionSeconds: durationMode === 'per_question' ? seconds : null,
             }
           : {
-              durationMinutes: Number.isFinite(duration) && duration > 0 ? duration : undefined,
-              rounds: rounds.map((r, i) => ({
-                ...(r.id ? { id: r.id } : {}),
-                name: r.name.trim(),
-                sortOrder: i,
-                bankIds: r.bankIds,
-              })),
+              rounds: await Promise.all(
+                rounds.map(async (r, i) => {
+                  const minutes = Number(r.durationMinutes);
+                  const seconds = Number(r.perQuestionSeconds);
+                  const pct = Number(r.passingPercent);
+                  const score = Number(r.passingScore);
+                  const perQ = r.durationMode === 'per_question';
+                  const pendingImage = roundImageFiles.current.get(r.key);
+                  const imageFileId = pendingImage
+                    ? await uploadCatalogImage(pendingImage)
+                    : r.imageFileId || null;
+                  if (pendingImage) roundImageFiles.current.delete(r.key);
+                  return {
+                    ...(r.id ? { id: r.id } : {}),
+                    name: r.name.trim(),
+                    sortOrder: i,
+                    imageFileId,
+                    bankIds: [],
+                    durationMode: r.durationMode,
+                    durationMinutes:
+                      !perQ && Number.isFinite(minutes) && minutes > 0 ? minutes : null,
+                    perQuestionSeconds:
+                      perQ && Number.isFinite(seconds) && seconds > 0 ? seconds : null,
+                    presentation: perQ ? 'one_at_a_time' : r.presentation,
+                    passMode: r.passMode,
+                    passingPercent: r.passMode === 'percent' && Number.isFinite(pct) ? pct : null,
+                    passingScore: r.passMode === 'score' && Number.isFinite(score) ? score : null,
+                    settings: {
+                      ...r.settings,
+                      allowPrevious: perQ ? false : r.settings.allowPrevious,
+                      showQuestionPanel: perQ ? false : r.settings.showQuestionPanel,
+                      questionsCompulsory: r.settings.negativeMarkingEnabled
+                        ? false
+                        : r.settings.questionsCompulsory,
+                      negativeMarkPoints: r.settings.negativeMarkingEnabled
+                        ? r.settings.negativeMarkPoints
+                        : 0,
+                    },
+                  };
+                }),
+              ),
             }),
         settings: settingsPayload,
         ...(!isQuiz && code.trim() ? { code: code.trim() } : {}),
@@ -605,95 +703,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : `Could not save ${noun.toLowerCase()}.`);
       return null;
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleAddRoundQuestion(roundKey: string) {
-    if (readOnly) return;
-    const question = newQuestionStem.trim();
-    if (!question) {
-      toast.error('Question is required.');
-      return;
-    }
-    const filled = newQuestionOptions.filter((o) => o.body.trim() || o.imageUrl.trim());
-    if (filled.length < 2) {
-      toast.error('Add at least two options (text, image URL, or both).');
-      return;
-    }
-    if (!filled.some((o) => o.isCorrect)) {
-      toast.error('Mark one correct option.');
-      return;
-    }
-
-    const draftIndex = rounds.findIndex((r) => r.key === roundKey);
-    const id = (await persist({ stay: true })) ?? null;
-    if (!id) return;
-
-    const synced = await syncRoundsFromServer(id);
-    const roundId =
-      synced[draftIndex]?.id ??
-      synced.find((r) => r.key === roundKey || r.name === rounds[draftIndex]?.name)?.id;
-    if (!roundId) {
-      toast.error('Save the round before adding questions.');
-      return;
-    }
-
-    const stemImage = newQuestionImageUrl.trim();
-    const correctLabels = filled.filter((o) => o.isCorrect).map((o) => o.label);
-    setSaving(true);
-    try {
-      await createRoundQuestion(id, roundId, {
-        type: 'single_mcq',
-        question,
-        points: 1,
-        options: filled.map((o) => ({
-          label: o.label,
-          body: o.body.trim(),
-          isCorrect: o.isCorrect,
-          ...(o.imageUrl.trim() ? { imageUrl: o.imageUrl.trim() } : {}),
-        })),
-        answerKey: {
-          correctLabels,
-          ...(stemImage ? { questionImageUrl: stemImage } : {}),
-        },
-      });
-      await syncRoundsFromServer(id);
-      setAddingQuestionFor(null);
-      setNewQuestionStem('');
-      setNewQuestionImageUrl('');
-      setNewQuestionOptions([
-        { label: 'A', body: '', isCorrect: true, imageUrl: '' },
-        { label: 'B', body: '', isCorrect: false, imageUrl: '' },
-      ]);
-      toast.success('Question added to round.');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not add question.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDeleteRoundQuestion(roundKey: string, questionId: string) {
-    if (readOnly || !activityId) return;
-    const round = rounds.find((r) => r.key === roundKey);
-    if (!round?.id) return;
-    const password = await confirm({
-      title: 'Delete this question?',
-      description: 'This cannot be undone.',
-      confirmLabel: 'Delete',
-      destructive: true,
-      requirePassword: true,
-    });
-    if (!password) return;
-    setSaving(true);
-    try {
-      await deleteRoundQuestion(activityId, round.id, questionId, password);
-      await syncRoundsFromServer(activityId);
-      toast.success('Question removed.');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not remove question.');
     } finally {
       setSaving(false);
     }
@@ -801,7 +810,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-5">
-          {step === 0 ? (
+          {stepName === 'Basic Details' ? (
             <FieldGroup>
               <Field>
                 <FieldLabel htmlFor="activity-name">
@@ -815,18 +824,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   disabled={readOnly}
                 />
               </Field>
-              {isQuiz ? null : (
-                <Field>
-                  <FieldLabel htmlFor="activity-code">Code</FieldLabel>
-                  <Input
-                    id="activity-code"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    disabled={readOnly || mode === 'edit'}
-                    placeholder="Auto-generated if empty"
-                  />
-                </Field>
-              )}
               <Field>
                 <FieldLabel htmlFor="activity-description">Description</FieldLabel>
                 <Textarea
@@ -886,68 +883,84 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     </FieldDescription>
                   </Field>
                 </>
-              ) : null}
-              {isQuiz ? (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="quiz-sponsor">
-                      Sponsor <span className="text-destructive">*</span>
-                    </FieldLabel>
-                    <Select
-                      value={sponsorId || undefined}
-                      disabled={readOnly}
-                      onValueChange={(value) => {
-                        setSponsorId(value);
-                        setContestId((current) =>
-                          contests.some((row) => row.id === current && row.sponsorId === value)
-                            ? current
-                            : '',
-                        );
-                      }}
-                    >
-                      <SelectTrigger id="quiz-sponsor" className="w-full">
-                        <SelectValue placeholder="Choose a sponsor" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {sponsors.map((sponsor) => (
-                            <SelectItem key={sponsor.id} value={sponsor.id}>
-                              {sponsor.name}
+              ) : (
+                <CatalogImageField
+                  id="assessment-image"
+                  label="Assessment image"
+                  fileId={imageFileId}
+                  alt={name.trim() || 'Assessment cover'}
+                  disabled={readOnly}
+                  required={false}
+                  onFile={setImageFile}
+                  onPickExisting={(id) => {
+                    setImageFileId(id);
+                    setImageFile(null);
+                  }}
+                  onClear={() => {
+                    setImageFileId('');
+                    setImageFile(null);
+                  }}
+                />
+              )}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field>
+                  <FieldLabel htmlFor="activity-sponsor">
+                    Sponsor <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Select
+                    value={sponsorId || undefined}
+                    disabled={readOnly}
+                    onValueChange={(value) => {
+                      setSponsorId(value);
+                      setContestId((current) =>
+                        contests.some((row) => row.id === current && row.sponsorId === value)
+                          ? current
+                          : '',
+                      );
+                    }}
+                  >
+                    <SelectTrigger id="activity-sponsor" className="w-full">
+                      <SelectValue placeholder="Choose a sponsor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {sponsors.map((sponsor) => (
+                          <SelectItem key={sponsor.id} value={sponsor.id}>
+                            {sponsor.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="activity-contest">
+                    Contest <span className="text-destructive">*</span>
+                  </FieldLabel>
+                  <Select
+                    value={contestId || undefined}
+                    disabled={readOnly || !sponsorId}
+                    onValueChange={setContestId}
+                  >
+                    <SelectTrigger id="activity-contest" className="w-full">
+                      <SelectValue
+                        placeholder={sponsorId ? 'Choose a contest' : 'Choose a sponsor first'}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {contests
+                          .filter((row) => row.sponsorId === sponsorId)
+                          .map((contest) => (
+                            <SelectItem key={contest.id} value={contest.id}>
+                              {contest.name}
                             </SelectItem>
                           ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field>
-                    <FieldLabel htmlFor="quiz-contest">
-                      Contest <span className="text-destructive">*</span>
-                    </FieldLabel>
-                    <Select
-                      value={contestId || undefined}
-                      disabled={readOnly || !sponsorId}
-                      onValueChange={setContestId}
-                    >
-                      <SelectTrigger id="quiz-contest" className="w-full">
-                        <SelectValue
-                          placeholder={sponsorId ? 'Choose a contest' : 'Choose a sponsor first'}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          {contests
-                            .filter((row) => row.sponsorId === sponsorId)
-                            .map((contest) => (
-                              <SelectItem key={contest.id} value={contest.id}>
-                                {contest.name}
-                              </SelectItem>
-                            ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                </div>
-              ) : null}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel>
@@ -975,7 +988,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </FieldGroup>
           ) : null}
 
-          {step === 1 ? (
+          {stepName === 'Registration Form' ? (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
                 Optional fields collected before a participant starts (stored with the activity).
@@ -1065,7 +1078,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </div>
           ) : null}
 
-          {step === 2 && isQuiz ? (
+          {stepName === 'Questions' ? (
             <QuizQuestionsPanel
               bankId={quizBankId}
               readOnly={readOnly}
@@ -1082,21 +1095,22 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             />
           ) : null}
 
-          {step === 2 && !isQuiz ? (
+          {stepName === 'Define Rounds' ? (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
-                Define ordered rounds. Link reusable question banks and optionally add questions
-                manually to each round. Participants take rounds in order.
+                Add rounds in the order participants take them. Each round keeps its own questions
+                and behaviour.
               </p>
               {rounds.map((round, index) => (
                 <Card key={round.key} className="border-border shadow-none">
-                  <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
+                  <CardHeader className="gap-3 @max-[24rem]/has-data-[slot=card-action]:grid-cols-1">
+                    <div className="min-w-0 w-full space-y-2">
                       <FieldLabel htmlFor={`round-name-${round.key}`}>
                         Round {index + 1} name
                       </FieldLabel>
                       <Input
                         id={`round-name-${round.key}`}
+                        className="w-full min-w-0"
                         value={round.name}
                         disabled={readOnly}
                         onChange={(e) => {
@@ -1108,7 +1122,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       />
                     </div>
                     {!readOnly ? (
-                      <div className="flex flex-wrap gap-2">
+                      <CardAction className="flex flex-wrap gap-2 self-end @max-[24rem]:col-start-1 @max-[24rem]:row-start-auto @max-[24rem]:justify-self-start">
                         <Button
                           type="button"
                           variant="outline"
@@ -1153,194 +1167,693 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           size="icon"
                           disabled={rounds.length <= 1}
                           aria-label="Remove round"
-                          onClick={() =>
-                            setRounds((prev) => prev.filter((r) => r.key !== round.key))
-                          }
+                          onClick={() => {
+                            if (rounds.length <= 1) {
+                              toast.error('Every assessment needs at least one round.');
+                              return;
+                            }
+                            void (async () => {
+                              const ok = await confirm({
+                                title: 'Remove this round?',
+                                description: round.id
+                                  ? 'Rounds that already have participant attempts cannot be removed.'
+                                  : 'Questions linked only to this round draft will be discarded on save.',
+                                confirmLabel: 'Remove round',
+                                destructive: true,
+                              });
+                              if (!ok) return;
+                              setRounds((prev) => prev.filter((r) => r.key !== round.key));
+                            })();
+                          }}
                         >
                           <TrashIcon />
                         </Button>
-                      </div>
+                      </CardAction>
                     ) : null}
                   </CardHeader>
                   <CardContent className="flex flex-col gap-4">
-                    <div className="flex flex-col gap-2">
-                      <p className="text-sm font-medium">Linked question banks</p>
-                      {banks.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">
-                          No banks yet.{' '}
-                          <Link className="underline" to={`${listPath}/banks/new`}>
-                            Create a bank
-                          </Link>
-                        </p>
-                      ) : (
-                        banks.map((bank) => {
-                          const checked = round.bankIds.includes(bank.id);
-                          return (
-                            <label
-                              key={bank.id}
-                              className="flex min-h-(--control-h) items-center gap-3 rounded-lg border border-border px-3"
-                            >
-                              <Checkbox
-                                checked={checked}
-                                disabled={readOnly}
-                                onCheckedChange={(value) => {
-                                  setRounds((prev) =>
-                                    prev.map((r) => {
-                                      if (r.key !== round.key) return r;
-                                      const bankIdsNext =
-                                        value === true
-                                          ? [...r.bankIds, bank.id]
-                                          : r.bankIds.filter((id) => id !== bank.id);
-                                      return { ...r, bankIds: bankIdsNext };
-                                    }),
-                                  );
-                                }}
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="font-medium">{bank.name}</span>
-                                <span className="ml-2 text-sm text-muted-foreground">
-                                  {bank.questions} questions
-                                </span>
-                              </span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
+                    <CatalogImageField
+                      id={`round-image-${round.key}`}
+                      label="Round image"
+                      fileId={round.imageFileId}
+                      alt={round.name.trim() || 'Round cover'}
+                      disabled={readOnly}
+                      required={false}
+                      onFile={(file) => {
+                        if (file) roundImageFiles.current.set(round.key, file);
+                        else roundImageFiles.current.delete(round.key);
+                        setRounds((prev) =>
+                          prev.map((r) =>
+                            r.key === round.key
+                              ? { ...r, imageFileName: file ? file.name : null }
+                              : r,
+                          ),
+                        );
+                      }}
+                      onPickExisting={(fileId) => {
+                        roundImageFiles.current.delete(round.key);
+                        setRounds((prev) =>
+                          prev.map((r) =>
+                            r.key === round.key
+                              ? { ...r, imageFileId: fileId, imageFileName: null }
+                              : r,
+                          ),
+                        );
+                      }}
+                      onClear={() => {
+                        roundImageFiles.current.delete(round.key);
+                        setRounds((prev) =>
+                          prev.map((r) =>
+                            r.key === round.key
+                              ? { ...r, imageFileId: '', imageFileName: null }
+                              : r,
+                          ),
+                        );
+                      }}
+                    />
+                    <QuizQuestionsPanel
+                      bankId={round.localBankId}
+                      kind="assessment"
+                      readOnly={readOnly}
+                      onCount={(count) =>
+                        setRounds((prev) =>
+                          prev.map((r) =>
+                            r.key === round.key ? { ...r, questionCount: count } : r,
+                          ),
+                        )
+                      }
+                      onEnsureBank={async () => {
+                        const savedId = (await persist({ stay: true })) ?? activityId;
+                        if (!savedId) return null;
+                        const synced = await syncRoundsFromServer(savedId);
+                        return synced[index]?.localBankId ?? null;
+                      }}
+                    />
 
-                    <div className="flex flex-col gap-2">
-                      <p className="text-sm font-medium">Manual questions</p>
-                      {round.localQuestions.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">None yet.</p>
-                      ) : (
-                        <ul className="space-y-2">
-                          {round.localQuestions.map((q) => (
-                            <li
-                              key={q.id}
-                              className="flex items-start justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                    <div className="flex flex-col gap-3 border-t border-border pt-4">
+                      <p className="text-sm font-medium">Round behaviour</p>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <Field>
+                          <FieldLabel htmlFor={`round-duration-mode-${round.key}`}>
+                            Time duration
+                          </FieldLabel>
+                          <Select
+                            value={round.durationMode}
+                            disabled={readOnly}
+                            onValueChange={(value) => {
+                              const next = value as 'overall' | 'per_question';
+                              setRounds((prev) =>
+                                prev.map((r) =>
+                                  r.key === round.key
+                                    ? {
+                                        ...r,
+                                        durationMode: next,
+                                        presentation:
+                                          next === 'per_question'
+                                            ? 'one_at_a_time'
+                                            : r.presentation,
+                                        settings: {
+                                          ...r.settings,
+                                          allowPrevious:
+                                            next === 'per_question'
+                                              ? false
+                                              : r.settings.allowPrevious,
+                                          showQuestionPanel:
+                                            next === 'per_question'
+                                              ? false
+                                              : r.settings.showQuestionPanel,
+                                        },
+                                      }
+                                    : r,
+                                ),
+                              );
+                            }}
+                          >
+                            <SelectTrigger
+                              id={`round-duration-mode-${round.key}`}
+                              className="w-full"
                             >
-                              <span className="min-w-0 flex-1 text-sm">{q.question}</span>
-                              {!readOnly ? (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  aria-label="Delete question"
-                                  onClick={() => void handleDeleteRoundQuestion(round.key, q.id)}
-                                >
-                                  <TrashIcon />
-                                </Button>
-                              ) : null}
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-
-                      {!readOnly && addingQuestionFor === round.key ? (
-                        <div className="flex flex-col gap-3 rounded-lg border border-border p-3">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value="overall">Overall round</SelectItem>
+                                <SelectItem value="per_question">Per question</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        {round.durationMode === 'per_question' ? (
                           <Field>
-                            <FieldLabel htmlFor={`q-question-${round.key}`}>Question</FieldLabel>
-                            <Textarea
-                              id={`q-question-${round.key}`}
-                              value={newQuestionStem}
-                              onChange={(e) => setNewQuestionStem(e.target.value)}
-                            />
-                          </Field>
-                          <Field>
-                            <FieldLabel htmlFor={`q-image-${round.key}`}>
-                              Question image (optional)
+                            <FieldLabel htmlFor={`round-per-q-${round.key}`}>
+                              Seconds per question
                             </FieldLabel>
-                            <QuestionImageField
-                              id={`q-image-${round.key}`}
-                              value={newQuestionImageUrl}
-                              placeholder="https://…"
-                              onChange={setNewQuestionImageUrl}
+                            <Input
+                              id={`round-per-q-${round.key}`}
+                              type="number"
+                              min={1}
+                              value={round.perQuestionSeconds}
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key ? { ...r, perQuestionSeconds: value } : r,
+                                  ),
+                                );
+                              }}
                             />
                           </Field>
-                          <p className="text-xs text-muted-foreground">
-                            Each option needs text, an image URL, or both. Mark exactly one correct.
-                          </p>
-                          {newQuestionOptions.map((opt, oi) => (
-                            <div
-                              key={opt.label}
-                              className="flex flex-col gap-2 rounded-lg border border-border p-3"
+                        ) : (
+                          <Field>
+                            <FieldLabel htmlFor={`round-duration-${round.key}`}>
+                              Duration (minutes)
+                            </FieldLabel>
+                            <Input
+                              id={`round-duration-${round.key}`}
+                              type="number"
+                              min={1}
+                              value={round.durationMinutes}
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key ? { ...r, durationMinutes: value } : r,
+                                  ),
+                                );
+                              }}
+                            />
+                          </Field>
+                        )}
+                        <Field>
+                          <FieldLabel htmlFor={`round-presentation-${round.key}`}>
+                            Presentation
+                          </FieldLabel>
+                          <Select
+                            value={
+                              round.durationMode === 'per_question'
+                                ? 'one_at_a_time'
+                                : round.presentation
+                            }
+                            disabled={readOnly || round.durationMode === 'per_question'}
+                            onValueChange={(v) =>
+                              setRounds((prev) =>
+                                prev.map((r) =>
+                                  r.key === round.key
+                                    ? {
+                                        ...r,
+                                        presentation: v as 'one_at_a_time' | 'all_on_page',
+                                      }
+                                    : r,
+                                ),
+                              )
+                            }
+                          >
+                            <SelectTrigger
+                              id={`round-presentation-${round.key}`}
+                              className="w-full"
                             >
-                              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                                <label className="flex items-center gap-2 text-sm">
-                                  <Checkbox
-                                    checked={opt.isCorrect}
-                                    onCheckedChange={(value) => {
-                                      setNewQuestionOptions((prev) =>
-                                        prev.map((o, i) => ({
-                                          ...o,
-                                          isCorrect: i === oi ? value === true : false,
-                                        })),
-                                      );
-                                    }}
-                                  />
-                                  {opt.label}
-                                </label>
-                                <Input
-                                  value={opt.body}
-                                  placeholder={`Option ${opt.label}`}
-                                  onChange={(e) => {
-                                    const value = e.target.value;
-                                    setNewQuestionOptions((prev) =>
-                                      prev.map((o, i) => (i === oi ? { ...o, body: value } : o)),
-                                    );
-                                  }}
-                                />
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value="one_at_a_time">
+                                  One question at a time
+                                </SelectItem>
+                                <SelectItem
+                                  value="all_on_page"
+                                  disabled={round.durationMode === 'per_question'}
+                                >
+                                  All on one page
+                                </SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        <Field>
+                          <FieldLabel htmlFor={`round-pass-mode-${round.key}`}>
+                            Pass condition
+                          </FieldLabel>
+                          <Select
+                            value={round.passMode}
+                            disabled={readOnly}
+                            onValueChange={(v) =>
+                              setRounds((prev) =>
+                                prev.map((r) =>
+                                  r.key === round.key
+                                    ? { ...r, passMode: v as 'percent' | 'score' }
+                                    : r,
+                                ),
+                              )
+                            }
+                          >
+                            <SelectTrigger id={`round-pass-mode-${round.key}`} className="w-full">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectItem value="percent">Percentage</SelectItem>
+                                <SelectItem value="score">Score (marks)</SelectItem>
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </Field>
+                        {round.passMode === 'score' ? (
+                          <Field>
+                            <FieldLabel htmlFor={`round-pass-score-${round.key}`}>
+                              Passing score
+                            </FieldLabel>
+                            <Input
+                              id={`round-pass-score-${round.key}`}
+                              type="number"
+                              min={0}
+                              value={round.passingScore}
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key ? { ...r, passingScore: value } : r,
+                                  ),
+                                );
+                              }}
+                            />
+                          </Field>
+                        ) : (
+                          <Field>
+                            <FieldLabel htmlFor={`round-pass-pct-${round.key}`}>
+                              Passing percent
+                            </FieldLabel>
+                            <Input
+                              id={`round-pass-pct-${round.key}`}
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={round.passingPercent}
+                              disabled={readOnly}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key ? { ...r, passingPercent: value } : r,
+                                  ),
+                                );
+                              }}
+                            />
+                          </Field>
+                        )}
+                      </div>
+
+                      <div className="overflow-hidden rounded-xl border border-border">
+                        <div className="flex flex-col divide-y divide-border">
+                          <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
+                            <div className="min-w-0">
+                              <FieldLabel htmlFor={`round-allow-prev-${round.key}`}>
+                                Allow Previous
+                              </FieldLabel>
+                              <FieldDescription>
+                                {round.durationMode === 'per_question'
+                                  ? 'Per-question timer always blocks going back.'
+                                  : 'When off, participants cannot return to earlier questions.'}
+                              </FieldDescription>
+                            </div>
+                            <Switch
+                              id={`round-allow-prev-${round.key}`}
+                              checked={
+                                round.durationMode === 'per_question'
+                                  ? false
+                                  : round.settings.allowPrevious
+                              }
+                              disabled={readOnly || round.durationMode === 'per_question'}
+                              onCheckedChange={(checked) =>
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key
+                                      ? {
+                                          ...r,
+                                          settings: { ...r.settings, allowPrevious: checked },
+                                        }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                          <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
+                            <div className="min-w-0">
+                              <FieldLabel htmlFor={`round-compulsory-${round.key}`}>
+                                Questions are compulsory
+                              </FieldLabel>
+                            </div>
+                            <Switch
+                              id={`round-compulsory-${round.key}`}
+                              checked={
+                                round.settings.negativeMarkingEnabled
+                                  ? false
+                                  : round.settings.questionsCompulsory
+                              }
+                              disabled={readOnly || round.settings.negativeMarkingEnabled}
+                              onCheckedChange={(checked) =>
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key
+                                      ? {
+                                          ...r,
+                                          settings: {
+                                            ...r.settings,
+                                            questionsCompulsory: checked,
+                                          },
+                                        }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                          <div className="flex flex-col gap-3 p-3.5">
+                            <div className="flex min-h-(--control-h) items-center justify-between gap-3">
+                              <div className="min-w-0">
+                                <FieldLabel htmlFor={`round-neg-${round.key}`}>
+                                  Negative marking
+                                </FieldLabel>
                               </div>
-                              <QuestionImageField
-                                id={`q-option-image-${round.key}-${opt.label}`}
-                                value={opt.imageUrl}
-                                placeholder="Image URL (optional)"
-                                alt="Answer image"
-                                onChange={(value) => {
-                                  setNewQuestionOptions((prev) =>
-                                    prev.map((o, i) => (i === oi ? { ...o, imageUrl: value } : o)),
-                                  );
-                                }}
+                              <Switch
+                                id={`round-neg-${round.key}`}
+                                checked={round.settings.negativeMarkingEnabled}
+                                disabled={readOnly}
+                                onCheckedChange={(checked) =>
+                                  setRounds((prev) =>
+                                    prev.map((r) =>
+                                      r.key === round.key
+                                        ? {
+                                            ...r,
+                                            settings: {
+                                              ...r.settings,
+                                              negativeMarkingEnabled: checked,
+                                              questionsCompulsory: checked
+                                                ? false
+                                                : r.settings.questionsCompulsory,
+                                              negativeMarkPoints:
+                                                checked && r.settings.negativeMarkPoints <= 0
+                                                  ? 0.25
+                                                  : r.settings.negativeMarkPoints,
+                                            },
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                            </div>
+                            {round.settings.negativeMarkingEnabled ? (
+                              <Field>
+                                <FieldLabel htmlFor={`round-neg-pts-${round.key}`}>
+                                  Marks deducted per wrong answer
+                                </FieldLabel>
+                                <Input
+                                  id={`round-neg-pts-${round.key}`}
+                                  type="number"
+                                  min={0.01}
+                                  step={0.01}
+                                  value={round.settings.negativeMarkPoints}
+                                  disabled={readOnly}
+                                  onChange={(e) =>
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key
+                                          ? {
+                                              ...r,
+                                              settings: {
+                                                ...r.settings,
+                                                negativeMarkPoints: Number(e.target.value) || 0,
+                                              },
+                                            }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </Field>
+                            ) : null}
+                          </div>
+                          <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
+                            <div className="min-w-0">
+                              <FieldLabel htmlFor={`round-panel-${round.key}`}>
+                                Question overview panel
+                              </FieldLabel>
+                            </div>
+                            <Switch
+                              id={`round-panel-${round.key}`}
+                              checked={
+                                round.durationMode === 'per_question'
+                                  ? false
+                                  : round.settings.showQuestionPanel
+                              }
+                              disabled={readOnly || round.durationMode === 'per_question'}
+                              onCheckedChange={(checked) =>
+                                setRounds((prev) =>
+                                  prev.map((r) =>
+                                    r.key === round.key
+                                      ? {
+                                          ...r,
+                                          settings: {
+                                            ...r.settings,
+                                            showQuestionPanel: checked,
+                                          },
+                                        }
+                                      : r,
+                                  ),
+                                )
+                              }
+                            />
+                          </div>
+                          {(
+                            [
+                              ['shuffleQuestions', 'Shuffle questions'],
+                              ['shuffleOptions', 'Shuffle options'],
+                              [
+                                'answersVisibleToParticipant',
+                                'Show answers to participants (when published)',
+                              ],
+                            ] as const
+                          ).map(([key, label]) => (
+                            <div
+                              key={key}
+                              className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5"
+                            >
+                              <FieldLabel htmlFor={`round-${key}-${round.key}`}>{label}</FieldLabel>
+                              <Switch
+                                id={`round-${key}-${round.key}`}
+                                checked={round.settings[key]}
+                                disabled={readOnly}
+                                onCheckedChange={(checked) =>
+                                  setRounds((prev) =>
+                                    prev.map((r) =>
+                                      r.key === round.key
+                                        ? { ...r, settings: { ...r.settings, [key]: checked } }
+                                        : r,
+                                    ),
+                                  )
+                                }
                               />
                             </div>
                           ))}
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
-                              disabled={saving}
-                              onClick={() => void handleAddRoundQuestion(round.key)}
-                            >
-                              Save question
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              onClick={() => setAddingQuestionFor(null)}
-                            >
-                              Cancel
-                            </Button>
+                          <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <FieldLabel id={`round-score-label-${round.key}`}>Score</FieldLabel>
+                              <FieldDescription>
+                                {round.settings.scoreRelease === 'after_publish'
+                                  ? 'Participants see the score after an admin publishes the result.'
+                                  : 'Participants see the score as soon as they submit.'}
+                              </FieldDescription>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-3">
+                              <span
+                                className={cn(
+                                  'text-sm',
+                                  round.settings.scoreRelease === 'after_submit'
+                                    ? 'font-medium text-foreground'
+                                    : 'text-muted-foreground',
+                                )}
+                              >
+                                After submit
+                              </span>
+                              <Switch
+                                id={`round-score-${round.key}`}
+                                checked={round.settings.scoreRelease === 'after_publish'}
+                                disabled={readOnly}
+                                aria-labelledby={`round-score-label-${round.key}`}
+                                onCheckedChange={(checked) =>
+                                  setRounds((prev) =>
+                                    prev.map((r) =>
+                                      r.key === round.key
+                                        ? {
+                                            ...r,
+                                            settings: {
+                                              ...r.settings,
+                                              scoreRelease: checked
+                                                ? 'after_publish'
+                                                : 'after_submit',
+                                            },
+                                          }
+                                        : r,
+                                    ),
+                                  )
+                                }
+                              />
+                              <span
+                                className={cn(
+                                  'text-sm',
+                                  round.settings.scoreRelease === 'after_publish'
+                                    ? 'font-medium text-foreground'
+                                    : 'text-muted-foreground',
+                                )}
+                              >
+                                After publish
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <FieldLabel htmlFor={`round-attempts-${round.key}`}>
+                                Number of attempts
+                              </FieldLabel>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-3">
+                              <Input
+                                id={`round-attempts-${round.key}`}
+                                type="number"
+                                min={1}
+                                max={100}
+                                className="w-24"
+                                value={round.settings.maxAttempts ?? ''}
+                                disabled={readOnly || round.settings.maxAttempts === null}
+                                onChange={(e) => {
+                                  const next = Number(e.target.value);
+                                  setRounds((prev) =>
+                                    prev.map((r) =>
+                                      r.key === round.key
+                                        ? {
+                                            ...r,
+                                            settings: {
+                                              ...r.settings,
+                                              maxAttempts:
+                                                Number.isInteger(next) && next >= 1
+                                                  ? Math.min(100, next)
+                                                  : 1,
+                                            },
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                              />
+                              <div className="flex items-center gap-2">
+                                <FieldLabel
+                                  htmlFor={`round-unlimited-${round.key}`}
+                                  className="text-sm font-normal text-muted-foreground"
+                                >
+                                  Unlimited
+                                </FieldLabel>
+                                <Switch
+                                  id={`round-unlimited-${round.key}`}
+                                  checked={round.settings.maxAttempts === null}
+                                  disabled={readOnly}
+                                  onCheckedChange={(checked) =>
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key
+                                          ? {
+                                              ...r,
+                                              settings: {
+                                                ...r.settings,
+                                                maxAttempts: checked
+                                                  ? null
+                                                  : (r.settings.maxAttempts ?? 1),
+                                              },
+                                            }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                            <div className="min-w-0">
+                              <FieldLabel htmlFor={`round-question-limit-${round.key}`}>
+                                Number of questions
+                              </FieldLabel>
+                              <FieldDescription>
+                                How many questions a participant sees. A passage stays together.
+                                Turn on All to use every question.
+                              </FieldDescription>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-3">
+                              <Input
+                                id={`round-question-limit-${round.key}`}
+                                type="number"
+                                min={1}
+                                max={500}
+                                className="w-24"
+                                value={round.settings.questionLimit ?? ''}
+                                disabled={readOnly || round.settings.questionLimit === null}
+                                onChange={(e) => {
+                                  const next = Number(e.target.value);
+                                  setRounds((prev) =>
+                                    prev.map((r) =>
+                                      r.key === round.key
+                                        ? {
+                                            ...r,
+                                            settings: {
+                                              ...r.settings,
+                                              questionLimit:
+                                                Number.isInteger(next) && next >= 1
+                                                  ? Math.min(500, next)
+                                                  : 1,
+                                            },
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                              />
+                              <div className="flex items-center gap-2">
+                                <FieldLabel
+                                  htmlFor={`round-all-questions-${round.key}`}
+                                  className="text-sm font-normal text-muted-foreground"
+                                >
+                                  All
+                                </FieldLabel>
+                                <Switch
+                                  id={`round-all-questions-${round.key}`}
+                                  checked={round.settings.questionLimit === null}
+                                  disabled={readOnly}
+                                  onCheckedChange={(checked) =>
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key
+                                          ? {
+                                              ...r,
+                                              settings: {
+                                                ...r.settings,
+                                                questionLimit: checked
+                                                  ? null
+                                                  : (r.settings.questionLimit ?? 10),
+                                              },
+                                            }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      ) : null}
-
-                      {!readOnly && addingQuestionFor !== round.key ? (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => {
-                            setAddingQuestionFor(round.key);
-                            setNewQuestionStem('');
-                            setNewQuestionImageUrl('');
-                            setNewQuestionOptions([
-                              { label: 'A', body: '', isCorrect: true, imageUrl: '' },
-                              { label: 'B', body: '', isCorrect: false, imageUrl: '' },
-                            ]);
-                          }}
-                        >
-                          <PlusIcon data-icon="inline-start" />
-                          Add question
-                        </Button>
-                      ) : null}
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1359,7 +1872,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </div>
           ) : null}
 
-          {step === 3 ? (
+          {stepName === 'Assignment Rules' ? (
             <FieldGroup>
               <Field>
                 <FieldLabel>Assignment mode</FieldLabel>
@@ -1397,7 +1910,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </FieldGroup>
           ) : null}
 
-          {step === 4 ? (
+          {stepName === 'Behaviour Settings' ? (
             <FieldGroup>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {isQuiz ? (
@@ -1458,60 +1971,55 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     )}
                   </>
                 ) : (
-                  <Field>
-                    <FieldLabel htmlFor="duration">Duration (minutes)</FieldLabel>
-                    <Input
-                      id="duration"
-                      type="number"
-                      min={1}
-                      value={durationMinutes}
-                      disabled={readOnly}
-                      onChange={(e) => setDurationMinutes(e.target.value)}
-                    />
-                  </Field>
+                  <p className="text-sm text-muted-foreground md:col-span-2">
+                    Timer, presentation, attempts, and pass rules are set on each round in Define
+                    Rounds.
+                  </p>
                 )}
-                <Field>
-                  <FieldLabel htmlFor="passing">Passing percent</FieldLabel>
-                  <Input
-                    id="passing"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={passingPercent}
-                    disabled={readOnly}
-                    onChange={(e) => setPassingPercent(e.target.value)}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="presentation">Presentation</FieldLabel>
-                  <Select
-                    value={
-                      isQuiz && durationMode === 'per_question' ? 'one_at_a_time' : presentation
-                    }
-                    disabled={readOnly || (isQuiz && durationMode === 'per_question')}
-                    onValueChange={(v) => setPresentation(v as typeof presentation)}
-                  >
-                    <SelectTrigger id="presentation" className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem value="one_at_a_time">One question at a time</SelectItem>
-                        <SelectItem
-                          value="all_on_page"
-                          disabled={isQuiz && durationMode === 'per_question'}
-                        >
-                          All on one page
-                        </SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                  {isQuiz && durationMode === 'per_question' ? (
-                    <FieldDescription>
-                      Per-question timer requires one question at a time.
-                    </FieldDescription>
-                  ) : null}
-                </Field>
+                {isQuiz ? (
+                  <>
+                    <Field>
+                      <FieldLabel htmlFor="passing">Passing percent</FieldLabel>
+                      <Input
+                        id="passing"
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={passingPercent}
+                        disabled={readOnly}
+                        onChange={(e) => setPassingPercent(e.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel htmlFor="presentation">Presentation</FieldLabel>
+                      <Select
+                        value={durationMode === 'per_question' ? 'one_at_a_time' : presentation}
+                        disabled={readOnly || durationMode === 'per_question'}
+                        onValueChange={(v) => setPresentation(v as typeof presentation)}
+                      >
+                        <SelectTrigger id="presentation" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="one_at_a_time">One question at a time</SelectItem>
+                            <SelectItem
+                              value="all_on_page"
+                              disabled={durationMode === 'per_question'}
+                            >
+                              All on one page
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {durationMode === 'per_question' ? (
+                        <FieldDescription>
+                          Per-question timer requires one question at a time.
+                        </FieldDescription>
+                      ) : null}
+                    </Field>
+                  </>
+                ) : null}
               </div>
               {isQuiz ? (
                 <div className="flex flex-col gap-3 border-t border-border pt-4">
@@ -1685,6 +2193,55 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       </div>
                       <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0">
+                          <FieldLabel htmlFor="quiz-question-limit">Number of questions</FieldLabel>
+                          <FieldDescription id="quiz-question-limit-hint">
+                            How many questions a participant sees. A passage stays together. Turn on
+                            All to use every question.
+                          </FieldDescription>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-3">
+                          <Input
+                            id="quiz-question-limit"
+                            type="number"
+                            inputMode="numeric"
+                            min={1}
+                            max={500}
+                            aria-describedby="quiz-question-limit-hint"
+                            className="w-24"
+                            value={quizSettings.questionLimit ?? ''}
+                            disabled={readOnly || quizSettings.questionLimit === null}
+                            onChange={(e) => {
+                              const next = Number(e.target.value);
+                              setQuizSettings((prev) => ({
+                                ...prev,
+                                questionLimit:
+                                  Number.isInteger(next) && next >= 1 ? Math.min(500, next) : 1,
+                              }));
+                            }}
+                          />
+                          <div className="flex items-center gap-2">
+                            <FieldLabel
+                              htmlFor="quiz-all-questions"
+                              className="text-sm font-normal text-muted-foreground"
+                            >
+                              All
+                            </FieldLabel>
+                            <Switch
+                              id="quiz-all-questions"
+                              checked={quizSettings.questionLimit === null}
+                              disabled={readOnly}
+                              onCheckedChange={(checked) =>
+                                setQuizSettings((prev) => ({
+                                  ...prev,
+                                  questionLimit: checked ? null : (prev.questionLimit ?? 10),
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
                           <FieldLabel id="quiz-score-release-label">Score</FieldLabel>
                           <FieldDescription>
                             {quizSettings.scoreRelease === 'after_publish'
@@ -1761,7 +2318,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </FieldGroup>
           ) : null}
 
-          {step === 5 ? (
+          {stepName === 'Review & Publish' ? (
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0">
@@ -1819,18 +2376,18 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                <ReviewFact
+                  icon={Building2Icon}
+                  label="Sponsor"
+                  value={sponsors.find((row) => row.id === sponsorId)?.name || '—'}
+                />
+                <ReviewFact
+                  icon={TargetIcon}
+                  label="Contest"
+                  value={contests.find((row) => row.id === contestId)?.name || '—'}
+                />
                 {isQuiz ? (
                   <>
-                    <ReviewFact
-                      icon={Building2Icon}
-                      label="Sponsor"
-                      value={sponsors.find((row) => row.id === sponsorId)?.name || '—'}
-                    />
-                    <ReviewFact
-                      icon={TargetIcon}
-                      label="Contest"
-                      value={contests.find((row) => row.id === contestId)?.name || '—'}
-                    />
                     <ReviewFact
                       icon={LibraryIcon}
                       label="Questions"
@@ -1856,25 +2413,22 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     />
                   </>
                 ) : (
-                  <>
-                    <ReviewFact icon={ClipboardListIcon} label="Code" value={code || 'Auto'} />
-                    <ReviewFact
-                      icon={LibraryIcon}
-                      label="Rounds"
-                      value={
-                        rounds.length === 0
-                          ? 'None'
-                          : rounds
-                              .map(
-                                (r, i) =>
-                                  `${r.name || `Round ${i + 1}`} (${r.bankIds.length} bank${
-                                    r.bankIds.length === 1 ? '' : 's'
-                                  }, ${r.localQuestions.length} manual)`,
-                              )
-                              .join(' · ')
-                      }
-                    />
-                  </>
+                  <ReviewFact
+                    icon={LibraryIcon}
+                    label="Rounds"
+                    value={
+                      rounds.length === 0
+                        ? 'None'
+                        : rounds
+                            .map(
+                              (r, i) =>
+                                `${r.name || `Round ${i + 1}`} (${r.questionCount} question${
+                                  r.questionCount === 1 ? '' : 's'
+                                })`,
+                            )
+                            .join(' · ')
+                    }
+                  />
                 )}
                 <ReviewFact
                   icon={UsersIcon}
@@ -1920,24 +2474,70 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               </div>
 
               {!isQuiz && rounds.length > 0 ? (
-                <div className="rounded-xl border border-border p-4">
+                <div className="flex flex-col gap-3">
                   <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                     Round detail
                   </p>
-                  <ul className="mt-3 space-y-2">
-                    {rounds.map((r, i) => (
-                      <li
-                        key={r.key}
-                        className="flex flex-col gap-0.5 rounded-lg border border-border/70 bg-card px-3 py-2.5 text-sm sm:flex-row sm:items-center sm:justify-between"
-                      >
-                        <span className="font-medium">{r.name || `Round ${i + 1}`}</span>
-                        <span className="text-muted-foreground">
-                          {r.bankIds.length} bank{r.bankIds.length === 1 ? '' : 's'} ·{' '}
-                          {r.localQuestions.length} manual question
-                          {r.localQuestions.length === 1 ? '' : 's'}
-                        </span>
-                      </li>
-                    ))}
+                  <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    {rounds.map((r, i) => {
+                      const perQ = r.durationMode === 'per_question';
+                      const duration = perQ
+                        ? `${r.perQuestionSeconds || '—'} sec each`
+                        : `${r.durationMinutes || '—'} min`;
+                      const pass =
+                        r.passMode === 'score'
+                          ? `${r.passingScore || '—'} points`
+                          : `${r.passingPercent || '—'}%`;
+                      const attempts =
+                        r.settings.maxAttempts == null
+                          ? 'Unlimited'
+                          : String(r.settings.maxAttempts);
+                      const questions =
+                        r.settings.questionLimit == null
+                          ? 'All questions'
+                          : `${r.settings.questionLimit} shown`;
+                      return (
+                        <li
+                          key={r.key}
+                          className="flex min-w-0 gap-3 rounded-xl border border-border/80 bg-muted/40 p-3.5"
+                        >
+                          {r.imageFileId ? (
+                            <AuthImage
+                              fileId={r.imageFileId}
+                              alt=""
+                              className="size-16 shrink-0 rounded-lg object-cover"
+                            />
+                          ) : (
+                            <span className="flex size-16 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-xs font-semibold text-muted-foreground">
+                              {r.imageFileName ? 'New' : 'No image'}
+                            </span>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {r.name || `Round ${i + 1}`}
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {r.questionCount} question{r.questionCount === 1 ? '' : 's'} ·{' '}
+                              {questions}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {duration} · Pass {pass} · {attempts} attempt
+                              {r.settings.maxAttempts === 1 ? '' : 's'}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Score{' '}
+                              {r.settings.scoreRelease === 'after_publish'
+                                ? 'after publish'
+                                : 'after submit'}
+                              {' · '}
+                              Shuffle questions {r.settings.shuffleQuestions ? 'on' : 'off'}
+                              {' · '}
+                              Shuffle options {r.settings.shuffleOptions ? 'on' : 'off'}
+                            </p>
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : null}

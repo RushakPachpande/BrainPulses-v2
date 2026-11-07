@@ -3,6 +3,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { placeOwnedImage } from '../files/place.js';
 import { assertCatalogImage } from '../files/service.js';
 import type { createSponsorSchema, sponsorListQuerySchema, updateSponsorSchema } from './schema.js';
 
@@ -68,6 +69,11 @@ export async function createSponsor(
     },
     include: { _count: { select: { contests: true } } },
   });
+  await placeOwnedImage(organizationId, row.imageFileId, {
+    kind: 'sponsor',
+    sponsorName: row.name,
+    sponsorId: row.id,
+  });
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -95,6 +101,11 @@ export async function updateSponsor(
       ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
     },
     include: { _count: { select: { contests: true } } },
+  });
+  await placeOwnedImage(organizationId, row.imageFileId, {
+    kind: 'sponsor',
+    sponsorName: row.name,
+    sponsorId: row.id,
   });
   await writeAudit({
     organizationId,

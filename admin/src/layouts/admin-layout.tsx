@@ -82,7 +82,6 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/assessments', label: 'All Assessments', end: true },
-      { to: '/assessments/banks', label: 'Question Banks', end: true },
       { to: '/assessments/registrations', label: 'Registrations', end: true },
       { to: '/assessments/reports', label: 'Reports & Results', end: true },
     ],

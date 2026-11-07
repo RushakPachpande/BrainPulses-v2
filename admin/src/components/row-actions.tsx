@@ -1,6 +1,7 @@
 import { Link } from 'react-router';
 import {
   BanIcon,
+  BarChart3Icon,
   CheckCircle2Icon,
   EyeIcon,
   KeyRoundIcon,
@@ -47,6 +48,7 @@ function ActionButton({
 export function RowActions({
   view,
   edit,
+  report,
   resetPassword,
   activate,
   deactivate,
@@ -54,6 +56,7 @@ export function RowActions({
 }: {
   view?: RowActionTarget;
   edit?: RowActionTarget;
+  report?: { to: string };
   resetPassword?: { onClick: () => void };
   activate?: { onClick: () => void };
   deactivate?: { onClick: () => void };
@@ -63,6 +66,7 @@ export function RowActions({
     <div className="flex w-max shrink-0 flex-nowrap items-center gap-2">
       {view ? <ActionButton label="View" icon={EyeIcon} target={view} /> : null}
       {edit ? <ActionButton label="Edit" icon={PencilIcon} target={edit} /> : null}
+      {report ? <ActionButton label="View report" icon={BarChart3Icon} target={report} /> : null}
       {resetPassword ? (
         <ActionButton
           label="Reset password"
