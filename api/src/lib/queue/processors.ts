@@ -32,7 +32,7 @@ async function writeExportFile(
 }
 
 async function processQuizExport(jobId: string, data: QuizExportJob): Promise<ExportJobResult> {
-  const { buildReportCsv, buildReportWorkbook, reportFileBase } =
+  const { buildReportWorkbook, reportFileBase } =
     await import('../../modules/quiz-reports/export.js');
   const service = await import('../../modules/quiz-reports/service.js');
   const exported = await service.exportQuizReportRows(data.organizationId, data.actor, {
@@ -40,10 +40,6 @@ async function processQuizExport(jobId: string, data: QuizExportJob): Promise<Ex
     includeAbsent: data.includeAbsent,
   } as never);
   const base = reportFileBase(exported.quizName);
-  if (data.format === 'csv') {
-    const body = buildReportCsv(exported.rows, data.columns as never);
-    return writeExportFile(jobId, `${base}.csv`, 'text/csv; charset=utf-8', body);
-  }
   const buffer = await buildReportWorkbook(exported.rows, data.columns as never);
   return writeExportFile(
     jobId,
@@ -57,7 +53,7 @@ async function processAssessmentExport(
   jobId: string,
   data: AssessmentExportJob,
 ): Promise<ExportJobResult> {
-  const { assessmentFileBase, buildAssessmentCsv, buildAssessmentWorkbook } =
+  const { assessmentFileBase, buildAssessmentWorkbook } =
     await import('../../modules/assessment-reports/export.js');
   const service = await import('../../modules/assessment-reports/service.js');
   const exported = await service.exportAssessmentRows(data.organizationId, data.actor, {
@@ -65,10 +61,6 @@ async function processAssessmentExport(
     includeAbsent: data.includeAbsent,
   } as never);
   const base = assessmentFileBase(exported.assessmentName, exported.roundName);
-  if (data.format === 'csv') {
-    const body = buildAssessmentCsv(exported.rows, data.columns as never);
-    return writeExportFile(jobId, `${base}.csv`, 'text/csv; charset=utf-8', body);
-  }
   const buffer = await buildAssessmentWorkbook(exported.rows, data.columns as never);
   return writeExportFile(
     jobId,
@@ -121,8 +113,7 @@ async function processImport(data: SpreadsheetImportJob): Promise<ImportJobResul
           buffer,
           originalname: data.originalname,
           mimetype:
-            data.mimetype ??
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            data.mimetype ?? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         },
         data.idempotencyKey,
       );

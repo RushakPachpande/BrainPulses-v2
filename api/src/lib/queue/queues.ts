@@ -83,49 +83,58 @@ export type EnqueuedJob = {
  * Enqueue a job (or run inline in test/inline mode).
  * SMS failures are swallowed by the caller; other jobs surface AppError.
  */
+async function runInlineJob(
+  name: JobName,
+  payload: JobPayload,
+  jobId: string,
+): Promise<EnqueuedJob> {
+  const organizationId =
+    'organizationId' in payload && typeof payload.organizationId === 'string'
+      ? payload.organizationId
+      : null;
+  const userId =
+    'userId' in payload && typeof payload.userId === 'string'
+      ? payload.userId
+      : 'actor' in payload &&
+          payload.actor &&
+          'userId' in payload.actor &&
+          typeof payload.actor.userId === 'string'
+        ? payload.actor.userId
+        : null;
+  try {
+    const result = await processJobPayload(payload, jobId);
+    inlineJobs.set(jobId, {
+      name,
+      status: 'completed',
+      result,
+      error: null,
+      organizationId,
+      userId,
+    });
+    return { jobId, status: 'completed', result };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Job failed.';
+    inlineJobs.set(jobId, {
+      name,
+      status: 'failed',
+      result: null,
+      error: message,
+      organizationId,
+      userId,
+    });
+    throw err;
+  }
+}
+
 export async function enqueueJob(
   name: JobName,
   payload: JobPayload,
-  opts?: { jobId?: string; priority?: number },
+  opts?: { jobId?: string; priority?: number; forceInline?: boolean },
 ): Promise<EnqueuedJob> {
-  if (useInlineQueue()) {
-    const jobId = opts?.jobId ?? `inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const organizationId =
-      'organizationId' in payload && typeof payload.organizationId === 'string'
-        ? payload.organizationId
-        : null;
-    const userId =
-      'userId' in payload && typeof payload.userId === 'string'
-        ? payload.userId
-        : 'actor' in payload &&
-            payload.actor &&
-            'userId' in payload.actor &&
-            typeof payload.actor.userId === 'string'
-          ? payload.actor.userId
-          : null;
-    try {
-      const result = await processJobPayload(payload, jobId);
-      inlineJobs.set(jobId, {
-        name,
-        status: 'completed',
-        result,
-        error: null,
-        organizationId,
-        userId,
-      });
-      return { jobId, status: 'completed', result };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Job failed.';
-      inlineJobs.set(jobId, {
-        name,
-        status: 'failed',
-        result: null,
-        error: message,
-        organizationId,
-        userId,
-      });
-      throw err;
-    }
+  const jobId = opts?.jobId ?? `inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // Report downloads complete in-process so admin does not depend on a separate worker.
+  if (useInlineQueue() || opts?.forceInline) {
+    return runInlineJob(name, payload, jobId);
   }
 
   if (!isRedisReady()) {

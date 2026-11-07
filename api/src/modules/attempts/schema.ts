@@ -14,7 +14,9 @@ export const saveAttemptSchema = z.object({
         answer: z.unknown(),
       }),
     )
-    .min(1),
+    .default([]),
+  currentQuestionIndex: z.number().int().min(0).optional(),
+  closedQuestionVersionIds: z.array(z.string().uuid()).optional(),
 });
 
 export const idParamSchema = z.object({ id: z.string().uuid() });

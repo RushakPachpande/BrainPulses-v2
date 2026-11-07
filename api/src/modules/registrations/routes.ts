@@ -7,12 +7,7 @@ import {
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
-import {
-  assignSchema,
-  exportQuerySchema,
-  registrationListQuerySchema,
-  unassignSchema,
-} from './schema.js';
+import { assignSchema, registrationListQuerySchema, unassignSchema } from './schema.js';
 
 export const registrationsRouter = Router();
 
@@ -35,10 +30,4 @@ registrationsRouter.post(
   requireOrgAccess('edit'),
   validate({ body: unassignSchema }),
   controller.unassign,
-);
-registrationsRouter.get(
-  '/export',
-  requireOrgAccess('view'),
-  validate({ query: exportQuerySchema }),
-  controller.exportCsv,
 );

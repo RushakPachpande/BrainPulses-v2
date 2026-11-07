@@ -7,7 +7,6 @@ import {
   ArrowUpIcon,
   Building2Icon,
   CalendarRangeIcon,
-  ClipboardListIcon,
   Clock3Icon,
   LayoutListIcon,
   LibraryIcon,
@@ -17,7 +16,6 @@ import {
   RepeatIcon,
   TargetIcon,
   TrashIcon,
-  UsersIcon,
 } from 'lucide-react';
 import { AuthImage } from '@/components/auth-image';
 import { CatalogImageField } from '@/components/catalog-image-field';
@@ -35,7 +33,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Field, FieldDescription, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -57,19 +54,16 @@ import { cn } from '@/lib/utils';
 import { QuizQuestionsPanel } from '@/pages/quiz-questions-panel';
 import {
   archiveActivity,
-  assignRegistrations,
   createActivity,
   deleteActivity,
   getActivity,
   getContests,
   getSponsors,
   getQuestionBank,
-  getParticipants,
   publishActivity,
   updateActivity,
   uploadCatalogImage,
   type ActivityKind,
-  type ActivityRegistrationField,
   type ActivityRoundLocalQuestion,
   type ActivitySettings,
   type QuizActivitySettings,
@@ -195,15 +189,6 @@ function roundDraftFromActivity(r: {
 
 type WizardMode = 'create' | 'edit' | 'view';
 
-type FieldDraft = ActivityRegistrationField;
-
-const emptyField = (): FieldDraft => ({
-  key: `field_${Math.random().toString(36).slice(2, 7)}`,
-  label: '',
-  type: 'text',
-  required: false,
-});
-
 const PRESENTATION_LABELS: Record<'one_at_a_time' | 'all_on_page', string> = {
   one_at_a_time: 'One question at a time',
   all_on_page: 'All on one page',
@@ -256,9 +241,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     () =>
       [
         'Basic Details',
-        'Registration Form',
         isQuiz ? 'Questions' : 'Define Rounds',
-        'Assignment Rules',
         ...(isQuiz ? (['Behaviour Settings'] as const) : []),
         'Review & Publish',
       ] as const,
@@ -290,12 +273,14 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   });
   const [statusKey, setStatusKey] = useState('draft');
 
-  const [regFields, setRegFields] = useState<FieldDraft[]>([]);
   const [bankIds, setBankIds] = useState<string[]>([]);
   const [rounds, setRounds] = useState<RoundDraft[]>(() => [emptyRound(0)]);
   const roundImageFiles = useRef(new Map<string, File>());
-  const [assignMode, setAssignMode] = useState<'manual' | 'all_active_participants'>('manual');
-  const [assignNotes, setAssignNotes] = useState('');
+  /** Keep legacy registration/assignment settings on save without editing them here. */
+  const preservedSettingsRef = useRef<Pick<
+    ActivitySettings,
+    'registrationForm' | 'assignmentRules'
+  > | null>(null);
   const [durationMinutes, setDurationMinutes] = useState('60');
   const [passingPercent, setPassingPercent] = useState('50');
   const [presentation, setPresentation] = useState<'one_at_a_time' | 'all_on_page'>(
@@ -327,7 +312,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         perQuestionSeconds,
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
-        regFields,
         bankIds,
         rounds: rounds.map((r) => ({
           id: r.id,
@@ -343,8 +327,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           passingScore: r.passingScore,
           settings: r.settings,
         })),
-        assignMode,
-        assignNotes,
         durationMinutes,
         passingPercent,
         presentation,
@@ -364,11 +346,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       perQuestionSeconds,
       startDate,
       endDate,
-      regFields,
       bankIds,
       rounds,
-      assignMode,
-      assignNotes,
       durationMinutes,
       passingPercent,
       presentation,
@@ -471,10 +450,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         setImageFileId(activity.imageFileId ?? '');
         setImageFile(null);
         const settings = activity.settings;
-        const rawFields = settings?.registrationForm?.fields;
-        setRegFields(Array.isArray(rawFields) ? rawFields : []);
-        setAssignMode(settings?.assignmentRules?.mode ?? 'manual');
-        setAssignNotes(settings?.assignmentRules?.notes ?? '');
+        preservedSettingsRef.current = {
+          registrationForm: settings?.registrationForm,
+          assignmentRules: settings?.assignmentRules,
+        };
         if (activity.kind === 'quiz') {
           const q = { ...defaultQuizSettings(), ...settings?.quiz };
           if (loadedPerQuestion) {
@@ -498,20 +477,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   }, [activityIdParam, listPath, mode, navigate, noun]);
 
   const settingsPayload = useMemo((): ActivitySettings => {
+    const preserved = preservedSettingsRef.current;
     return {
-      registrationForm: {
-        fields: regFields
-          .filter((f) => f.label.trim())
-          .map((f) => ({
-            ...f,
-            label: f.label.trim(),
-            key: f.key.trim() || emptyField().key,
-          })),
-      },
-      assignmentRules: {
-        mode: assignMode,
-        notes: assignNotes.trim() || undefined,
-      },
+      ...(preserved?.registrationForm ? { registrationForm: preserved.registrationForm } : {}),
+      ...(preserved?.assignmentRules ? { assignmentRules: preserved.assignmentRules } : {}),
       ...(isQuiz
         ? {
             quiz: {
@@ -530,7 +499,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           }
         : {}),
     };
-  }, [assignMode, assignNotes, durationMode, isQuiz, quizSettings, regFields]);
+  }, [durationMode, isQuiz, quizSettings]);
 
   async function syncRoundsFromServer(id: string): Promise<RoundDraft[]> {
     const activity = await getActivity(id);
@@ -668,14 +637,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         const saved = await getActivity(id);
         setBankIds(saved.bankIds);
         setQuizBankId(saved.bankIds[0] ?? null);
-      }
-
-      if (assignMode === 'all_active_participants') {
-        const participants = await getParticipants();
-        const activeIds = participants.filter((s) => s.status === 'Active').map((s) => s.id);
-        if (activeIds.length > 0) {
-          await assignRegistrations(id, activeIds);
-        }
       }
 
       if (opts?.publish) {
@@ -986,96 +947,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 </Field>
               </div>
             </FieldGroup>
-          ) : null}
-
-          {stepName === 'Registration Form' ? (
-            <div className="flex flex-col gap-4">
-              <p className="text-sm text-muted-foreground">
-                Optional fields collected before a participant starts (stored with the activity).
-              </p>
-              {regFields.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No registration fields yet.</p>
-              ) : null}
-              {regFields.map((field, index) => (
-                <div
-                  key={field.key}
-                  className="grid grid-cols-1 gap-3 rounded-lg border border-border p-3 md:grid-cols-[1fr_1fr_auto_auto]"
-                >
-                  <Field>
-                    <FieldLabel>Label</FieldLabel>
-                    <Input
-                      value={field.label}
-                      disabled={readOnly}
-                      onChange={(e) => {
-                        const next = [...regFields];
-                        next[index] = { ...field, label: e.target.value };
-                        setRegFields(next);
-                      }}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Type</FieldLabel>
-                    <Select
-                      value={field.type}
-                      disabled={readOnly}
-                      onValueChange={(v) => {
-                        const next = [...regFields];
-                        next[index] = {
-                          ...field,
-                          type: v as FieldDraft['type'],
-                        };
-                        setRegFields(next);
-                      }}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectItem value="text">Text</SelectItem>
-                          <SelectItem value="email">Email</SelectItem>
-                          <SelectItem value="phone">Phone</SelectItem>
-                          <SelectItem value="select">Select</SelectItem>
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <label className="flex min-h-(--control-h) items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={field.required}
-                      disabled={readOnly}
-                      onCheckedChange={(checked) => {
-                        const next = [...regFields];
-                        next[index] = { ...field, required: checked === true };
-                        setRegFields(next);
-                      }}
-                    />
-                    Required
-                  </label>
-                  {!readOnly ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Remove field"
-                      onClick={() => setRegFields(regFields.filter((_, i) => i !== index))}
-                    >
-                      <TrashIcon />
-                    </Button>
-                  ) : null}
-                </div>
-              ))}
-              {!readOnly ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setRegFields([...regFields, emptyField()])}
-                >
-                  <PlusIcon data-icon="inline-start" />
-                  Add field
-                </Button>
-              ) : null}
-            </div>
           ) : null}
 
           {stepName === 'Questions' ? (
@@ -1872,44 +1743,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
             </div>
           ) : null}
 
-          {stepName === 'Assignment Rules' ? (
-            <FieldGroup>
-              <Field>
-                <FieldLabel>Assignment mode</FieldLabel>
-                <Select
-                  value={assignMode}
-                  disabled={readOnly}
-                  onValueChange={(v) => setAssignMode(v as typeof assignMode)}
-                >
-                  <SelectTrigger className="w-full sm:max-w-md">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="manual">Manual (assign from Registrations)</SelectItem>
-                      <SelectItem value="all_active_participants">
-                        All active participants
-                      </SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-                <FieldDescription>
-                  “All active participants” assigns every active participant when you save or
-                  publish.
-                </FieldDescription>
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="assign-notes">Notes</FieldLabel>
-                <Textarea
-                  id="assign-notes"
-                  value={assignNotes}
-                  disabled={readOnly}
-                  onChange={(e) => setAssignNotes(e.target.value)}
-                />
-              </Field>
-            </FieldGroup>
-          ) : null}
-
           {stepName === 'Behaviour Settings' ? (
             <FieldGroup>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -2431,11 +2264,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   />
                 )}
                 <ReviewFact
-                  icon={UsersIcon}
-                  label="Assignment"
-                  value={assignMode === 'manual' ? 'Manual selection' : 'All active participants'}
-                />
-                <ReviewFact
                   icon={Clock3Icon}
                   label="Duration"
                   value={
@@ -2453,11 +2281,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                   icon={LayoutListIcon}
                   label="Presentation"
                   value={PRESENTATION_LABELS[presentation]}
-                />
-                <ReviewFact
-                  icon={ClipboardListIcon}
-                  label="Registration fields"
-                  value={String(regFields.filter((f) => f.label.trim()).length)}
                 />
                 {(startDate || endDate) && (
                   <ReviewFact

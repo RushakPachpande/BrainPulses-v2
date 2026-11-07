@@ -67,22 +67,10 @@ banksRouter.get(
   controller.sampleXlsx,
 );
 banksRouter.get(
-  '/:id/questions/sample.csv',
-  requireOrgAccess('edit'),
-  validate({ params: idParamSchema }),
-  controller.sampleCsv,
-);
-banksRouter.get(
   '/:id/questions/export.xlsx',
   requireOrgAccess('view'),
   validate({ params: idParamSchema }),
   controller.exportXlsx,
-);
-banksRouter.get(
-  '/:id/questions/export.csv',
-  requireOrgAccess('view'),
-  validate({ params: idParamSchema }),
-  controller.exportCsv,
 );
 banksRouter.patch(
   '/:id/questions/:questionId',

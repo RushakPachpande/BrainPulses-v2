@@ -24,14 +24,24 @@ export const REPORT_COLUMNS = [
 
 export type ReportColumnKey = (typeof REPORT_COLUMNS)[number]['key'];
 
-const DEFAULT_HIDDEN = new Set<ReportColumnKey>(['contest', 'skipped', 'negative']);
+const DEFAULT_HIDDEN = new Set<ReportColumnKey>([
+  'email',
+  'phone',
+  'contest',
+  'attemptsUsed',
+  'maxScore',
+  'correct',
+  'questionCount',
+  'skipped',
+  'negative',
+]);
 
 export function defaultColumns(): ReportColumnKey[] {
   return REPORT_COLUMNS.map((column) => column.key).filter((key) => !DEFAULT_HIDDEN.has(key));
 }
 
 export function columnStorageKey(userId: string) {
-  return `bp-quiz-report-columns:${userId}`;
+  return `bp-quiz-report-columns:v2:${userId}`;
 }
 
 export function readStoredColumns(userId: string): ReportColumnKey[] {

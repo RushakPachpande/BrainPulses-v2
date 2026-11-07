@@ -103,10 +103,11 @@ describe('question spreadsheet samples', () => {
       .join('\n');
     assert.match(notes, /multiple_mcq/);
     assert.doesNotMatch(notes, /always single/i);
-    assert.equal(
-      buildSampleCsv('quiz').split('\n')[0],
-      buildSampleCsv('assessment').split('\n')[0],
-    );
+    const quizHeader = buildSampleCsv('quiz').split('\n')[0] ?? '';
+    const assessmentHeader = buildSampleCsv('assessment').split('\n')[0] ?? '';
+    assert.ok(quizHeader.includes('correct'));
+    assert.ok(!quizHeader.includes('numericValue'));
+    assert.ok(assessmentHeader.includes('numericValue'));
   });
 });
 

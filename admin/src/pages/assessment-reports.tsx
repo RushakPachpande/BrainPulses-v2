@@ -78,7 +78,17 @@ const COLUMNS = [
 ] as const;
 
 type ColumnKey = (typeof COLUMNS)[number]['key'];
-const HIDDEN = new Set<ColumnKey>(['skipped', 'negative']);
+const HIDDEN = new Set<ColumnKey>([
+  'email',
+  'phone',
+  'round',
+  'attemptsUsed',
+  'maxScore',
+  'correct',
+  'questionCount',
+  'skipped',
+  'negative',
+]);
 const NUMERIC = new Set<ColumnKey>([
   'score',
   'maxScore',
@@ -101,7 +111,7 @@ function defaultColumns(): ColumnKey[] {
 
 function readColumns(userId: string): ColumnKey[] {
   try {
-    const raw = localStorage.getItem(columnStorageKey(`assessment:${userId}`));
+    const raw = localStorage.getItem(columnStorageKey(`assessment:v2:${userId}`));
     if (!raw) return defaultColumns();
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return defaultColumns();
@@ -262,7 +272,7 @@ export function AssessmentReportsPage() {
         : current.filter((column) => column !== key);
       const stored = next.length > 0 ? next : current;
       if (userId)
-        localStorage.setItem(columnStorageKey(`assessment:${userId}`), JSON.stringify(stored));
+        localStorage.setItem(columnStorageKey(`assessment:v2:${userId}`), JSON.stringify(stored));
       return stored;
     });
   }

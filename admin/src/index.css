@@ -191,8 +191,11 @@
   [data-slot='button']:not([data-size='icon']):not([data-size='icon-xs']):not(
       [data-size='icon-sm']
     ):not([data-size='icon-lg']),
-  /* PopoverTrigger asChild replaces data-slot=button — keep field triggers at --control-h. */
+  /* asChild triggers replace data-slot=button — keep them at --control-h. */
   [data-slot='popover-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
+      [data-size='icon-sm']
+    ):not([data-size='icon-lg']),
+  [data-slot='dropdown-menu-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
       [data-size='icon-sm']
     ):not([data-size='icon-lg']),
   [data-slot='input'],
@@ -937,6 +940,9 @@ body,
 [data-slot='select-trigger'],
 [data-slot='textarea'],
 [data-slot='popover-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
+    [data-size='icon-sm']
+  ):not([data-size='icon-lg']),
+[data-slot='dropdown-menu-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
     [data-size='icon-sm']
   ):not([data-size='icon-lg']) {
   font-size: 1rem;

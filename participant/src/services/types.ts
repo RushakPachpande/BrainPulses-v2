@@ -138,6 +138,8 @@ export type AttemptState = {
   /** When true (default), Next/Submit stay disabled until answered. */
   questionsCompulsory?: boolean;
   forwardOnly?: boolean;
+  currentQuestionIndex?: number;
+  closedQuestionVersionIds?: string[];
   responses: { questionVersionId: string; answer: unknown; revision: number }[];
 };
 

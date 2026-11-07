@@ -46,11 +46,30 @@ export const BANK_IMPORT_HEADERS = [
 
 export type BankImportHeader = (typeof BANK_IMPORT_HEADERS)[number];
 
-/** Quiz sheets use the same columns. `type` may be blank; see `rowToCreatePayload`. */
-export const QUIZ_BANK_IMPORT_HEADERS = BANK_IMPORT_HEADERS;
+/** Quiz sheets omit numeric/text-answer columns quiz banks reject. */
+export const QUIZ_BANK_IMPORT_HEADERS = [
+  'type',
+  'question',
+  'points',
+  'optionA',
+  'optionB',
+  'optionC',
+  'optionD',
+  'optionE',
+  'optionF',
+  'correct',
+  'stemImageUrl',
+  'optionA_imageUrl',
+  'optionB_imageUrl',
+  'optionC_imageUrl',
+  'optionD_imageUrl',
+  'optionE_imageUrl',
+  'optionF_imageUrl',
+  'passageText',
+] as const satisfies readonly BankImportHeader[];
 
-export function headersForKind(_kind: BankKind = 'assessment'): readonly BankImportHeader[] {
-  return BANK_IMPORT_HEADERS;
+export function headersForKind(kind: BankKind = 'assessment'): readonly BankImportHeader[] {
+  return kind === 'quiz' ? QUIZ_BANK_IMPORT_HEADERS : BANK_IMPORT_HEADERS;
 }
 
 export const BANK_IMPORT_COLUMNS: SpreadsheetColumnSpec<BankImportHeader>[] = [

@@ -376,6 +376,15 @@ export async function importUsersFile(
   const issues: UserImportIssue[] = [];
   let created = 0;
   const seenEmails = new Set<string>();
+  const pending: Array<{
+    sheetRow: number;
+    name: string;
+    email: string;
+    password: string;
+    role: 'admin' | 'super_admin';
+    assessmentAccess: 'full' | 'edit' | 'view' | 'none';
+    quizAccess: 'full' | 'edit' | 'view' | 'none';
+  }> = [];
 
   for (const row of rows) {
     const name = row.name.trim();
@@ -506,32 +515,58 @@ export async function importUsersFile(
       continue;
     }
 
-    try {
-      await inviteUser(organizationId, actorUserId, actorRole, {
-        name,
-        email,
-        password,
-        role,
-        assessmentAccess,
-        quizAccess,
-      });
-      created += 1;
-      seenEmails.add(email);
-    } catch (err) {
+    seenEmails.add(email);
+    pending.push({
+      sheetRow: row.sheetRow,
+      name,
+      email,
+      password,
+      role,
+      assessmentAccess,
+      quizAccess,
+    });
+  }
+
+  const IMPORT_CONCURRENCY = 4;
+  for (let i = 0; i < pending.length; i += IMPORT_CONCURRENCY) {
+    const chunk = pending.slice(i, i + IMPORT_CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map(async (item) => {
+        try {
+          await inviteUser(organizationId, actorUserId, actorRole, {
+            name: item.name,
+            email: item.email,
+            password: item.password,
+            role: item.role,
+            assessmentAccess: item.assessmentAccess,
+            quizAccess: item.quizAccess,
+          });
+          return { ok: true as const, sheetRow: item.sheetRow, email: item.email };
+        } catch (err) {
+          return { ok: false as const, sheetRow: item.sheetRow, email: item.email, err };
+        }
+      }),
+    );
+    for (const result of results) {
+      if (result.ok) {
+        created += 1;
+        continue;
+      }
+      const err = result.err;
       if (err instanceof AppError && (err.status === 409 || err.status === 403)) {
         issues.push(
-          userRowIssue(row.sheetRow, err.message.replace(/\.$/, ''), {
+          userRowIssue(result.sheetRow, err.message.replace(/\.$/, ''), {
             column: 'email',
-            value: email,
+            value: result.email,
           }),
         );
         continue;
       }
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         issues.push(
-          userRowIssue(row.sheetRow, 'that user is already a member of this organization', {
+          userRowIssue(result.sheetRow, 'that user is already a member of this organization', {
             column: 'email',
-            value: email,
+            value: result.email,
           }),
         );
         continue;
@@ -540,7 +575,7 @@ export async function importUsersFile(
         err instanceof Error && err.message
           ? err.message.replace(/\.$/, '')
           : 'the row could not be saved';
-      issues.push(userRowIssue(row.sheetRow, message));
+      issues.push(userRowIssue(result.sheetRow, message));
     }
   }
 

@@ -147,16 +147,36 @@ export function resumeAttempt(attemptId: string) {
   }>(`/api/attempts/${attemptId}/resume`);
 }
 
+export type AttemptSaveProgress = {
+  currentQuestionIndex?: number;
+  closedQuestionVersionIds?: string[];
+};
+
 export function saveAttempt(
   attemptId: string,
   revision: number,
   responses: { questionVersionId: string; answer: unknown }[],
+  progress?: AttemptSaveProgress,
 ) {
   return apiPostData<{
     acknowledged: boolean;
     revision: number;
     attempt: AttemptState;
-  }>(`/api/attempts/${attemptId}/save`, { revision, responses }, undefined, { background: true });
+  }>(
+    `/api/attempts/${attemptId}/save`,
+    {
+      revision,
+      responses,
+      ...(progress?.currentQuestionIndex !== undefined
+        ? { currentQuestionIndex: progress.currentQuestionIndex }
+        : {}),
+      ...(progress?.closedQuestionVersionIds
+        ? { closedQuestionVersionIds: progress.closedQuestionVersionIds }
+        : {}),
+    },
+    undefined,
+    { background: true },
+  );
 }
 
 /**
@@ -167,8 +187,15 @@ export function saveAttemptKeepalive(
   attemptId: string,
   revision: number,
   responses: { questionVersionId: string; answer: unknown }[],
+  progress?: AttemptSaveProgress,
 ): void {
-  if (responses.length === 0) return;
+  if (
+    responses.length === 0 &&
+    progress?.currentQuestionIndex === undefined &&
+    !progress?.closedQuestionVersionIds?.length
+  ) {
+    return;
+  }
   const token = getAccessToken();
   const headers: Record<string, string> = { 'content-type': 'application/json' };
   if (token) headers.authorization = `Bearer ${token}`;
@@ -179,7 +206,16 @@ export function saveAttemptKeepalive(
     void fetch(`${base}/api/attempts/${attemptId}/save`, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ revision, responses }),
+      body: JSON.stringify({
+        revision,
+        responses,
+        ...(progress?.currentQuestionIndex !== undefined
+          ? { currentQuestionIndex: progress.currentQuestionIndex }
+          : {}),
+        ...(progress?.closedQuestionVersionIds
+          ? { closedQuestionVersionIds: progress.closedQuestionVersionIds }
+          : {}),
+      }),
       keepalive: true,
     });
   } catch {

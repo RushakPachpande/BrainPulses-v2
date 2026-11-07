@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { FormDialog } from '@/components/form-dialog';
+import { PasswordInput } from '@/components/password-input';
 import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -301,9 +302,8 @@ export function UserEditorDialog({
                 <FieldLabel htmlFor={`${formId}-password`}>
                   Password <span className="text-destructive">*</span>
                 </FieldLabel>
-                <Input
+                <PasswordInput
                   id={`${formId}-password`}
-                  type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required

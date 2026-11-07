@@ -75,8 +75,7 @@ export type {
 } from './types';
 
 /** Fixtures are a local DEV-only bypass. Production builds always hit the API. */
-const useFixtures =
-  import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true';
+const useFixtures = import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true';
 
 type ApiParticipantRow = Parameters<typeof mapParticipantFromApi>[0];
 type ApiUserRow = Parameters<typeof mapUserFromApi>[0];
@@ -1176,10 +1175,7 @@ export async function confirmAssessmentQuestionsImport(
   return data;
 }
 
-export async function exportBankQuestions(
-  bankId: string,
-  format: 'xlsx' | 'csv' = 'xlsx',
-): Promise<void> {
+export async function exportBankQuestions(bankId: string, format: 'xlsx' = 'xlsx'): Promise<void> {
   if (useFixtures) throw new Error('Export is unavailable in fixture mode.');
   await apiDownloadBlob(
     `/api/banks/${bankId}/questions/export.${format}`,

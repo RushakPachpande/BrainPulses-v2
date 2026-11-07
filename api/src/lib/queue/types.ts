@@ -26,13 +26,7 @@ export type JobName =
   | 'import.bank-questions';
 
 export type JobStatus =
-  | 'queued'
-  | 'active'
-  | 'completed'
-  | 'failed'
-  | 'delayed'
-  | 'waiting'
-  | 'unknown';
+  'queued' | 'active' | 'completed' | 'failed' | 'delayed' | 'waiting' | 'unknown';
 
 export type SmsOtpJob = {
   type: 'sms.otp';
@@ -47,7 +41,7 @@ export type QuizExportJob = {
   actor: JobActor;
   query: Record<string, unknown>;
   columns: string[];
-  format: 'xlsx' | 'csv';
+  format: 'xlsx';
   includeAbsent: boolean;
   requestId?: string;
 };
@@ -58,7 +52,7 @@ export type AssessmentExportJob = {
   actor: JobActor;
   query: Record<string, unknown>;
   columns: string[];
-  format: 'xlsx' | 'csv';
+  format: 'xlsx';
   includeAbsent: boolean;
   requestId?: string;
 };

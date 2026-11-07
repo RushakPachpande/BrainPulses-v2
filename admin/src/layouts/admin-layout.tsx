@@ -19,7 +19,6 @@ import { ConfirmProvider } from '@/components/confirm-dialog';
 import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
-import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ApiError } from '@/lib/api-client';
 import { ChangePasswordDialog } from '@/pages/change-password-dialog';
@@ -426,7 +425,6 @@ export function AdminLayout() {
               <SidebarTrigger />
               <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <ThemeToggle />
-                <NotificationsMenu />
               </div>
             </header>
             <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">

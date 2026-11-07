@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import ExcelJS from 'exceljs';
 import { prisma } from '../src/lib/prisma.js';
 import { rowToCreatePayload } from '../src/modules/banks/import-export.js';
 import { clusterByPassage, saveSharedPassage } from '../src/modules/banks/passages.js';
-import { createQuestion, exportQuestionsCsv } from '../src/modules/banks/service.js';
+import { createQuestion, exportQuestionsWorkbook } from '../src/modules/banks/service.js';
 
 describe('passage question order', () => {
   it('pulls later questions of a passage up to the first one, in sort order', () => {
@@ -277,11 +278,16 @@ describe('shared passage storage', () => {
         );
       }
 
-      const csv = await exportQuestionsCsv(organization.id, actorUser.id, actor, bank.id);
-      const exported = csv
-        .trim()
-        .split('\n')
-        .filter((line) => line.includes('comprehension_mcq'));
+      const buffer = await exportQuestionsWorkbook(organization.id, actorUser.id, actor, bank.id);
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+      const sheet = workbook.getWorksheet('Questions');
+      assert.ok(sheet);
+      const rows: string[] = [];
+      sheet.eachRow((row) => {
+        rows.push(row.values.slice(1).map((v) => String(v ?? '')).join(','));
+      });
+      const exported = rows.filter((line) => line.includes('comprehension_mcq'));
       assert.equal(exported.length, 2);
       assert.ok(exported.every((line) => line.includes(body)));
     } finally {

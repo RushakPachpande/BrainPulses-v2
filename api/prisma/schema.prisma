@@ -513,15 +513,17 @@ model Attempt {
   roundId              String?       @map("round_id") @db.Uuid
   participantId        String        @map("participant_id") @db.Uuid
   status               AttemptStatus @default(in_progress)
-  revision             Int           @default(0)
-  startedAt            DateTime      @map("started_at") @db.Timestamptz(3)
-  deadlineAt           DateTime      @map("deadline_at") @db.Timestamptz(3)
-  submittedAt          DateTime?     @map("submitted_at") @db.Timestamptz(3)
-  submitIdempotencyKey String?       @map("submit_idempotency_key")
-  questionOrder        String[]      @default([]) @map("question_order")
-  optionOrders         Json?         @map("option_orders") @db.JsonB
-  isAuthoritative      Boolean       @default(true) @map("is_authoritative")
-  disqualified         Boolean       @default(false)
+  revision                   Int           @default(0)
+  startedAt                  DateTime      @map("started_at") @db.Timestamptz(3)
+  deadlineAt                 DateTime      @map("deadline_at") @db.Timestamptz(3)
+  submittedAt                DateTime?     @map("submitted_at") @db.Timestamptz(3)
+  submitIdempotencyKey       String?       @map("submit_idempotency_key")
+  questionOrder              String[]      @default([]) @map("question_order")
+  optionOrders               Json?         @map("option_orders") @db.JsonB
+  currentQuestionIndex       Int           @default(0) @map("current_question_index")
+  closedQuestionVersionIds   String[]      @default([]) @map("closed_question_version_ids")
+  isAuthoritative            Boolean       @default(true) @map("is_authoritative")
+  disqualified               Boolean       @default(false)
   disqualifiedAt       DateTime?     @map("disqualified_at") @db.Timestamptz(3)
   disqualifiedByUserId String?       @map("disqualified_by_user_id") @db.Uuid
   disqualifiedNote     String?            @map("disqualified_note")

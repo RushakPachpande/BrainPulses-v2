@@ -1,5 +1,4 @@
 import ExcelJS from 'exceljs';
-import { sanitizeCsvCell } from '../../lib/csv.js';
 import { AUTO_SUBMIT_REASON_LABEL, formatDuration, formatMarks } from '../quiz-reports/rows.js';
 import type { AssessmentReportRow, AssessmentSortKey } from './rows.js';
 
@@ -139,18 +138,4 @@ export async function buildAssessmentWorkbook(
   sheet.addRow(defs.map((column) => column.label));
   for (const row of rows) sheet.addRow(columns.map((key) => cell(row, key)));
   return Buffer.from(await workbook.xlsx.writeBuffer());
-}
-
-function csvField(value: string | number): string {
-  if (typeof value === 'number') return String(value);
-  const text = sanitizeCsvCell(value);
-  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
-}
-
-export function buildAssessmentCsv(rows: AssessmentReportRow[], columns: AssessmentSortKey[]) {
-  const defs = columns.map((key) => ASSESSMENT_COLUMNS.find((column) => column.key === key)!);
-  const lines = [defs.map((column) => csvField(column.label)).join(',')];
-  for (const row of rows) lines.push(columns.map((key) => csvField(cell(row, key))).join(','));
-  return `\uFEFF${lines.join('\r\n')}`;
 }

@@ -42,7 +42,7 @@ export const assessmentReportQuerySchema = z.object({
 export const assessmentExportQuerySchema = assessmentReportQuerySchema
   .omit({ page: true, pageSize: true })
   .extend({
-    format: z.enum(['xlsx', 'csv']).default('xlsx'),
+    format: z.enum(['xlsx']).default('xlsx'),
     includeAbsent: z.enum(['true', 'false']).default('false'),
     columns: z.string().trim().min(1).max(500),
   });

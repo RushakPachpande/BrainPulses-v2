@@ -48,7 +48,7 @@ export async function download(req: Request, res: Response, next: NextFunction) 
     const actor = userActor(req);
     const query = req.query as unknown as {
       columns: string;
-      format: 'xlsx' | 'csv';
+      format: 'xlsx';
       includeAbsent: 'true' | 'false';
       q: string;
       contestId?: string;
@@ -62,16 +62,20 @@ export async function download(req: Request, res: Response, next: NextFunction) 
     const columns = parseExportColumns(query.columns);
     if (columns.length === 0) throw badRequest('Choose at least one column.');
     const { enqueueJob } = await import('../../lib/queue/queues.js');
-    const enqueued = await enqueueJob('report.quiz-export', {
-      type: 'report.quiz-export',
-      organizationId: actor.organizationId,
-      actor: actorOf(req),
-      query: query as unknown as Record<string, unknown>,
-      columns,
-      format: query.format,
-      includeAbsent: query.includeAbsent === 'true',
-      requestId: req.requestId,
-    });
+    const enqueued = await enqueueJob(
+      'report.quiz-export',
+      {
+        type: 'report.quiz-export',
+        organizationId: actor.organizationId,
+        actor: actorOf(req),
+        query: query as unknown as Record<string, unknown>,
+        columns,
+        format: 'xlsx',
+        includeAbsent: query.includeAbsent === 'true',
+        requestId: req.requestId,
+      },
+      { forceInline: true },
+    );
     res.status(202).json({
       data: {
         jobId: enqueued.jobId,

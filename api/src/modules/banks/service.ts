@@ -7,9 +7,7 @@ import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
 import { formatImportIssue } from '../../lib/spreadsheet-import.js';
 import {
-  buildExportCsv,
   buildExportWorkbook,
-  buildSampleCsv,
   buildSampleWorkbook,
   newImportQuestionCode,
   parseBankQuestionsFile,
@@ -412,8 +410,13 @@ export async function createQuestion(
   bankId: string,
   input: z.infer<typeof createQuestionSchema>,
   passageCache?: Map<string, string>,
+  opts?: {
+    bank?: { id: string; kind: ActivityKind };
+    skipAudit?: boolean;
+  },
 ) {
-  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  const bank =
+    opts?.bank ?? (await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } }));
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'edit');
   assertTypeAllowedForKind(bank.kind, input.type);
@@ -444,14 +447,16 @@ export async function createQuestion(
 
   await placeQuestionImages(organizationId, bankId, linked.answerKey, input.options);
 
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'question.create',
-    targetType: 'question',
-    targetId: question.id,
-  });
+  if (!opts?.skipAudit) {
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId,
+      action: 'question.create',
+      targetType: 'question',
+      targetId: question.id,
+    });
+  }
 
   return mapQuestionAdmin({
     ...question,
@@ -746,6 +751,7 @@ async function importFromRows(
   const issues: ImportIssue[] = [];
   let created = 0;
   const passageCache = new Map<string, string>();
+  const bankRef = { id: bank.id, kind: bank.kind as ActivityKind };
 
   for (const row of rows) {
     try {
@@ -760,6 +766,7 @@ async function importFromRows(
           code: payload.code ?? newImportQuestionCode(row.sheetRow, created + issues.length),
         },
         passageCache,
+        { bank: bankRef, skipAudit: true },
       );
       created += 1;
     } catch (err) {
@@ -806,17 +813,6 @@ export async function sampleQuestionsWorkbook(
   return buildSampleWorkbook(bank.kind);
 }
 
-export async function sampleQuestionsCsv(
-  organizationId: string,
-  actor: AccessActor,
-  bankId: string,
-) {
-  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
-  if (!bank) throw notFound('Question bank not found.');
-  assertBankAccess(actor, bank.kind, 'view');
-  return buildSampleCsv(bank.kind);
-}
-
 export async function exportQuestionsWorkbook(
   organizationId: string,
   actorUserId: string,
@@ -835,26 +831,6 @@ export async function exportQuestionsWorkbook(
     metadata: { format: 'xlsx', count: questions.length },
   });
   return buffer;
-}
-
-export async function exportQuestionsCsv(
-  organizationId: string,
-  actorUserId: string,
-  actor: AccessActor,
-  bankId: string,
-) {
-  const { kind, questions } = await loadExportableQuestions(organizationId, actor, bankId);
-  const csv = buildExportCsv(questions, kind);
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'bank.export',
-    targetType: 'question_bank',
-    targetId: bankId,
-    metadata: { format: 'csv', count: questions.length },
-  });
-  return csv;
 }
 
 async function loadExportableQuestions(

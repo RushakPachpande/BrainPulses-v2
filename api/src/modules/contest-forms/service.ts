@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomBytes, randomInt } from 'node:crypto';
 import type { FlowStatus } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
@@ -417,7 +417,17 @@ export async function regenerateLink(organizationId: string, userId: string, id:
   if (existing.status !== 'saved' || !existing.slug || !existing.contest) {
     throw badRequest('Save the registration form before creating a new link.');
   }
-  const slug = await uniqueSlug(slugifyContest(existing.contest.name), id);
+  const base = slugifyContest(existing.contest.name);
+  // New link must differ from the current slug (uniqueSlug excludes this form otherwise).
+  let slug = await uniqueSlug(`${base}-${randomBytes(3).toString('hex')}`);
+  let guard = 0;
+  while (slug === existing.slug && guard < 5) {
+    slug = await uniqueSlug(`${base}-${randomBytes(3).toString('hex')}`);
+    guard += 1;
+  }
+  if (slug === existing.slug) {
+    throw badRequest('Could not create a new registration link. Try again.');
+  }
   await prisma.contestRegistrationForm.update({
     where: { id },
     data: {

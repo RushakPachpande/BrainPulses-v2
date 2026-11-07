@@ -170,22 +170,6 @@ export async function sampleXlsx(req: Request, res: Response, next: NextFunction
   }
 }
 
-export async function sampleCsv(req: Request, res: Response, next: NextFunction) {
-  try {
-    const actor = userActor(req);
-    const csv = await service.sampleQuestionsCsv(
-      actor.organizationId,
-      actor,
-      req.params.id as string,
-    );
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-sample.csv"');
-    res.send(csv);
-  } catch (err) {
-    next(err);
-  }
-}
-
 export async function exportXlsx(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
@@ -201,23 +185,6 @@ export async function exportXlsx(req: Request, res: Response, next: NextFunction
     );
     res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-export.xlsx"');
     res.send(buffer);
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function exportCsv(req: Request, res: Response, next: NextFunction) {
-  try {
-    const actor = userActor(req);
-    const csv = await service.exportQuestionsCsv(
-      actor.organizationId,
-      actor.userId,
-      actor,
-      req.params.id as string,
-    );
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-export.csv"');
-    res.send(csv);
   } catch (err) {
     next(err);
   }

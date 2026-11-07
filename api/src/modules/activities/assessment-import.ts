@@ -429,14 +429,14 @@ export async function confirmAssessmentImport(
   let imported = 0;
   let seq = 0;
   const passageCaches = new Map<string, Map<string, string>>();
+  const roundCache = new Map<string, Awaited<ReturnType<typeof ensureRoundLocalBank>>>();
   for (const row of valid) {
-    const round = await ensureRoundLocalBank(
-      organizationId,
-      activityId,
-      row.round.trim(),
-      actor,
-      actorUserId,
-    );
+    const roundName = row.round.trim();
+    let round = roundCache.get(roundName);
+    if (!round) {
+      round = await ensureRoundLocalBank(organizationId, activityId, roundName, actor, actorUserId);
+      roundCache.set(roundName, round);
+    }
     if (!round.localBankId) throw badRequest('Could not create a local bank for the round.');
     const { round: _r, ...bankFields } = row;
     void _r;
@@ -461,6 +461,10 @@ export async function confirmAssessmentImport(
       round.localBankId,
       payload,
       passageCache,
+      {
+        bank: { id: round.localBankId, kind: 'assessment' },
+        skipAudit: true,
+      },
     );
     imported += 1;
   }

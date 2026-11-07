@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -7,8 +7,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
-  DownloadIcon,
-  PlusIcon,
   RotateCcwIcon,
   UserIcon,
   UsersIcon,
@@ -31,7 +29,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/auth-context';
-import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
@@ -329,20 +326,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeaderActions>
-          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-            <DownloadIcon data-icon="inline-start" />
-            Download Filtered Data
-          </Button>
-          {canEdit ? (
-            <Button asChild className="w-full sm:w-auto">
-              <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
-                <PlusIcon data-icon="inline-start" />
-                Add Registration
-              </Link>
-            </Button>
-          ) : null}
-        </PageHeaderActions>
         <ListPageSkeleton columns={8} />
       </div>
     );
@@ -350,21 +333,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
 
   return (
     <div ref={ref} className="flex flex-col gap-4">
-      <PageHeaderActions>
-        <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-          <DownloadIcon data-icon="inline-start" />
-          Download Filtered Data
-        </Button>
-        {canEdit ? (
-          <Button asChild className="w-full sm:w-auto">
-            <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
-              <PlusIcon data-icon="inline-start" />
-              Add Registration
-            </Link>
-          </Button>
-        ) : null}
-      </PageHeaderActions>
-
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
