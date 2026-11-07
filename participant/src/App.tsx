@@ -13,6 +13,7 @@ import { RequireAuth } from './contexts/require-auth';
 import { PageLoader } from './components/loading-overlay';
 import { ParticipantPageGuard, EnabledHome } from './layouts/participant-page-guard';
 import { LoginPage } from './pages/login';
+import { RegisterPage } from './pages/register';
 
 const ActivityDetailPage = lazy(() =>
   import('./pages/activity-detail').then((m) => ({ default: m.ActivityDetailPage })),
@@ -51,6 +52,7 @@ const appRouter = createBrowserRouter(
   createRoutesFromElements(
     <Route>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register/:slug" element={<RegisterPage />} />
       <Route element={<RequireAuth />}>
         <Route element={<LazyOutlet />}>
           <Route path="/attempt/start/:id" element={<AttemptPage mode="start" />} />

@@ -1,9 +1,8 @@
 import { randomInt } from 'node:crypto';
 import type { FlowStatus } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
-import { badRequest, conflict, notFound, unauthorized } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
-import { verifyActingUserPassword } from '../../lib/verify-acting-password.js';
 import { readInlineImage } from '../files/service.js';
 import type { SaveFormInput } from './schema.js';
 import {
@@ -55,6 +54,7 @@ function mapQuiz(
   activity: {
     id: string;
     name: string;
+    kind: 'quiz' | 'assessment';
     status: FlowStatus;
     startsAt: Date | null;
     endsAt: Date | null;
@@ -64,6 +64,7 @@ function mapQuiz(
   return {
     id: activity.id,
     name: activity.name,
+    kind: activity.kind,
     startsAt: activity.startsAt,
     endsAt: activity.endsAt,
     availability: quizAvailability(
@@ -75,7 +76,7 @@ function mapQuiz(
 
 function mapForm(row: NonNullable<FormRow>, now = new Date()) {
   const quizzes = row.quizzes
-    .filter((quiz) => quiz.activity.kind === 'quiz')
+    .filter((quiz) => quiz.activity.kind === 'quiz' || quiz.activity.kind === 'assessment')
     .map((quiz) => mapQuiz(quiz.activity, now));
   return {
     id: row.id,
@@ -97,7 +98,6 @@ function mapForm(row: NonNullable<FormRow>, now = new Date()) {
     fields: asFields(row.fields),
     slug: row.slug,
     linkActive: row.linkActive,
-    emailOnQuiz: row.emailOnQuiz,
     domainRestriction: row.domainRestriction,
     allowedDomains: row.allowedDomains,
     domainMessage: row.domainMessage,
@@ -183,16 +183,21 @@ async function replaceQuizzes(
   const next = new Set(quizIds);
   if (contestId) {
     const activities = await prisma.activity.findMany({
-      where: { organizationId, contestId, kind: 'quiz', id: { in: quizIds } },
+      where: {
+        organizationId,
+        contestId,
+        kind: { in: ['quiz', 'assessment'] },
+        id: { in: quizIds },
+      },
       select: { id: true, status: true, startsAt: true, endsAt: true },
     });
     if (activities.length !== new Set(quizIds).size) {
-      throw badRequest('Choose quizzes that belong to this contest.');
+      throw badRequest('Choose activities that belong to this contest.');
     }
     for (const activity of activities) {
       const availability = quizAvailability(activity, now);
       if (availability === 'Ended' && !kept.has(activity.id)) {
-        throw badRequest('Ended quizzes can’t be given.');
+        throw badRequest('Ended activities can’t be given.');
       }
     }
   } else if (quizIds.length > 0) {
@@ -232,7 +237,6 @@ function dataFromInput(input: SaveFormInput, status: 'draft' | 'saved') {
     ...(input.showSeatsLeft !== undefined ? { showSeatsLeft: input.showSeatsLeft } : {}),
     ...(input.fields !== undefined ? { fields: input.fields } : {}),
     ...(input.linkActive !== undefined ? { linkActive: input.linkActive } : {}),
-    ...(input.emailOnQuiz !== undefined ? { emailOnQuiz: input.emailOnQuiz } : {}),
     ...(input.domainRestriction !== undefined
       ? { domainRestriction: input.domainRestriction }
       : {}),
@@ -242,15 +246,6 @@ function dataFromInput(input: SaveFormInput, status: 'draft' | 'saved') {
     ...(input.matchRule !== undefined ? { matchRule: input.matchRule } : {}),
     status,
   };
-}
-
-async function requirePassword(userId: string, password: string | undefined) {
-  if (!password?.trim()) throw badRequest('Enter your password.');
-  try {
-    await verifyActingUserPassword(userId, password);
-  } catch {
-    throw unauthorized('Incorrect password.');
-  }
 }
 
 export async function listOverview(organizationId: string) {
@@ -306,8 +301,8 @@ export async function getForm(organizationId: string, id: string) {
 export async function listContestQuizzes(organizationId: string, contestId: string) {
   const now = new Date();
   const rows = await prisma.activity.findMany({
-    where: { organizationId, contestId, kind: 'quiz' },
-    select: { id: true, name: true, status: true, startsAt: true, endsAt: true },
+    where: { organizationId, contestId, kind: { in: ['quiz', 'assessment'] } },
+    select: { id: true, name: true, kind: true, status: true, startsAt: true, endsAt: true },
     orderBy: { name: 'asc' },
   });
   return rows.map((row) => mapQuiz(row, now));
@@ -333,6 +328,7 @@ export async function createForm(organizationId: string, userId: string, input: 
     include: formInclude,
   });
   await replaceQuizzes(organizationId, row.id, input.quizIds, row.contestId, new Date());
+  if (status === 'saved') await assignSavedForm(organizationId, row.id);
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -351,9 +347,6 @@ export async function updateForm(
   input: SaveFormInput,
 ) {
   const existing = await loadForm(organizationId, id);
-  if (existing.status === 'saved') {
-    await requirePassword(userId, input.password);
-  }
   const sponsorId = existing.status === 'saved' ? existing.sponsorId : input.sponsorId;
   const contestId = existing.status === 'saved' ? existing.contestId : input.contestId;
   const domains = normalizeDomains(input.allowedDomains);
@@ -396,6 +389,7 @@ export async function updateForm(
     },
   });
   await replaceQuizzes(organizationId, id, input.quizIds, contestId ?? null, new Date());
+  if (status === 'saved') await assignSavedForm(organizationId, id);
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -416,11 +410,6 @@ function normalizeDomains(domains: string[] | undefined) {
     if (!cleaned.includes(next)) cleaned.push(next);
   }
   return cleaned;
-}
-
-export async function verifyPassword(userId: string, password: string) {
-  await requirePassword(userId, password);
-  return { ok: true };
 }
 
 export async function regenerateLink(organizationId: string, userId: string, id: string) {
@@ -448,6 +437,23 @@ export async function regenerateLink(organizationId: string, userId: string, id:
   return mapForm(await loadForm(organizationId, id));
 }
 
+async function assignSavedForm(organizationId: string, formId: string) {
+  const [links, submissions] = await Promise.all([
+    prisma.contestFormQuiz.findMany({
+      where: { organizationId, formId },
+      select: { activityId: true },
+    }),
+    prisma.contestFormSubmission.findMany({
+      where: { organizationId, formId },
+      select: { participantId: true },
+    }),
+  ]);
+  const activityIds = links.map((link) => link.activityId);
+  for (const submission of submissions) {
+    await assignQuizzes(organizationId, submission.participantId, activityIds);
+  }
+}
+
 async function assignQuizzes(organizationId: string, participantId: string, activityIds: string[]) {
   for (const activityId of activityIds) {
     await prisma.registration.upsert({
@@ -471,7 +477,6 @@ export async function giveQuizzes(
   userId: string,
   id: string,
   activityIds: string[],
-  emailOnQuiz?: boolean,
 ) {
   const existing = await loadForm(organizationId, id);
   if (existing.status !== 'saved' || !existing.contestId) {
@@ -480,19 +485,11 @@ export async function giveQuizzes(
   const before = new Set(existing.quizzes.map((quiz) => quiz.activityId));
   const added = activityIds.filter((activityId) => !before.has(activityId));
   await replaceQuizzes(organizationId, id, [...before, ...added], existing.contestId, new Date());
-  if (emailOnQuiz !== undefined) {
-    await prisma.contestRegistrationForm.update({
-      where: { id },
-      data: { emailOnQuiz, updatedByUserId: userId },
-    });
-  }
   const submissions = await prisma.contestFormSubmission.findMany({
     where: { organizationId, formId: id },
     select: { participantId: true },
   });
-  for (const submission of submissions) {
-    await assignQuizzes(organizationId, submission.participantId, added);
-  }
+  await assignSavedForm(organizationId, id);
   await writeAudit({
     organizationId,
     actorType: 'user',

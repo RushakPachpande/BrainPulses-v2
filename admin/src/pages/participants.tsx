@@ -73,7 +73,7 @@ export function ParticipantsPage() {
         <CardHeader>
           <CardTitle>Registration forms</CardTitle>
           <CardDescription>
-            One per contest. Open a form to see it, give a quiz, or edit it (admin password needed).
+            One per contest. Open a form to see it, assign an activity, or edit it.
           </CardDescription>
         </CardHeader>
         <CardContent className="px-0">
@@ -138,7 +138,7 @@ export function ParticipantsPage() {
                               setGiveForm(form);
                             }}
                           >
-                            + Give a quiz
+                            Assign activity
                           </Button>
                         ) : null}
                         <Button

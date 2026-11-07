@@ -39,6 +39,7 @@ export type FieldIssue = { field: string; message: string };
 export type ContestFormQuiz = {
   id: string;
   name: string;
+  kind?: 'quiz' | 'assessment';
   startsAt: string | null;
   endsAt: string | null;
   availability: 'Draft' | 'Scheduled' | 'Active' | 'Ended';
@@ -64,7 +65,6 @@ export type ContestFormRecord = {
   fields: FormField[];
   slug: string | null;
   linkActive: boolean;
-  emailOnQuiz: boolean;
   domainRestriction: boolean;
   allowedDomains: string[];
   domainMessage: string;
@@ -147,7 +147,6 @@ export function emptyDraft(): Omit<ContestFormRecord, 'id' | 'createdAt' | 'upda
     fields: defaultFields(),
     slug: null,
     linkActive: true,
-    emailOnQuiz: true,
     domainRestriction: false,
     allowedDomains: [],
     domainMessage: DEFAULT_DOMAIN_MESSAGE,
@@ -156,27 +155,6 @@ export function emptyDraft(): Omit<ContestFormRecord, 'id' | 'createdAt' | 'upda
     registrationCount: 0,
     quizzes: [],
   };
-}
-
-export function toIstInput(iso: string | null) {
-  if (!iso) return '';
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(new Date(iso));
-  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
-  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`;
-}
-
-export function fromIstInput(value: string) {
-  if (!value) return null;
-  const date = new Date(`${value}:00+05:30`);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export function formatIst(iso: string | null) {
@@ -188,10 +166,30 @@ export function formatIst(iso: string | null) {
   }).format(new Date(iso));
 }
 
+function isLocalHost(hostname: string) {
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+  const parts = hostname.split('.').map(Number);
+  if (
+    parts.length !== 4 ||
+    parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return false;
+  }
+  const [a, b] = parts;
+  if (a === 10 || a === 127) return true;
+  if (a === 192 && b === 168) return true;
+  return a === 172 && b >= 16 && b <= 31;
+}
+
 export function registrationUrl(slug: string) {
-  const url = new URL(window.location.origin);
-  if (url.port === '5173') url.port = '5174';
-  return `${url.origin}/register/${slug}`;
+  const configured = import.meta.env.VITE_PARTICIPANT_ORIGIN?.trim().replace(/\/$/, '');
+  if (configured) return `${configured}/register/${slug}`;
+  if (typeof window !== 'undefined' && isLocalHost(window.location.hostname)) {
+    const url = new URL(window.location.origin);
+    url.port = '5175';
+    return `${url.origin}/register/${slug}`;
+  }
+  return `/register/${slug}`;
 }
 
 export function cleanDomain(raw: string): string | null {
@@ -383,5 +381,3 @@ export function previewIssues(
 export function sampleRegistrationId() {
   return `BP${String(Math.floor(Math.random() * 100_000_000)).padStart(8, '0')}`;
 }
-
-export const PREVIEW_WIDTH_KEY = 'bp-contest-form-preview-width';

@@ -27,12 +27,10 @@ export function GiveQuizDialog({
 }) {
   const [quizzes, setQuizzes] = useState<ContestFormQuiz[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
-  const [emailOn, setEmailOn] = useState(true);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!open || !form?.contestId) return;
-    setEmailOn(form.emailOnQuiz);
     setPicked([]);
     void getContestQuizzes(form.contestId)
       .then(setQuizzes)
@@ -46,16 +44,16 @@ export function GiveQuizDialog({
     if (!form || selectable.length === 0) return;
     setBusy(true);
     try {
-      await giveContestFormQuizzes(form.id, selectable, emailOn);
+      await giveContestFormQuizzes(form.id, selectable);
       const names = quizzes
         .filter((quiz) => selectable.includes(quiz.id))
         .map((quiz) => quiz.name)
         .join(', ');
-      toast.success(`${names} given to ${form.contestName || 'the contest'}.`);
+      toast.success(`${names} assigned to ${form.contestName || 'the contest'}.`);
       onOpenChange(false);
       onGiven();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not give the quiz.');
+      toast.error(err instanceof ApiError ? err.message : 'Could not assign the activity.');
     } finally {
       setBusy(false);
     }
@@ -65,64 +63,37 @@ export function GiveQuizDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Give a quiz</DialogTitle>
+          <DialogTitle>Assign activity</DialogTitle>
           <DialogDescription>
             Everyone registered through the {form?.contestName || 'contest'} form (
             {form?.registrationCount ?? 0} now) and everyone who registers later gets the quizzes
-            you tick.
+            and assessments you tick.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex max-h-80 flex-col gap-2 overflow-auto">
+        <div className="flex max-h-80 flex-col gap-4 overflow-auto">
           {quizzes.length === 0 ? (
             <p className="text-sm text-muted-foreground">This contest has no quizzes yet.</p>
           ) : (
-            quizzes.map((quiz) => {
-              const already = given.has(quiz.id);
-              const ended = quiz.availability === 'Ended';
-              const disabled = already || ended;
-              return (
-                <label
-                  key={quiz.id}
-                  className={`rounded-lg border border-border p-3 text-sm ${disabled ? 'opacity-60' : ''}`}
-                >
-                  <span className="flex items-start gap-2">
-                    <Checkbox
-                      checked={already || picked.includes(quiz.id)}
-                      disabled={disabled}
-                      onCheckedChange={(checked) =>
-                        setPicked((current) =>
-                          checked ? [...current, quiz.id] : current.filter((id) => id !== quiz.id),
-                        )
-                      }
-                    />
-                    <span>
-                      <span className="font-medium">{quiz.name}</span>
-                      <span className="mt-1 block text-muted-foreground">
-                        {quiz.availability}
-                        {quiz.startsAt ? ` · ${formatIst(quiz.startsAt)}` : ''}
-                        {quiz.endsAt ? ` – ${formatIst(quiz.endsAt)}` : ''}
-                      </span>
-                      {already ? <span className="block">Already given</span> : null}
-                      {ended ? <span className="block">Ended: can't be given</span> : null}
-                      {form?.closesAt &&
-                      quiz.endsAt &&
-                      new Date(quiz.endsAt) < new Date(form.closesAt) ? (
-                        <span className="block text-warning">
-                          Ends before registration closes ({formatIst(form.closesAt)}). Late
-                          registrants can't take it.
-                        </span>
-                      ) : null}
-                    </span>
-                  </span>
-                </label>
-              );
-            })
+            <>
+              <GiveGroup
+                title="Quizzes"
+                items={quizzes.filter((quiz) => quiz.kind !== 'assessment')}
+                given={given}
+                picked={picked}
+                closesAt={form?.closesAt ?? null}
+                onPick={setPicked}
+              />
+              <GiveGroup
+                title="Assessments"
+                items={quizzes.filter((quiz) => quiz.kind === 'assessment')}
+                given={given}
+                picked={picked}
+                closesAt={form?.closesAt ?? null}
+                onPick={setPicked}
+              />
+            </>
           )}
         </div>
-        <label className="mt-3 flex items-start gap-2 text-sm">
-          <Checkbox checked={emailOn} onCheckedChange={(checked) => setEmailOn(checked === true)} />
-          Email the people already registered that the quiz is ready
-        </label>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -132,10 +103,75 @@ export function GiveQuizDialog({
             disabled={busy || selectable.length === 0}
             onClick={() => void submit()}
           >
-            {selectable.length > 1 ? `Give ${selectable.length} quizzes` : 'Give quiz'}
+            {selectable.length > 1 ? `Assign ${selectable.length} activities` : 'Assign activity'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function GiveGroup({
+  title,
+  items,
+  given,
+  picked,
+  closesAt,
+  onPick,
+}: {
+  title: string;
+  items: ContestFormQuiz[];
+  given: Set<string>;
+  picked: string[];
+  closesAt: string | null;
+  onPick: (next: string[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">None for this contest.</p>
+      ) : (
+        items.map((quiz) => {
+          const already = given.has(quiz.id);
+          const ended = quiz.availability === 'Ended';
+          const disabled = already || ended;
+          return (
+            <label
+              key={quiz.id}
+              className={`rounded-lg border border-border p-3 text-sm ${disabled ? 'opacity-60' : ''}`}
+            >
+              <span className="flex items-start gap-2">
+                <Checkbox
+                  checked={already || picked.includes(quiz.id)}
+                  disabled={disabled}
+                  onCheckedChange={(checked) =>
+                    onPick(
+                      checked ? [...picked, quiz.id] : picked.filter((id) => id !== quiz.id),
+                    )
+                  }
+                />
+                <span>
+                  <span className="font-medium">{quiz.name}</span>
+                  <span className="mt-1 block text-muted-foreground">
+                    {quiz.availability}
+                    {quiz.startsAt ? ` · ${formatIst(quiz.startsAt)}` : ''}
+                    {quiz.endsAt ? ` – ${formatIst(quiz.endsAt)}` : ''}
+                  </span>
+                  {already ? <span className="block">Already given</span> : null}
+                  {ended ? <span className="block">Ended: can't be given</span> : null}
+                  {closesAt && quiz.endsAt && new Date(quiz.endsAt) < new Date(closesAt) ? (
+                    <span className="block text-warning">
+                      Ends before registration closes ({formatIst(closesAt)}). Late registrants
+                      can't take it.
+                    </span>
+                  ) : null}
+                </span>
+              </span>
+            </label>
+          );
+        })
+      )}
+    </div>
   );
 }

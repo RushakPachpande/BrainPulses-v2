@@ -407,7 +407,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
               <RowActions
                 view={{ to: `${listPath}/${item.id}` }}
                 edit={canEdit ? { to: `${listPath}/${item.id}/edit` } : undefined}
-                report={isQuiz ? { to: `/quizzes/reports?activityId=${item.id}` } : undefined}
+                report={{ to: `${listPath}/reports?activityId=${item.id}` }}
                 remove={
                   isQuiz && canFull
                     ? { label: 'Delete', onClick: () => void onDeleteQuiz(item) }

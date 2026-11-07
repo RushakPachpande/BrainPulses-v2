@@ -3,7 +3,6 @@ import type { ContestFormOverview, ContestFormQuiz, ContestFormRecord } from '@/
 
 export type SaveContestFormPayload = {
   mode: 'draft' | 'step1' | 'save';
-  password?: string;
   sponsorId?: string | null;
   contestId?: string | null;
   opensAt?: string | null;
@@ -16,7 +15,6 @@ export type SaveContestFormPayload = {
   showSeatsLeft?: boolean;
   fields?: ContestFormRecord['fields'];
   linkActive?: boolean;
-  emailOnQuiz?: boolean;
   domainRestriction?: boolean;
   allowedDomains?: string[];
   domainMessage?: string;
@@ -47,17 +45,13 @@ export function updateContestForm(id: string, payload: SaveContestFormPayload) {
   return apiPatchData<ContestFormRecord>(`/api/contest-forms/${id}`, payload);
 }
 
-export function verifyContestFormPassword(password: string) {
-  return apiPostData<{ ok: boolean }>('/api/contest-forms/verify-password', { password });
-}
-
 export function regenerateContestFormLink(id: string) {
   return apiPostData<ContestFormRecord>(`/api/contest-forms/${id}/regenerate-link`, {});
 }
 
-export function giveContestFormQuizzes(id: string, activityIds: string[], emailOnQuiz?: boolean) {
+export function giveContestFormQuizzes(id: string, activityIds: string[]) {
   return apiPostData<{ form: ContestFormRecord; added: number; registrationCount: number }>(
     `/api/contest-forms/${id}/quizzes`,
-    { activityIds, emailOnQuiz },
+    { activityIds },
   );
 }

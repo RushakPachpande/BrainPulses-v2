@@ -87,6 +87,7 @@ export type QuizReportDetail = {
   phone: string | null;
   quizName: string;
   contestName: string | null;
+  roundName?: string | null;
   passingPercent: number | null;
   attemptStatus: QuizAttemptStatus;
   attemptsStarted: number;

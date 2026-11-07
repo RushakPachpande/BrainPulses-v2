@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { downloadQuizReport } from '@/services/quiz-reports';
+
+const QUIZ_ABSENT_HINT =
+  'Adds registered participants with no submitted attempt (Not started, and In progress while the quiz is active). Their score columns are left blank.';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -20,6 +23,8 @@ export function QuizReportDownloadDialog({
   completed,
   registered,
   columnCount,
+  onDownloadReport = downloadQuizReport,
+  absentHint = QUIZ_ABSENT_HINT,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,6 +32,8 @@ export function QuizReportDownloadDialog({
   completed: number;
   registered: number;
   columnCount: number;
+  onDownloadReport?: (query: string) => Promise<void>;
+  absentHint?: string;
 }) {
   const [format, setFormat] = useState<'xlsx' | 'csv'>('xlsx');
   const [includeAbsent, setIncludeAbsent] = useState(false);
@@ -41,7 +48,7 @@ export function QuizReportDownloadDialog({
     params.set('includeAbsent', includeAbsent ? 'true' : 'false');
     setBusy(true);
     try {
-      await downloadQuizReport(params.toString());
+      await onDownloadReport(params.toString());
       toast.success(format === 'csv' ? 'CSV file downloaded' : 'Excel file downloaded');
       onOpenChange(false);
     } catch {
@@ -101,10 +108,7 @@ export function QuizReportDownloadDialog({
           />
           <span className="text-sm">
             <span className="font-medium">Include participants who haven&apos;t appeared</span>
-            <span className="mt-1 block text-muted-foreground">
-              Adds registered participants with no submitted attempt (Not started, and In progress
-              while the quiz is active). Their score columns are left blank.
-            </span>
+            <span className="mt-1 block text-muted-foreground">{absentHint}</span>
           </span>
         </label>
         <DialogFooter>

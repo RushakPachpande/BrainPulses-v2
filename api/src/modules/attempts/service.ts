@@ -164,6 +164,58 @@ export async function settleOpenQuizAttempts(
   }
 }
 
+/** Close assessment-round attempts the product would already auto-submit. */
+export async function settleOpenAssessmentAttempts(
+  organizationId: string,
+  opts?: { activityId?: string; reason?: AutoSubmitReasonCode },
+) {
+  const open = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      status: 'in_progress',
+      activity: {
+        kind: 'assessment',
+        ...(opts?.activityId ? { id: opts.activityId } : {}),
+      },
+    },
+    select: {
+      id: true,
+      participantId: true,
+      deadlineAt: true,
+      activity: { select: { endsAt: true } },
+      round: { select: { durationMode: true } },
+    },
+  });
+
+  const now = Date.now();
+  for (const attempt of open) {
+    let reason = opts?.reason ?? null;
+    if (!reason) {
+      const ended = attempt.activity.endsAt != null && attempt.activity.endsAt.getTime() <= now;
+      if (ended) reason = 'quiz_ended';
+      else if (
+        attempt.round?.durationMode !== 'per_question' &&
+        attempt.deadlineAt.getTime() <= now
+      ) {
+        reason = 'timer';
+      }
+    }
+    if (!reason) continue;
+    try {
+      await submitAttemptInternal(organizationId, attempt.id, attempt.participantId, {
+        auto: true,
+        idempotencyKey: `auto:${attempt.id}`,
+        autoSubmitReason: reason,
+      });
+    } catch (err) {
+      if (err instanceof AppError && (err.code === 'CONFLICT' || err.code === 'NOT_FOUND')) {
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 type AttemptPresentation = 'one_at_a_time' | 'all_on_page';
 
 type AttemptMapExtras = {
@@ -1168,12 +1220,17 @@ async function submitAttemptInternal(
     passed = passing === null ? null : percent >= passing;
   }
 
-  const needsManualPublish =
-    attempt.activity.kind === 'assessment' && roundNeedsManualPublish(questionTypes);
   const quizPublished =
     attempt.activity.kind === 'quiz' && attempt.activity.resultsPublishedAt != null;
+  const roundPublished =
+    attempt.activity.kind === 'assessment' && attempt.round?.resultsPublishedAt != null;
+  const holdUntilPublish =
+    attempt.activity.kind === 'assessment' &&
+    !roundPublished &&
+    (roundSettings?.scoreRelease === 'after_publish' ||
+      roundNeedsManualPublish(questionTypes));
   const releaseStatus =
-    quizPublished || (attempt.activity.kind === 'assessment' && !needsManualPublish)
+    quizPublished || roundPublished || (attempt.activity.kind === 'assessment' && !holdUntilPublish)
       ? ('published' as const)
       : ('withheld' as const);
   const publishedAt = releaseStatus === 'published' ? new Date() : null;

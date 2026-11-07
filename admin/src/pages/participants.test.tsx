@@ -52,7 +52,6 @@ vi.mock('@/services/contest-forms', () => ({
         fields: [],
         slug: 'code-quest',
         linkActive: true,
-        emailOnQuiz: true,
         domainRestriction: false,
         allowedDomains: [],
         domainMessage: '',

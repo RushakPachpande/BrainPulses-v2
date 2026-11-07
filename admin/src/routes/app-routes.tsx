@@ -45,9 +45,11 @@ const AssignRegistrationPage = lazy(() =>
 const RegistrationDetailPage = lazy(() =>
   import('@/pages/registration-detail').then((m) => ({ default: m.RegistrationDetailPage })),
 );
-const ReportsPage = lazy(() => import('@/pages/reports').then((m) => ({ default: m.ReportsPage })));
 const QuizReportsPage = lazy(() =>
   import('@/pages/quiz-reports').then((m) => ({ default: m.QuizReportsPage })),
+);
+const AssessmentReportsPage = lazy(() =>
+  import('@/pages/assessment-reports').then((m) => ({ default: m.AssessmentReportsPage })),
 );
 const ResultDetailPage = lazy(() =>
   import('@/pages/result-detail').then((m) => ({ default: m.ResultDetailPage })),
@@ -153,7 +155,7 @@ export function AppRoutes() {
             path="assessments/registrations/:registrationId"
             element={<RegistrationDetailPage kind="assessment" mode="view" />}
           />
-          <Route path="assessments/reports" element={<ReportsPage kind="assessment" />} />
+          <Route path="assessments/reports" element={<AssessmentReportsPage />} />
           <Route
             path="assessments/reports/:resultId"
             element={<ResultDetailPage kind="assessment" />}

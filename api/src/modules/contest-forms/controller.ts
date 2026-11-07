@@ -65,16 +65,6 @@ export async function update(req: Request, res: Response, next: NextFunction) {
   }
 }
 
-export async function verifyPassword(req: Request, res: Response, next: NextFunction) {
-  try {
-    const actor = userActor(req);
-    const data = await service.verifyPassword(actor.userId, req.body.password as string);
-    res.json({ data });
-  } catch (err) {
-    next(err);
-  }
-}
-
 export async function regenerate(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
@@ -97,7 +87,6 @@ export async function give(req: Request, res: Response, next: NextFunction) {
       actor.userId,
       req.params.id as string,
       req.body.activityIds as string[],
-      req.body.emailOnQuiz as boolean | undefined,
     );
     res.json({ data });
   } catch (err) {

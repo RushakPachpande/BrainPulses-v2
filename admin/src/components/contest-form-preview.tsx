@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { AuthImage } from '@/components/auth-image';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,7 +25,7 @@ export function ContestFormPreview({
   form,
   sponsorName,
   contestName,
-  full,
+  device,
 }: {
   form: Pick<
     ContestFormRecord,
@@ -41,21 +41,15 @@ export function ContestFormPreview({
   >;
   sponsorName: string;
   contestName: string;
-  full?: boolean;
+  device: 'desktop' | 'mobile';
 }) {
   const fields = form.fields.filter((field) => !field.deleted);
   const [answers, setAnswers] = useState<Answers>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [done, setDone] = useState<string | null>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
 
   const seatsLabel = form.seats == null ? null : `${form.seats} seats left`;
-
-  const frame = useMemo(
-    () => (device === 'mobile' ? 'mx-auto w-full max-w-[380px]' : 'w-full'),
-    [device],
-  );
+  const frame = device === 'mobile' ? 'mx-auto w-full max-w-[380px]' : 'w-full';
 
   if (done) {
     return (
@@ -74,85 +68,56 @@ export function ContestFormPreview({
   }
 
   return (
-    <div className={full ? '' : 'flex flex-col gap-3'}>
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant={device === 'desktop' ? 'default' : 'outline'}
-          onClick={() => setDevice('desktop')}
-        >
-          Desktop
-        </Button>
-        <Button
-          type="button"
-          variant={device === 'mobile' ? 'default' : 'outline'}
-          onClick={() => setDevice('mobile')}
-        >
-          Mobile
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setTheme((value) => (value === 'light' ? 'dark' : 'light'))}
-        >
-          {theme === 'light' ? 'Dark' : 'Light'}
-        </Button>
+    <form
+      className={`${frame} rounded-lg border border-border bg-background p-4 text-foreground`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        const issues = previewIssues(fields, answers);
+        if (issues.length) {
+          const next: Record<string, string> = {};
+          for (const issue of issues) next[issue.field] = issue.message;
+          setErrors(next);
+          return;
+        }
+        setErrors({});
+        setDone(sampleRegistrationId());
+      }}
+    >
+      <p className="text-sm font-medium">BrainPulses</p>
+      {form.showContestImage && form.contestImageFileId ? (
+        <AuthImage
+          fileId={form.contestImageFileId}
+          alt=""
+          className="mt-3 h-28 w-full rounded-lg object-cover"
+        />
+      ) : null}
+      {form.showSponsorName && sponsorName ? (
+        <p className="mt-3 text-sm text-muted-foreground">{sponsorName}</p>
+      ) : null}
+      <h2 className="mt-1 text-xl font-semibold">{contestName || 'Contest name'}</h2>
+      {form.welcomeMessage ? <p className="mt-2 text-sm">{form.welcomeMessage}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2 text-sm">
+        {form.showRegistrationCloses && form.closesAt ? (
+          <span className="text-warning">Closes {formatIst(form.closesAt)}</span>
+        ) : null}
+        {form.showSeatsLeft && seatsLabel ? <span>{seatsLabel}</span> : null}
       </div>
-      <div className={theme === 'dark' ? 'dark' : ''}>
-        <form
-          className={`${frame} rounded-lg border border-border bg-background p-4 text-foreground`}
-          onSubmit={(event) => {
-            event.preventDefault();
-            const issues = previewIssues(fields, answers);
-            if (issues.length) {
-              const next: Record<string, string> = {};
-              for (const issue of issues) next[issue.field] = issue.message;
-              setErrors(next);
-              return;
-            }
-            setErrors({});
-            setDone(sampleRegistrationId());
-          }}
-        >
-          <p className="text-sm font-medium">BrainPulses</p>
-          {form.showContestImage && form.contestImageFileId ? (
-            <AuthImage
-              fileId={form.contestImageFileId}
-              alt=""
-              className="mt-3 h-28 w-full rounded-lg object-cover"
-            />
-          ) : null}
-          {form.showSponsorName && sponsorName ? (
-            <p className="mt-3 text-sm text-muted-foreground">{sponsorName}</p>
-          ) : null}
-          <h2 className="mt-1 text-xl font-semibold">{contestName || 'Contest name'}</h2>
-          {form.welcomeMessage ? <p className="mt-2 text-sm">{form.welcomeMessage}</p> : null}
-          <div className="mt-3 flex flex-wrap gap-2 text-sm">
-            {form.showRegistrationCloses && form.closesAt ? (
-              <span className="text-warning">Closes {formatIst(form.closesAt)}</span>
-            ) : null}
-            {form.showSeatsLeft && seatsLabel ? <span>{seatsLabel}</span> : null}
-          </div>
-          <div className="mt-4 flex flex-col gap-3">
-            {fields.map((field) => (
-              <PreviewField
-                key={field.id}
-                field={field}
-                value={answers[field.id]}
-                error={errors[field.id]}
-                onChange={(value) => setAnswers((current) => ({ ...current, [field.id]: value }))}
-              />
-            ))}
-          </div>
-          <Button type="submit" className="mt-4 w-full">
-            Register
-          </Button>
-          <p className="mt-3 text-center text-sm text-muted-foreground">
-            Already registered? Log in
-          </p>
-        </form>
+      <div className="mt-4 flex flex-col gap-3">
+        {fields.map((field) => (
+          <PreviewField
+            key={field.id}
+            field={field}
+            value={answers[field.id]}
+            error={errors[field.id]}
+            onChange={(value) => setAnswers((current) => ({ ...current, [field.id]: value }))}
+          />
+        ))}
       </div>
-    </div>
+      <Button type="submit" className="mt-4 w-full">
+        Register
+      </Button>
+      <p className="mt-3 text-center text-sm text-muted-foreground">Already registered? Log in</p>
+    </form>
   );
 }
 

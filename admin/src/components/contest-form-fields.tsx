@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LockIcon, PlusIcon, Trash2Icon } from 'lucide-react';
+import { PlusIcon, Trash2Icon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -27,20 +27,14 @@ const TYPE_LABEL: Record<FieldType, string> = {
 
 export function ContestFormFields({
   fields,
-  unlocked,
   registeredCount,
   issues,
   onChange,
-  onUnlock,
-  onLock,
 }: {
   fields: FormField[];
-  unlocked: boolean;
   registeredCount: number;
   issues: Record<string, string>;
   onChange: (fields: FormField[]) => void;
-  onUnlock: () => void;
-  onLock: () => void;
 }) {
   const visible = fields.filter((field) => !field.deleted);
   const extra = visible.filter((field) => !field.locked);
@@ -75,34 +69,12 @@ export function ContestFormFields({
     <div className="flex flex-col gap-4">
       {registeredCount > 0 ? (
         <p className="rounded-lg border border-border bg-muted px-3 py-2 text-sm">
-          {registeredCount} people have already registered. Changes apply to new registrations only.
+          {registeredCount === 1
+            ? '1 person has already registered. Changes apply to new registrations only.'
+            : `${registeredCount} people have already registered. Changes apply to new registrations only.`}
         </p>
       ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted px-3 py-2 text-sm">
-        {unlocked ? (
-          <>
-            <span>
-              Unlocked. You can edit these fields. They lock again when you save or press Lock
-              again. Email always stays.
-            </span>
-            <Button type="button" variant="outline" onClick={onLock}>
-              Lock again
-            </Button>
-          </>
-        ) : (
-          <>
-            <span>
-              Locked fields. First name, Last name, Email and Mobile number can only be changed
-              after unlocking with your admin password.
-            </span>
-            <Button type="button" variant="outline" onClick={onUnlock}>
-              <LockIcon />
-              Unlock to edit
-            </Button>
-          </>
-        )}
-      </div>
-      {deletedLocked.length > 0 && unlocked ? (
+      {deletedLocked.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {deletedLocked.map((field) => (
             <Button
@@ -123,7 +95,7 @@ export function ContestFormFields({
             <FieldRow
               key={field.id}
               field={field}
-              editable={unlocked}
+              editable
               issue={issues[field.id]}
               onChange={(patch) => update(field.id, patch)}
               onDelete={() => remove(field.id)}
@@ -218,9 +190,7 @@ function FieldRow({
               ↓
             </Button>
           </div>
-        ) : (
-          <LockIcon className="mb-2 size-4 text-muted-foreground" aria-hidden />
-        )}
+        ) : null}
         <div>
           <Label htmlFor={`${field.id}-label`}>Label</Label>
           <Input

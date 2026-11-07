@@ -53,12 +53,14 @@ function ResultText({ result }: { result: 'pass' | 'fail' | null }) {
   );
 }
 
-function DetailBody({
+export function DetailBody({
   detail,
   onSelect,
+  notStartedMessage = 'No attempts yet. This student registered but has not started the quiz.',
 }: {
   detail: QuizReportDetail;
   onSelect: (attemptId: string) => void;
+  notStartedMessage?: string;
 }) {
   return (
     <div className="flex flex-col gap-4 px-4 pb-6">
@@ -87,7 +89,7 @@ function DetailBody({
 
       {detail.note === 'not_started' ? (
         <p className="rounded-lg bg-muted p-4 text-center text-sm text-muted-foreground">
-          No attempts yet. This student registered but has not started the quiz.
+          {notStartedMessage}
         </p>
       ) : null}
 

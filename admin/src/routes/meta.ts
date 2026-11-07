@@ -58,6 +58,8 @@ export const pageMeta: Record<string, PageMeta> = {
   '/assessments/reports': {
     crumb: 'BrainPulses / Assessment / Reports',
     title: 'Assessment Reports & Results',
+    description:
+      "One row per student per round. Scores show each student's best attempt on that round.",
   },
   '/quizzes': {
     crumb: 'BrainPulses / Quiz',

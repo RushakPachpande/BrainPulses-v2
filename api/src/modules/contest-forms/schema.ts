@@ -33,7 +33,6 @@ const fieldSchema = z
 export const saveFormSchema = z
   .object({
     mode: z.enum(['draft', 'step1', 'save']),
-    password: z.string().optional(),
     sponsorId: z.string().uuid().nullable().optional(),
     contestId: z.string().uuid().nullable().optional(),
     opensAt: z.string().datetime().nullable().optional(),
@@ -46,7 +45,6 @@ export const saveFormSchema = z
     showSeatsLeft: z.boolean().optional(),
     fields: z.array(fieldSchema).max(30).optional(),
     linkActive: z.boolean().optional(),
-    emailOnQuiz: z.boolean().optional(),
     domainRestriction: z.boolean().optional(),
     allowedDomains: z.array(z.string().max(160)).max(30).optional(),
     domainMessage: z.string().max(160).optional(),
@@ -56,16 +54,9 @@ export const saveFormSchema = z
   })
   .strict();
 
-export const passwordSchema = z
-  .object({
-    password: z.string().min(1, 'Enter your password.'),
-  })
-  .strict();
-
 export const giveQuizzesSchema = z
   .object({
     activityIds: z.array(z.string().uuid()).min(1).max(50),
-    emailOnQuiz: z.boolean().optional(),
   })
   .strict();
 

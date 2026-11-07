@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { AdminPasswordDialog } from '@/components/admin-password-dialog';
 import { ContestFormFields } from '@/components/contest-form-fields';
+import { DateTimePicker } from '@/components/date-time-picker';
 import { ContestFormPreview } from '@/components/contest-form-preview';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
@@ -24,14 +24,11 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError } from '@/lib/api-client';
 import {
-  PREVIEW_WIDTH_KEY,
   cleanDomain,
   domainMessagePreview,
   emptyDraft,
   formatIst,
-  fromIstInput,
   registrationUrl,
-  toIstInput,
   validateBuilder,
   type ContestFormQuiz,
   type ContestFormRecord,
@@ -47,7 +44,6 @@ import {
   getContestQuizzes,
   regenerateContestFormLink,
   updateContestForm,
-  verifyContestFormPassword,
   type SaveContestFormPayload,
 } from '@/services/contest-forms';
 
@@ -60,15 +56,9 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
   const orgId = useOrgId();
   const [step, setStep] = useState<1 | 2>(1);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft());
-  const [unlocked, setUnlocked] = useState(false);
-  const [password, setPassword] = useState('');
-  const [passwordOpen, setPasswordOpen] = useState(mode === 'edit');
-  const passwordAccepted = useRef(false);
-  const [passwordError, setPasswordError] = useState('');
-  const [passwordBusy, setPasswordBusy] = useState(false);
   const [issues, setIssues] = useState<FieldIssue[]>([]);
-  const [previewWidth, setPreviewWidth] = useState(520);
   const [fullPreview, setFullPreview] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [domainDraft, setDomainDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const editingSaved = mode === 'edit';
@@ -93,13 +83,8 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
   const existing = useQuery({
     queryKey: ['admin', 'contest-form', formId],
     queryFn: () => getContestForm(formId),
-    enabled: mode === 'edit' && Boolean(formId) && Boolean(password),
+    enabled: mode === 'edit' && Boolean(formId),
   });
-
-  useEffect(() => {
-    const stored = Number(localStorage.getItem(PREVIEW_WIDTH_KEY));
-    if (stored >= 340) setPreviewWidth(stored);
-  }, []);
 
   useEffect(() => {
     if (!existing.data) return;
@@ -138,12 +123,6 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
     setDraft((current) => ({ ...current, ...partial }));
   }
 
-  function rememberWidth(width: number) {
-    const next = Math.max(340, Math.min(width, 900));
-    setPreviewWidth(next);
-    localStorage.setItem(PREVIEW_WIDTH_KEY, String(next));
-  }
-
   async function persist(saveMode: 'draft' | 'step1' | 'save') {
     const seats = draft.seats == null || Number.isNaN(draft.seats) ? null : draft.seats;
     const check = validateBuilder({
@@ -167,7 +146,6 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
     setIssues([]);
     const payload: SaveContestFormPayload = {
       mode: saveMode,
-      password: password || undefined,
       sponsorId: draft.sponsorId,
       contestId: draft.contestId,
       opensAt: draft.opensAt,
@@ -180,7 +158,6 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
       showSeatsLeft: draft.showSeatsLeft,
       fields: draft.fields,
       linkActive: draft.linkActive,
-      emailOnQuiz: draft.emailOnQuiz,
       domainRestriction: draft.domainRestriction,
       allowedDomains: draft.allowedDomains,
       domainMessage: draft.domainMessage,
@@ -194,7 +171,6 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
         ? await updateContestForm(draft.id, payload)
         : await createContestForm(payload);
       setDraft(recordToDraft(saved));
-      setUnlocked(false);
       return saved;
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not save the form.';
@@ -228,7 +204,7 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
     }
     const quizNote =
       saved.quizzes.length === 0
-        ? ' The link is live; give a quiz later from the form.'
+        ? ' The link is live; assign an activity later from the form.'
         : ' The link is live.';
     toast.success(`Registration form for ${saved.contestName} saved.${quizNote}`);
     navigate('/participants');
@@ -272,44 +248,6 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
     setDomainDraft('');
   }
 
-  if (mode === 'edit' && !password) {
-    return (
-      <AdminPasswordDialog
-        open={passwordOpen}
-        title="Enter your admin password"
-        description="Editing needs the password you use to sign in to the admin portal."
-        confirmLabel="Continue to edit"
-        error={passwordError}
-        busy={passwordBusy}
-        onOpenChange={(open) => {
-          setPasswordOpen(open);
-          if (!open && !passwordAccepted.current) {
-            navigate(formId ? `/participants/forms/${formId}` : '/participants');
-          }
-        }}
-        onConfirm={(value) => {
-          if (!value.trim()) {
-            setPasswordError('Enter your password.');
-            return;
-          }
-          setPasswordBusy(true);
-          void verifyContestFormPassword(value)
-            .then(() => {
-              passwordAccepted.current = true;
-              setPassword(value);
-              setPasswordError('');
-              setPasswordOpen(false);
-            })
-            .catch((err: unknown) => {
-              setPassword('');
-              setPasswordError(err instanceof ApiError ? err.message : 'Incorrect password.');
-            })
-            .finally(() => setPasswordBusy(false));
-        }}
-      />
-    );
-  }
-
   const linkLabel = draft.slug ? registrationUrl(draft.slug) : 'Live after you save';
 
   return (
@@ -345,261 +283,230 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
         </p>
       ) : null}
       {step === 1 ? (
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
-          <Card className="min-w-0 flex-1">
-            <CardHeader>
-              <CardTitle>Registration Form · Step 1 of 2</CardTitle>
-              <CardDescription>
-                Participants fill this form once, when they first open the contest's link. Quizzes
-                are given to them in the next step, now or later. The live preview shows exactly
-                what they'll see.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col gap-6">
-              <div className="grid gap-4 md:grid-cols-2" data-field="sponsorId">
-                <div>
-                  <Label htmlFor="sponsor">Sponsor</Label>
-                  <Select
-                    value={draft.sponsorId ?? ''}
-                    disabled={editingSaved}
-                    onValueChange={(value) =>
-                      patch({ sponsorId: value, contestId: null, contestName: '' })
-                    }
-                  >
-                    <SelectTrigger
-                      id="sponsor"
-                      className="mt-1 w-full"
-                      aria-invalid={Boolean(issueMap.sponsorId) || undefined}
-                    >
-                      <SelectValue placeholder="Choose a sponsor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(sponsors.data ?? []).map((sponsor) => (
-                        <SelectItem key={sponsor.id} value={sponsor.id}>
-                          {sponsor.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {editingSaved ? (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      The sponsor and contest can't change once the form is saved.
-                    </p>
-                  ) : null}
-                  {issueMap.sponsorId ? (
-                    <p className="mt-1 text-sm text-destructive">{issueMap.sponsorId}</p>
-                  ) : null}
-                </div>
-                <div data-field="contestId">
-                  <Label htmlFor="contest">Contest</Label>
-                  <Select
-                    value={draft.contestId ?? ''}
-                    disabled={editingSaved || !draft.sponsorId}
-                    onValueChange={(value) => patch({ contestId: value })}
-                  >
-                    <SelectTrigger
-                      id="contest"
-                      className="mt-1 w-full"
-                      aria-invalid={Boolean(issueMap.contestId) || undefined}
-                    >
-                      <SelectValue
-                        placeholder={
-                          draft.sponsorId ? 'Choose a contest' : 'Choose a sponsor first'
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {sponsorContests.map((contest) => (
-                        <SelectItem
-                          key={contest.id}
-                          value={contest.id}
-                          disabled={takenContests.has(contest.id)}
-                        >
-                          {takenContests.has(contest.id)
-                            ? `${contest.name} (already has a form)`
-                            : contest.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Only {sponsorName || 'that sponsor'}'s contests are listed. One registration
-                    form per contest.
-                  </p>
-                  {issueMap.contestId ? (
-                    <p className="mt-1 text-sm text-destructive">{issueMap.contestId}</p>
-                  ) : null}
-                </div>
-              </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                <div data-field="opensAt">
-                  <Label htmlFor="opens">Registration opens (IST)</Label>
-                  <Input
-                    id="opens"
-                    className="mt-1"
-                    type="datetime-local"
-                    value={toIstInput(draft.opensAt)}
-                    aria-invalid={Boolean(issueMap.opensAt) || undefined}
-                    onChange={(event) => patch({ opensAt: fromIstInput(event.target.value) })}
-                  />
-                  {issueMap.opensAt ? (
-                    <p className="mt-1 text-sm text-destructive">{issueMap.opensAt}</p>
-                  ) : null}
-                </div>
-                <div data-field="closesAt">
-                  <Label htmlFor="closes">Registration closes (IST)</Label>
-                  <Input
-                    id="closes"
-                    className="mt-1"
-                    type="datetime-local"
-                    value={toIstInput(draft.closesAt)}
-                    aria-invalid={Boolean(issueMap.closesAt) || undefined}
-                    onChange={(event) => patch({ closesAt: fromIstInput(event.target.value) })}
-                  />
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    When a quiz is given to this form later, you're warned if it ends before
-                    registration closes.
-                  </p>
-                  {issueMap.closesAt ? (
-                    <p className="mt-1 text-sm text-destructive">{issueMap.closesAt}</p>
-                  ) : null}
-                </div>
-                <div data-field="seats">
-                  <Label htmlFor="seats">Number of seats</Label>
-                  <Input
-                    id="seats"
-                    className="mt-1"
-                    inputMode="numeric"
-                    value={draft.seats ?? ''}
-                    placeholder="Unlimited"
-                    aria-invalid={Boolean(issueMap.seats) || undefined}
-                    onChange={(event) =>
-                      patch({
-                        seats: event.target.value === '' ? null : Number(event.target.value),
-                      })
-                    }
-                  />
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Leave empty for unlimited registrations while the form is open.
-                  </p>
-                  {issueMap.seats ? (
-                    <p className="mt-1 text-sm text-destructive">{issueMap.seats}</p>
-                  ) : null}
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Open from {draft.opensAt ? formatIst(draft.opensAt) : '…'} to{' '}
-                {draft.closesAt ? formatIst(draft.closesAt) : '…'} ·{' '}
-                {draft.seats == null ? 'Unlimited seats' : `${draft.seats} seats`}
-              </p>
+        <Card className="min-w-0">
+          <CardHeader>
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <Label htmlFor="welcome">Welcome message</Label>
-                <Textarea
-                  id="welcome"
-                  className="mt-1"
-                  maxLength={300}
-                  value={draft.welcomeMessage ?? ''}
-                  onChange={(event) => patch({ welcomeMessage: event.target.value })}
+                <CardTitle>Registration Form · Step 1 of 2</CardTitle>
+                <CardDescription>
+                  Participants fill this form once, when they first open the contest's link. Quizzes
+                  and assessments are given in the next step, now or later. Preview shows exactly
+                  what they'll see.
+                </CardDescription>
+              </div>
+              <Button type="button" variant="outline" onClick={() => setFullPreview(true)}>
+                Preview
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-6">
+            <div className="grid gap-4 md:grid-cols-2" data-field="sponsorId">
+              <div>
+                <Label htmlFor="sponsor">Sponsor</Label>
+                <Select
+                  value={draft.sponsorId ?? ''}
+                  disabled={editingSaved}
+                  onValueChange={(value) =>
+                    patch({ sponsorId: value, contestId: null, contestName: '' })
+                  }
+                >
+                  <SelectTrigger
+                    id="sponsor"
+                    className="mt-1 w-full"
+                    aria-invalid={Boolean(issueMap.sponsorId) || undefined}
+                  >
+                    <SelectValue placeholder="Choose a sponsor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(sponsors.data ?? []).map((sponsor) => (
+                      <SelectItem key={sponsor.id} value={sponsor.id}>
+                        {sponsor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {editingSaved ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    The sponsor and contest can't change once the form is saved.
+                  </p>
+                ) : null}
+                {issueMap.sponsorId ? (
+                  <p className="mt-1 text-sm text-destructive">{issueMap.sponsorId}</p>
+                ) : null}
+              </div>
+              <div data-field="contestId">
+                <Label htmlFor="contest">Contest</Label>
+                <Select
+                  value={draft.contestId ?? ''}
+                  disabled={editingSaved || !draft.sponsorId}
+                  onValueChange={(value) => patch({ contestId: value })}
+                >
+                  <SelectTrigger
+                    id="contest"
+                    className="mt-1 w-full"
+                    aria-invalid={Boolean(issueMap.contestId) || undefined}
+                  >
+                    <SelectValue
+                      placeholder={draft.sponsorId ? 'Choose a contest' : 'Choose a sponsor first'}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sponsorContests.map((contest) => (
+                      <SelectItem
+                        key={contest.id}
+                        value={contest.id}
+                        disabled={takenContests.has(contest.id)}
+                      >
+                        {takenContests.has(contest.id)
+                          ? `${contest.name} (already has a form)`
+                          : contest.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Only {sponsorName || 'that sponsor'}'s contests are listed. One registration form
+                  per contest.
+                </p>
+                {issueMap.contestId ? (
+                  <p className="mt-1 text-sm text-destructive">{issueMap.contestId}</p>
+                ) : null}
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-3">
+              <div data-field="opensAt">
+                <Label htmlFor="opens">Registration opens</Label>
+                <DateTimePicker
+                  id="opens"
+                  value={draft.opensAt ? new Date(draft.opensAt) : null}
+                  onChange={(date) => patch({ opensAt: date.toISOString() })}
+                  required
+                  ariaLabel="Registration opens"
+                />
+                {issueMap.opensAt ? (
+                  <p className="mt-1 text-sm text-destructive">{issueMap.opensAt}</p>
+                ) : null}
+              </div>
+              <div data-field="closesAt">
+                <Label htmlFor="closes">Registration closes</Label>
+                <DateTimePicker
+                  id="closes"
+                  value={draft.closesAt ? new Date(draft.closesAt) : null}
+                  onChange={(date) => patch({ closesAt: date.toISOString() })}
+                  required
+                  ariaLabel="Registration closes"
                 />
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {(draft.welcomeMessage ?? '').length} / 300 characters
+                  When a quiz is given to this form later, you're warned if it ends before
+                  registration closes.
                 </p>
+                {issueMap.closesAt ? (
+                  <p className="mt-1 text-sm text-destructive">{issueMap.closesAt}</p>
+                ) : null}
               </div>
-              <fieldset className="flex flex-wrap gap-3">
-                <legend className="mb-2 text-sm font-medium">Show on the form</legend>
-                <Chip
-                  checked={draft.showContestImage}
-                  label="Contest image"
-                  onChange={(checked) => patch({ showContestImage: checked })}
+              <div data-field="seats">
+                <Label htmlFor="seats">Number of seats</Label>
+                <Input
+                  id="seats"
+                  className="mt-1"
+                  inputMode="numeric"
+                  value={draft.seats ?? ''}
+                  placeholder="Unlimited"
+                  aria-invalid={Boolean(issueMap.seats) || undefined}
+                  onChange={(event) =>
+                    patch({
+                      seats: event.target.value === '' ? null : Number(event.target.value),
+                    })
+                  }
                 />
-                <Chip
-                  checked={draft.showSponsorName}
-                  label="Sponsor name"
-                  onChange={(checked) => patch({ showSponsorName: checked })}
-                />
-                <Chip
-                  checked={draft.showRegistrationCloses}
-                  label="Registration closes"
-                  onChange={(checked) => patch({ showRegistrationCloses: checked })}
-                />
-                <Chip
-                  checked={draft.showSeatsLeft}
-                  disabled={draft.seats == null}
-                  label={draft.seats == null ? 'Seats left (no limit set)' : 'Seats left'}
-                  onChange={(checked) => patch({ showSeatsLeft: checked })}
-                />
-              </fieldset>
-              <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
-                From the contest: {contestName || 'title'}, {sponsorName || 'sponsor'}, and its
-                image. The contest name is always the heading.
-              </p>
-              <ContestFormFields
-                fields={draft.fields}
-                unlocked={unlocked}
-                registeredCount={draft.registrationCount}
-                issues={issueMap}
-                onChange={(fields) => patch({ fields })}
-                onLock={() => setUnlocked(false)}
-                onUnlock={() => setPasswordOpen(true)}
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Leave empty for unlimited registrations while the form is open.
+                </p>
+                {issueMap.seats ? (
+                  <p className="mt-1 text-sm text-destructive">{issueMap.seats}</p>
+                ) : null}
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Open from {draft.opensAt ? formatIst(draft.opensAt) : '…'} to{' '}
+              {draft.closesAt ? formatIst(draft.closesAt) : '…'} ·{' '}
+              {draft.seats == null ? 'Unlimited seats' : `${draft.seats} seats`}
+            </p>
+            <div>
+              <Label htmlFor="welcome">Welcome message</Label>
+              <Textarea
+                id="welcome"
+                className="mt-1"
+                maxLength={300}
+                value={draft.welcomeMessage ?? ''}
+                onChange={(event) => patch({ welcomeMessage: event.target.value })}
               />
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button type="button" variant="outline" disabled>
-                  Back
-                </Button>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {(draft.welcomeMessage ?? '').length} / 300 characters
+              </p>
+            </div>
+            <fieldset className="flex flex-wrap gap-3">
+              <legend className="mb-2 text-sm font-medium">Show on the form</legend>
+              <Chip
+                checked={draft.showContestImage}
+                label="Contest image"
+                onChange={(checked) => patch({ showContestImage: checked })}
+              />
+              <Chip
+                checked={draft.showSponsorName}
+                label="Sponsor name"
+                onChange={(checked) => patch({ showSponsorName: checked })}
+              />
+              <Chip
+                checked={draft.showRegistrationCloses}
+                label="Registration closes"
+                onChange={(checked) => patch({ showRegistrationCloses: checked })}
+              />
+              <Chip
+                checked={draft.showSeatsLeft}
+                disabled={draft.seats == null}
+                label={draft.seats == null ? 'Seats left (no limit set)' : 'Seats left'}
+                onChange={(checked) => patch({ showSeatsLeft: checked })}
+              />
+            </fieldset>
+            <p className="rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground">
+              From the contest: {contestName || 'title'}, {sponsorName || 'sponsor'}, and its image.
+              The contest name is always the heading.
+            </p>
+            <ContestFormFields
+              fields={draft.fields}
+              registeredCount={draft.registrationCount}
+              issues={issueMap}
+              onChange={(fields) => patch({ fields })}
+            />
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              {editingSaved ? (
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={busy}
-                  onClick={() => void onDraft()}
+                  onClick={() => navigate(`/participants/forms/${formId}`)}
                 >
-                  Save as draft
+                  Cancel
                 </Button>
-                <Button type="button" disabled={busy} onClick={() => void onContinue()}>
-                  Save & continue
+              ) : (
+                <Button type="button" variant="outline" disabled>
+                  Back
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-          <div className="flex w-full flex-col gap-2 xl:sticky xl:top-4 xl:w-auto">
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              aria-label="Resize preview"
-              aria-valuemin={340}
-              aria-valuemax={900}
-              aria-valuenow={previewWidth}
-              tabIndex={0}
-              className="hidden h-8 cursor-col-resize rounded-lg border border-dashed border-border xl:block"
-              onDoubleClick={() => {
-                rememberWidth(520);
-                toast.success('Preview size reset');
-              }}
-              onKeyDown={(event) => {
-                const stepSize = event.shiftKey ? 80 : 20;
-                if (event.key === 'ArrowLeft') rememberWidth(previewWidth + stepSize);
-                if (event.key === 'ArrowRight') rememberWidth(previewWidth - stepSize);
-                if (event.key === 'Home') rememberWidth(900);
-                if (event.key === 'End') rememberWidth(340);
-                if (event.key === 'Enter') {
-                  rememberWidth(520);
-                  toast.success('Preview size reset');
-                }
-              }}
-            />
-            <div style={{ width: '100%', maxWidth: previewWidth }}>
-              <div className="mb-2 flex justify-end">
-                <Button type="button" variant="outline" onClick={() => setFullPreview(true)}>
-                  Full preview
-                </Button>
-              </div>
-              <ContestFormPreview
-                form={{ ...draft, contestImageFileId: contestImage }}
-                sponsorName={sponsorName}
-                contestName={contestName}
-              />
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => void onDraft()}
+              >
+                Save as draft
+              </Button>
+              <Button type="button" disabled={busy} onClick={() => void onContinue()}>
+                Save & continue
+              </Button>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       ) : (
         <Card>
           <CardHeader>
@@ -608,8 +515,8 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
             </CardTitle>
             <CardDescription>
               Anyone with the contest's link can register. Here you manage the link, choose which
-              quizzes registrants get (now or later), limit email domains if needed, and decide how
-              Registration IDs are given.
+              quizzes and assessments registrants get (now or later), limit email domains if needed,
+              and decide how Registration IDs are given.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-8">
@@ -669,36 +576,28 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
               ) : null}
             </section>
             <section className="flex flex-col gap-3">
-              <h2 className="font-medium">2. Quizzes this form gives access to</h2>
-              {(quizzes.data ?? []).map((quiz) => (
-                <QuizChoice
-                  key={quiz.id}
-                  quiz={quiz}
-                  closesAt={draft.closesAt}
-                  checked={draft.quizzes.some((item) => item.id === quiz.id)}
-                  onChange={(checked) =>
-                    patch({
-                      quizzes: checked
-                        ? [...draft.quizzes, quiz]
-                        : draft.quizzes.filter((item) => item.id !== quiz.id),
-                    })
-                  }
-                />
-              ))}
+              <h2 className="font-medium">2. Quizzes and assessments this form gives access to</h2>
+              <ActivityGroup
+                title="Quizzes"
+                items={(quizzes.data ?? []).filter((item) => item.kind !== 'assessment')}
+                selected={draft.quizzes}
+                closesAt={draft.closesAt}
+                onChange={(next) => patch({ quizzes: next })}
+              />
+              <ActivityGroup
+                title="Assessments"
+                items={(quizzes.data ?? []).filter((item) => item.kind === 'assessment')}
+                selected={draft.quizzes}
+                closesAt={draft.closesAt}
+                onChange={(next) => patch({ quizzes: next })}
+              />
               {draft.quizzes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No quiz yet. You can still share the link. People who register get their
                   Registration ID and see "No quizzes yet. You'll get an email when one is ready."
-                  Come back to this page to give a quiz later.
+                  Come back to this page to assign an activity later.
                 </p>
               ) : null}
-              <label className="flex items-center gap-2 text-sm">
-                <Switch
-                  checked={draft.emailOnQuiz}
-                  onCheckedChange={(checked) => patch({ emailOnQuiz: checked })}
-                />
-                Email participants when a quiz is given
-              </label>
             </section>
             <section className="flex flex-col gap-3" data-field="allowedDomains">
               <h2 className="font-medium">3. Who can register</h2>
@@ -842,46 +741,36 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
         </Card>
       )}
       <Dialog open={fullPreview} onOpenChange={setFullPreview}>
-        <DialogContent className="max-h-[90vh] overflow-auto sm:max-w-3xl">
+        <DialogContent
+          className={`max-h-[90vh] overflow-auto ${previewDevice === 'mobile' ? 'sm:max-w-md' : 'sm:max-w-3xl'}`}
+        >
           <DialogHeader>
-            <DialogTitle>Full preview</DialogTitle>
+            <DialogTitle>Preview</DialogTitle>
           </DialogHeader>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant={previewDevice === 'desktop' ? 'default' : 'outline'}
+              onClick={() => setPreviewDevice('desktop')}
+            >
+              Desktop
+            </Button>
+            <Button
+              type="button"
+              variant={previewDevice === 'mobile' ? 'default' : 'outline'}
+              onClick={() => setPreviewDevice('mobile')}
+            >
+              Mobile
+            </Button>
+          </div>
           <ContestFormPreview
-            full
+            device={previewDevice}
             form={{ ...draft, contestImageFileId: contestImage }}
             sponsorName={sponsorName}
             contestName={contestName}
           />
         </DialogContent>
       </Dialog>
-      <AdminPasswordDialog
-        open={passwordOpen && Boolean(password || mode === 'create')}
-        title="Unlock locked fields"
-        description="Enter the password you use to sign in to the admin portal."
-        confirmLabel="Unlock"
-        error={passwordError}
-        busy={passwordBusy}
-        onOpenChange={setPasswordOpen}
-        onConfirm={(value) => {
-          if (!value.trim()) {
-            setPasswordError('Enter your password.');
-            return;
-          }
-          setPasswordBusy(true);
-          void verifyContestFormPassword(value)
-            .then(() => {
-              setUnlocked(true);
-              setPassword((current) => current || value);
-              setPasswordError('');
-              setPasswordOpen(false);
-              toast.success('Fields unlocked');
-            })
-            .catch((err: unknown) => {
-              setPasswordError(err instanceof ApiError ? err.message : 'Incorrect password.');
-            })
-            .finally(() => setPasswordBusy(false));
-        }}
-      />
     </div>
   );
 }
@@ -908,6 +797,43 @@ function Chip({
       />
       {label}
     </label>
+  );
+}
+
+function ActivityGroup({
+  title,
+  items,
+  selected,
+  closesAt,
+  onChange,
+}: {
+  title: string;
+  items: ContestFormQuiz[];
+  selected: ContestFormQuiz[];
+  closesAt: string | null;
+  onChange: (next: ContestFormQuiz[]) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">None for this contest.</p>
+      ) : (
+        items.map((quiz) => (
+          <QuizChoice
+            key={quiz.id}
+            quiz={quiz}
+            closesAt={closesAt}
+            checked={selected.some((item) => item.id === quiz.id)}
+            onChange={(checked) =>
+              onChange(
+                checked ? [...selected, quiz] : selected.filter((item) => item.id !== quiz.id),
+              )
+            }
+          />
+        ))
+      )}
+    </div>
   );
 }
 
@@ -972,7 +898,6 @@ function recordToDraft(record: ContestFormRecord): Draft {
     fields: record.fields,
     slug: record.slug,
     linkActive: record.linkActive,
-    emailOnQuiz: record.emailOnQuiz,
     domainRestriction: record.domainRestriction,
     allowedDomains: record.allowedDomains,
     domainMessage: record.domainMessage,

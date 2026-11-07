@@ -11,7 +11,6 @@ import {
   contestQuizzesQuerySchema,
   giveQuizzesSchema,
   idParamSchema,
-  passwordSchema,
   imageParamSchema,
   registerSchema,
   saveFormSchema,
@@ -28,12 +27,6 @@ contestFormsRouter.get(
   requireOrgAccess('view'),
   validate({ query: contestQuizzesQuerySchema }),
   controller.quizzes,
-);
-contestFormsRouter.post(
-  '/verify-password',
-  requireOrgAccess('edit'),
-  validate({ body: passwordSchema }),
-  controller.verifyPassword,
 );
 contestFormsRouter.get(
   '/:id',

@@ -453,6 +453,7 @@ model ActivityRound {
   settings           Json?            @db.JsonB
   imageFileId        String?          @map("image_file_id") @db.Uuid
   localBankId        String?          @unique @map("local_bank_id") @db.Uuid
+  resultsPublishedAt DateTime?        @map("results_published_at") @db.Timestamptz(3)
   createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(3)
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
+import { ThemeButton } from '../components/theme-button';
 import {
   Select,
   SelectContent,
@@ -7,8 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { ThemeToggle } from '../components/theme-toggle';
 import { ApiError, apiGetData, apiPostData } from '../lib/api-client';
+import '../styles/login.css';
 
 type PublicField = {
   id: string;
@@ -60,8 +61,9 @@ export function RegisterPage() {
         if (!cancelled) setPage(data);
       })
       .catch((err: unknown) => {
-        if (!cancelled)
+        if (!cancelled) {
           setError(err instanceof ApiError ? err.message : 'This link is not available.');
+        }
       });
     return () => {
       cancelled = true;
@@ -88,35 +90,35 @@ export function RegisterPage() {
   }
 
   const form = page?.form;
-  const blocked = page && page.state !== 'open';
+  const blocked = page && page.state !== 'open' && page.state !== 'inactive';
 
   return (
-    <div className="login-page login-page-centered">
-      <div className="login-brand-row">
-        <div className="login-brand">
+    <div className="login-screen">
+      <header className="login-head">
+        <div className="br big">
           <img src="/brand.svg" alt="" />
-          <span>BrainPulses</span>
+          BrainPulses
         </div>
-        <ThemeToggle className="icon-btn theme-toggle login-theme-toggle" />
-      </div>
-      <div className="login-center page-enter">
-        <div className="login-card">
+        <ThemeButton />
+      </header>
+      <div className="wrap light solo">
+        <form className="card" onSubmit={(event) => void onSubmit(event)} noValidate>
           {!page && !error ? <p>Loading registration form…</p> : null}
           {page?.state === 'inactive' ? <p role="status">{page.message}</p> : null}
           {error && !form ? (
-            <p className="error-text" role="alert">
+            <div className="err" role="alert">
               {error}
-            </p>
+            </div>
           ) : null}
           {result ? (
-            <div>
-              <h1>{form?.contestName}</h1>
+            <>
+              <h1>{form?.contestName || 'Registered'}</h1>
               <p>{result.message}</p>
-              <p className="font-mono">{result.code}</p>
-              <Link className="btn primary full" to="/login">
+              <p>{result.code}</p>
+              <Link className="btn" to="/login">
                 Log in
               </Link>
-            </div>
+            </>
           ) : null}
           {form && !result ? (
             <>
@@ -124,19 +126,24 @@ export function RegisterPage() {
                 <img
                   src={`/api/public/contest-forms/${encodeURIComponent(slug)}/image/contest`}
                   alt=""
-                  className="login-card-mark"
                 />
               ) : null}
               {form.showSponsorName ? <p>{form.sponsorName}</p> : null}
               <h1>{form.contestName}</h1>
               {form.welcomeMessage ? <p>{form.welcomeMessage}</p> : null}
+              {form.showRegistrationCloses && form.closesAt ? (
+                <p>Closes {new Date(form.closesAt).toLocaleString()}</p>
+              ) : null}
+              {form.showSeatsLeft && form.seatsLeft != null ? (
+                <p>{form.seatsLeft} seats left</p>
+              ) : null}
               {blocked ? (
                 <div>
                   <p role="status">{page?.message}</p>
                   <Link to="/login">Log in</Link>
                 </div>
               ) : (
-                <form onSubmit={(event) => void onSubmit(event)} noValidate>
+                <>
                   {form.fields.map((field) => (
                     <PublicFieldInput
                       key={field.id}
@@ -149,21 +156,21 @@ export function RegisterPage() {
                     />
                   ))}
                   {error ? (
-                    <div className="error-text" role="alert">
+                    <div className="err" role="alert">
                       {error}
                     </div>
                   ) : null}
-                  <button className="btn primary full" type="submit" disabled={busy}>
+                  <button className="btn" type="submit" disabled={busy}>
                     {busy ? 'Registering…' : 'Register'}
                   </button>
                   <p>
                     Already registered? <Link to="/login">Log in</Link>
                   </p>
-                </form>
+                </>
               )}
             </>
           ) : null}
-        </div>
+        </form>
       </div>
     </div>
   );
@@ -183,7 +190,7 @@ function PublicFieldInput({
   const id = `reg-${field.id}`;
   if (field.type === 'consent') {
     return (
-      <div>
+      <div className="f">
         <label htmlFor={id}>
           <input
             id={id}
@@ -199,17 +206,17 @@ function PublicFieldInput({
             </>
           ) : null}
         </label>
-        {error ? <div className="error-text">{error}</div> : null}
+        {error ? <div className="err">{error}</div> : null}
       </div>
     );
   }
   if (field.type === 'dropdown') {
     return (
-      <label htmlFor={id}>
-        {field.label}
+      <div className="f">
+        <label htmlFor={id}>{field.label}</label>
         <Select
           value={typeof value === 'string' && value ? value : undefined}
-          onValueChange={(next) => onChange(next)}
+          onValueChange={onChange}
         >
           <SelectTrigger id={id} aria-label={field.label}>
             <SelectValue placeholder="Choose" />
@@ -222,14 +229,14 @@ function PublicFieldInput({
             ))}
           </SelectContent>
         </Select>
-        {error ? <div className="error-text">{error}</div> : null}
-      </label>
+        {error ? <div className="err">{error}</div> : null}
+      </div>
     );
   }
   if (field.type === 'multi_select') {
     const picked = Array.isArray(value) ? value : [];
     return (
-      <fieldset>
+      <fieldset className="f">
         <legend>{field.label}</legend>
         {(field.options ?? []).map((option) => (
           <label key={option}>
@@ -247,15 +254,16 @@ function PublicFieldInput({
             {option}
           </label>
         ))}
-        {error ? <div className="error-text">{error}</div> : null}
+        {error ? <div className="err">{error}</div> : null}
       </fieldset>
     );
   }
   return (
-    <label htmlFor={id}>
-      {field.label}
+    <div className="f">
+      <label htmlFor={id}>{field.label}</label>
       {field.type === 'textarea' ? (
         <textarea
+          className="in"
           id={id}
           value={typeof value === 'string' ? value : ''}
           placeholder={field.placeholder}
@@ -263,6 +271,7 @@ function PublicFieldInput({
         />
       ) : (
         <input
+          className="in"
           id={id}
           type={field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : 'text'}
           value={typeof value === 'string' ? value : ''}
@@ -271,7 +280,7 @@ function PublicFieldInput({
         />
       )}
       {field.help ? <span>{field.help}</span> : null}
-      {error ? <div className="error-text">{error}</div> : null}
-    </label>
+      {error ? <div className="err">{error}</div> : null}
+    </div>
   );
 }
