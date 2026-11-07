@@ -66,6 +66,7 @@ export async function download(req: Request, res: Response, next: NextFunction) 
     const columns = parseAssessmentColumns(query.columns);
     if (columns.length === 0) throw badRequest('Choose at least one column.');
     const { enqueueJob } = await import('../../lib/queue/queues.js');
+    const { respondExportOrAck } = await import('../../lib/queue/respond-export.js');
     const enqueued = await enqueueJob(
       'report.assessment-export',
       {
@@ -80,12 +81,7 @@ export async function download(req: Request, res: Response, next: NextFunction) 
       },
       { forceInline: true },
     );
-    res.status(202).json({
-      data: {
-        jobId: enqueued.jobId,
-        status: enqueued.status === 'completed' ? 'completed' : 'queued',
-      },
-    });
+    await respondExportOrAck(res, enqueued);
   } catch (err) {
     next(err);
   }

@@ -7,11 +7,13 @@ import {
   purgeLegacyAdminQueryPersistence,
   setAppQueryClient,
 } from '@/lib/query-client';
+import { purgeDurableBrowserPrefs } from '@/lib/session-prefs';
 
 export function AdminQueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => createAdminQueryClient());
 
   useEffect(() => {
+    purgeDurableBrowserPrefs();
     purgeLegacyAdminQueryPersistence();
     setAppQueryClient(client);
     return () => setAppQueryClient(null);

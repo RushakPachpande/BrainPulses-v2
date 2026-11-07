@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ThemeContext, type ThemeMode } from '@/contexts/use-theme';
+import { readSessionPref, writeSessionPref } from '@/lib/session-prefs';
 
 export type { ThemeMode } from '@/contexts/use-theme';
 
@@ -15,11 +16,7 @@ function applyDomTheme(theme: ThemeMode) {
 }
 
 function loadTheme(): ThemeMode {
-  try {
-    return localStorage.getItem(STORAGE_KEY) === 'light' ? 'light' : 'dark';
-  } catch {
-    return 'light';
-  }
+  return readSessionPref(STORAGE_KEY) === 'light' ? 'light' : 'dark';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -31,11 +28,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((next: ThemeMode) => {
     setThemeState(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* ignore */
-    }
+    writeSessionPref(STORAGE_KEY, next);
   }, []);
 
   const toggle = useCallback(() => {

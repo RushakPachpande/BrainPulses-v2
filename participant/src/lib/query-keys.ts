@@ -1,5 +1,5 @@
-/** Lists are always treated as stale so mounts/focus refetch from the API. */
-export const STALE_MS = 0;
+/** In-memory freshness window — API remains source of truth; invalidate after mutations. */
+export const STALE_MS = 45_000;
 /** Keep unused query results in memory briefly for back-navigation. */
 export const GC_MS = 5 * 60_000;
 

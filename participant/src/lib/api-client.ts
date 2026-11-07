@@ -122,13 +122,13 @@ export function isSessionActiveConflict(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && err.fields?.reason === 'SESSION_ACTIVE';
 }
 
-function isMutationMethod(method: string | undefined): boolean {
-  const m = (method ?? 'GET').toUpperCase();
-  return m !== 'GET' && m !== 'HEAD';
-}
-
 export type RequestOptions = {
-  /** Skip the blocking overlay, e.g. for autosave while the participant keeps working. */
+  /**
+   * Show the global blocking overlay. Default off so navigation and autosave stay snappy.
+   * Opt in for auth, submit, and other critical mutations.
+   */
+  blocking?: boolean;
+  /** @deprecated Prefer omitting blocking (default) instead of background: true. */
   background?: boolean;
 };
 
@@ -138,7 +138,7 @@ async function request(
   extraHeaders?: Record<string, string>,
   options: RequestOptions = {},
 ): Promise<Response> {
-  const trackOverlay = !options.background && isMutationMethod(init.method);
+  const trackOverlay = options.blocking === true && !options.background;
   if (trackOverlay) trackLoading(1);
   try {
     const headers = new Headers(init.headers);

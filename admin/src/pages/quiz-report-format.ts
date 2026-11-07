@@ -46,7 +46,7 @@ export function columnStorageKey(userId: string) {
 
 export function readStoredColumns(userId: string): ReportColumnKey[] {
   try {
-    const raw = localStorage.getItem(columnStorageKey(userId));
+    const raw = sessionStorage.getItem(columnStorageKey(userId));
     if (!raw) return defaultColumns();
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return defaultColumns();
@@ -57,6 +57,14 @@ export function readStoredColumns(userId: string): ReportColumnKey[] {
     return keys.length > 0 ? keys : defaultColumns();
   } catch {
     return defaultColumns();
+  }
+}
+
+export function writeStoredColumns(userId: string, columns: ReportColumnKey[]) {
+  try {
+    sessionStorage.setItem(columnStorageKey(userId), JSON.stringify(columns));
+  } catch {
+    /* Storage can be disabled by browser policy. */
   }
 }
 

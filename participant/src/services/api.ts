@@ -33,11 +33,16 @@ export async function participantSignInByCode(
   organizationSlug?: string,
   replaceSession?: boolean,
 ) {
-  const data = await apiPostData<ParticipantAuthPayload>('/api/auth/participant/sign-in-by-code', {
-    code,
-    ...(organizationSlug ? { organizationSlug } : {}),
-    ...(replaceSession ? { replaceSession: true } : {}),
-  });
+  const data = await apiPostData<ParticipantAuthPayload>(
+    '/api/auth/participant/sign-in-by-code',
+    {
+      code,
+      ...(organizationSlug ? { organizationSlug } : {}),
+      ...(replaceSession ? { replaceSession: true } : {}),
+    },
+    undefined,
+    { blocking: true },
+  );
   setAccessToken(data.accessToken);
   return data;
 }
@@ -47,11 +52,16 @@ export async function participantRequestOtp(
   mobileNumber: string,
   organizationSlug?: string,
 ) {
-  return apiPostData<{ ok: boolean; message: string }>('/api/auth/participant/request-otp', {
-    countryCode,
-    mobileNumber,
-    ...(organizationSlug ? { organizationSlug } : {}),
-  });
+  return apiPostData<{ ok: boolean; message: string }>(
+    '/api/auth/participant/request-otp',
+    {
+      countryCode,
+      mobileNumber,
+      ...(organizationSlug ? { organizationSlug } : {}),
+    },
+    undefined,
+    { blocking: true },
+  );
 }
 
 export async function participantResendOtp(
@@ -59,11 +69,16 @@ export async function participantResendOtp(
   mobileNumber: string,
   organizationSlug?: string,
 ) {
-  return apiPostData<{ ok: boolean; message: string }>('/api/auth/participant/resend-otp', {
-    countryCode,
-    mobileNumber,
-    ...(organizationSlug ? { organizationSlug } : {}),
-  });
+  return apiPostData<{ ok: boolean; message: string }>(
+    '/api/auth/participant/resend-otp',
+    {
+      countryCode,
+      mobileNumber,
+      ...(organizationSlug ? { organizationSlug } : {}),
+    },
+    undefined,
+    { blocking: true },
+  );
 }
 
 export async function participantVerifyOtp(
@@ -73,13 +88,18 @@ export async function participantVerifyOtp(
   organizationSlug?: string,
   replaceSession?: boolean,
 ) {
-  const data = await apiPostData<ParticipantAuthPayload>('/api/auth/participant/verify-otp', {
-    countryCode,
-    mobileNumber,
-    otp,
-    ...(organizationSlug ? { organizationSlug } : {}),
-    ...(replaceSession ? { replaceSession: true } : {}),
-  });
+  const data = await apiPostData<ParticipantAuthPayload>(
+    '/api/auth/participant/verify-otp',
+    {
+      countryCode,
+      mobileNumber,
+      otp,
+      ...(organizationSlug ? { organizationSlug } : {}),
+      ...(replaceSession ? { replaceSession: true } : {}),
+    },
+    undefined,
+    { blocking: true },
+  );
   setAccessToken(data.accessToken);
   return data;
 }
@@ -130,10 +150,15 @@ export async function startAttempt(activityId: string, roundId?: string) {
   const data = await apiPostData<{
     attempt: AttemptState;
     questions: AttemptQuestion[];
-  }>('/api/attempts/start', {
-    activityId,
-    ...(roundId ? { roundId } : {}),
-  });
+  }>(
+    '/api/attempts/start',
+    {
+      activityId,
+      ...(roundId ? { roundId } : {}),
+    },
+    undefined,
+    { blocking: true },
+  );
   invalidateClient(['activities', 'dashboard']);
   return data;
 }
@@ -162,21 +187,16 @@ export function saveAttempt(
     acknowledged: boolean;
     revision: number;
     attempt: AttemptState;
-  }>(
-    `/api/attempts/${attemptId}/save`,
-    {
-      revision,
-      responses,
-      ...(progress?.currentQuestionIndex !== undefined
-        ? { currentQuestionIndex: progress.currentQuestionIndex }
-        : {}),
-      ...(progress?.closedQuestionVersionIds
-        ? { closedQuestionVersionIds: progress.closedQuestionVersionIds }
-        : {}),
-    },
-    undefined,
-    { background: true },
-  );
+  }>(`/api/attempts/${attemptId}/save`, {
+    revision,
+    responses,
+    ...(progress?.currentQuestionIndex !== undefined
+      ? { currentQuestionIndex: progress.currentQuestionIndex }
+      : {}),
+    ...(progress?.closedQuestionVersionIds
+      ? { closedQuestionVersionIds: progress.closedQuestionVersionIds }
+      : {}),
+  });
 }
 
 /**
@@ -250,9 +270,14 @@ export async function submitAttempt(attemptId: string, idempotencyKey: string) {
   const data = await apiPostData<{
     attempt: AttemptState;
     result: { id: string; score: unknown; percent: unknown; maxScore: unknown };
-  }>(`/api/attempts/${attemptId}/submit`, undefined, {
-    'idempotency-key': idempotencyKey,
-  });
+  }>(
+    `/api/attempts/${attemptId}/submit`,
+    undefined,
+    {
+      'idempotency-key': idempotencyKey,
+    },
+    { blocking: true },
+  );
   invalidateClient(['activities', 'results', 'dashboard']);
   return data;
 }
@@ -263,5 +288,5 @@ export async function advanceAttempt(attemptId: string) {
     attempt: AttemptState;
     submitted: boolean;
     result?: { id: string };
-  }>(`/api/attempts/${attemptId}/advance`);
+  }>(`/api/attempts/${attemptId}/advance`, undefined, undefined, { blocking: true });
 }

@@ -412,9 +412,7 @@ export function AdminLayout() {
                 <div className="truncate text-xs text-muted-foreground">{userRole}</div>
               </div>
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-                <ThemeToggle />
                 <ChangePasswordButton />
-                <SignOutButton />
               </div>
             </div>
           </SidebarFooter>
@@ -425,6 +423,7 @@ export function AdminLayout() {
               <SidebarTrigger />
               <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <ThemeToggle />
+                <SignOutButton />
               </div>
             </header>
             <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">

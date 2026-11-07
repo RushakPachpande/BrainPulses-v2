@@ -79,6 +79,8 @@ export function RegisterPage() {
       const data = await apiPostData<{ outcome: string; code: string; message: string }>(
         `/api/public/contest-forms/${encodeURIComponent(slug)}/register`,
         { answers },
+        undefined,
+        { blocking: true },
       );
       setResult({ code: data.code, message: data.message });
     } catch (err) {

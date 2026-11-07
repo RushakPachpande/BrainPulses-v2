@@ -40,7 +40,6 @@ import {
   REPORT_COLUMNS,
   attemptsLabel,
   attemptStatusLabel,
-  columnStorageKey,
   defaultColumns,
   formatDuration,
   formatMarks,
@@ -48,6 +47,7 @@ import {
   negativeLabel,
   percentClass,
   readStoredColumns,
+  writeStoredColumns,
   type ReportColumnKey,
 } from '@/pages/quiz-report-format';
 import { QuizReportSheet } from '@/pages/quiz-report-sheet';
@@ -202,7 +202,7 @@ export function QuizReportsPage() {
           )
         : current.filter((column) => column !== key);
       const stored = next.length > 0 ? next : current;
-      if (userId) localStorage.setItem(columnStorageKey(userId), JSON.stringify(stored));
+      if (userId) writeStoredColumns(userId, stored);
       return stored;
     });
   }

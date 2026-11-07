@@ -1,4 +1,4 @@
-import { apiDownloadBlob, apiGetData, ApiError } from '@/lib/api-client';
+import { apiDownloadBlob, apiGetData, apiGetFileOrData, ApiError } from '@/lib/api-client';
 
 export type JobStatusPayload = {
   jobId: string;
@@ -14,7 +14,9 @@ export type QueuedAck = { jobId: string; status: string };
 export function isQueuedAck(value: unknown): value is QueuedAck {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;
-  return typeof record.jobId === 'string' && typeof record.status === 'string' && !('rows' in record);
+  return (
+    typeof record.jobId === 'string' && typeof record.status === 'string' && !('rows' in record)
+  );
 }
 
 /** Poll GET /api/jobs/:id until completed or failed. Each request uses the 30s client timeout. */
@@ -39,19 +41,29 @@ export async function pollJobUntilDone(
   );
 }
 
-/** Enqueue an export (202 JSON), poll, then download the finished file. */
+/**
+ * Export download: prefer a single-response file when the API streams inline;
+ * otherwise poll the job and download when ready.
+ */
 export async function downloadQueuedExport(
   exportPath: string,
   fallbackFilename: string,
 ): Promise<void> {
-  const ack = await apiGetData<QueuedAck>(exportPath);
+  const outcome = await apiGetFileOrData<QueuedAck>(exportPath, fallbackFilename, {
+    blocking: true,
+    timeoutMs: 120_000,
+  });
+  if (outcome.kind === 'file') return;
+  const ack = outcome.data;
   if (!ack?.jobId) {
     throw new ApiError(500, 'INTERNAL_ERROR', 'Export did not return a job id.');
   }
   if (ack.status !== 'completed') {
     await pollJobUntilDone(ack.jobId);
   }
-  await apiDownloadBlob(`/api/jobs/${encodeURIComponent(ack.jobId)}/download`, fallbackFilename);
+  await apiDownloadBlob(`/api/jobs/${encodeURIComponent(ack.jobId)}/download`, fallbackFilename, {
+    blocking: true,
+  });
 }
 
 /** Resolve either an immediate import payload or a queued job result. */

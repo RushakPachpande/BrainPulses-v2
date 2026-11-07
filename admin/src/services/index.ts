@@ -848,6 +848,7 @@ export async function importParticipants(file: File): Promise<SpreadsheetImportR
     '/api/participants/import',
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   const { resolveImportResult } = await import('@/lib/jobs');
   const result = await resolveImportResult(data);
@@ -884,6 +885,7 @@ export async function importUsers(file: File): Promise<SpreadsheetImportResult> 
     '/api/users/import',
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   const { resolveImportResult } = await import('@/lib/jobs');
   const result = await resolveImportResult(data);
@@ -1091,6 +1093,7 @@ export async function importBankQuestions(bankId: string, file: File): Promise<B
     `/api/banks/${bankId}/import`,
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   const { resolveImportResult } = await import('@/lib/jobs');
   const result = await resolveImportResult(data);
@@ -1151,6 +1154,8 @@ export async function previewAssessmentQuestionsImport(
   return apiPostFormData<AssessmentImportPreview>(
     `/api/activities/${activityId}/questions/import/preview`,
     form,
+    undefined,
+    { blocking: true },
   );
 }
 
@@ -1170,6 +1175,7 @@ export async function confirmAssessmentQuestionsImport(
     `/api/activities/${activityId}/questions/import`,
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   invalidateAdmin(['activities', 'banks']);
   return data;
@@ -1180,6 +1186,7 @@ export async function exportBankQuestions(bankId: string, format: 'xlsx' = 'xlsx
   await apiDownloadBlob(
     `/api/banks/${bankId}/questions/export.${format}`,
     `brainpulses-question-export.${format}`,
+    { blocking: true, timeoutMs: 120_000 },
   );
 }
 

@@ -109,9 +109,13 @@ function defaultColumns(): ColumnKey[] {
   return COLUMNS.map((column) => column.key).filter((key) => !HIDDEN.has(key));
 }
 
+function assessmentColumnKey(userId: string) {
+  return columnStorageKey(`assessment:v2:${userId}`);
+}
+
 function readColumns(userId: string): ColumnKey[] {
   try {
-    const raw = localStorage.getItem(columnStorageKey(`assessment:v2:${userId}`));
+    const raw = sessionStorage.getItem(assessmentColumnKey(userId));
     if (!raw) return defaultColumns();
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return defaultColumns();
@@ -120,6 +124,14 @@ function readColumns(userId: string): ColumnKey[] {
     return keys.length > 0 ? keys : defaultColumns();
   } catch {
     return defaultColumns();
+  }
+}
+
+function writeColumns(userId: string, columns: ColumnKey[]) {
+  try {
+    sessionStorage.setItem(assessmentColumnKey(userId), JSON.stringify(columns));
+  } catch {
+    /* Storage can be disabled by browser policy. */
   }
 }
 
@@ -271,8 +283,7 @@ export function AssessmentReportsPage() {
           )
         : current.filter((column) => column !== key);
       const stored = next.length > 0 ? next : current;
-      if (userId)
-        localStorage.setItem(columnStorageKey(`assessment:v2:${userId}`), JSON.stringify(stored));
+      if (userId) writeColumns(userId, stored);
       return stored;
     });
   }

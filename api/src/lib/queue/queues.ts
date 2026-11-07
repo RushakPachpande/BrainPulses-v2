@@ -191,20 +191,9 @@ export async function getJobSnapshot(jobId: string): Promise<{
   organizationId: string | null;
   userId: string | null;
 }> {
-  if (useInlineQueue()) {
-    const saved = inlineJobs.get(jobId);
-    if (!saved) {
-      return {
-        jobId,
-        name: undefined,
-        status: 'unknown',
-        progress: 0,
-        result: null,
-        error: 'Job not found.',
-        organizationId: null,
-        userId: null,
-      };
-    }
+  // forceInline jobs are stored here even when Redis/BullMQ is otherwise enabled.
+  const saved = inlineJobs.get(jobId);
+  if (saved) {
     return {
       jobId,
       name: saved.name,
@@ -214,6 +203,19 @@ export async function getJobSnapshot(jobId: string): Promise<{
       error: saved.error,
       organizationId: saved.organizationId,
       userId: saved.userId,
+    };
+  }
+
+  if (useInlineQueue()) {
+    return {
+      jobId,
+      name: undefined,
+      status: 'unknown',
+      progress: 0,
+      result: null,
+      error: 'Job not found.',
+      organizationId: null,
+      userId: null,
     };
   }
 

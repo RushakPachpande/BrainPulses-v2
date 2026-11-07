@@ -36,12 +36,15 @@ function timeoutError() {
   return new ApiError(408, 'TIMEOUT', 'Request timed out. Please try again.');
 }
 
-/** Merge caller signal with a 30s timeout. `timedOut` is true when our timer fired. */
-function withRequestTimeout(userSignal?: AbortSignal | null): {
+/** Merge caller signal with a request timeout. `timedOut` is true when our timer fired. */
+function withRequestTimeout(
+  userSignal?: AbortSignal | null,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+): {
   signal: AbortSignal;
   timedOut: () => boolean;
 } {
-  const timeoutSignal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
   let timedOut = false;
   timeoutSignal.addEventListener(
     'abort',
@@ -116,11 +119,6 @@ function apiBaseUrl(): string {
   return raw.replace(/\/$/, '');
 }
 
-function isMutationMethod(method: string | undefined): boolean {
-  const m = (method ?? 'GET').toUpperCase();
-  return m !== 'GET' && m !== 'HEAD';
-}
-
 /** Single-flight refresh so React Strict Mode double-mount cannot reuse a rotated token. */
 export async function refreshAuthSession(): Promise<RefreshedSession | null> {
   if (!sessionRefreshInflight) {
@@ -182,8 +180,23 @@ async function refreshSessionOnce(): Promise<boolean> {
   return session != null;
 }
 
-async function request(path: string, init: RequestInit = {}, retried = false): Promise<Response> {
-  const trackOverlay = !retried && isMutationMethod(init.method);
+export type RequestOptions = {
+  /**
+   * Show the global blocking overlay for this call.
+   * Default off — list/nav mutations stay snappy; opt in for import/export/wipe-class ops.
+   */
+  blocking?: boolean;
+  /** Override the default 30s client timeout (e.g. large inline exports). */
+  timeoutMs?: number;
+};
+
+async function request(
+  path: string,
+  init: RequestInit = {},
+  retried = false,
+  options: RequestOptions = {},
+): Promise<Response> {
+  const trackOverlay = !retried && options.blocking === true;
   if (trackOverlay) trackLoading(1);
   try {
     const headers = new Headers(init.headers);
@@ -193,7 +206,7 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
       headers.set('Content-Type', 'application/json');
     }
 
-    const { signal, timedOut } = withRequestTimeout(init.signal);
+    const { signal, timedOut } = withRequestTimeout(init.signal, options.timeoutMs);
     let res: Response;
     try {
       res = await fetch(`${apiBaseUrl()}${path}`, {
@@ -215,7 +228,7 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
         });
       }
       const refreshed = await refreshPromise;
-      if (refreshed) return request(path, init, true);
+      if (refreshed) return request(path, init, true, options);
     }
 
     if (!res.ok) throw await parseApiError(res);
@@ -225,8 +238,12 @@ async function request(path: string, init: RequestInit = {}, retried = false): P
   }
 }
 
-export async function apiRequest<T = unknown>(path: string, init?: RequestInit): Promise<T> {
-  const res = await request(path, init);
+export async function apiRequest<T = unknown>(
+  path: string,
+  init?: RequestInit,
+  options?: RequestOptions,
+): Promise<T> {
+  const res = await request(path, init, false, options);
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
@@ -239,6 +256,40 @@ export async function apiGetBlob(path: string): Promise<Blob> {
 export async function apiGetData<T>(path: string): Promise<T> {
   const body = await apiRequest<{ data: T }>(path);
   return body.data;
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * GET that may return a file attachment immediately, or JSON `{ data }` (e.g. queued job ack).
+ */
+export async function apiGetFileOrData<T>(
+  path: string,
+  fallbackFilename: string,
+  options?: RequestOptions,
+): Promise<{ kind: 'file' } | { kind: 'data'; data: T }> {
+  const res = await request(path, {}, false, options);
+  const disposition = res.headers.get('Content-Disposition') ?? '';
+  const contentType = res.headers.get('Content-Type') ?? '';
+  const isAttachment =
+    /attachment/i.test(disposition) || /spreadsheetml|octet-stream|csv/i.test(contentType);
+  if (isAttachment) {
+    const blob = await res.blob();
+    triggerBlobDownload(blob, filenameFromContentDisposition(disposition, fallbackFilename));
+    return { kind: 'file' };
+  }
+  const body = (await res.json()) as { data: T };
+  return { kind: 'data', data: body.data };
 }
 
 export type ListEnvelope<T> = {
@@ -270,24 +321,37 @@ export async function apiPostData<T>(
   path: string,
   payload?: unknown,
   extraHeaders?: Record<string, string>,
+  options?: RequestOptions,
 ): Promise<T> {
   const headers = new Headers();
   if (extraHeaders) {
     for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
   }
-  const body = await apiRequest<{ data: T }>(path, {
-    method: 'POST',
-    headers,
-    body: payload !== undefined ? JSON.stringify(payload) : undefined,
-  });
+  const body = await apiRequest<{ data: T }>(
+    path,
+    {
+      method: 'POST',
+      headers,
+      body: payload !== undefined ? JSON.stringify(payload) : undefined,
+    },
+    options,
+  );
   return body.data;
 }
 
-export async function apiPatchData<T>(path: string, payload: unknown): Promise<T> {
-  const body = await apiRequest<{ data: T }>(path, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+export async function apiPatchData<T>(
+  path: string,
+  payload: unknown,
+  options?: RequestOptions,
+): Promise<T> {
+  const body = await apiRequest<{ data: T }>(
+    path,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    },
+    options,
+  );
   return body.data;
 }
 
@@ -295,16 +359,21 @@ export async function apiPostFormData<T>(
   path: string,
   formData: FormData,
   extraHeaders?: Record<string, string>,
+  options?: RequestOptions,
 ): Promise<T> {
   const headers = new Headers();
   if (extraHeaders) {
     for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
   }
-  const body = await apiRequest<{ data: T }>(path, {
-    method: 'POST',
-    headers,
-    body: formData,
-  });
+  const body = await apiRequest<{ data: T }>(
+    path,
+    {
+      method: 'POST',
+      headers,
+      body: formData,
+    },
+    options,
+  );
   return body.data;
 }
 
@@ -323,20 +392,16 @@ function filenameFromContentDisposition(header: string | null, fallback: string)
 }
 
 /** Download a binary/text attachment and trigger a browser save. */
-export async function apiDownloadBlob(path: string, fallbackFilename: string): Promise<void> {
-  const res = await request(path);
+export async function apiDownloadBlob(
+  path: string,
+  fallbackFilename: string,
+  options?: RequestOptions,
+): Promise<void> {
+  const res = await request(path, {}, false, options);
   const blob = await res.blob();
   const filename = filenameFromContentDisposition(
     res.headers.get('Content-Disposition'),
     fallbackFilename,
   );
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.rel = 'noopener';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  triggerBlobDownload(blob, filename);
 }

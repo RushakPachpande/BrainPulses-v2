@@ -7,11 +7,13 @@ import {
   purgeLegacyClientQueryPersistence,
   setAppQueryClient,
 } from '../lib/query-client';
+import { purgeDurableClientPrefs } from '../storage';
 
 export function ClientQueryProvider({ children }: { children: ReactNode }) {
   const [client] = useState(() => createClientQueryClient());
 
   useEffect(() => {
+    purgeDurableClientPrefs();
     purgeLegacyClientQueryPersistence();
     setAppQueryClient(client);
     return () => setAppQueryClient(null);
