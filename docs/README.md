@@ -7,7 +7,7 @@
 |---|---|---|
 | [BRD](product/BRD.md) | Business goals, stakeholders, scope, value, risks | Draft for validation |
 | [PRD](product/PRD.md) | Product requirements, features and acceptance criteria | Initial baseline |
-| [TRD](engineering/TRD.md) | Stack, architecture and technical requirements | Admin, client, and API current; hosting still proposed |
+| [TRD](engineering/TRD.md) | Stack, architecture and technical requirements | Admin, participant/client, and API current; VPS deploy current |
 | [DESIGN](design/DESIGN.md) | Mandatory UI/UX contract for the current admin theme | Normative |
 | [Color palette](COLOR_PALETTE.md) | Brand and semantic colors for that theme | Canonical |
 | [Stitch extraction](../.stitch/DESIGN.md) | Same visual system, formatted for Stitch | Current |
@@ -26,6 +26,15 @@
 | [Release checklist](engineering/RELEASE_CHECKLIST.md) | Release gate | Template |
 | [VPS deploy (short)](../DEPLOY.md) | Root quick reference: `setup.sh` / `update-deploy.sh` | Current |
 | [VPS deploy (detailed)](ops/DEPLOY.md) | Production bootstrap, PM2, nginx, update runbook | Current |
+| [Repository audit](REPOSITORY_AUDIT.md) | Live architecture + mission decisions | Current |
+| [Queue system](QUEUE_SYSTEM.md) | BullMQ jobs, handshake, backpressure | Current |
+| [PM2](PM2_CONFIGURATION.md) | API + worker ecosystem | Current |
+| [Load balancing](LOAD_BALANCING.md) | Single-instance API; scale prerequisites | Current |
+| [File uploads](FILE_UPLOADS.md) | Upload layout and controls | Current |
+| [Environment](ENVIRONMENT_CONFIGURATION.md) | Env file resolution per app | Current |
+| [GitHub Actions](GITHUB_ACTIONS.md) | Check CI + manual deploy | Current |
+| [Dependencies & security](DEPENDENCIES_AND_SECURITY.md) | Audit results and deferred majors | Current |
+| [Final engineering report](FINAL_ENGINEERING_REPORT.md) | Mission verification evidence | Current after hardening run |
 | [ADR template](templates/ADR-TEMPLATE.md) | Architecture decisions | Ready to use |
 
 ## Verified current-state facts
@@ -33,7 +42,7 @@
 - UI uses Tailwind CSS v4, shadcn/ui (`radix-nova`), Radix UI, `lucide-react`, React Router, Recharts and Sonner.
 - The live theme is Royal Violet `#45058F` on a porcelain canvas in light mode, and Vivid Violet `#7E22CE` on night navy in dark mode. Dark is the default. Tokens are the last `:root` and `.dark` blocks in `admin/src/index.css`.
 - Current routes cover dashboard, participants, users, assessments, quizzes, question banks, registrations, reports and four settings pages.
-- `admin/src/services/index.ts` calls the API unless `VITE_USE_FIXTURES=true`, in which case it reads `admin/src/services/fixtures.ts`.
+- `admin/src/services/index.ts` calls the API. `VITE_USE_FIXTURES=true` is honored only in DEV builds.
 - `api/` is an Express service with Prisma, PostgreSQL, Redis, and server-side auth. Critical flows are traced in [architecture/DEPENDENCY_MAP.md](architecture/DEPENDENCY_MAP.md).
 - Settings saves that are still local-only are called out in the page that owns them. Do not treat every settings control as a confirmed persistent write.
 

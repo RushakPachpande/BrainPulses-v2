@@ -4,9 +4,9 @@
 
 ## Current phase and task
 
-The phased excellence pass for 2026-10-24 is finished. There is no in-progress code task.
+Production Hardening Mission (2026-11-07): BullMQ worker, SoT fixture lockdown, CI workflows, docs sync. See [`../REPOSITORY_AUDIT.md`](../REPOSITORY_AUDIT.md) and [`../FINAL_ENGINEERING_REPORT.md`](../FINAL_ENGINEERING_REPORT.md).
 
-Next task, only when a real change needs it: add a failing test for one function inside `activity-wizard.tsx`, `attempts/service.ts`, or `activities/service.ts`, then extract that function. Do not split those files for line count.
+Next optional task: add a failing test for one function inside `activity-wizard.tsx`, `attempts/service.ts`, or `activities/service.ts`, then extract that function. Do not split those files for line count.
 
 ## Implementation ledger
 
@@ -21,7 +21,7 @@ Next task, only when a real change needs it: add a failing test for one function
    - Client login renders Unique ID and Sign in. `client/src/pages/login.test.tsx`. 7 client tests passed.
    - Prettier write in api, then admin, then client. Each `format:check` passed.
    - Admin routes: elements in `app-routes.tsx`, `appRouter` only in `index.tsx`. Admin lint has 0 problems.
-   - CI workflow `.github/workflows/check.yml` on Node 22. Not run here.
+   - CI workflow `.github/workflows/check.yml` on Node 22 (re-added 2026-11-07). Check and deploy are both `workflow_dispatch` only.
 
 2. **Verified existing behavior**
    - Recheck before new tests: API `npm run test` 41 passed, typecheck PASS, lint PASS.

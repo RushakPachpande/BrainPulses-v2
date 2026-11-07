@@ -196,13 +196,8 @@ build_and_start_api() {
   npm run build --prefix api
   mkdir -p api/logs api/uploads
 
-  if pm2 describe "$PM2_APP" >/dev/null 2>&1; then
-    log "Reload PM2 app $PM2_APP"
-    pm2 reload "$PM2_APP" --env production
-  else
-    log "Start PM2 app $PM2_APP"
-    pm2 start "$REPO_ROOT/api/ecosystem.config.cjs" --env production
-  fi
+  log "Start/reload PM2 ecosystem (API + worker)"
+  pm2 startOrReload "$REPO_ROOT/api/ecosystem.config.cjs" --env production
   pm2 save
   # Non-interactive systemd startup for root
   env PATH="$PATH" pm2 startup systemd -u root --hp /root >/tmp/pm2-startup.out 2>&1 || true

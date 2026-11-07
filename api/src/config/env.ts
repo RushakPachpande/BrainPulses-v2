@@ -59,6 +59,19 @@ const envSchema = z
     /** Trusted proxy hop count. 0 = direct connections (default). */
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().default(60),
+    /** Process jobs in-process (no BullMQ worker). Forced on in NODE_ENV=test. */
+    QUEUE_INLINE: z
+      .string()
+      .optional()
+      .transform((v) => v === 'true'),
+    /** Max concurrent jobs per worker process. */
+    QUEUE_CONCURRENCY: z.coerce.number().int().min(1).default(2),
+    /** Reject new jobs when waiting+active depth reaches this. */
+    QUEUE_MAX_WAITING: z.coerce.number().int().min(1).default(200),
+    QUEUE_JOB_ATTEMPTS: z.coerce.number().int().min(1).default(3),
+    QUEUE_BACKOFF_MS: z.coerce.number().int().min(100).default(2_000),
+    /** Worker lock / expected max job duration (ms). */
+    QUEUE_JOB_TIMEOUT_MS: z.coerce.number().int().min(5_000).default(120_000),
     TWILIO_ENABLED: z
       .string()
       .optional()

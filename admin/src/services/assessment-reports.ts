@@ -1,4 +1,4 @@
-import { apiDownloadBlob, apiGetData, apiPostData } from '@/lib/api-client';
+import { apiGetData, apiPostData } from '@/lib/api-client';
 import type { QuizReportDetail } from '@/services/quiz-reports';
 
 export type AssessmentActivityStatus = 'active' | 'expired' | 'inactive' | 'other';
@@ -78,7 +78,7 @@ const EMPTY: AssessmentReportPage = {
 };
 
 export async function getAssessmentReport(query: string): Promise<AssessmentReportPage> {
-  if (import.meta.env.VITE_USE_FIXTURES === 'true') return EMPTY;
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true') return EMPTY;
   return apiGetData<AssessmentReportPage>(`/api/assessment-reports${query ? `?${query}` : ''}`);
 }
 
@@ -95,7 +95,8 @@ export async function getAssessmentReportDetail(
 }
 
 export async function downloadAssessmentReport(query: string): Promise<void> {
-  await apiDownloadBlob(
+  const { downloadQueuedExport } = await import('@/lib/jobs');
+  await downloadQueuedExport(
     `/api/assessment-reports/export?${query}`,
     'BrainPulses-assessment-results.xlsx',
   );

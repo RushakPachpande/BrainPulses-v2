@@ -59,8 +59,20 @@ const apiProxy = {
   },
 } as const;
 
+/** Dev/preview listen port from `PORT` in the env file (or process env). */
+function resolvePort(fileEnv: Record<string, string>, fallback: number): number {
+  const raw = (process.env.PORT || fileEnv.PORT || '').trim();
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 65535) {
+    throw new Error(`PORT must be an integer 1–65535 (got ${JSON.stringify(raw)}).`);
+  }
+  return Math.trunc(parsed);
+}
+
 export default defineConfig(({ command, mode }) => {
   const fileEnv = loadEnv(mode, import.meta.dirname, '');
+  const port = resolvePort(fileEnv, 5173);
   const uploadImageSizeCapping = readByteCap(
     fileEnv.UPLOAD_IMAGE_SIZE_CAPPING || process.env.UPLOAD_IMAGE_SIZE_CAPPING,
     'UPLOAD_IMAGE_SIZE_CAPPING',
@@ -94,7 +106,7 @@ export default defineConfig(({ command, mode }) => {
     },
     server: {
       host: '0.0.0.0',
-      port: 5173,
+      port,
       strictPort: true,
       open: false,
       allowedHosts,
@@ -102,7 +114,7 @@ export default defineConfig(({ command, mode }) => {
     },
     preview: {
       host: '0.0.0.0',
-      port: 5173,
+      port,
       strictPort: true,
       allowedHosts,
       proxy: { ...apiProxy },

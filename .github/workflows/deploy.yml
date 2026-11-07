@@ -1,0 +1,68 @@
+name: Deploy (manual)
+
+# Production deploy is never automatic. Operators must run workflow_dispatch
+# and supply environment credentials via GitHub Secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target
+        required: true
+        type: choice
+        options:
+          - production
+        default: production
+      apps:
+        description: Which surfaces to rebuild/publish
+        required: true
+        type: choice
+        options:
+          - all
+          - api
+          - admin
+          - participant
+        default: all
+      run_migrate:
+        description: Run prisma migrate deploy on the server
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  deploy:
+    name: Manual VPS deploy
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Guard secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "Missing DEPLOY_HOST / DEPLOY_USER / DEPLOY_SSH_KEY secrets."
+            echo "Configure repository secrets before using this workflow."
+            exit 1
+          fi
+
+      - name: SSH update-deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /root/apps/BrainPulses_v2.0
+            # update-deploy.sh pulls, installs, migrates, rebuilds, reloads PM2 (API+worker), publishes SPAs.
+            sudo bash update-deploy.sh --pull
+            curl -fsS http://127.0.0.1:3002/health
+            curl -fsS http://127.0.0.1:3002/health/ready
+
+      - name: Record parameters
+        run: |
+          echo "target=${{ inputs.target }}"
+          echo "apps=${{ inputs.apps }}"
+          echo "run_migrate=${{ inputs.run_migrate }}"
+          echo "Note: the VPS script currently always migrates and rebuilds api+admin+participant."

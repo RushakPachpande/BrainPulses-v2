@@ -578,9 +578,23 @@ async function issueAndSendOtp(participant: ParticipantWithOrg, phone: string): 
   await markOtpSend(participant.organizationId, phone);
 
   // SMS must not delay or alter the generic response; failures stay private.
-  void sendSmsOtp(phone, otp).catch((err: unknown) => {
-    console.warn('[otp] SMS delivery failed', err instanceof Error ? err.message : err);
-  });
+  void (async () => {
+    try {
+      const { enqueueJob } = await import('../../lib/queue/queues.js');
+      await enqueueJob('sms.otp', { type: 'sms.otp', phone, otp });
+    } catch (err: unknown) {
+      // Fall back to direct send if the queue is unavailable.
+      try {
+        await sendSmsOtp(phone, otp);
+      } catch (sendErr: unknown) {
+        console.warn(
+          '[otp] SMS delivery failed',
+          sendErr instanceof Error ? sendErr.message : sendErr,
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+  })();
   return otp;
 }
 

@@ -2,7 +2,7 @@
 
 | App | Domain | Path / process |
 | --- | --- | --- |
-| API | `https://server.brainpulses.com` | PM2 `brainpulses-api` → `127.0.0.1:3002` |
+| API | `https://server.brainpulses.com` | PM2 `brainpulses-api` + `brainpulses-worker` → `127.0.0.1:3002` |
 | Admin | `https://admin.brainpulses.com` | `/var/www/brainpulses/admin` |
 | Participant | `https://participant.brainpulses.com` | `/var/www/brainpulses/participant` |
 | Postgres / Redis | loopback only | Docker `5434` / `6381` |

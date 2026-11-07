@@ -111,19 +111,38 @@ export async function importQuestions(req: Request, res: Response, next: NextFun
       );
     }
 
-    const data = await service.importQuestionsFile(
-      actor.organizationId,
-      actor.userId,
-      actor,
-      bankId,
+    const { randomUUID } = await import('node:crypto');
+    const { enqueueJob } = await import('../../lib/queue/queues.js');
+    const { writeImportTempFile } = await import('../../lib/queue/processors.js');
+    const jobKey = randomUUID();
+    const tempPath = await writeImportTempFile(jobKey, file.originalname, file.buffer);
+    const enqueued = await enqueueJob(
+      'import.bank-questions',
       {
-        buffer: file.buffer,
+        type: 'import.bank-questions',
+        organizationId: actor.organizationId,
+        userId: actor.userId,
+        actor: {
+          role: actor.role,
+          assessmentAccess: actor.assessmentAccess,
+          quizAccess: actor.quizAccess,
+        },
+        bankId,
+        idempotencyKey,
+        tempPath,
         originalname: file.originalname,
         mimetype: file.mimetype,
+        requestId: req.requestId,
       },
-      idempotencyKey,
+      idempotencyKey ? { jobId: `bank-import:${bankId}:${idempotencyKey}` } : undefined,
     );
-    res.json({ data });
+    if (enqueued.status === 'completed' && enqueued.result?.kind === 'import') {
+      res.json({ data: enqueued.result.data });
+      return;
+    }
+    res.status(202).json({
+      data: { jobId: enqueued.jobId, status: 'queued' },
+    });
   } catch (err) {
     next(err);
   }

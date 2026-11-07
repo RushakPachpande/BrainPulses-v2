@@ -5,28 +5,80 @@ import { PlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { GiveQuizDialog } from '@/components/give-quiz-dialog';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canMutateOrg } from '@/lib/access';
 import { formatIst, registrationUrl, type ContestFormRecord } from '@/lib/contest-form';
 import { getContestFormOverview } from '@/services/contest-forms';
+
+type ContestPerson = {
+  id: string;
+  code: string;
+  name: string;
+  email: string;
+  sponsorName: string;
+  contestName: string;
+  quizzesGiven: number;
+  registeredAt: string;
+};
+
+const personColumns: RecordColumn<ContestPerson>[] = [
+  {
+    key: 'code',
+    label: 'Registration ID',
+    placement: 'identity',
+    identityPrefix: 'ID: ',
+    render: (person) => <span className="tabular-nums">{person.code}</span>,
+  },
+  {
+    key: 'name',
+    label: 'Name',
+    placement: 'title',
+    render: (person) => <span className="font-medium">{person.name}</span>,
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    placement: 'primary',
+    render: (person) => person.email,
+  },
+  {
+    key: 'sponsorName',
+    label: 'Sponsor',
+    placement: 'details',
+    render: (person) => person.sponsorName,
+  },
+  {
+    key: 'contestName',
+    label: 'Contest',
+    placement: 'details',
+    render: (person) => person.contestName,
+  },
+  {
+    key: 'quizzesGiven',
+    label: 'Quizzes given',
+    placement: 'details',
+    render: (person) => person.quizzesGiven,
+  },
+  {
+    key: 'registeredAt',
+    label: 'Registered',
+    placement: 'details',
+    render: (person) => formatIst(person.registeredAt),
+  },
+];
 
 export function ParticipantsPage() {
   const auth = useAuth();
   const orgId = useOrgId();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { narrow, ref } = useContainerNarrow();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const [giveForm, setGiveForm] = useState<ContestFormRecord | null>(null);
@@ -160,49 +212,21 @@ export function ParticipantsPage() {
           )}
         </CardContent>
       </Card>
-      <Card>
+      <Card ref={ref}>
         <CardHeader>
           <CardTitle>
             {people.length} {people.length === 1 ? 'participant' : 'participants'}
           </CardTitle>
         </CardHeader>
         <CardContent className="px-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Registration ID</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Sponsor</TableHead>
-                  <TableHead>Contest</TableHead>
-                  <TableHead>Quizzes given</TableHead>
-                  <TableHead>Registered</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pagePeople.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground">
-                      No one has registered through a form yet.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pagePeople.map((person) => (
-                    <TableRow key={person.id}>
-                      <TableCell className="tabular-nums">{person.code}</TableCell>
-                      <TableCell className="font-medium">{person.name}</TableCell>
-                      <TableCell>{person.email}</TableCell>
-                      <TableCell>{person.sponsorName}</TableCell>
-                      <TableCell>{person.contestName}</TableCell>
-                      <TableCell>{person.quizzesGiven}</TableCell>
-                      <TableCell>{formatIst(person.registeredAt)}</TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <ResponsiveRecords
+            caption="Registered participants"
+            rows={pagePeople}
+            getRowId={(person) => person.id}
+            columns={personColumns}
+            narrow={narrow}
+            empty="No one has registered through a form yet."
+          />
           <p className="px-6 pt-3 text-sm text-muted-foreground">
             Showing {pagePeople.length === 0 ? 0 : 1} to {pagePeople.length} of {people.length}{' '}
             participants
