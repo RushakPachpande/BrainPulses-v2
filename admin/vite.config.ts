@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import { viteSingleFile } from 'vite-plugin-singlefile';
+import { loadFixedEnv } from './load-fixed-env.ts';
 import { parseByteSize } from './src/lib/byte-size.ts';
 
 function emptyDistKeepSingle(): Plugin {
@@ -71,7 +72,7 @@ function resolvePort(fileEnv: Record<string, string>, fallback: number): number 
 }
 
 export default defineConfig(({ command, mode }) => {
-  const fileEnv = loadEnv(mode, import.meta.dirname, '');
+  const fileEnv = loadFixedEnv(import.meta.dirname, mode);
   const port = resolvePort(fileEnv, 5173);
   const uploadImageSizeCapping = readByteCap(
     fileEnv.UPLOAD_IMAGE_SIZE_CAPPING || process.env.UPLOAD_IMAGE_SIZE_CAPPING,
@@ -87,6 +88,8 @@ export default defineConfig(({ command, mode }) => {
   const allowedHosts = devAllowedHosts(process.env.DEV_ALLOWED_HOSTS || fileEnv.DEV_ALLOWED_HOSTS);
 
   return {
+    // Disable Vite's default `.env`, `.env.local`, `.env.[mode]` loading.
+    envDir: false,
     plugins: [
       react(),
       tailwindcss(),

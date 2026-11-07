@@ -31,9 +31,7 @@ async function main() {
     console.warn(`[worker] failed id=${job?.id} ${err.message}`);
   });
 
-  console.log(
-    `[worker] listening queue=${QUEUE_NAME} concurrency=${env.QUEUE_CONCURRENCY}`,
-  );
+  console.log(`[worker] listening queue=${QUEUE_NAME} concurrency=${env.QUEUE_CONCURRENCY}`);
 
   const shutdown = async (signal: string) => {
     console.log(`[worker] ${signal} received, draining`);

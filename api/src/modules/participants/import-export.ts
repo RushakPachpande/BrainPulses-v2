@@ -38,6 +38,15 @@ export async function parseParticipantsFile(
 ): Promise<{ rows: ParticipantImportRow[]; ignoredColumns: string[] }> {
   const parsed = await parseXlsxWorkbook(buffer, filename, {
     columns: PARTICIPANT_IMPORT_COLUMNS,
+    labels: {
+      name: 'Name',
+      email: 'Email',
+      phone: 'Phone',
+      course: 'Course',
+      city: 'City',
+      cohort: 'Cohort',
+      code: 'Unique ID',
+    },
     preferredSheetName: 'Participants',
     emptyNoun: 'participants',
   });

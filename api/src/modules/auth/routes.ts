@@ -18,6 +18,7 @@ authRouter.post(
   controller.selectOrganization,
 );
 authRouter.get('/participant/login-options', controller.participantLoginOptions);
+authRouter.get('/participant/login-image', controller.participantLoginImage);
 authRouter.post(
   '/participant/sign-in-by-code',
   validate({ body: participantSignInByCodeSchema }),

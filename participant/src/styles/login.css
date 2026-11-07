@@ -382,6 +382,69 @@ body.dk2 .login-screen .thm {
   border-color: rgba(183, 156, 255, 0.3);
 }
 
+.login-screen .wrap.has-side-image {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: center;
+  gap: 28px;
+  width: 100%;
+}
+
+.login-screen .wrap.has-side-image .l.login-side {
+  flex: 3 3 0;
+  flex-direction: row;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: none;
+  height: auto;
+  min-width: 0;
+}
+
+.login-screen .wrap.has-side-image .r {
+  display: flex;
+  flex: 2 2 0;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+}
+
+.login-screen .wrap.has-side-image .card {
+  width: min(100%, 440px);
+}
+
+.login-screen .login-side img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 660px);
+  max-height: min(64dvh, 520px);
+  object-fit: contain;
+  object-position: center;
+  border-radius: 16px;
+}
+
+@media (max-width: 1024px) {
+  .login-screen .wrap.has-side-image {
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 96px;
+  }
+
+  .login-screen .wrap.has-side-image .l.login-side,
+  .login-screen .wrap.has-side-image .r {
+    flex: 0 1 auto;
+    align-self: center;
+    width: 100%;
+    max-width: 440px;
+  }
+}
+
 @media (max-width: 900px) {
   .login-screen .wrap {
     display: flex;
@@ -399,8 +462,34 @@ body.dk2 .login-screen .thm {
     padding: 16px 22px;
   }
 
-  .login-screen .l {
+  .login-screen .l:not(.login-side) {
     display: none;
+  }
+
+  .login-screen .wrap.has-side-image {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 96px;
+  }
+
+  .login-screen .wrap.has-side-image .l.login-side {
+    align-self: center;
+    width: 100%;
+    max-width: min(100%, 420px);
+    justify-content: center;
+  }
+
+  .login-screen .login-side img {
+    max-width: min(100%, 420px);
+    max-height: min(32dvh, 220px);
+  }
+
+  .login-screen .wrap.has-side-image .r {
+    flex: 0 1 auto;
+    width: 100%;
+    max-width: 440px;
+    padding-bottom: 24px;
   }
 
   .login-screen .tag2 {

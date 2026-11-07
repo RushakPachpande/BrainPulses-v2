@@ -1,26 +1,42 @@
 # Environment configuration
 
+All apps use the same fixed rule. No other env filenames are loaded
+(`.env.production`, `.env.local`, `.env.p`, `.env.[mode]`, etc.).
+
+| Mode | Priority (first file found wins) |
+| --- | --- |
+| production | `.env.prod` → `.env` |
+| otherwise | `.env.dev` → `.env` |
+
 ## API (`api/`)
 
 Loader: [`api/src/config/load-env.ts`](../api/src/config/load-env.ts).
 
-| `NODE_ENV` | Priority |
-| --- | --- |
-| `production` | `.env.prod` → `.env` |
-| otherwise | `.env.dev` → `.env` |
+Keyed off process `NODE_ENV` (shell / nodemon / PM2). Development never loads
+`.env.prod`. Production never loads `.env.dev`.
 
-Development never loads `.env.prod`. Production never loads `.env.dev`. Templates: `.env.dev.example`, `.env.prod.example` (placeholders only).
+Templates: `api/.env.dev.example`, `api/.env.prod.example`.
 
-Queue knobs: `QUEUE_INLINE`, `QUEUE_CONCURRENCY`, `QUEUE_MAX_WAITING`, `QUEUE_JOB_ATTEMPTS`, `QUEUE_BACKOFF_MS`, `QUEUE_JOB_TIMEOUT_MS`.
+Queue knobs (optional; code defaults exist): `QUEUE_INLINE`, `QUEUE_CONCURRENCY`,
+`QUEUE_MAX_WAITING`, `QUEUE_JOB_ATTEMPTS`, `QUEUE_BACKOFF_MS`, `QUEUE_JOB_TIMEOUT_MS`.
 
 PM2 starts with `--env production` so `NODE_ENV=production` before load-env runs.
 
-## Admin / Participant / Client (Vite)
+## Admin / Participant (Vite)
 
-- **`PORT`** — each SPA’s `vite.config.ts` reads `PORT` from the env file (or process env) for `server` and `preview`. Defaults: admin `5173`, client `5174`, participant `5175`.
+Loader: `load-fixed-env.ts` in each app + `envDir: false` in `vite.config.ts`
+(so Vite does not auto-load `.env.production` / `.env.local`).
+
+- **`mode` `development`** (and other non-prod modes) → `.env.dev` → `.env`
+- **`mode` `production`** or **`singlefile`** → `.env.prod` → `.env`
+- **`PORT`** — each SPA’s `vite.config.ts` reads `PORT` for `server` / `preview`.
+  Defaults: admin `5173`, participant `5174`.
 - Dev: Vite proxy to API; `VITE_API_URL` ignored for same-origin `/api`.
-- Production build: bake `VITE_API_URL` from `.env.production`. `PORT` still applies to local `vite preview`.
+- Production build: bake `VITE_API_URL` from `.env.prod`.
 - Admin `VITE_USE_FIXTURES` is **DEV-only**; production builds always call the API.
-- When you change **api `PORT`**, update each SPA’s `VITE_API_URL` / `VITE_API_PROXY_TARGET`. When you change **participant `PORT`**, update admin `VITE_PARTICIPANT_DEV_PORT` for local registration links.
+- When you change **api `PORT`**, update each SPA’s `VITE_API_URL` /
+  `VITE_API_PROXY_TARGET`. When you change **participant `PORT`**, update admin
+  `VITE_PARTICIPANT_DEV_PORT` for local registration links.
 
-Examples: `admin/.env.example`, `admin/.env.production.example`, `participant/.env.example`, `participant/.env.production.example`, `client/.env.example`, `client/.env.production.example`.
+Templates: `admin/.env.dev.example`, `admin/.env.prod.example`,
+`participant/.env.dev.example`, `participant/.env.prod.example`.

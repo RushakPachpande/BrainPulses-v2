@@ -285,7 +285,12 @@ describe('shared passage storage', () => {
       assert.ok(sheet);
       const rows: string[] = [];
       sheet.eachRow((row) => {
-        rows.push(row.values.slice(1).map((v) => String(v ?? '')).join(','));
+        rows.push(
+          row.values
+            .slice(1)
+            .map((v) => String(v ?? ''))
+            .join(','),
+        );
       });
       const exported = rows.filter((line) => line.includes('comprehension_mcq'));
       assert.equal(exported.length, 2);

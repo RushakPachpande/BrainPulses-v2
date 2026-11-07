@@ -185,8 +185,8 @@ export function ParticipantPortalSettingsPage() {
               <div className="min-w-0">
                 <p className="text-sm font-medium">Phone login</p>
                 <p className="mt-1 max-w-xl text-xs leading-5 text-muted-foreground">
-                  Allow participants to sign in with a mobile number and OTP. Unique ID sign-in stays
-                  available.
+                  Allow participants to sign in with a mobile number and OTP. Unique ID sign-in
+                  stays available.
                 </p>
               </div>
               <Switch

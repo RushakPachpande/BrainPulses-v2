@@ -34,7 +34,7 @@ Internet
 
 - API loads [`api/.env.prod`](../../api/.env.prod.example) when `NODE_ENV=production` ([`load-env.ts`](../../api/src/config/load-env.ts)).
 - Admin refresh cookie (`bp_refresh`, path `/api/auth`, `SameSite=lax`) works across `*.brainpulses.com` over HTTPS when CORS lists both SPA origins and `TRUST_PROXY=1`.
-- SPA `VITE_*` values are baked at **build** time from `.env.production`.
+- SPA `VITE_*` values are baked at **build** time from `.env.prod`.
 - Never delete `api/uploads` on deploy.
 
 ---
@@ -65,7 +65,7 @@ sudo -E bash setup.sh
 1. Install Node 22, Docker, nginx, certbot, rsync, pm2; open ufw for SSH / 80 / 443 (tcp+udp).
 2. Create root `.env` with generated Postgres/Redis passwords (if missing).
 3. Create `api/.env.prod` from the example; inject DB/Redis URLs and a generated `JWT_SECRET`; apply Twilio from the environment. **Exits** if Twilio placeholders remain.
-4. Copy SPA `.env.production` examples when missing.
+4. Copy SPA `.env.prod` examples when missing.
 5. `docker compose up -d` (db+redis only) and wait until healthy.
 6. `npm ci` + `prisma migrate deploy` (no seed) + API build + PM2 `startOrReload` of `api/ecosystem.config.cjs` (API **and** BullMQ worker) with `--env production` + `pm2 save` / startup.
 7. Build admin + participant and `rsync` to `/var/www/brainpulses/{admin,participant}`.
@@ -81,7 +81,7 @@ Re-running is mostly safe: existing secrets and certs are kept; PM2 reloads; ngi
 
 ### Manual fallback
 
-If you prefer step-by-step without the script, the historical order is: packages → env files → `docker compose up -d` → migrate → PM2 → SPA publish → certbot → nginx. Env templates: [`api/.env.prod.example`](../../api/.env.prod.example), [`admin/.env.production.example`](../../admin/.env.production.example), [`participant/.env.production.example`](../../participant/.env.production.example). Nginx samples: [`docs/ops/nginx/`](nginx/).
+If you prefer step-by-step without the script, the historical order is: packages → env files → `docker compose up -d` → migrate → PM2 → SPA publish → certbot → nginx. Env templates: [`api/.env.prod.example`](../../api/.env.prod.example), [`admin/.env.prod.example`](../../admin/.env.prod.example), [`participant/.env.prod.example`](../../participant/.env.prod.example). Nginx samples: [`docs/ops/nginx/`](nginx/).
 
 ---
 
@@ -159,9 +159,9 @@ Uploads stay under `api/uploads` across rollbacks unless you deliberately restor
 
 **`api/.env.prod`:** `NODE_ENV=production`, `HOST=127.0.0.1`, `PORT=3002`, matching DB/Redis URLs on `127.0.0.1:5434` / `:6381`, `JWT_SECRET` ≥ 32 chars, `CORS_ORIGIN=https://admin.brainpulses.com,https://participant.brainpulses.com`, `COOKIE_SECURE=true`, `COOKIE_SAME_SITE=lax`, `TRUST_PROXY=1`, Twilio enabled + credentials, `UPLOAD_DIR=./uploads`.
 
-**`admin/.env.production`:** `VITE_API_URL=https://server.brainpulses.com`, `VITE_PARTICIPANT_ORIGIN=https://participant.brainpulses.com`, `VITE_USE_FIXTURES=false`.
+**`admin/.env.prod`:** `VITE_API_URL=https://server.brainpulses.com`, `VITE_PARTICIPANT_ORIGIN=https://participant.brainpulses.com`.
 
-**`participant/.env.production`:** `VITE_API_URL=https://server.brainpulses.com`.
+**`participant/.env.prod`:** `VITE_API_URL=https://server.brainpulses.com`.
 
 After changing SPA env files, run `update-deploy.sh` so the static builds pick them up.
 

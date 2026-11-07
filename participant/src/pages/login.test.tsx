@@ -3,9 +3,13 @@
  */
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { AuthContext, type AuthState } from '../contexts/auth-context';
 import { LoginPage } from '../pages/login';
+
+vi.mock('../services/api', () => ({
+  getParticipantLoginOptions: async () => ({ phoneLogin: true, loginImage: false }),
+}));
 
 const auth: AuthState = {
   ready: true,

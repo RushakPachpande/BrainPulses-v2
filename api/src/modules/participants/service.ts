@@ -280,8 +280,8 @@ export async function importParticipantsFile(
 
     if (!name) {
       issues.push(
-        participantRowIssue(row.sheetRow, 'name is required', {
-          column: 'name',
+        participantRowIssue(row.sheetRow, 'the Name cell is empty', {
+          column: 'Name',
           value: row.name,
           expected: 'the participant’s full name',
           example: 'Asha Verma',
@@ -291,10 +291,10 @@ export async function importParticipantsFile(
     }
     if (!emailRaw) {
       issues.push(
-        participantRowIssue(row.sheetRow, 'email is required', {
-          column: 'email',
+        participantRowIssue(row.sheetRow, 'the Email cell is empty', {
+          column: 'Email',
           value: row.email,
-          expected: 'a real email address',
+          expected: 'the address this participant will use',
           example: 'participant@college.edu',
         }),
       );
@@ -302,10 +302,10 @@ export async function importParticipantsFile(
     }
     if (!EMAIL_RE.test(email)) {
       issues.push(
-        participantRowIssue(row.sheetRow, 'this is not a valid email', {
-          column: 'email',
+        participantRowIssue(row.sheetRow, 'this does not look like an email address', {
+          column: 'Email',
           value: emailRaw,
-          expected: 'a real email address',
+          expected: 'an address with a name, an @ sign, and a domain',
           example: 'participant@college.edu',
         }),
       );
@@ -313,18 +313,20 @@ export async function importParticipantsFile(
     }
     if (seenEmails.has(email)) {
       issues.push(
-        participantRowIssue(row.sheetRow, 'this email is duplicated earlier in the file', {
-          column: 'email',
+        participantRowIssue(row.sheetRow, 'this email already appears on an earlier row', {
+          column: 'Email',
           value: email,
+          expected: 'each participant once in the file. Delete this row or use a different email',
         }),
       );
       continue;
     }
     if (codeRaw && seenCodes.has(codeRaw.toLowerCase())) {
       issues.push(
-        participantRowIssue(row.sheetRow, 'this code is duplicated earlier in the file', {
-          column: 'code',
+        participantRowIssue(row.sheetRow, 'this Unique ID already appears on an earlier row', {
+          column: 'Unique ID',
           value: codeRaw,
+          expected: 'a different Unique ID, or leave the cell blank to generate one',
         }),
       );
       continue;
@@ -335,10 +337,11 @@ export async function importParticipantsFile(
       const normalized = normalizePhone(phoneRaw);
       if (!normalized) {
         issues.push(
-          participantRowIssue(row.sheetRow, 'this is not a valid phone number', {
-            column: 'phone',
+          participantRowIssue(row.sheetRow, 'this does not look like a phone number', {
+            column: 'Phone',
             value: phoneRaw,
-            expected: 'a phone number with country code when possible',
+            expected:
+              'digits, with the country code when you have it. Leave the cell blank if you do not have a phone',
             example: '+919876543210',
           }),
         );
@@ -346,9 +349,10 @@ export async function importParticipantsFile(
       }
       if (seenPhones.has(normalized)) {
         issues.push(
-          participantRowIssue(row.sheetRow, 'this phone is duplicated earlier in the file', {
-            column: 'phone',
+          participantRowIssue(row.sheetRow, 'this phone number already appears on an earlier row', {
+            column: 'Phone',
             value: phoneRaw,
+            expected: 'each phone number once in the file, or leave the later cell blank',
           }),
         );
         continue;
@@ -378,8 +382,13 @@ export async function importParticipantsFile(
         issues.push(
           participantRowIssue(
             row.sheetRow,
-            'a participant with that email, code, or phone already exists in this organization',
-            { column: 'email', value: email },
+            'a participant with this email, Unique ID, or phone is already in the organization',
+            {
+              column: 'Email',
+              value: email,
+              expected:
+                'skip this row, or change the email, Unique ID, or phone that already exists',
+            },
           ),
         );
         continue;

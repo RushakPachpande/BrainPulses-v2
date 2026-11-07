@@ -16,5 +16,8 @@ package-lock.json
 # Vite cache
 .vite
 
+# graphify
+graphify-out
+
 # Prototype handoff snapshot (intentionally dense)
 src/App.handoff.tsx

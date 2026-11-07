@@ -5,7 +5,7 @@ Multi-tenant platform for creating and taking quizzes and assessments. Packages 
 | Package                      | Role                                                                                    | Local URL             | LAN URL                |
 | ---------------------------- | --------------------------------------------------------------------------------------- | --------------------- | ---------------------- |
 | [`admin/`](admin/)           | Administrator workspace (participants, banks, activities, registrations, reports, settings) | http://localhost:5173 | `http://<lan-ip>:5173` |
-| [`participant/`](participant/) | Production participant portal                                                         | http://localhost:5175 | `http://<lan-ip>:5175` |
+| [`participant/`](participant/) | Production participant portal                                                         | http://localhost:5174 | `http://<lan-ip>:5174` |
 | [`client/`](client/)         | Legacy participant portal                                                               | http://localhost:5174 | `http://<lan-ip>:5174` |
 | [`api/`](api/)               | Express API, Prisma, JWT auth, BullMQ producers                                         | http://127.0.0.1:3002 | `http://<lan-ip>:3002` |
 
@@ -27,8 +27,8 @@ From the repo root (PowerShell):
 
 ```powershell
 if (-not (Test-Path api\.env.dev)) { Copy-Item api\.env.dev.example api\.env.dev }
-if (-not (Test-Path admin\.env)) { Copy-Item admin\.env.example admin\.env }
-if (-not (Test-Path client\.env)) { Copy-Item client\.env.example client\.env }
+if (-not (Test-Path admin\.env.dev)) { Copy-Item admin\.env.dev.example admin\.env.dev }
+if (-not (Test-Path participant\.env.dev)) { Copy-Item participant\.env.dev.example participant\.env.dev }
 
 npm ci --prefix api
 npm run db:up
@@ -41,8 +41,8 @@ npm ci --prefix client
 
 Confirm:
 
-- `admin/.env` has `VITE_USE_FIXTURES=false`
-- `api/.env.dev` has `HOST=0.0.0.0` and `CORS_ORIGIN=http://localhost:5173,http://localhost:5174` (LAN SPA origins are allowed automatically outside production)
+- `admin/.env.dev` has `VITE_USE_FIXTURES=false`
+- `api/.env.dev` has `HOST=0.0.0.0` and `CORS_ORIGIN=http://localhost:5173,http://localhost:5174,http://localhost:5174` (LAN SPA origins are allowed automatically outside production)
 
 Start each app in its own terminal:
 

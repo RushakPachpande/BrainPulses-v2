@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | `api/` | Express 5 + Prisma 7 + PostgreSQL + Redis (`ioredis`) | Port **3002**, PM2 `brainpulses-api` (1× fork) |
 | `admin/` | React 19 + Vite + Tailwind v4 + shadcn | Dev **5173**; prod static nginx |
-| `participant/` | Production participant SPA (same generation as client) | Dev **5175**; prod static nginx |
+| `participant/` | Production participant SPA (same generation as client) | Dev **5174**; prod static nginx |
 | `client/` | Legacy participant SPA (kept in-repo) | Dev **5174** |
 
 **Authoritative data path:** Browser → API only. Prisma, Redis, uploads, Twilio live under `api/`.
@@ -48,7 +48,7 @@ Node `v26.13.0`, npm `11.20.0`. Commands run without auto-fix.
 
 Tests and production builds are re-run after implementation; results land in `docs/FINAL_ENGINEERING_REPORT.md`.
 
-**Ports:** Inspected at mission start; reuse existing listeners on 3002/5173/5174/5175. Do not kill user processes. Ask before starting missing servers.
+**Ports:** Inspected at mission start; reuse existing listeners on 3002/5173/5174/5174. Do not kill user processes. Ask before starting missing servers.
 
 ## Risks addressed by this mission
 

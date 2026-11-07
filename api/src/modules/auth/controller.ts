@@ -79,6 +79,21 @@ export async function participantLoginOptions(req: Request, res: Response, next:
   }
 }
 
+export async function participantLoginImage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const slug =
+      typeof req.query.organizationSlug === 'string' ? req.query.organizationSlug : undefined;
+    const { file, buffer } = await authService.participantLoginImage(slug);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function participantSignInByCode(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await authService.participantSignInByCode(req.body);

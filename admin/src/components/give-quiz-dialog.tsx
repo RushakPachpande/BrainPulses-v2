@@ -146,9 +146,7 @@ function GiveGroup({
                   checked={already || picked.includes(quiz.id)}
                   disabled={disabled}
                   onCheckedChange={(checked) =>
-                    onPick(
-                      checked ? [...picked, quiz.id] : picked.filter((id) => id !== quiz.id),
-                    )
+                    onPick(checked ? [...picked, quiz.id] : picked.filter((id) => id !== quiz.id))
                   }
                 />
                 <span>

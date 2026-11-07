@@ -1,6 +1,9 @@
 import type { Prisma, SettingGroup } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
+import { badRequest } from '../../lib/errors.js';
+import { PARTICIPANT_LOGIN_IMAGE_KEY } from '../../lib/participant-login.js';
 import { prisma } from '../../lib/prisma.js';
+import { assertCatalogImage } from '../files/service.js';
 
 const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
   general: {
@@ -48,7 +51,23 @@ export async function patchSettings(
   group: SettingGroup,
   values: Record<string, unknown>,
 ) {
-  for (const [key, value] of Object.entries(values)) {
+  const next = { ...values };
+  if (group === 'general' && PARTICIPANT_LOGIN_IMAGE_KEY in next) {
+    const raw = next[PARTICIPANT_LOGIN_IMAGE_KEY];
+    if (raw === null || raw === '') {
+      await prisma.setting.deleteMany({
+        where: { organizationId, group, key: PARTICIPANT_LOGIN_IMAGE_KEY },
+      });
+      delete next[PARTICIPANT_LOGIN_IMAGE_KEY];
+    } else if (typeof raw !== 'string') {
+      throw badRequest('Login image is invalid.');
+    } else {
+      await assertCatalogImage(organizationId, raw.trim());
+      next[PARTICIPANT_LOGIN_IMAGE_KEY] = raw.trim();
+    }
+  }
+
+  for (const [key, value] of Object.entries(next)) {
     await prisma.setting.upsert({
       where: {
         organizationId_group_key: { organizationId, group, key },
@@ -63,8 +82,8 @@ export async function patchSettings(
     });
   }
 
-  if (group === 'general' && typeof values.organizationName === 'string') {
-    const name = values.organizationName.trim();
+  if (group === 'general' && typeof next.organizationName === 'string') {
+    const name = next.organizationName.trim();
     if (name) {
       await prisma.organization.update({
         where: { id: organizationId },
@@ -80,7 +99,7 @@ export async function patchSettings(
     action: 'settings.update',
     targetType: 'settings',
     targetId: group,
-    metadata: values as Prisma.InputJsonValue,
+    metadata: next as Prisma.InputJsonValue,
   });
 
   return getSettings(organizationId, group);

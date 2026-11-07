@@ -9,8 +9,10 @@ import { formatImportIssue } from '../../lib/spreadsheet-import.js';
 import {
   buildExportWorkbook,
   buildSampleWorkbook,
+  formatQuestionImportError,
   newImportQuestionCode,
   parseBankQuestionsFile,
+  sampleWorkbookFilename,
   rowToCreatePayload,
   type BankImportRow,
   type ExportableQuestion,
@@ -21,6 +23,7 @@ import { saveSharedPassage, stripPassageText } from './passages.js';
 import {
   assertTypeAllowedForKind,
   normalizeAnswerKeyImages,
+  type BankKind,
   type bankListQuerySchema,
   type bulkQuestionStatusSchema,
   type createBankSchema,
@@ -689,32 +692,27 @@ export async function setBankQuestionsActive(
   return { updated: result.count };
 }
 
-function importRowMessage(sheetRow: number, err: unknown): string {
+function importRowMessage(row: BankImportRow, kind: BankKind, err: unknown): string {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       return formatImportIssue({
-        sheetRow,
-        problem: 'this row duplicates an existing question code in the bank',
-        expected: 'a unique question, or omit the duplicate row',
+        sheetRow: row.sheetRow,
+        column: 'Question',
+        value: row.question,
+        problem: 'this question could not be saved because it clashes with one already in the bank',
+        expected:
+          'remove this row, or change it so it is a new question. Import adds questions and does not update ones already there',
       });
     }
     return formatImportIssue({
-      sheetRow,
-      problem: 'the row could not be saved',
-      expected: 'valid question fields matching the sample Excel',
+      sheetRow: row.sheetRow,
+      column: 'Question',
+      value: row.question,
+      problem: 'this row could not be saved',
+      expected: 'compare it with Sample Excel, fix the cell, and upload again',
     });
   }
-  if (err instanceof Error && err.message) {
-    return formatImportIssue({
-      sheetRow,
-      problem: err.message.replace(/\.$/, ''),
-    });
-  }
-  return formatImportIssue({
-    sheetRow,
-    problem: 'the row could not be imported',
-    expected: 'fix the listed columns using Sample Excel as a guide',
-  });
+  return formatQuestionImportError(row, kind, err);
 }
 
 async function importFromRows(
@@ -772,7 +770,7 @@ async function importFromRows(
     } catch (err) {
       issues.push({
         row: row.sheetRow,
-        message: importRowMessage(row.sheetRow, err),
+        message: importRowMessage(row, bank.kind, err),
       });
     }
   }
@@ -798,7 +796,14 @@ export async function importQuestionsFile(
   file: { buffer: Buffer; originalname: string; mimetype?: string },
   idempotencyKey?: string,
 ) {
-  const rows = await parseBankQuestionsFile(file.buffer, file.originalname, file.mimetype);
+  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  if (!bank) throw notFound('Question bank not found.');
+  const rows = await parseBankQuestionsFile(
+    file.buffer,
+    file.originalname,
+    file.mimetype,
+    bank.kind,
+  );
   return importFromRows(organizationId, actorUserId, actor, bankId, rows, idempotencyKey);
 }
 
@@ -810,7 +815,10 @@ export async function sampleQuestionsWorkbook(
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'view');
-  return buildSampleWorkbook(bank.kind);
+  return {
+    buffer: await buildSampleWorkbook(bank.kind),
+    filename: sampleWorkbookFilename(bank.kind),
+  };
 }
 
 export async function exportQuestionsWorkbook(

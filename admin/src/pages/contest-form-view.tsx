@@ -111,7 +111,9 @@ export function ContestFormViewPage() {
             <LinkIcon className="size-4 text-muted-foreground" aria-hidden />
             Registration link
           </CardTitle>
-          <CardDescription>Share this with people who should register for the contest.</CardDescription>
+          <CardDescription>
+            Share this with people who should register for the contest.
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <code className="min-w-0 flex-1 truncate rounded-lg bg-muted px-3 py-2 text-sm text-primary">
@@ -147,20 +149,30 @@ export function ContestFormViewPage() {
           title="Registration window"
           description="When people can register, and how many seats are available."
         >
-          <Fact icon={CalendarDaysIcon} label="Opens" value={data.opensAt ? formatIst(data.opensAt) : '—'} />
-          <Fact icon={CalendarDaysIcon} label="Closes" value={data.closesAt ? formatIst(data.closesAt) : '—'} />
+          <Fact
+            icon={CalendarDaysIcon}
+            label="Opens"
+            value={data.opensAt ? formatIst(data.opensAt) : '—'}
+          />
+          <Fact
+            icon={CalendarDaysIcon}
+            label="Closes"
+            value={data.closesAt ? formatIst(data.closesAt) : '—'}
+          />
           <Fact
             icon={UsersIcon}
             label="Seats"
             value={
-              data.seats == null
-                ? 'Unlimited'
-                : `${data.registrationCount} of ${data.seats} taken`
+              data.seats == null ? 'Unlimited' : `${data.registrationCount} of ${data.seats} taken`
             }
           />
         </SectionCard>
 
-        <SectionCard icon={ShieldCheckIcon} title="Who can register" description="Who the link accepts.">
+        <SectionCard
+          icon={ShieldCheckIcon}
+          title="Who can register"
+          description="Who the link accepts."
+        >
           <Fact icon={LinkIcon} label="Access" value="Anyone with the link" />
           <Fact
             icon={ShieldCheckIcon}
@@ -199,7 +211,11 @@ export function ContestFormViewPage() {
         </SectionCard>
       </div>
 
-      <SectionCard icon={ListChecksIcon} title="What participants see" description="Header and fields on the public form.">
+      <SectionCard
+        icon={ListChecksIcon}
+        title="What participants see"
+        description="Header and fields on the public form."
+      >
         <p className="text-sm">{data.welcomeMessage || 'No welcome message.'}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {shown.length === 0 ? (
@@ -214,7 +230,10 @@ export function ContestFormViewPage() {
         </div>
         <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
           {visibleFields.map((field) => (
-            <li key={field.id} className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <li
+              key={field.id}
+              className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
               <div className="min-w-0">
                 <p className="font-medium">{field.label}</p>
                 {field.options?.length ? (
@@ -223,7 +242,10 @@ export function ContestFormViewPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{FIELD_TYPE_LABEL[field.type] ?? field.type}</Badge>
-                <StatusPill value={field.required ? 'Required' : 'Optional'} tone={field.required ? 'ok' : 'gy'} />
+                <StatusPill
+                  value={field.required ? 'Required' : 'Optional'}
+                  tone={field.required ? 'ok' : 'gy'}
+                />
               </div>
             </li>
           ))}

@@ -5,14 +5,16 @@ import { prisma } from '../../lib/prisma.js';
 import {
   BANK_IMPORT_COLUMNS,
   BANK_IMPORT_HEADERS,
-  type BankImportHeader,
-  type ImportIssue,
+  formatQuestionImportError,
   newImportQuestionCode,
   rowToCreatePayload,
+  type BankImportHeader,
+  type ImportIssue,
 } from '../banks/import-export.js';
 import { createQuestion } from '../banks/service.js';
 import {
   cellText,
+  formatImportIssue,
   normalizeHeaderKey,
   type SpreadsheetColumnSpec,
 } from '../../lib/spreadsheet-import.js';
@@ -87,6 +89,31 @@ function sampleRows(): Record<AssessmentImportHeader, string>[] {
   {
     const r = blankRow();
     r.round = 'Round 1';
+    r.type = 'single_mcq';
+    r.question = 'Which of the following is the Taj Mahal?';
+    r.points = '1';
+    r.optionA_imageUrl = 'https://example.com/taj-mahal.png';
+    r.optionB_imageUrl = 'https://example.com/eiffel.png';
+    r.optionC_imageUrl = 'https://example.com/colosseum.png';
+    r.correct = 'A';
+    rows.push(r);
+  }
+  {
+    const r = blankRow();
+    r.round = 'Round 1';
+    r.type = 'single_mcq';
+    r.question = 'What landmark is shown?';
+    r.points = '1';
+    r.stemImageUrl = 'https://example.com/landmark.png';
+    r.optionA = 'Taj Mahal';
+    r.optionB = 'Eiffel Tower';
+    r.optionC = 'Colosseum';
+    r.correct = 'A';
+    rows.push(r);
+  }
+  {
+    const r = blankRow();
+    r.round = 'Round 1';
     r.type = 'multiple_mcq';
     r.question = 'Select all prime numbers.';
     r.points = '2';
@@ -148,6 +175,20 @@ function sampleRows(): Record<AssessmentImportHeader, string>[] {
     r.correct = 'A';
     rows.push(r);
   }
+  {
+    const r = blankRow();
+    r.round = 'Round 1';
+    r.type = 'comprehension_mcq';
+    r.question = 'According to the passage, what does the fox jump over?';
+    r.points = '1';
+    r.passageText = 'The quick brown fox jumps over the lazy dog.';
+    r.optionA = 'A dog';
+    r.optionB = 'A cat';
+    r.optionC = 'A log';
+    r.optionD = 'A wall';
+    r.correct = 'A';
+    rows.push(r);
+  }
   return rows;
 }
 
@@ -165,6 +206,12 @@ export async function buildAssessmentSampleWorkbook(): Promise<Buffer> {
   instructions.addRow(['3. Missing round names are created automatically on the assessment.']);
   instructions.addRow([
     '4. Types: single_mcq, multiple_mcq, true_false, numeric, short_text, long_text, comprehension_mcq.',
+  ]);
+  instructions.addRow([
+    '5. Choice questions may include a stem image (stemImageUrl) and option images (optionA_imageUrl and so on). Question text may be blank only when stemImageUrl is set.',
+  ]);
+  instructions.addRow([
+    '6. comprehension_mcq needs passageText on every row. Rows with the same passage text share one passage.',
   ]);
   instructions.getColumn(1).width = 100;
 
@@ -257,7 +304,11 @@ async function readWorkbookRows(
     workbook.getWorksheet('Questions') ??
     workbook.worksheets.find((s) => s.name.toLowerCase().includes('question')) ??
     workbook.worksheets[0];
-  if (!sheet) throw unprocessable('The file has no worksheet.');
+  if (!sheet) {
+    throw unprocessable(
+      'The file has no worksheet. Open it in Excel, keep one sheet with a header row, save as .xlsx, and try again.',
+    );
+  }
 
   const matrix: string[][] = [];
   sheet.eachRow({ includeEmpty: false }, (row) => {
@@ -267,11 +318,19 @@ async function readWorkbookRows(
     });
     matrix.push(cells.map((c) => c ?? ''));
   });
-  if (matrix.length < 2) throw unprocessable('No questions found in the file.');
+  if (matrix.length < 2) {
+    throw unprocessable(
+      'No questions found in the file. Row 1 should be the column names, and the questions should start on the next row. Download Sample Excel if you need the layout.',
+    );
+  }
 
   const headers = (matrix[0] ?? []).map((h) => h.trim());
   const dataRows = matrix.slice(1).filter((row) => row.some((c) => String(c).trim()));
-  if (dataRows.length === 0) throw unprocessable('No questions found in the file.');
+  if (dataRows.length === 0) {
+    throw unprocessable(
+      'No questions found in the file. The header row is there, but every row under it is empty. Add your questions, or download Sample Excel and replace the examples.',
+    );
+  }
   return { headers, dataRows };
 }
 
@@ -283,7 +342,19 @@ function validateMappedRows(
   for (const row of rows) {
     if (!row.question.trim() && !row.type.trim()) continue;
     if (!row.round.trim()) {
-      issues.push({ row: row.sheetRow, message: 'Round is required.' });
+      issues.push({
+        row: row.sheetRow,
+        message: formatImportIssue({
+          sheetRow: row.sheetRow,
+          column: 'Round',
+          value: row.round,
+          problem: row.question.trim()
+            ? `for “${row.question.trim().slice(0, 60)}”, every question needs a round name`
+            : 'every question needs a round name so it lands in the right round',
+          expected: 'the round name. A name that does not exist yet is created on the assessment',
+          example: 'Round 1',
+        }),
+      });
       continue;
     }
     try {
@@ -303,7 +374,7 @@ function validateMappedRows(
     } catch (err) {
       issues.push({
         row: row.sheetRow,
-        message: err instanceof Error ? err.message : 'Invalid question row',
+        message: formatQuestionImportError(bankRow, 'assessment', err),
       });
     }
   }

@@ -409,10 +409,10 @@ export async function importUsersFile(
 
     if (!name) {
       issues.push(
-        userRowIssue(row.sheetRow, 'name is required', {
-          column: 'name',
+        userRowIssue(row.sheetRow, 'the Name cell is empty', {
+          column: 'Name',
           value: row.name,
-          expected: 'the user’s full name',
+          expected: 'the person’s full name',
           example: 'Priya Shah',
         }),
       );
@@ -420,10 +420,10 @@ export async function importUsersFile(
     }
     if (!emailRaw) {
       issues.push(
-        userRowIssue(row.sheetRow, 'email is required', {
-          column: 'email',
+        userRowIssue(row.sheetRow, 'the Email cell is empty', {
+          column: 'Email',
           value: row.email,
-          expected: 'a real email address',
+          expected: 'the address this person will use to sign in',
           example: 'admin@org.example',
         }),
       );
@@ -431,10 +431,10 @@ export async function importUsersFile(
     }
     if (!EMAIL_RE.test(email)) {
       issues.push(
-        userRowIssue(row.sheetRow, 'this is not a valid email', {
-          column: 'email',
+        userRowIssue(row.sheetRow, 'this does not look like an email address', {
+          column: 'Email',
           value: emailRaw,
-          expected: 'a real email address',
+          expected: 'an address with a name, an @ sign, and a domain',
           example: 'admin@org.example',
         }),
       );
@@ -442,20 +442,29 @@ export async function importUsersFile(
     }
     if (password.length < 8 || password.length > 128) {
       issues.push(
-        userRowIssue(row.sheetRow, 'password must be 8–128 characters', {
-          column: 'password',
-          value: password ? '(set)' : '',
-          expected: 'a temporary password of at least 8 characters',
-        }),
+        userRowIssue(
+          row.sheetRow,
+          password
+            ? 'this password is shorter than 8 characters or longer than 128'
+            : 'the Password cell is empty',
+          {
+            column: 'Password',
+            ...(password ? {} : { value: '' }),
+            expected:
+              'a temporary password of 8 to 128 characters. The person can change it after signing in',
+            example: 'ChangeMe123!',
+          },
+        ),
       );
       continue;
     }
     if (!ROLES.has(role)) {
       issues.push(
-        userRowIssue(row.sheetRow, 'role must be admin or super_admin', {
-          column: 'role',
+        userRowIssue(row.sheetRow, 'this role cannot be imported', {
+          column: 'Role',
           value: row.role,
-          expected: 'admin or super_admin (blank = admin)',
+          expected:
+            'admin for a normal administrator, or super_admin only if you are a super admin. Leave the cell blank to create an admin',
           example: 'admin',
         }),
       );
@@ -463,21 +472,23 @@ export async function importUsersFile(
     }
     if (!ACCESS_LEVELS.has(assessmentAccess)) {
       issues.push(
-        userRowIssue(row.sheetRow, 'assessmentAccess must be full, edit, view, or none', {
-          column: 'assessmentAccess',
+        userRowIssue(row.sheetRow, 'this is not an access level', {
+          column: 'Assessment access',
           value: row.assessmentAccess,
-          expected: 'full, edit, view, or none (blank = full)',
-          example: 'full',
+          expected:
+            'full (create and delete), edit (change existing items), view (look only), or none (no access). Leave the cell blank for full access',
+          example: 'view',
         }),
       );
       continue;
     }
     if (!ACCESS_LEVELS.has(quizAccess)) {
       issues.push(
-        userRowIssue(row.sheetRow, 'quizAccess must be full, edit, view, or none', {
-          column: 'quizAccess',
+        userRowIssue(row.sheetRow, 'this is not an access level', {
+          column: 'Quiz access',
           value: row.quizAccess,
-          expected: 'full, edit, view, or none (blank = full)',
+          expected:
+            'full (create and delete), edit (change existing items), view (look only), or none (no access). Leave the cell blank for full access',
           example: 'edit',
         }),
       );
@@ -485,18 +496,21 @@ export async function importUsersFile(
     }
     if (seenEmails.has(email)) {
       issues.push(
-        userRowIssue(row.sheetRow, 'this email is duplicated earlier in the file', {
-          column: 'email',
+        userRowIssue(row.sheetRow, 'this email already appears on an earlier row', {
+          column: 'Email',
           value: email,
+          expected: 'each person once in the file. Delete this row or use a different email',
         }),
       );
       continue;
     }
     if (role === 'super_admin' && actorRole !== 'super_admin') {
       issues.push(
-        userRowIssue(row.sheetRow, 'only a super admin can invite another super admin', {
-          column: 'role',
+        userRowIssue(row.sheetRow, 'only a super admin can add another super admin', {
+          column: 'Role',
           value: row.role,
+          expected: 'change Role to admin, or ask a super admin to import this row',
+          example: 'admin',
         }),
       );
       continue;
@@ -507,9 +521,10 @@ export async function importUsersFile(
         (accessRank[quizAccess] ?? 0) > (accessRank[actorAccess.quizAccess] ?? 0))
     ) {
       issues.push(
-        userRowIssue(row.sheetRow, 'cannot grant access above your own level', {
-          column: 'assessmentAccess',
-          value: `${assessmentAccess}/${quizAccess}`,
+        userRowIssue(row.sheetRow, 'you cannot give someone more access than you have', {
+          column: 'Assessment access',
+          value: `assessment ${assessmentAccess}, quiz ${quizAccess}`,
+          expected: `your own levels or lower. You have assessment access “${actorAccess.assessmentAccess}” and quiz access “${actorAccess.quizAccess}”`,
         }),
       );
       continue;
@@ -556,17 +571,19 @@ export async function importUsersFile(
       if (err instanceof AppError && (err.status === 409 || err.status === 403)) {
         issues.push(
           userRowIssue(result.sheetRow, err.message.replace(/\.$/, ''), {
-            column: 'email',
+            column: 'Email',
             value: result.email,
+            expected: 'skip this row, or use an email that is not already in the organization',
           }),
         );
         continue;
       }
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         issues.push(
-          userRowIssue(result.sheetRow, 'that user is already a member of this organization', {
-            column: 'email',
+          userRowIssue(result.sheetRow, 'someone with this email is already in the organization', {
+            column: 'Email',
             value: result.email,
+            expected: 'skip this row, or use a different email',
           }),
         );
         continue;

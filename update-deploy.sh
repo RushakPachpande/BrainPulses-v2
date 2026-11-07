@@ -42,8 +42,8 @@ require_file() {
 }
 
 require_file "api/.env.prod"
-require_file "admin/.env.production"
-require_file "participant/.env.production"
+require_file "admin/.env.prod"
+require_file "participant/.env.prod"
 
 if [[ "$DO_PULL" -eq 1 ]]; then
   log "git pull --ff-only"

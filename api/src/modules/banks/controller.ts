@@ -154,7 +154,7 @@ export const importCsv = importQuestions;
 export async function sampleXlsx(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
-    const buffer = await service.sampleQuestionsWorkbook(
+    const { buffer, filename } = await service.sampleQuestionsWorkbook(
       actor.organizationId,
       actor,
       req.params.id as string,
@@ -163,7 +163,7 @@ export async function sampleXlsx(req: Request, res: Response, next: NextFunction
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     );
-    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-question-sample.xlsx"');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(buffer);
   } catch (err) {
     next(err);

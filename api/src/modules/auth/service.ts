@@ -36,6 +36,7 @@ import {
 import {
   getParticipantLoginOptions,
   isParticipantPhoneLoginEnabled,
+  readParticipantLoginImage,
 } from '../../lib/participant-login.js';
 import { DEV_FIXED_OTP, DEV_FIXED_OTP_PHONE, sendSmsOtp } from '../../lib/twilio.js';
 import type { Participant } from '#prisma';
@@ -600,6 +601,10 @@ async function issueAndSendOtp(participant: ParticipantWithOrg, phone: string): 
 
 export async function participantLoginOptions(organizationSlug?: string) {
   return getParticipantLoginOptions(organizationSlug);
+}
+
+export async function participantLoginImage(organizationSlug?: string) {
+  return readParticipantLoginImage(organizationSlug);
 }
 
 /** Always returns a generic success payload (no user enumeration). */

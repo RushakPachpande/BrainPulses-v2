@@ -6,6 +6,7 @@ import { ThemeButton } from '../components/theme-button';
 import { SessionActiveError, useAuth } from '../contexts/auth-context';
 import { ApiError } from '../lib/api-client';
 import { isValidUniqueId } from '../lib/login-validation';
+import { getParticipantLoginOptions } from '../services/api';
 import '../styles/login.css';
 import '../styles/login-bulb.css';
 
@@ -18,9 +19,22 @@ export function LoginPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
+  const [loginImage, setLoginImage] = useState(false);
 
   useEffect(() => {
     document.getElementById('idv')?.focus();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getParticipantLoginOptions()
+      .then((options) => {
+        if (!cancelled) setLoginImage(options.loginImage);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!ready) return <PageLoader />;
@@ -61,10 +75,20 @@ export function LoginPage() {
         </div>
         <ThemeButton />
       </header>
-      <div className="wrap light">
+      <div className={loginImage ? 'wrap light has-side-image' : 'wrap light'}>
         <div className="grid" />
         <div className="wm2" aria-hidden />
-        <div className="l" />
+        {loginImage ? (
+          <div className="l login-side">
+            <img
+              src="/api/auth/participant/login-image"
+              alt=""
+              onError={() => setLoginImage(false)}
+            />
+          </div>
+        ) : (
+          <div className="l" />
+        )}
         <div className="r">
           <form className="card" onSubmit={onSubmit}>
             <h1>LOGIN</h1>

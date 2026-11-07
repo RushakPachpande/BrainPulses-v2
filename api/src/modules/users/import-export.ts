@@ -36,6 +36,14 @@ export async function parseUsersFile(
 ): Promise<{ rows: UserImportRow[]; ignoredColumns: string[] }> {
   const parsed = await parseXlsxWorkbook(buffer, filename, {
     columns: USER_IMPORT_COLUMNS,
+    labels: {
+      name: 'Name',
+      email: 'Email',
+      password: 'Password',
+      role: 'Role',
+      assessmentAccess: 'Assessment access',
+      quizAccess: 'Quiz access',
+    },
     preferredSheetName: 'Users',
     emptyNoun: 'users',
   });

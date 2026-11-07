@@ -25,7 +25,9 @@ type ParticipantAuthPayload = {
 
 export function getParticipantLoginOptions(organizationSlug?: string) {
   const query = organizationSlug ? `?organizationSlug=${encodeURIComponent(organizationSlug)}` : '';
-  return apiGetData<{ phoneLogin: boolean }>(`/api/auth/participant/login-options${query}`);
+  return apiGetData<{ phoneLogin: boolean; loginImage: boolean }>(
+    `/api/auth/participant/login-options${query}`,
+  );
 }
 
 export async function participantSignInByCode(

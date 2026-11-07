@@ -7,9 +7,7 @@ const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL,
   connectionTimeoutMillis: 8000,
 });
-const sql = readFileSync(
-  'prisma/migrations/20261107120000_round_results_published/migration.sql',
-);
+const sql = readFileSync('prisma/migrations/20261107120000_round_results_published/migration.sql');
 const checksum = createHash('sha256').update(sql).digest('hex');
 const client = await pool.connect();
 try {

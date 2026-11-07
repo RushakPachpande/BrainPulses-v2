@@ -65,14 +65,16 @@ export function AssessmentImportDialog({ activityId, open, onOpenChange, onImpor
     setBusy(true);
     try {
       const result = await confirmAssessmentQuestionsImport(activityId, file, mapping);
-      toast.success(
-        `Imported ${result.imported} question${result.imported === 1 ? '' : 's'}${
-          result.skipped ? ` (${result.skipped} skipped)` : ''
-        }.`,
-      );
+      onImported();
+      if (result.issues.length > 0) {
+        toast.success(
+          `Imported ${result.imported} question${result.imported === 1 ? '' : 's'}. ${result.skipped} row${result.skipped === 1 ? '' : 's'} were skipped. The reasons are listed below. Next time, import only the fixed rows so these questions are not added again.`,
+        );
+        return;
+      }
+      toast.success(`Imported ${result.imported} question${result.imported === 1 ? '' : 's'}.`);
       reset();
       onOpenChange(false);
-      onImported();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Import failed.');
     } finally {
@@ -181,13 +183,17 @@ export function AssessmentImportDialog({ activityId, open, onOpenChange, onImpor
               {preview.issues.length > 0 ? (
                 <div className="max-h-48 overflow-y-auto rounded-lg border border-border p-3">
                   <p className="mb-2 text-sm font-medium">Rows with errors</p>
-                  <ul className="space-y-1 text-sm text-muted-foreground">
+                  <ul className="space-y-2 text-sm leading-relaxed text-foreground">
                     {preview.issues.slice(0, 50).map((issue) => (
-                      <li key={`${issue.row}-${issue.message}`}>
-                        Row {issue.row}: {issue.message}
-                      </li>
+                      <li key={`${issue.row}-${issue.message}`}>{issue.message}</li>
                     ))}
                   </ul>
+                  {preview.issues.length > 50 ? (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Showing the first 50 of {preview.issues.length}. Fix these, then check the
+                      file again for the rest.
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </>
