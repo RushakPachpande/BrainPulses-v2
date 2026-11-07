@@ -23,7 +23,6 @@
     "test": "npm run test:api && npm run test:admin && npm run test:client",
     "check": "npm run check:api && npm run check:admin && npm run test:admin && npm run check:client && npm run test:client",
     "tailwindcss:upgrade": "npm run tailwindcss:upgrade:admin && npm run tailwindcss:upgrade:client",
-
     "// api": "API package (api/) — Express + Prisma",
     "dev:api": "npm run dev --prefix api",
     "build:api": "npm run build --prefix api",
@@ -45,7 +44,6 @@
     "prisma:migrate": "npm run prisma:migrate --prefix api",
     "prisma:deploy": "npm run prisma:deploy --prefix api",
     "prisma:seed": "npm run prisma:seed --prefix api",
-
     "// admin": "Admin package (admin/) — Vite React dashboard",
     "dev:admin": "npm run dev --prefix admin",
     "build:admin": "npm run build --prefix admin",
@@ -66,7 +64,6 @@
     "check:fix:admin": "npm run check:fix --prefix admin",
     "design:tokens:admin": "npm run design:tokens --prefix admin",
     "tailwindcss:upgrade:admin": "npm run tailwindcss:upgrade --prefix admin",
-
     "// client": "Client package (client/) — participant Vite app",
     "dev:client": "npm run dev --prefix client",
     "build:client": "npm run build --prefix client",
@@ -86,7 +83,6 @@
     "verify:client": "npm run verify --prefix client",
     "design:tokens:client": "npm run design:tokens --prefix client",
     "tailwindcss:upgrade:client": "npm run tailwindcss:upgrade --prefix client",
-
     "// participant": "Participant package (participant/) — new portal clone, separate from client",
     "dev:participant": "npm run dev --prefix participant",
     "build:participant": "npm run build --prefix participant",
@@ -98,6 +94,6 @@
     "format:check:participant": "npm run format:check --prefix participant"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "concurrently": "^10.0.6"
   }
 }

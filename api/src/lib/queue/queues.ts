@@ -62,9 +62,8 @@ export function useInlineQueue(): boolean {
 }
 
 async function assertCapacity(q: Queue<JobPayload, JobResult, JobName>) {
-  const counts = await q.getJobCounts('waiting', 'delayed', 'active', 'paused');
-  const depth =
-    (counts.waiting ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0) + (counts.paused ?? 0);
+  const counts = await q.getJobCounts('waiting', 'delayed', 'active');
+  const depth = (counts.waiting ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0);
   if (depth >= env.QUEUE_MAX_WAITING) {
     throw new AppError(
       503,

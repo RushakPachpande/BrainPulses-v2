@@ -141,7 +141,7 @@ const questionBaseSchema = z.object({
   points: z.number().positive().default(1),
   code: z.string().trim().min(1).max(40).optional(),
   options: z.array(optionSchema).default([]),
-  answerKey: z.record(z.unknown()).default({}),
+  answerKey: z.record(z.string(), z.unknown()).default({}),
 });
 
 function stemImageUrl(answerKey: Record<string, unknown>): string {
