@@ -27,9 +27,9 @@ Internet
   ├─ participant.brainpulses.com ──nginx──► /var/www/brainpulses/participant
   └─ server.brainpulses.com ──nginx──► 127.0.0.1:3002 (pm2 brainpulses-api)
                                               │
-                         ┌────────────────────┴────────────────────┐
-                         ▼                                         ▼
-              Postgres :5434 (docker)                     Redis :6381 (docker)
+                         ┌────────────────────┼────────────────────┐
+                         ▼                    ▼                    ▼
+              Postgres :5434 (docker)  Redis :6381 (docker)  pm2 brainpulses-worker
 ```
 
 - API loads [`api/.env.prod`](../../api/.env.prod.example) when `NODE_ENV=production` ([`load-env.ts`](../../api/src/config/load-env.ts)).
@@ -67,7 +67,7 @@ sudo -E bash setup.sh
 3. Create `api/.env.prod` from the example; inject DB/Redis URLs and a generated `JWT_SECRET`; apply Twilio from the environment. **Exits** if Twilio placeholders remain.
 4. Copy SPA `.env.production` examples when missing.
 5. `docker compose up -d` (db+redis only) and wait until healthy.
-6. `npm ci` + `prisma migrate deploy` (no seed) + API build + PM2 start/reload with `--env production` + `pm2 save` / startup.
+6. `npm ci` + `prisma migrate deploy` (no seed) + API build + PM2 `startOrReload` of `api/ecosystem.config.cjs` (API **and** BullMQ worker) with `--env production` + `pm2 save` / startup.
 7. Build admin + participant and `rsync` to `/var/www/brainpulses/{admin,participant}`.
 8. Certbot standalone certificates (skips if live certs exist); install nginx configs from [`docs/ops/nginx/`](nginx/); strip HTTP/3 lines if nginx lacks `http_v3`; reload nginx.
 9. Smoke loopback health and best-effort `curl --http2` to the three hosts.
@@ -103,7 +103,7 @@ It does **not** change Docker, nginx, certbot, or `api/uploads`.
 
 1. `npm ci --prefix api && npm ci --prefix admin && npm ci --prefix participant`
 2. `NODE_ENV=production npm run prisma:deploy --prefix api` — never `migrate reset` or rewrite applied migrations
-3. `npm run build --prefix api` → `pm2 reload brainpulses-api --env production`
+3. `npm run build --prefix api` → `pm2 startOrReload api/ecosystem.config.cjs --env production`
 4. `npm run build --prefix admin && npm run build --prefix participant`
 5. `rsync -a --delete` into the www dirs
 6. Hit `/health` and `/health/ready`; spot-check admin + participant login
@@ -169,7 +169,9 @@ After changing SPA env files, run `update-deploy.sh` so the static builds pick t
 
 ## Ops notes
 
-- **Logs:** `pm2 logs brainpulses-api`; files under `api/logs/`; nginx `/var/log/nginx/`; Compose json-file rotation is already set.
+- **Logs:** `pm2 logs brainpulses-api` / `pm2 logs brainpulses-worker`; files under `api/logs/`; nginx `/var/log/nginx/`; Compose json-file rotation is already set.
+- **Queue / PM2 detail:** [`../QUEUE_SYSTEM.md`](../QUEUE_SYSTEM.md), [`../PM2_CONFIGURATION.md`](../PM2_CONFIGURATION.md), [`../LOAD_BALANCING.md`](../LOAD_BALANCING.md).
+- **GitHub Actions:** check and deploy are both manual `workflow_dispatch` — [`../GITHUB_ACTIONS.md`](../GITHUB_ACTIONS.md).
 - **Backups:** schedule `pg_dump` (or volume snapshots) for Postgres; Redis AOF is enabled; back up `api/uploads`.
 - **Tools profile:** `docker compose --profile tools up -d` starts RedisInsight (`127.0.0.1:5540`) and CloudBeaver (`127.0.0.1:8977`). Use SSH tunnels only.
 - **PM2:** always pass `--env production` on start/reload so `NODE_ENV` is set and `.env.prod` is loaded.

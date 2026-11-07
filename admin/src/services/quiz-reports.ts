@@ -1,4 +1,4 @@
-import { apiDownloadBlob, apiGetData, apiPostData } from '@/lib/api-client';
+import { apiGetData, apiPostData } from '@/lib/api-client';
 
 export type QuizAttemptStatus = 'completed' | 'in_progress' | 'not_started';
 export type QuizResultLabel = 'pass' | 'fail';
@@ -127,7 +127,7 @@ const EMPTY_REPORT: QuizReportPage = {
 };
 
 export async function getQuizReport(query: string): Promise<QuizReportPage> {
-  if (import.meta.env.VITE_USE_FIXTURES === 'true') return EMPTY_REPORT;
+  if (import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true') return EMPTY_REPORT;
   return apiGetData<QuizReportPage>(`/api/quiz-reports${query ? `?${query}` : ''}`);
 }
 
@@ -140,7 +140,8 @@ export async function getQuizReportDetail(
 }
 
 export async function downloadQuizReport(query: string): Promise<void> {
-  await apiDownloadBlob(`/api/quiz-reports/export?${query}`, 'BrainPulses-results.xlsx');
+  const { downloadQueuedExport } = await import('@/lib/jobs');
+  await downloadQueuedExport(`/api/quiz-reports/export?${query}`, 'BrainPulses-results.xlsx');
 }
 
 export async function publishQuizResults(activityId: string) {

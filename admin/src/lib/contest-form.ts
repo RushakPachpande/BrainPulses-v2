@@ -186,7 +186,8 @@ export function registrationUrl(slug: string) {
   if (configured) return `${configured}/register/${slug}`;
   if (typeof window !== 'undefined' && isLocalHost(window.location.hostname)) {
     const url = new URL(window.location.origin);
-    url.port = '5175';
+    const participantPort = import.meta.env.VITE_PARTICIPANT_DEV_PORT?.trim() || '5175';
+    url.port = participantPort;
     return `${url.origin}/register/${slug}`;
   }
   return `/register/${slug}`;

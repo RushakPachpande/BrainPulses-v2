@@ -12,6 +12,7 @@ export default tseslint.config(
       'uploads/**',
       'src/generated/**',
       'prisma/migrations/**',
+      'ecosystem.config.cjs',
     ],
   },
   js.configs.recommended,

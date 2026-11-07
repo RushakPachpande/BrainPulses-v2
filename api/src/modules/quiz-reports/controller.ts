@@ -1,12 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { badRequest } from '../../lib/errors.js';
 import { userActor } from '../../middleware/auth.js';
-import {
-  buildReportCsv,
-  buildReportWorkbook,
-  parseExportColumns,
-  reportFileBase,
-} from './export.js';
+import { parseExportColumns } from './export.js';
 import * as service from './service.js';
 
 function actorOf(req: Request) {
@@ -66,25 +61,23 @@ export async function download(req: Request, res: Response, next: NextFunction) 
     };
     const columns = parseExportColumns(query.columns);
     if (columns.length === 0) throw badRequest('Choose at least one column.');
-    const exported = await service.exportQuizReportRows(actor.organizationId, actorOf(req), {
-      ...query,
+    const { enqueueJob } = await import('../../lib/queue/queues.js');
+    const enqueued = await enqueueJob('report.quiz-export', {
+      type: 'report.quiz-export',
+      organizationId: actor.organizationId,
+      actor: actorOf(req),
+      query: query as unknown as Record<string, unknown>,
+      columns,
+      format: query.format,
       includeAbsent: query.includeAbsent === 'true',
+      requestId: req.requestId,
     });
-    const base = reportFileBase(exported.quizName);
-    if (query.format === 'csv') {
-      const body = buildReportCsv(exported.rows, columns);
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${base}.csv"`);
-      res.send(body);
-      return;
-    }
-    const buffer = await buildReportWorkbook(exported.rows, columns);
-    res.setHeader(
-      'Content-Type',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    );
-    res.setHeader('Content-Disposition', `attachment; filename="${base}.xlsx"`);
-    res.send(buffer);
+    res.status(202).json({
+      data: {
+        jobId: enqueued.jobId,
+        status: enqueued.status === 'completed' ? 'completed' : 'queued',
+      },
+    });
   } catch (err) {
     next(err);
   }

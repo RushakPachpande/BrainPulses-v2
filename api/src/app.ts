@@ -31,6 +31,7 @@ import { settingsRouter } from './modules/settings/routes.js';
 import { participantPortalRouter } from './modules/participant-portal/routes.js';
 import { participantsRouter } from './modules/participants/routes.js';
 import { usersRouter } from './modules/users/routes.js';
+import { jobsRouter } from './modules/jobs/routes.js';
 
 export function createApp() {
   const app = express();
@@ -173,6 +174,7 @@ export function createApp() {
   app.use('/api/settings', settingsRouter);
   app.use('/api/audit', auditRouter);
   app.use('/api/files', filesRouter);
+  app.use('/api/jobs', jobsRouter);
 
   app.use(errorHandler);
   return app;

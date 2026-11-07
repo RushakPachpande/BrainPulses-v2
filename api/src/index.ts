@@ -2,6 +2,7 @@ import 'temporal-polyfill/full/global';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
 import { disconnectPrisma } from './lib/prisma.js';
+import { closeJobQueue } from './lib/queue/queues.js';
 import { closeRedis, initRedis, isRedisReady } from './lib/redis.js';
 
 async function main() {
@@ -21,6 +22,7 @@ async function main() {
   const shutdown = async (signal: string) => {
     console.log(`[api] ${signal} received, shutting down`);
     server.close(async () => {
+      await closeJobQueue().catch(() => undefined);
       await closeRedis();
       await disconnectPrisma();
       process.exit(0);

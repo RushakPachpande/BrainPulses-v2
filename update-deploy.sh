@@ -67,12 +67,8 @@ log "Prisma migrate deploy"
 log "Build API"
 npm run build --prefix api
 
-log "Reload PM2 ($PM2_APP)"
-if pm2 describe "$PM2_APP" >/dev/null 2>&1; then
-  pm2 reload "$PM2_APP" --env production
-else
-  pm2 start "$REPO_ROOT/api/ecosystem.config.cjs" --env production
-fi
+log "Start/reload PM2 ecosystem (API + worker)"
+pm2 startOrReload "$REPO_ROOT/api/ecosystem.config.cjs" --env production
 pm2 save
 
 log "Build Admin + Participant"

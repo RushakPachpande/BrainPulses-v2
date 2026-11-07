@@ -1,12 +1,15 @@
 # BrainPulses v2.0
 
-Multi-tenant platform for creating and taking quizzes and assessments. This repo has three apps that share one API and database.
+Multi-tenant platform for creating and taking quizzes and assessments. Packages share one API, Postgres, and Redis. Production deploys **admin + participant + API** (with a BullMQ worker); `client/` remains the legacy participant SPA.
 
-| Package              | Role                                                                                    | Local URL             | LAN URL                |
-| -------------------- | --------------------------------------------------------------------------------------- | --------------------- | ---------------------- |
-| [`admin/`](admin/)   | Administrator workspace (students, banks, activities, registrations, reports, settings) | http://localhost:5173 | `http://<lan-ip>:5173` |
-| [`client/`](client/) | Student portal (browse, attempt, results, profile)                                      | http://localhost:5174 | `http://<lan-ip>:5174` |
-| [`api/`](api/)       | Express API, Prisma, JWT auth, attempt lifecycle                                        | http://127.0.0.1:3002 | `http://<lan-ip>:3002` |
+| Package                      | Role                                                                                    | Local URL             | LAN URL                |
+| ---------------------------- | --------------------------------------------------------------------------------------- | --------------------- | ---------------------- |
+| [`admin/`](admin/)           | Administrator workspace (participants, banks, activities, registrations, reports, settings) | http://localhost:5173 | `http://<lan-ip>:5173` |
+| [`participant/`](participant/) | Production participant portal                                                         | http://localhost:5175 | `http://<lan-ip>:5175` |
+| [`client/`](client/)         | Legacy participant portal                                                               | http://localhost:5174 | `http://<lan-ip>:5174` |
+| [`api/`](api/)               | Express API, Prisma, JWT auth, BullMQ producers                                         | http://127.0.0.1:3002 | `http://<lan-ip>:3002` |
+
+Ops: [`DEPLOY.md`](DEPLOY.md), [`docs/QUEUE_SYSTEM.md`](docs/QUEUE_SYSTEM.md), [`docs/FINAL_ENGINEERING_REPORT.md`](docs/FINAL_ENGINEERING_REPORT.md).
 
 Data plane (Docker): Postgres `127.0.0.1:5434`, Redis `127.0.0.1:6381` (host-only; not exposed for LAN clients).
 

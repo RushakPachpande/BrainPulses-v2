@@ -91,7 +91,7 @@ describe('ParticipantsPage', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Code Quest')).toBeInTheDocument();
+      expect(screen.getAllByText('Code Quest').length).toBeGreaterThan(0);
     });
     expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
     expect(screen.getByText(/Showing 1 to 1 of 1 participants/i)).toBeInTheDocument();

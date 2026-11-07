@@ -132,11 +132,26 @@ export async function importFile(req: Request, res: Response, next: NextFunction
         'Upload an Excel (.xlsx) file in the multipart field “file”. Download Sample Excel for the correct template.',
       );
     }
-    const data = await service.importParticipantsFile(actor.organizationId, actor.userId, {
-      buffer: file.buffer,
+    const { randomUUID } = await import('node:crypto');
+    const { enqueueJob } = await import('../../lib/queue/queues.js');
+    const { writeImportTempFile } = await import('../../lib/queue/processors.js');
+    const jobKey = randomUUID();
+    const tempPath = await writeImportTempFile(jobKey, file.originalname, file.buffer);
+    const enqueued = await enqueueJob('import.participants', {
+      type: 'import.participants',
+      organizationId: actor.organizationId,
+      userId: actor.userId,
+      tempPath,
       originalname: file.originalname,
+      requestId: req.requestId,
     });
-    res.json({ data });
+    if (enqueued.status === 'completed' && enqueued.result?.kind === 'import') {
+      res.json({ data: enqueued.result.data });
+      return;
+    }
+    res.status(202).json({
+      data: { jobId: enqueued.jobId, status: 'queued' },
+    });
   } catch (err) {
     next(err);
   }

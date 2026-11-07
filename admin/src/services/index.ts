@@ -28,7 +28,6 @@ import {
 import {
   fixturesGetActivities,
   fixturesGetDashboard,
-  fixturesGetMonths,
   fixturesGetQuestionBanks,
   fixturesGetRegistrations,
   fixturesGetReportSummary,
@@ -75,7 +74,9 @@ export type {
   ResultRow,
 } from './types';
 
-const useFixtures = import.meta.env.VITE_USE_FIXTURES === 'true';
+/** Fixtures are a local DEV-only bypass. Production builds always hit the API. */
+const useFixtures =
+  import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true';
 
 type ApiParticipantRow = Parameters<typeof mapParticipantFromApi>[0];
 type ApiUserRow = Parameters<typeof mapUserFromApi>[0];
@@ -285,8 +286,9 @@ export async function getResults(kind: ActivityKind) {
   return rows.map(mapResultFromApi);
 }
 
+/** Decorative chart axis labels when callers omit custom labels. Not API/fixture data. */
 export function getMonths() {
-  return fixturesGetMonths();
+  return ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 }
 
 export async function getDashboard(): Promise<DashboardData> {
@@ -843,13 +845,15 @@ export async function importParticipants(file: File): Promise<SpreadsheetImportR
   }
   const form = new FormData();
   form.append('file', file);
-  const data = await apiPostFormData<SpreadsheetImportResult>(
+  const data = await apiPostFormData<SpreadsheetImportResult | { jobId: string; status: string }>(
     '/api/participants/import',
     form,
     idempotencyHeaders(),
   );
+  const { resolveImportResult } = await import('@/lib/jobs');
+  const result = await resolveImportResult(data);
   invalidateAdmin(['participants', 'dashboard']);
-  return data;
+  return result;
 }
 
 export async function downloadParticipantsSample(): Promise<void> {
@@ -877,13 +881,15 @@ export async function importUsers(file: File): Promise<SpreadsheetImportResult> 
   }
   const form = new FormData();
   form.append('file', file);
-  const data = await apiPostFormData<SpreadsheetImportResult>(
+  const data = await apiPostFormData<SpreadsheetImportResult | { jobId: string; status: string }>(
     '/api/users/import',
     form,
     idempotencyHeaders(),
   );
+  const { resolveImportResult } = await import('@/lib/jobs');
+  const result = await resolveImportResult(data);
   invalidateAdmin(['users', 'dashboard']);
-  return data;
+  return result;
 }
 
 export async function downloadUsersSample(): Promise<void> {
@@ -1082,13 +1088,15 @@ export async function importBankQuestions(bankId: string, file: File): Promise<B
   }
   const form = new FormData();
   form.append('file', file);
-  const data = await apiPostFormData<BankImportResult>(
+  const data = await apiPostFormData<BankImportResult | { jobId: string; status: string }>(
     `/api/banks/${bankId}/import`,
     form,
     idempotencyHeaders(),
   );
+  const { resolveImportResult } = await import('@/lib/jobs');
+  const result = await resolveImportResult(data);
   invalidateAdmin(['banks']);
-  return data;
+  return result;
 }
 
 export async function downloadBankQuestionsSample(bankId: string): Promise<void> {
