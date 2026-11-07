@@ -94,10 +94,12 @@ Package-level scripts (`lint`, `typecheck`, `format`, `test`) live under each ap
 | [`docs/COLOR_PALETTE.md`](docs/COLOR_PALETTE.md)                       | Brand and semantic colors                 |
 | [`api/openapi.yaml`](api/openapi.yaml)                                 | HTTP API contract                         |
 | [`docs/README.md`](docs/README.md)                                     | Broader product and engineering doc index |
+| [`DEPLOY.md`](DEPLOY.md)                                               | VPS deploy quick reference (`setup.sh` / `update-deploy.sh`) |
+| [`docs/ops/DEPLOY.md`](docs/ops/DEPLOY.md)                             | VPS production deploy (detailed) |
 
 ## Scope
 
-This stack is for **local / UAT** work with synthetic seed data. Admin and student flows talk to the live API when fixtures are off. Cloud hosting, production identity provider, MFA, and full ops hardening are still open gates—see the handoff docs.
+This stack is for **local / UAT** work with synthetic seed data. Admin and student flows talk to the live API when fixtures are off. For VPS hosting of API + Admin + Participant, see [`DEPLOY.md`](DEPLOY.md) (`sudo -E bash setup.sh`). Cloud IdP / MFA remain open gates.
 
 ## BrainPulses design system (independent frontends)
 

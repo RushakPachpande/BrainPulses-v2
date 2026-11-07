@@ -1,13 +1,20 @@
-# BrainPulses local data stack.
+# BrainPulses data stack (Postgres + Redis).
 # Loopback ports avoid clashes with LevelUP (5432 / 8979) and PGDM (5433 / 6379 / 8978).
 #
+# Production / default (db + redis only):
 #   docker compose up -d
 #   docker compose down
 #
+# Optional local admin UIs (SSH tunnel only — never expose publicly):
+#   docker compose --profile tools up -d
+#
 # Postgres:     127.0.0.1:5434
 # Redis:        127.0.0.1:6381
-# RedisInsight: 127.0.0.1:5540
-# CloudBeaver:  127.0.0.1:8977
+# RedisInsight: 127.0.0.1:5540  (profile: tools)
+# CloudBeaver:  127.0.0.1:8977  (profile: tools)
+#
+# Set strong POSTGRES_* and REDIS_PASSWORD in a root .env before production.
+# See .env.example and docs/ops/DEPLOY.md.
 
 name: brainpulses
 
@@ -79,6 +86,7 @@ services:
         max-file: "5"
 
   redisinsight:
+    profiles: [tools]
     image: redis/redisinsight:3.8
     container_name: brainpulses-redisinsight
     restart: unless-stopped
@@ -96,6 +104,7 @@ services:
         max-file: "5"
 
   cloudbeaver:
+    profiles: [tools]
     image: dbeaver/cloudbeaver:26.1.4
     container_name: brainpulses-cloudbeaver
     restart: unless-stopped

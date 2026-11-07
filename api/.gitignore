@@ -1,6 +1,8 @@
 node_modules/
 dist/
 uploads/
+logs/*
+!logs/.gitkeep
 .env
 *.log
 *.tsbuildinfo
