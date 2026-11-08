@@ -9,10 +9,6 @@ const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
   general: {
     orgDisplayName: 'BrainPulses',
     organizationName: 'BrainPulses Learning Pvt. Ltd.',
-    timezone: 'Asia/Kolkata',
-    locale: 'en-IN',
-    dateFormat: 'DD MMM YYYY',
-    timeFormat: '12-hour',
     participantPageOverview: true,
     participantPageQuizzes: true,
     participantPageAssessments: true,

@@ -1,0 +1,18 @@
+---
+description: Delete one-off scratch files as soon as the task that needed them is done
+alwaysApply: true
+---
+
+# Delete temporary files immediately
+
+A file created only to inspect, migrate, patch, or debug is trash once that step is finished. Delete it in the same turn, before the final reply.
+
+```text
+❌ BAD — leave api/tmp-check-quiz.ts or _tmp_rm_bell.py after the check
+✅ GOOD — run the check, then delete the script before finishing
+```
+
+- Names that mean scratch: `tmp-*`, `_tmp*`, `*.tmp`, `scratch-*`, and one-off copies such as `*.handoff.tsx` that nothing imports.
+- Do not commit these files. Do not leave them for a later cleanup.
+- Generated caches (`graphify-out/`, `node_modules/`) and real env examples are not scratch scripts. Do not delete those to satisfy this rule.
+- If a scratch file is already in the tree and the job it served is done, delete it when you notice it.
