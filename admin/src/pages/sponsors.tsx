@@ -9,7 +9,6 @@ import { RecordSortSelect } from '@/components/record-sort-select';
 import { Toolbar } from '@/components/toolbar';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useOrgId } from '@/hooks/use-org-id';
@@ -173,7 +172,7 @@ export function SponsorsPage() {
       <>
         <div className="flex flex-col gap-4">
           {headerActions}
-          <ListPageSkeleton layout="cards" kpiCount={1} />
+          <ListPageSkeleton layout="cards" kpiCount={0} />
         </div>
         {viewDialog}
         {editorDialog}
@@ -185,15 +184,6 @@ export function SponsorsPage() {
     <>
       <div className="flex flex-col gap-4">
         {headerActions}
-
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardDescription>Total sponsors</CardDescription>
-              <CardTitle className="text-2xl">{sponsors.length}</CardTitle>
-            </CardHeader>
-          </Card>
-        </section>
 
         <Toolbar
           filters={[]}

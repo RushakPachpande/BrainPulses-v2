@@ -148,7 +148,7 @@ export function Toolbar({
       {dateRange ? <div className="w-full shrink-0 sm:w-56">{dateRange}</div> : null}
       {actions ? (
         <div
-          className="flex w-full flex-wrap gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none"
+          className="flex w-full flex-wrap items-end gap-2 sm:w-auto sm:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none"
           onClickCapture={(event) => {
             const button = (event.target as HTMLElement | null)?.closest('button');
             if (!button) return;

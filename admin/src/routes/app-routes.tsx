@@ -57,11 +57,6 @@ const ResultDetailPage = lazy(() =>
 const GeneralSettingsPage = lazy(() =>
   import('@/pages/settings-general').then((m) => ({ default: m.GeneralSettingsPage })),
 );
-const ParticipantPortalSettingsPage = lazy(() =>
-  import('@/pages/settings-participant-portal').then((m) => ({
-    default: m.ParticipantPortalSettingsPage,
-  })),
-);
 const DesignSystemPage = lazy(() =>
   import('@/pages/design-system').then((m) => ({ default: m.DesignSystemPage })),
 );
@@ -212,11 +207,8 @@ export function AppRoutes() {
           </Route>
 
           <Route path="settings" element={<GeneralSettingsPage />} />
-          <Route path="settings/participant-portal" element={<ParticipantPortalSettingsPage />} />
-          <Route
-            path="settings/student-portal"
-            element={<Navigate to="/settings/participant-portal" replace />}
-          />
+          <Route path="settings/participant-portal" element={<Navigate to="/settings" replace />} />
+          <Route path="settings/student-portal" element={<Navigate to="/settings" replace />} />
           <Route path="settings/design-system" element={<DesignSystemPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

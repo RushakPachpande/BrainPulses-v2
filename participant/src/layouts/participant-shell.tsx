@@ -1,10 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/auth-context';
-import type { ParticipantPages } from '../lib/participant-pages';
-import { clientQueryKeys } from '../lib/query-keys';
-import { listActivities } from '../services/api';
+import { useAllotment } from '../hooks/use-allotment';
+import { allotmentLandingPath } from '../lib/allotment';
 import { IconList, IconLogout, IconPanel, IconQuiz } from '../components/portal-icons';
 import { PortalBrand } from '../components/portal-brand';
 import { ThemeButton } from '../components/theme-button';
@@ -20,20 +18,14 @@ function useNarrow() {
   return narrow;
 }
 
-export function ParticipantShell({
-  pages,
-  children,
-}: {
-  pages: ParticipantPages | null;
-  children?: ReactNode;
-}) {
+export function ParticipantShell({ children }: { children?: ReactNode }) {
   const { participant, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const narrow = useNarrow();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const participantId = participant?.id ?? '';
+  const allotment = useAllotment();
   const name = participant?.name ?? 'Participant';
   const initials = name
     .split(' ')
@@ -43,16 +35,13 @@ export function ParticipantShell({
     .join('')
     .toUpperCase();
 
-  const quizzes = useQuery({
-    queryKey: clientQueryKeys.activities(participantId, 'quiz'),
-    queryFn: () => listActivities('quiz'),
-    enabled: Boolean(participantId) && (pages?.quizzes ?? true),
-  });
-  const assessments = useQuery({
-    queryKey: clientQueryKeys.activities(participantId, 'assessment'),
-    queryFn: () => listActivities('assessment'),
-    enabled: Boolean(participantId) && (pages?.assessments ?? true),
-  });
+  function goHome() {
+    if (allotment.pending) {
+      navigate('/');
+      return;
+    }
+    navigate(allotmentLandingPath(allotment));
+  }
 
   useEffect(() => {
     setMobileOpen(false);
@@ -82,7 +71,7 @@ export function ParticipantShell({
       />
       <aside className="side" aria-label="Menu">
         <div className="sh">
-          <PortalBrand onHome={() => navigate('/dashboard')} />
+          <PortalBrand onHome={goHome} />
           <button
             className="tg"
             id="tgl"
@@ -95,19 +84,18 @@ export function ParticipantShell({
           </button>
         </div>
         <nav className="nv">
-          {pages?.quizzes !== false && (quizzes.isPending || (quizzes.data?.length ?? 0) > 0) ? (
+          {allotment.hasQuiz ? (
             <NavLink to="/quizzes" className={({ isActive }) => (isActive ? 'on' : '')}>
               <IconQuiz />
               <span>Quizzes</span>
-              <i>{quizzes.data?.length ?? 0}</i>
+              <i>{allotment.quizCount}</i>
             </NavLink>
           ) : null}
-          {pages?.assessments !== false &&
-          (assessments.isPending || (assessments.data?.length ?? 0) > 0) ? (
+          {allotment.hasAssessment ? (
             <NavLink to="/assessments" className={({ isActive }) => (isActive ? 'on' : '')}>
               <IconList />
               <span>Assessments</span>
-              <i>{assessments.data?.length ?? 0}</i>
+              <i>{allotment.assessmentCount}</i>
             </NavLink>
           ) : null}
         </nav>
@@ -144,7 +132,7 @@ export function ParticipantShell({
         >
           <IconPanel expanded={false} />
         </button>
-        <PortalBrand onHome={() => navigate('/dashboard')} />
+        <PortalBrand onHome={goHome} />
       </div>
       <ThemeButton />
       <main className="main">{children}</main>

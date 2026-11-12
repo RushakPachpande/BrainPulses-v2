@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router';
 import { PageLoader } from '../components/loading-overlay';
 import { PortalHeader } from '../components/portal-header';
 import { IconArrow, IconBack, IconCheck } from '../components/portal-icons';
-import { useParticipantPages } from '../hooks/use-participant-pages';
 import { formatDuration } from '../lib/format';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { listActivities } from '../services/api';
@@ -23,8 +22,6 @@ const OVERALL = [
 export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   const { activityId = '' } = useParams();
   const navigate = useNavigate();
-  const pagesQuery = useParticipantPages();
-  const resultsOn = pagesQuery.data?.results ?? true;
   const [item, setItem] = useState<ParticipantActivity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -92,7 +89,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   }
 
   function viewResult(resultId: string | null) {
-    if (!resultsOn || !resultId) return;
+    if (!resultId) return;
     navigate(`/results/${resultId}`);
   }
 
@@ -219,7 +216,6 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
                         <RoundAction
                           round={round}
                           ack={ack}
-                          resultsOn={resultsOn}
                           onStart={() => beginAttempt(round.id)}
                           onResult={() => viewResult(round.latestResultId)}
                         />
@@ -242,7 +238,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
                 <p className="hint" id="hint" style={{ visibility: ack ? 'hidden' : 'visible' }}>
                   Tick the box above to enable {resume ? 'Resume' : 'Start'}.
                 </p>
-                {item.attemptState === 'submitted' && resultsOn && item.latestResultId ? (
+                {item.attemptState === 'submitted' && item.latestResultId ? (
                   <button
                     className="back"
                     type="button"
@@ -263,18 +259,16 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
 function RoundAction({
   round,
   ack,
-  resultsOn,
   onStart,
   onResult,
 }: {
   round: ParticipantActivityRound;
   ack: boolean;
-  resultsOn: boolean;
   onStart: () => void;
   onResult: () => void;
 }) {
   if (round.state === 'completed') {
-    if (!resultsOn || !round.latestResultId) return null;
+    if (!round.latestResultId) return null;
     if (round.resultPendingPublish) {
       return (
         <button className="cta off" type="button" disabled>

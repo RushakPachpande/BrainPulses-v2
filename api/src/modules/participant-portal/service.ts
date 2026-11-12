@@ -1,10 +1,6 @@
 import { Prisma } from '#prisma';
-import { forbidden, notFound } from '../../lib/errors.js';
-import {
-  PARTICIPANT_PAGE_OFF_MESSAGE,
-  assertParticipantPageEnabled,
-  getParticipantPages,
-} from '../../lib/participant-pages.js';
+import { notFound } from '../../lib/errors.js';
+import { assertParticipantPageEnabled } from '../../lib/participant-pages.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { servedQuestionCount } from '../../lib/question-order.js';
@@ -73,29 +69,13 @@ export async function listMyActivities(
   participantId: string,
   query: z.infer<typeof participantActivitiesQuerySchema>,
 ) {
-  const pages = await getParticipantPages(organizationId);
-  const enabledKinds = (
-    [pages.quizzes ? 'quiz' : null, pages.assessments ? 'assessment' : null] as const
-  ).filter((kind): kind is 'quiz' | 'assessment' => kind !== null);
-  if (query.kind !== 'all' && !enabledKinds.includes(query.kind)) {
-    throw forbidden(PARTICIPANT_PAGE_OFF_MESSAGE);
-  }
-  if (enabledKinds.length === 0) {
-    return listEnvelope([], {
-      limit: query.limit,
-      nextCursor: null,
-      hasMore: false,
-      total: 0,
-    });
-  }
-
   const where: Prisma.RegistrationWhereInput = {
     organizationId,
     participantId,
     status: 'assigned',
     activity: {
       status: { in: ['active', 'completed'] },
-      kind: query.kind === 'all' ? { in: enabledKinds } : query.kind,
+      ...(query.kind === 'all' ? {} : { kind: query.kind }),
       ...(query.q
         ? {
             OR: [

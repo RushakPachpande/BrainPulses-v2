@@ -5,7 +5,6 @@ import { AttemptQuestionBlock } from '../components/attempt-question-block';
 import { PageLoader } from '../components/loading-overlay';
 import { ThemeButton } from '../components/theme-button';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
-import { useParticipantPages } from '../hooks/use-participant-pages';
 import { ApiError } from '../lib/api-client';
 import {
   answerFromResponse,
@@ -14,7 +13,6 @@ import {
   type AttemptAnswerValue,
 } from '../lib/attempt-answers';
 import { timeRemaining } from '../lib/format';
-import { firstEnabledParticipantPath, isParticipantPageOffError } from '../lib/participant-pages';
 import {
   advanceAttempt,
   clearSubmitIdempotencyKey,
@@ -34,7 +32,6 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [searchParams] = useSearchParams();
   const roundIdParam = searchParams.get('roundId') ?? undefined;
   const navigate = useNavigate();
-  const pagesQuery = useParticipantPages();
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
@@ -203,17 +200,6 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const pages = pagesQuery.data;
-  const pageOff =
-    isParticipantPageOffError(error) ||
-    (attempt?.activityKind === 'quiz' && pages?.quizzes === false) ||
-    (attempt?.activityKind === 'assessment' && pages?.assessments === false);
-
-  useEffect(() => {
-    if (!pages || !pageOff) return;
-    navigate(firstEnabledParticipantPath(pages) ?? '/', { replace: true });
-  }, [navigate, pageOff, pages]);
 
   useEffect(() => {
     if (!attempt?.softProctoring) return;
@@ -717,7 +703,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     if (first !== undefined) setQIndex(first);
   }
 
-  if ((busy && !attempt) || pageOff) {
+  if (busy && !attempt) {
     return <PageLoader />;
   }
 

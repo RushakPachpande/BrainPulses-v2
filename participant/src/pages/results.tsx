@@ -16,7 +16,6 @@ import {
   SelectTrigger,
 } from '../components/ui/select';
 import { useAuth } from '../contexts/auth-context';
-import { useParticipantPages } from '../hooks/use-participant-pages';
 import { answerLabel, formatDateLabel, formatKind } from '../lib/format';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { clientQueryKeys } from '../lib/query-keys';
@@ -28,9 +27,6 @@ const RESULT_FILTERS = ['All', 'Quiz', 'Assessment'] as const;
 export function ResultsPage() {
   const navigate = useNavigate();
   const { participant } = useAuth();
-  const pagesQuery = useParticipantPages();
-  const quizzesOn = pagesQuery.data?.quizzes ?? true;
-  const assessmentsOn = pagesQuery.data?.assessments ?? true;
   const participantId = participant?.id ?? '';
   const [filter, setFilter] = useState<(typeof RESULT_FILTERS)[number]>('All');
 
@@ -181,24 +177,16 @@ export function ResultsPage() {
                 </li>
               </ol>
               <div className="results-empty-actions">
-                {quizzesOn ? (
-                  <button
-                    className="btn primary"
-                    type="button"
-                    onClick={() => navigate('/quizzes')}
-                  >
-                    Start a quiz <ArrowRight size={15} aria-hidden />
-                  </button>
-                ) : null}
-                {assessmentsOn ? (
-                  <button
-                    className="btn outline"
-                    type="button"
-                    onClick={() => navigate('/assessments')}
-                  >
-                    Browse assessments
-                  </button>
-                ) : null}
+                <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+                  Start a quiz <ArrowRight size={15} aria-hidden />
+                </button>
+                <button
+                  className="btn outline"
+                  type="button"
+                  onClick={() => navigate('/assessments')}
+                >
+                  Browse assessments
+                </button>
               </div>
             </>
           ) : (

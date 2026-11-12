@@ -1,6 +1,7 @@
 import { notFound } from './errors.js';
 import { readInlineImage } from '../modules/files/service.js';
 import { prisma } from './prisma.js';
+import { isTwilioConfigured } from './twilio.js';
 
 export const PARTICIPANT_PHONE_LOGIN_KEY = 'participantPhoneLogin';
 export const PARTICIPANT_LOGIN_IMAGE_KEY = 'participantLoginImageFileId';
@@ -21,8 +22,8 @@ export async function isParticipantPhoneLoginEnabled(organizationId: string): Pr
 
 /**
  * Unauthenticated login chrome.
- * With a slug: that org’s setting. Without: the oldest active org (primary tenant).
- * OTP is always blocked for an org that has phone login turned off.
+ * With a slug: that org’s login image. Without: the oldest active org (primary tenant).
+ * Phone sign-in is offered only when Twilio is enabled and its credentials are set.
  */
 async function resolveLoginOrganization(organizationSlug?: string) {
   return organizationSlug
@@ -52,11 +53,9 @@ async function participantLoginImageFileId(organizationId: string) {
 
 export async function getParticipantLoginOptions(organizationSlug?: string) {
   const org = await resolveLoginOrganization(organizationSlug);
-  if (!org) return { phoneLogin: true, loginImage: false };
-  const [phoneLogin, loginImageFileId] = await Promise.all([
-    isParticipantPhoneLoginEnabled(org.id),
-    participantLoginImageFileId(org.id),
-  ]);
+  const phoneLogin = isTwilioConfigured();
+  if (!org) return { phoneLogin, loginImage: false };
+  const loginImageFileId = await participantLoginImageFileId(org.id);
   return { phoneLogin, loginImage: loginImageFileId.length > 0 };
 }
 

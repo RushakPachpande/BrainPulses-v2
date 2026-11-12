@@ -1,12 +1,16 @@
 import { Router } from 'express';
 import { requireAuth, requireParticipant, requireUser } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
+import { isTwilioConfigured } from '../../lib/twilio.js';
 import * as controller from './controller.js';
 import {
   changePasswordSchema,
   selectOrganizationSchema,
   signInSchema,
+  participantRequestOtpSchema,
+  participantResendOtpSchema,
   participantSignInByCodeSchema,
+  participantVerifyOtpSchema,
 } from './schema.js';
 
 export const authRouter = Router();
@@ -24,6 +28,23 @@ authRouter.post(
   validate({ body: participantSignInByCodeSchema }),
   controller.participantSignInByCode,
 );
+if (isTwilioConfigured()) {
+  authRouter.post(
+    '/participant/request-otp',
+    validate({ body: participantRequestOtpSchema }),
+    controller.participantRequestOtp,
+  );
+  authRouter.post(
+    '/participant/resend-otp',
+    validate({ body: participantResendOtpSchema }),
+    controller.participantResendOtp,
+  );
+  authRouter.post(
+    '/participant/verify-otp',
+    validate({ body: participantVerifyOtpSchema }),
+    controller.participantVerifyOtp,
+  );
+}
 authRouter.post(
   '/participant/sign-out',
   requireAuth,

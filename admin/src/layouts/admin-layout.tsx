@@ -92,7 +92,6 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/settings', label: 'General', end: true },
-      { to: '/settings/participant-portal', label: 'Participant portal', end: true },
       { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },
