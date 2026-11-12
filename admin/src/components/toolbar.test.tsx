@@ -17,9 +17,9 @@ describe('Toolbar', () => {
         filters={[
           {
             name: 'Status',
-            options: ['All', 'Active'],
-            value: 'All',
-            onValueChange: vi.fn(),
+            options: ['Active'],
+            values: [],
+            onValuesChange: vi.fn(),
           },
         ]}
         actions={
@@ -48,9 +48,9 @@ describe('Toolbar', () => {
         filters={[
           {
             name: 'Status',
-            options: ['All', 'Active'],
-            value: 'All',
-            onValueChange: vi.fn(),
+            options: ['Active'],
+            values: [],
+            onValuesChange: vi.fn(),
           },
         ]}
         actions={

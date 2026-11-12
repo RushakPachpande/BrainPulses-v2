@@ -21,6 +21,17 @@ export const unassignSchema = z
   })
   .strict();
 
+export const manualRegistrationSchema = z
+  .object({
+    activityId: z.string().uuid(),
+    name: z.string().trim().min(1).max(200),
+    email: z.string().trim().email().max(200),
+    phone: z.string().trim().max(40).optional(),
+    course: z.string().trim().max(120).optional(),
+    city: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
 export const exportQuerySchema = z.object({
   activityId: z.string().uuid(),
 });

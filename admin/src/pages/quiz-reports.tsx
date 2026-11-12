@@ -76,11 +76,14 @@ export function QuizReportsPage() {
   const { narrow, ref } = useContainerNarrow();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [contestId, setContestId] = useState('all');
-  const [activityId, setActivityId] = useState(searchParams.get('activityId') ?? 'all');
-  const [quizStatus, setQuizStatus] = useState('any');
-  const [attemptStatus, setAttemptStatus] = useState('any');
-  const [autoSubmitted, setAutoSubmitted] = useState('any');
+  const [contestIds, setContestIds] = useState<string[]>([]);
+  const [activityIds, setActivityIds] = useState<string[]>(() => {
+    const initial = searchParams.get('activityId');
+    return initial ? [initial] : [];
+  });
+  const [quizStatuses, setQuizStatuses] = useState<string[]>([]);
+  const [attemptStatuses, setAttemptStatuses] = useState<string[]>([]);
+  const [autoSubmitted, setAutoSubmitted] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<ReportColumnKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -97,11 +100,11 @@ export function QuizReportsPage() {
   const query = useMemo(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set('q', search.trim());
-    if (contestId !== 'all') params.set('contestId', contestId);
-    if (activityId !== 'all') params.set('activityId', activityId);
-    if (quizStatus !== 'any') params.set('quizStatus', quizStatus);
-    if (attemptStatus !== 'any') params.set('attemptStatus', attemptStatus);
-    if (autoSubmitted !== 'any') params.set('autoSubmitted', autoSubmitted);
+    for (const id of contestIds) params.append('contestId', id);
+    for (const id of activityIds) params.append('activityId', id);
+    for (const status of quizStatuses) params.append('quizStatus', status);
+    for (const status of attemptStatuses) params.append('attemptStatus', status);
+    for (const value of autoSubmitted) params.append('autoSubmitted', value);
     if (sortKey) {
       params.set('sort', sortKey);
       params.set('dir', sortDir);
@@ -110,13 +113,13 @@ export function QuizReportsPage() {
     params.set('pageSize', pageSize);
     return params.toString();
   }, [
-    activityId,
-    attemptStatus,
+    activityIds,
+    attemptStatuses,
     autoSubmitted,
-    contestId,
+    contestIds,
     page,
     pageSize,
-    quizStatus,
+    quizStatuses,
     search,
     sortDir,
     sortKey,
@@ -131,49 +134,56 @@ export function QuizReportsPage() {
   const quizChoices = useMemo(() => {
     const quizzes = data?.options.quizzes ?? [];
     return quizzes.filter((quiz) => {
-      if (contestId !== 'all' && quiz.contestId !== contestId) return false;
-      if (quizStatus === 'any') return true;
-      return quiz.quizStatus === quizStatus;
+      if (contestIds.length > 0 && (!quiz.contestId || !contestIds.includes(quiz.contestId))) {
+        return false;
+      }
+      if (quizStatuses.length > 0 && !quizStatuses.includes(quiz.quizStatus)) return false;
+      return true;
     });
-  }, [contestId, data?.options.quizzes, quizStatus]);
+  }, [contestIds, data?.options.quizzes, quizStatuses]);
 
-  const selectedQuiz = quizChoices.find((quiz) => quiz.id === activityId) ?? null;
+  const selectedQuiz =
+    activityIds.length === 1
+      ? (quizChoices.find((quiz) => quiz.id === activityIds[0]) ?? null)
+      : null;
+  const statusBlocksProgress =
+    quizStatuses.length > 0 &&
+    quizStatuses.every((status) => status === 'expired' || status === 'inactive');
   const inProgressAllowed =
-    quizStatus !== 'expired' &&
-    quizStatus !== 'inactive' &&
-    (selectedQuiz == null || selectedQuiz.quizStatus === 'active');
+    !statusBlocksProgress && (selectedQuiz == null || selectedQuiz.quizStatus === 'active');
 
   useEffect(() => {
     if (!data) return;
-    if (activityId !== 'all' && !quizChoices.some((quiz) => quiz.id === activityId)) {
-      setActivityId('all');
-      setPage(1);
-    }
-  }, [activityId, data, quizChoices]);
+    const valid = new Set(quizChoices.map((quiz) => quiz.id));
+    setActivityIds((current) => {
+      const next = current.filter((id) => valid.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [data, quizChoices]);
 
   useEffect(() => {
-    if (attemptStatus === 'in_progress' && !inProgressAllowed) {
-      setAttemptStatus('any');
+    if (attemptStatuses.includes('in_progress') && !inProgressAllowed) {
+      setAttemptStatuses((current) => current.filter((status) => status !== 'in_progress'));
       setPage(1);
     }
-  }, [attemptStatus, inProgressAllowed]);
+  }, [attemptStatuses, inProgressAllowed]);
 
-  function chooseQuiz(id: string) {
-    setActivityId(id);
+  function chooseQuizzes(ids: string[]) {
+    setActivityIds(ids);
     setPage(1);
     const next = new URLSearchParams(searchParams);
-    if (id === 'all') next.delete('activityId');
-    else next.set('activityId', id);
+    next.delete('activityId');
+    if (ids.length === 1) next.set('activityId', ids[0] ?? '');
     setSearchParams(next, { replace: true });
   }
 
   function clearFilters() {
     setSearch('');
-    setContestId('all');
-    setActivityId('all');
-    setQuizStatus('any');
-    setAttemptStatus('any');
-    setAutoSubmitted('any');
+    setContestIds([]);
+    setActivityIds([]);
+    setQuizStatuses([]);
+    setAttemptStatuses([]);
+    setAutoSubmitted([]);
     setPage(1);
     setSearchParams({}, { replace: true });
   }
@@ -210,37 +220,30 @@ export function QuizReportsPage() {
   const filters: ToolbarFilter[] = [
     {
       name: 'Contest',
-      value: contestId,
-      onValueChange: (value) => {
-        setContestId(value);
+      values: contestIds,
+      onValuesChange: (values) => {
+        setContestIds(values);
         setPage(1);
       },
-      options: [
-        { value: 'all', label: 'All contests' },
-        ...(data?.options.contests ?? []).map((contest) => ({
-          value: contest.id,
-          label: contest.name,
-        })),
-      ],
+      options: (data?.options.contests ?? []).map((contest) => ({
+        value: contest.id,
+        label: contest.name,
+      })),
     },
     {
       name: 'Quiz',
-      value: quizChoices.some((quiz) => quiz.id === activityId) ? activityId : 'all',
-      onValueChange: chooseQuiz,
-      options: [
-        { value: 'all', label: 'All quizzes' },
-        ...quizChoices.map((quiz) => ({ value: quiz.id, label: quiz.name })),
-      ],
+      values: activityIds.filter((id) => quizChoices.some((quiz) => quiz.id === id)),
+      onValuesChange: chooseQuizzes,
+      options: quizChoices.map((quiz) => ({ value: quiz.id, label: quiz.name })),
     },
     {
       name: 'Quiz status',
-      value: quizStatus,
-      onValueChange: (value) => {
-        setQuizStatus(value);
+      values: quizStatuses,
+      onValuesChange: (values) => {
+        setQuizStatuses(values);
         setPage(1);
       },
       options: [
-        { value: 'any', label: 'Any' },
         { value: 'active', label: 'Active' },
         { value: 'expired', label: 'Expired' },
         { value: 'inactive', label: 'Inactive' },
@@ -248,13 +251,12 @@ export function QuizReportsPage() {
     },
     {
       name: 'Attempt status',
-      value: attemptStatus === 'in_progress' && !inProgressAllowed ? 'any' : attemptStatus,
-      onValueChange: (value) => {
-        setAttemptStatus(value);
+      values: attemptStatuses.filter((status) => status !== 'in_progress' || inProgressAllowed),
+      onValuesChange: (values) => {
+        setAttemptStatuses(values);
         setPage(1);
       },
       options: [
-        { value: 'any', label: 'Any' },
         { value: 'completed', label: 'Completed' },
         ...(inProgressAllowed ? [{ value: 'in_progress', label: 'In progress' }] : []),
         { value: 'not_started', label: 'Not started' },
@@ -262,13 +264,12 @@ export function QuizReportsPage() {
     },
     {
       name: 'Auto-submitted',
-      value: autoSubmitted,
-      onValueChange: (value) => {
-        setAutoSubmitted(value);
+      values: autoSubmitted,
+      onValuesChange: (values) => {
+        setAutoSubmitted(values);
         setPage(1);
       },
       options: [
-        { value: 'any', label: 'Any' },
         { value: 'yes', label: 'Yes' },
         { value: 'no', label: 'No' },
       ],
@@ -311,13 +312,20 @@ export function QuizReportsPage() {
   const end = Math.min(currentPage * size, total);
   const pageCount = data?.page.pageCount ?? 1;
   const noRegistrations = Boolean(data && data.options.quizzes.length === 0);
-  const publishQuiz =
-    activityId !== 'all' ? data?.options.quizzes.find((quiz) => quiz.id === activityId) : undefined;
+  const publishQuiz = selectedQuiz;
+  const unpublishedPool =
+    activityIds.length === 0
+      ? quizChoices
+      : quizChoices.filter((quiz) => activityIds.includes(quiz.id));
+  const unpublishedQuizzes = unpublishedPool.filter(
+    (quiz) => quiz.scoreRelease === 'after_publish' && !quiz.resultsPublishedAt,
+  );
+  const showUnpublishedList = activityIds.length !== 1 && unpublishedQuizzes.length > 0;
 
-  async function onPublish() {
-    if (!publishQuiz || !canPublish) return;
+  async function onPublish(quiz: { id: string; name: string }) {
+    if (!canPublish) return;
     const ok = await confirm({
-      title: `Publish results for ${publishQuiz.name}?`,
+      title: `Publish results for ${quiz.name}?`,
       description:
         "Every student who has submitted will be able to see their score and result. You can't hide them again afterwards.",
       confirmLabel: 'Publish results',
@@ -325,7 +333,7 @@ export function QuizReportsPage() {
     if (ok !== true) return;
     setPublishing(true);
     try {
-      await publishQuizResults(publishQuiz.id);
+      await publishQuizResults(quiz.id);
       toast.success('Results published');
       await refetch();
     } catch (err) {
@@ -342,6 +350,18 @@ export function QuizReportsPage() {
   return (
     <div ref={ref} className="flex flex-col gap-4">
       <PageHeaderActions>
+        {publishQuiz?.scoreRelease === 'after_publish' &&
+        !publishQuiz.resultsPublishedAt &&
+        canPublish ? (
+          <Button
+            type="button"
+            disabled={publishing}
+            aria-busy={publishing}
+            onClick={() => void onPublish(publishQuiz)}
+          >
+            Publish results
+          </Button>
+        ) : null}
         <Button type="button" disabled={!data || isError} onClick={() => setDownloadOpen(true)}>
           <DownloadIcon data-icon="inline-start" />
           Download report
@@ -375,6 +395,36 @@ export function QuizReportsPage() {
             ))}
           </section>
 
+          {showUnpublishedList ? (
+            <Card>
+              <CardContent className="flex flex-col gap-3">
+                <p className="text-sm font-medium">Results not yet visible to students</p>
+                <ul className="flex flex-col">
+                  {unpublishedQuizzes.map((quiz) => (
+                    <li
+                      key={quiz.id}
+                      className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <span className="text-sm">{quiz.name}</span>
+                      {canPublish ? (
+                        <Button
+                          type="button"
+                          disabled={publishing}
+                          aria-busy={publishing}
+                          onClick={() => void onPublish(quiz)}
+                        >
+                          Publish results
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Waiting to publish</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {publishQuiz?.scoreRelease === 'after_publish' ? (
             <Alert
               className={
@@ -390,7 +440,12 @@ export function QuizReportsPage() {
               </AlertTitle>
               {!publishQuiz.resultsPublishedAt && canPublish ? (
                 <AlertDescription>
-                  <Button type="button" disabled={publishing} onClick={() => void onPublish()}>
+                  <Button
+                    type="button"
+                    disabled={publishing}
+                    aria-busy={publishing}
+                    onClick={() => void onPublish(publishQuiz)}
+                  >
                     Publish results
                   </Button>
                 </AlertDescription>

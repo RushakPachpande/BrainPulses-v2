@@ -145,11 +145,17 @@ export function AssessmentReportsPage() {
   const { narrow, ref } = useContainerNarrow();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [activityId, setActivityId] = useState(searchParams.get('activityId') ?? 'all');
-  const [roundId, setRoundId] = useState(searchParams.get('roundId') ?? 'all');
-  const [activityStatus, setActivityStatus] = useState('any');
-  const [attemptStatus, setAttemptStatus] = useState('any');
-  const [autoSubmitted, setAutoSubmitted] = useState('any');
+  const [activityIds, setActivityIds] = useState<string[]>(() => {
+    const initial = searchParams.get('activityId');
+    return initial ? [initial] : [];
+  });
+  const [roundIds, setRoundIds] = useState<string[]>(() => {
+    const initial = searchParams.get('roundId');
+    return initial ? [initial] : [];
+  });
+  const [activityStatuses, setActivityStatuses] = useState<string[]>([]);
+  const [attemptStatuses, setAttemptStatuses] = useState<string[]>([]);
+  const [autoSubmitted, setAutoSubmitted] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<ColumnKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
@@ -166,11 +172,11 @@ export function AssessmentReportsPage() {
   const query = useMemo(() => {
     const params = new URLSearchParams();
     if (search.trim()) params.set('q', search.trim());
-    if (activityId !== 'all') params.set('activityId', activityId);
-    if (roundId !== 'all') params.set('roundId', roundId);
-    if (activityStatus !== 'any') params.set('activityStatus', activityStatus);
-    if (attemptStatus !== 'any') params.set('attemptStatus', attemptStatus);
-    if (autoSubmitted !== 'any') params.set('autoSubmitted', autoSubmitted);
+    for (const id of activityIds) params.append('activityId', id);
+    for (const id of roundIds) params.append('roundId', id);
+    for (const status of activityStatuses) params.append('activityStatus', status);
+    for (const status of attemptStatuses) params.append('attemptStatus', status);
+    for (const value of autoSubmitted) params.append('autoSubmitted', value);
     if (sortKey) {
       params.set('sort', sortKey);
       params.set('dir', sortDir);
@@ -179,13 +185,13 @@ export function AssessmentReportsPage() {
     params.set('pageSize', pageSize);
     return params.toString();
   }, [
-    activityId,
-    activityStatus,
-    attemptStatus,
+    activityIds,
+    activityStatuses,
+    attemptStatuses,
     autoSubmitted,
     page,
     pageSize,
-    roundId,
+    roundIds,
     search,
     sortDir,
     sortKey,
@@ -199,62 +205,79 @@ export function AssessmentReportsPage() {
 
   const assessmentChoices = useMemo(() => {
     return (data?.options.assessments ?? []).filter((item) =>
-      activityStatus === 'any' ? true : item.activityStatus === activityStatus,
+      activityStatuses.length === 0 ? true : activityStatuses.includes(item.activityStatus),
     );
-  }, [activityStatus, data?.options.assessments]);
+  }, [activityStatuses, data?.options.assessments]);
 
   const roundChoices = useMemo(() => {
     return (data?.options.rounds ?? []).filter((round) =>
-      activityId === 'all' ? true : round.activityId === activityId,
+      activityIds.length === 0 ? true : activityIds.includes(round.activityId),
     );
-  }, [activityId, data?.options.rounds]);
+  }, [activityIds, data?.options.rounds]);
 
-  const selectedAssessment = assessmentChoices.find((item) => item.id === activityId) ?? null;
-  const selectedRound = roundChoices.find((round) => round.id === roundId) ?? null;
+  const selectedAssessment =
+    activityIds.length === 1
+      ? (assessmentChoices.find((item) => item.id === activityIds[0]) ?? null)
+      : null;
+  const selectedRound =
+    roundIds.length === 1 ? (roundChoices.find((round) => round.id === roundIds[0]) ?? null) : null;
+  const statusBlocksProgress =
+    activityStatuses.length > 0 &&
+    activityStatuses.every((status) => status === 'expired' || status === 'inactive');
   const inProgressAllowed =
-    activityStatus !== 'expired' &&
-    activityStatus !== 'inactive' &&
+    !statusBlocksProgress &&
     (selectedAssessment == null || selectedAssessment.activityStatus === 'active');
 
   useEffect(() => {
     if (!data) return;
-    if (activityId !== 'all' && !assessmentChoices.some((item) => item.id === activityId)) {
-      setActivityId('all');
-      setPage(1);
-    }
-  }, [activityId, assessmentChoices, data]);
+    const valid = new Set(assessmentChoices.map((item) => item.id));
+    setActivityIds((current) => {
+      const next = current.filter((id) => valid.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [assessmentChoices, data]);
 
   useEffect(() => {
     if (!data) return;
-    if (roundId !== 'all' && !roundChoices.some((round) => round.id === roundId)) {
-      setRoundId('all');
-      setPage(1);
-    }
-  }, [data, roundChoices, roundId]);
+    const valid = new Set(roundChoices.map((round) => round.id));
+    setRoundIds((current) => {
+      const next = current.filter((id) => valid.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [data, roundChoices]);
 
   useEffect(() => {
-    if (attemptStatus === 'in_progress' && !inProgressAllowed) {
-      setAttemptStatus('any');
+    if (attemptStatuses.includes('in_progress') && !inProgressAllowed) {
+      setAttemptStatuses((current) => current.filter((status) => status !== 'in_progress'));
       setPage(1);
     }
-  }, [attemptStatus, inProgressAllowed]);
+  }, [attemptStatuses, inProgressAllowed]);
 
-  function chooseAssessment(id: string) {
-    setActivityId(id);
+  function chooseAssessments(ids: string[]) {
+    setActivityIds(ids);
     setPage(1);
     const next = new URLSearchParams(searchParams);
-    if (id === 'all') next.delete('activityId');
-    else next.set('activityId', id);
+    next.delete('activityId');
+    if (ids.length === 1) next.set('activityId', ids[0] ?? '');
+    setSearchParams(next, { replace: true });
+  }
+
+  function chooseRounds(ids: string[]) {
+    setRoundIds(ids);
+    setPage(1);
+    const next = new URLSearchParams(searchParams);
+    next.delete('roundId');
+    if (ids.length === 1) next.set('roundId', ids[0] ?? '');
     setSearchParams(next, { replace: true });
   }
 
   function clearFilters() {
     setSearch('');
-    setActivityId('all');
-    setRoundId('all');
-    setActivityStatus('any');
-    setAttemptStatus('any');
-    setAutoSubmitted('any');
+    setActivityIds([]);
+    setRoundIds([]);
+    setActivityStatuses([]);
+    setAttemptStatuses([]);
+    setAutoSubmitted([]);
     setPage(1);
     setSearchParams({}, { replace: true });
   }
@@ -291,37 +314,27 @@ export function AssessmentReportsPage() {
   const filters: ToolbarFilter[] = [
     {
       name: 'Assessment',
-      value: assessmentChoices.some((item) => item.id === activityId) ? activityId : 'all',
-      onValueChange: chooseAssessment,
-      options: [
-        { value: 'all', label: 'All assessments' },
-        ...assessmentChoices.map((item) => ({ value: item.id, label: item.name })),
-      ],
+      values: activityIds.filter((id) => assessmentChoices.some((item) => item.id === id)),
+      onValuesChange: chooseAssessments,
+      options: assessmentChoices.map((item) => ({ value: item.id, label: item.name })),
     },
     {
       name: 'Round',
-      value: roundChoices.some((round) => round.id === roundId) ? roundId : 'all',
-      onValueChange: (value) => {
-        setRoundId(value);
-        setPage(1);
-      },
-      options: [
-        { value: 'all', label: 'All rounds' },
-        ...roundChoices.map((round) => ({
-          value: round.id,
-          label: activityId === 'all' ? `${round.assessmentName} · ${round.name}` : round.name,
-        })),
-      ],
+      values: roundIds.filter((id) => roundChoices.some((round) => round.id === id)),
+      onValuesChange: chooseRounds,
+      options: roundChoices.map((round) => ({
+        value: round.id,
+        label: activityIds.length === 1 ? round.name : `${round.assessmentName} · ${round.name}`,
+      })),
     },
     {
       name: 'Assessment status',
-      value: activityStatus,
-      onValueChange: (value) => {
-        setActivityStatus(value);
+      values: activityStatuses,
+      onValuesChange: (values) => {
+        setActivityStatuses(values);
         setPage(1);
       },
       options: [
-        { value: 'any', label: 'Any' },
         { value: 'active', label: 'Active' },
         { value: 'expired', label: 'Expired' },
         { value: 'inactive', label: 'Inactive' },
@@ -329,13 +342,12 @@ export function AssessmentReportsPage() {
     },
     {
       name: 'Attempt status',
-      value: attemptStatus === 'in_progress' && !inProgressAllowed ? 'any' : attemptStatus,
-      onValueChange: (value) => {
-        setAttemptStatus(value);
+      values: attemptStatuses.filter((status) => status !== 'in_progress' || inProgressAllowed),
+      onValuesChange: (values) => {
+        setAttemptStatuses(values);
         setPage(1);
       },
       options: [
-        { value: 'any', label: 'Any' },
         { value: 'completed', label: 'Completed' },
         ...(inProgressAllowed ? [{ value: 'in_progress', label: 'In progress' }] : []),
         { value: 'not_started', label: 'Not started' },
@@ -343,13 +355,12 @@ export function AssessmentReportsPage() {
     },
     {
       name: 'Auto-submitted',
-      value: autoSubmitted,
-      onValueChange: (value) => {
-        setAutoSubmitted(value);
+      values: autoSubmitted,
+      onValuesChange: (values) => {
+        setAutoSubmitted(values);
         setPage(1);
       },
       options: [
-        { value: 'any', label: 'Any' },
         { value: 'yes', label: 'Yes' },
         { value: 'no', label: 'No' },
       ],
@@ -396,11 +407,26 @@ export function AssessmentReportsPage() {
     selectedRound && (selectedRound.scoreRelease === 'after_publish' || blocksNext),
   );
 
-  async function onPublish() {
-    if (!selectedRound || !canPublish) return;
+  const unpublishedPool =
+    roundIds.length === 0
+      ? roundChoices
+      : roundChoices.filter((round) => roundIds.includes(round.id));
+  const unpublishedRounds = unpublishedPool.filter(
+    (round) => round.scoreRelease === 'after_publish' && !round.resultsPublishedAt,
+  );
+  const showUnpublishedList = roundIds.length !== 1 && unpublishedRounds.length > 0;
+
+  async function onPublish(round: {
+    id: string;
+    name: string;
+    scoreRelease: 'after_submit' | 'after_publish';
+    resultsPublishedAt: string | null;
+  }) {
+    if (!canPublish) return;
+    const roundHolds = round.scoreRelease === 'after_publish' && !round.resultsPublishedAt;
     const ok = await confirm({
-      title: `Publish results for ${selectedRound.name}?`,
-      description: holdsScores
+      title: `Publish results for ${round.name}?`,
+      description: roundHolds
         ? "Every student who has submitted this round will be able to see their score and result. You can't hide them again afterwards."
         : "Publishing releases held scores so students can continue to the next round. You can't hide them again afterwards.",
       confirmLabel: 'Publish results',
@@ -408,7 +434,7 @@ export function AssessmentReportsPage() {
     if (ok !== true) return;
     setPublishing(true);
     try {
-      await publishRoundResults(selectedRound.id);
+      await publishRoundResults(round.id);
       toast.success('Results published');
       await refetch();
     } catch {
@@ -425,6 +451,18 @@ export function AssessmentReportsPage() {
   return (
     <div ref={ref} className="flex flex-col gap-4">
       <PageHeaderActions>
+        {selectedRound?.scoreRelease === 'after_publish' &&
+        !selectedRound.resultsPublishedAt &&
+        canPublish ? (
+          <Button
+            type="button"
+            disabled={publishing}
+            aria-busy={publishing}
+            onClick={() => void onPublish(selectedRound)}
+          >
+            Publish results
+          </Button>
+        ) : null}
         <Button type="button" disabled={!data || isError} onClick={() => setDownloadOpen(true)}>
           <DownloadIcon data-icon="inline-start" />
           Download report
@@ -458,6 +496,39 @@ export function AssessmentReportsPage() {
             ))}
           </section>
 
+          {showUnpublishedList ? (
+            <Card>
+              <CardContent className="flex flex-col gap-3">
+                <p className="text-sm font-medium">Results not yet visible to students</p>
+                <ul className="flex flex-col">
+                  {unpublishedRounds.map((round) => (
+                    <li
+                      key={round.id}
+                      className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <span className="text-sm">
+                        {round.assessmentName}
+                        <span className="text-muted-foreground"> · {round.name}</span>
+                      </span>
+                      {canPublish ? (
+                        <Button
+                          type="button"
+                          disabled={publishing}
+                          aria-busy={publishing}
+                          onClick={() => void onPublish(round)}
+                        >
+                          Publish results
+                        </Button>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Waiting to publish</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {showPublish && selectedRound ? (
             <Alert
               className={
@@ -475,7 +546,12 @@ export function AssessmentReportsPage() {
               </AlertTitle>
               {(!selectedRound.resultsPublishedAt || blocksNext || holdsScores) && canPublish ? (
                 <AlertDescription>
-                  <Button type="button" disabled={publishing} onClick={() => void onPublish()}>
+                  <Button
+                    type="button"
+                    disabled={publishing}
+                    aria-busy={publishing}
+                    onClick={() => void onPublish(selectedRound)}
+                  >
                     Publish results
                   </Button>
                 </AlertDescription>

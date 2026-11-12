@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { enumListSchema, uuidListSchema } from '../../lib/query-list.js';
 
 export const reportSortKeySchema = z.enum([
   'code',
@@ -24,11 +25,11 @@ export const reportSortKeySchema = z.enum([
 
 export const quizReportQuerySchema = z.object({
   q: z.string().trim().max(200).optional().default(''),
-  contestId: z.string().uuid().optional(),
-  activityId: z.string().uuid().optional(),
-  quizStatus: z.enum(['any', 'active', 'expired', 'inactive']).default('any'),
-  attemptStatus: z.enum(['any', 'completed', 'in_progress', 'not_started']).default('any'),
-  autoSubmitted: z.enum(['any', 'yes', 'no']).default('any'),
+  contestId: uuidListSchema(),
+  activityId: uuidListSchema(),
+  quizStatus: enumListSchema(['active', 'expired', 'inactive'] as const),
+  attemptStatus: enumListSchema(['completed', 'in_progress', 'not_started'] as const),
+  autoSubmitted: enumListSchema(['yes', 'no'] as const),
   sort: reportSortKeySchema.default('submitted'),
   dir: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),

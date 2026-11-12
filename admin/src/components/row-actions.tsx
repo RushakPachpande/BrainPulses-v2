@@ -52,6 +52,7 @@ export function RowActions({
   resetPassword,
   activate,
   deactivate,
+  removeRegistration,
   remove,
 }: {
   view?: RowActionTarget;
@@ -60,6 +61,7 @@ export function RowActions({
   resetPassword?: { onClick: () => void };
   activate?: { onClick: () => void };
   deactivate?: { onClick: () => void };
+  removeRegistration?: { onClick: () => void };
   remove?: { label?: string; onClick: () => void };
 }) {
   return (
@@ -79,6 +81,14 @@ export function RowActions({
       ) : null}
       {deactivate ? (
         <ActionButton label="Deactivate" icon={BanIcon} target={deactivate} destructive />
+      ) : null}
+      {removeRegistration ? (
+        <ActionButton
+          label="Delete registration"
+          icon={TrashIcon}
+          target={removeRegistration}
+          destructive
+        />
       ) : null}
       {remove ? (
         <ActionButton

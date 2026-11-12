@@ -96,11 +96,11 @@ export type AssessmentSortKey =
 
 export type AssessmentQuery = {
   q: string;
-  activityId?: string;
-  roundId?: string;
-  activityStatus: 'any' | 'active' | 'expired' | 'inactive';
-  attemptStatus: 'any' | AttemptStatusLabel;
-  autoSubmitted: 'any' | 'yes' | 'no';
+  activityId: string[];
+  roundId: string[];
+  activityStatus: Array<'active' | 'expired' | 'inactive'>;
+  attemptStatus: AttemptStatusLabel[];
+  autoSubmitted: Array<'yes' | 'no'>;
   sort: AssessmentSortKey;
   dir: 'asc' | 'desc';
 };
@@ -185,12 +185,31 @@ export function filterAssessmentRows(
     if (q && !row.code.toLowerCase().includes(q) && !row.name.toLowerCase().includes(q)) {
       return false;
     }
-    if (query.activityId && row.activityId !== query.activityId) return false;
-    if (query.roundId && row.roundId !== query.roundId) return false;
-    if (query.activityStatus !== 'any' && row.activityStatus !== query.activityStatus) return false;
-    if (query.attemptStatus !== 'any' && row.attemptStatus !== query.attemptStatus) return false;
-    if (query.autoSubmitted === 'yes' && row.autoSubmitted !== true) return false;
-    if (query.autoSubmitted === 'no' && row.autoSubmitted !== false) return false;
+    if (query.activityId.length > 0 && !query.activityId.includes(row.activityId)) return false;
+    if (query.roundId.length > 0 && !query.roundId.includes(row.roundId)) return false;
+    if (
+      query.activityStatus.length > 0 &&
+      !query.activityStatus.some((status) => status === row.activityStatus)
+    ) {
+      return false;
+    }
+    if (query.attemptStatus.length > 0 && !query.attemptStatus.includes(row.attemptStatus)) {
+      return false;
+    }
+    if (
+      query.autoSubmitted.length === 1 &&
+      query.autoSubmitted[0] === 'yes' &&
+      row.autoSubmitted !== true
+    ) {
+      return false;
+    }
+    if (
+      query.autoSubmitted.length === 1 &&
+      query.autoSubmitted[0] === 'no' &&
+      row.autoSubmitted !== false
+    ) {
+      return false;
+    }
     return true;
   });
 }

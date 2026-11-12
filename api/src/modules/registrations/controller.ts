@@ -27,6 +27,16 @@ export async function assign(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function createManual(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.createManual(actor.organizationId, actor, req.body);
+    res.status(201).json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function unassign(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);

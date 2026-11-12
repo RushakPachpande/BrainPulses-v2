@@ -23,6 +23,7 @@ import { RowActions } from '@/components/row-actions';
 import { StatusBadge } from '@/components/status-badge';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { selectionMatches } from '@/lib/multi-select';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -218,8 +219,8 @@ export function UsersPage() {
     }
   }
   const [search, setSearch] = useState('');
-  const [role, setRole] = useState('All');
-  const [status, setStatus] = useState('All');
+  const [role, setRole] = useState<string[]>([]);
+  const [status, setStatus] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -247,19 +248,19 @@ export function UsersPage() {
   const filters: ToolbarFilter[] = [
     {
       name: 'Role',
-      options: ['All', 'Super Admin', 'Admin'],
-      value: role,
-      onValueChange: (value) => {
-        setRole(value);
+      options: ['Super Admin', 'Admin'],
+      values: role,
+      onValuesChange: (values) => {
+        setRole(values);
         setPage(1);
       },
     },
     {
       name: 'Status',
-      options: ['All', 'Active', 'Inactive'],
-      value: status,
-      onValueChange: (value) => {
-        setStatus(value);
+      options: ['Active', 'Inactive'],
+      values: status,
+      onValuesChange: (values) => {
+        setStatus(values);
         setPage(1);
       },
     },
@@ -268,8 +269,8 @@ export function UsersPage() {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     let rows = users.filter((user) => {
-      if (role !== 'All' && user.role !== role) return false;
-      if (status !== 'All' && user.status !== status) return false;
+      if (!selectionMatches(role, user.role)) return false;
+      if (!selectionMatches(status, user.status)) return false;
       if (!query) return true;
       return user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query);
     });
@@ -302,8 +303,8 @@ export function UsersPage() {
 
   function clearFilters() {
     setSearch('');
-    setRole('All');
-    setStatus('All');
+    setRole([]);
+    setStatus([]);
     setPage(1);
   }
 

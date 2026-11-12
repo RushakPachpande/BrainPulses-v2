@@ -19,6 +19,7 @@ import { RowActions } from '@/components/row-actions';
 import { AccountStatusPill } from '@/components/status-pill';
 import { useConfirm } from '@/components/use-confirm';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { selectionMatches } from '@/lib/multi-select';
 import { ApiError } from '@/lib/api-client';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { SaveButton } from '@/components/save-button';
@@ -92,7 +93,7 @@ export function BankFormPage({
   const [description, setDescription] = useState('');
   const [questions, setQuestions] = useState<BankQuestionItem[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [bulkAction, setBulkAction] = useState<'activate' | 'deactivate' | null>(null);
   const [savingMeta, setSavingMeta] = useState(false);
@@ -147,8 +148,9 @@ export function BankFormPage({
   const filteredQuestions = useMemo(() => {
     const q = search.trim().toLowerCase();
     return questions.filter((item) => {
-      if (statusFilter === 'Active' && !isQuestionActive(item)) return false;
-      if (statusFilter === 'Inactive' && isQuestionActive(item)) return false;
+      if (!selectionMatches(statusFilter, isQuestionActive(item) ? 'Active' : 'Inactive')) {
+        return false;
+      }
       if (!q) return true;
       return (
         item.question.toLowerCase().includes(q) ||
@@ -168,9 +170,9 @@ export function BankFormPage({
   const questionFilters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['All', 'Active', 'Inactive'],
-      value: statusFilter,
-      onValueChange: setStatusFilter,
+      options: ['Active', 'Inactive'],
+      values: statusFilter,
+      onValuesChange: setStatusFilter,
     },
   ];
 

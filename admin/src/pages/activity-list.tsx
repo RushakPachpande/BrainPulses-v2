@@ -19,6 +19,7 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { RowActions } from '@/components/row-actions';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { selectionMatches } from '@/lib/multi-select';
 import { useConfirm } from '@/components/use-confirm';
 import {
   ALL_DATE_RANGE,
@@ -157,7 +158,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     },
   ];
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('All');
+  const [status, setStatus] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
@@ -167,10 +168,10 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const filters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['All', 'Active', 'Scheduled', 'Expired', 'Draft', 'Completed', 'Archived'],
-      value: status,
-      onValueChange: (value) => {
-        setStatus(value);
+      options: ['Active', 'Scheduled', 'Expired', 'Draft', 'Completed', 'Archived'],
+      values: status,
+      onValuesChange: (values) => {
+        setStatus(values);
         setPage(1);
       },
     },
@@ -179,7 +180,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     let rows = activities.filter((item) => {
-      if (status !== 'All' && item.status !== status) return false;
+      if (!selectionMatches(status, item.status)) return false;
       if (!isDateInRange(parseFixtureDate(item.start), dateRange)) return false;
       if (!query) return true;
       return item.name.toLowerCase().includes(query) || item.subtitle.toLowerCase().includes(query);
@@ -213,7 +214,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
 
   function clearFilters() {
     setSearch('');
-    setStatus('All');
+    setStatus([]);
     setDateRange(ALL_DATE_RANGE);
     setPage(1);
   }

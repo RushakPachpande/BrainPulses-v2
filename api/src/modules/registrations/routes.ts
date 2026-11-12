@@ -7,7 +7,12 @@ import {
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
-import { assignSchema, registrationListQuerySchema, unassignSchema } from './schema.js';
+import {
+  assignSchema,
+  manualRegistrationSchema,
+  registrationListQuerySchema,
+  unassignSchema,
+} from './schema.js';
 
 export const registrationsRouter = Router();
 
@@ -24,6 +29,12 @@ registrationsRouter.post(
   requireOrgAccess('edit'),
   validate({ body: assignSchema }),
   controller.assign,
+);
+registrationsRouter.post(
+  '/manual',
+  requireOrgAccess('edit'),
+  validate({ body: manualRegistrationSchema }),
+  controller.createManual,
 );
 registrationsRouter.post(
   '/unassign',

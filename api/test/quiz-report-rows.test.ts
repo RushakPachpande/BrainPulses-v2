@@ -144,9 +144,11 @@ describe('quiz report rows', () => {
     assert.equal(summary.passRate, 50);
     const filtered = filterReportRows([passed, failed, fresh], {
       q: 'bea',
-      quizStatus: 'any',
-      attemptStatus: 'any',
-      autoSubmitted: 'any',
+      contestId: [],
+      activityId: [],
+      quizStatus: [],
+      attemptStatus: [],
+      autoSubmitted: [],
       sort: 'submitted',
       dir: 'desc',
     });

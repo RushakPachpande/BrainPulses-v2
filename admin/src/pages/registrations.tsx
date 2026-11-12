@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -7,7 +7,9 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
+  PlusIcon,
   RotateCcwIcon,
+  UserPlusIcon,
   UserIcon,
   UsersIcon,
 } from 'lucide-react';
@@ -17,6 +19,7 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { RowActions } from '@/components/row-actions';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { selectionMatches } from '@/lib/multi-select';
 import { useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/auth-context';
+import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
@@ -36,7 +40,8 @@ import { ApiError } from '@/lib/api-client';
 import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { deleteAttempt, getRegistrations, type ActivityKind } from '@/services';
+import { deleteAttempt, deleteParticipant, getRegistrations, type ActivityKind } from '@/services';
+import { AddRegistrationDialog } from '@/pages/add-registration-dialog';
 import {
   assessmentNames,
   quizNames,
@@ -133,6 +138,30 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   });
   const rows = data ?? EMPTY_ROWS;
 
+  const [addOpen, setAddOpen] = useState(false);
+  const assignPath = isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new';
+
+  async function onDeleteRegistration(row: Registration) {
+    const password = await confirm({
+      title: `Delete ${row.name}'s registration?`,
+      description:
+        'Removes this person, their attempts and scores, and every activity they are on. The live registration link can sign them up again as a new Registration ID. This cannot be undone.',
+      confirmLabel: 'Delete registration',
+      destructive: true,
+      requirePassword: true,
+    });
+    if (!password) return;
+    try {
+      await deleteParticipant(row.participantId, password);
+      toast.success('Registration deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete registration.');
+    }
+  }
+
   async function onDeleteAttempt(row: Registration) {
     if (!row.attemptId) return;
     const inProgress = row.attempt === 'In Progress';
@@ -156,11 +185,11 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     }
   }
   const [search, setSearch] = useState('');
-  const [activity, setActivity] = useState('All');
-  const [city, setCity] = useState('All');
-  const [course, setCourse] = useState('All');
-  const [assignment, setAssignment] = useState('All');
-  const [attempt, setAttempt] = useState('All');
+  const [activity, setActivity] = useState<string[]>([]);
+  const [city, setCity] = useState<string[]>([]);
+  const [course, setCourse] = useState<string[]>([]);
+  const [assignment, setAssignment] = useState<string[]>([]);
+  const [attempt, setAttempt] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -212,46 +241,46 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const filters: ToolbarFilter[] = [
     {
       name: activityLabel,
-      options: ['All', ...activityOptions],
-      value: activity,
-      onValueChange: (value) => {
-        setActivity(value);
+      options: activityOptions,
+      values: activity,
+      onValuesChange: (values) => {
+        setActivity(values);
         setPage(1);
       },
     },
     {
       name: 'City',
-      options: ['All', ...participantCities],
-      value: city,
-      onValueChange: (value) => {
-        setCity(value);
+      options: participantCities,
+      values: city,
+      onValuesChange: (values) => {
+        setCity(values);
         setPage(1);
       },
     },
     {
       name: 'Course',
-      options: ['All', ...participantCourses],
-      value: course,
-      onValueChange: (value) => {
-        setCourse(value);
+      options: participantCourses,
+      values: course,
+      onValuesChange: (values) => {
+        setCourse(values);
         setPage(1);
       },
     },
     {
       name: 'Assignment Status',
-      options: ['All', 'Assigned', 'Pending'],
-      value: assignment,
-      onValueChange: (value) => {
-        setAssignment(value);
+      options: ['Assigned', 'Pending'],
+      values: assignment,
+      onValuesChange: (values) => {
+        setAssignment(values);
         setPage(1);
       },
     },
     {
       name: attemptLabel,
-      options: ['All', 'Completed', 'In Progress', 'Not Started'],
-      value: attempt,
-      onValueChange: (value) => {
-        setAttempt(value);
+      options: ['Completed', 'In Progress', 'Not Started'],
+      values: attempt,
+      onValuesChange: (values) => {
+        setAttempt(values);
         setPage(1);
       },
     },
@@ -260,11 +289,11 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     let next = rows.filter((row) => {
-      if (activity !== 'All' && row.activity !== activity) return false;
-      if (city !== 'All' && row.city !== city) return false;
-      if (course !== 'All' && row.course !== course) return false;
-      if (assignment !== 'All' && row.assignment !== assignment) return false;
-      if (attempt !== 'All' && row.attempt !== attempt) return false;
+      if (!selectionMatches(activity, row.activity)) return false;
+      if (!selectionMatches(city, row.city)) return false;
+      if (!selectionMatches(course, row.course)) return false;
+      if (!selectionMatches(assignment, row.assignment)) return false;
+      if (!selectionMatches(attempt, row.attempt)) return false;
       if (!query) return true;
       return (
         row.id.toLowerCase().includes(query) ||
@@ -301,11 +330,11 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
 
   function clearFilters() {
     setSearch('');
-    setActivity('All');
-    setCity('All');
-    setCourse('All');
-    setAssignment('All');
-    setAttempt('All');
+    setActivity([]);
+    setCity([]);
+    setCourse([]);
+    setAssignment([]);
+    setAttempt([]);
     setPage(1);
   }
 
@@ -326,13 +355,42 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
+        {canEdit ? (
+          <PageHeaderActions>
+            <Button type="button" variant="outline" asChild className="w-full sm:w-auto">
+              <Link to={assignPath}>
+                <UserPlusIcon data-icon="inline-start" />
+                Assign participants
+              </Link>
+            </Button>
+            <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
+              <PlusIcon data-icon="inline-start" />
+              Add registration
+            </Button>
+          </PageHeaderActions>
+        ) : null}
         <ListPageSkeleton columns={8} />
+        {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
       </div>
     );
   }
 
   return (
     <div ref={ref} className="flex flex-col gap-4">
+      {canEdit ? (
+        <PageHeaderActions>
+          <Button type="button" variant="outline" asChild className="w-full sm:w-auto">
+            <Link to={assignPath}>
+              <UserPlusIcon data-icon="inline-start" />
+              Assign participants
+            </Link>
+          </Button>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
+            <PlusIcon data-icon="inline-start" />
+            Add registration
+          </Button>
+        </PageHeaderActions>
+      ) : null}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
@@ -423,6 +481,15 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                       }
                     : undefined
                 }
+                removeRegistration={
+                  canFull
+                    ? {
+                        onClick: () => {
+                          void onDeleteRegistration(row);
+                        },
+                      }
+                    : undefined
+                }
                 remove={
                   canFull && row.attemptId
                     ? {
@@ -504,6 +571,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
           </div>
         </CardContent>
       </Card>
+      {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
     </div>
   );
 }

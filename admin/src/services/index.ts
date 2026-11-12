@@ -671,11 +671,11 @@ export async function updateParticipant(
   },
 ) {
   if (useFixtures) {
-    invalidateAdmin(['participants', 'dashboard']);
+    invalidateAdmin(['participants', 'registrations', 'dashboard']);
     return { id, ...payload };
   }
   const data = await apiPatchData(`/api/participants/${id}`, payload);
-  invalidateAdmin(['participants', 'dashboard']);
+  invalidateAdmin(['participants', 'registrations', 'dashboard']);
   return data;
 }
 
@@ -863,14 +863,14 @@ export async function downloadParticipantsSample(): Promise<void> {
 
 export async function deleteParticipant(participantId: string, password: string) {
   if (useFixtures) {
-    invalidateAdmin(['participants', 'dashboard']);
+    invalidateAdmin(['participants', 'registrations', 'results', 'dashboard']);
     return { deleted: true as const, email: '' };
   }
   const body = await apiRequest<{ data: { deleted: true; email: string } }>(
     `/api/participants/${participantId}`,
     { method: 'DELETE', body: JSON.stringify({ password }) },
   );
-  invalidateAdmin(['participants', 'dashboard']);
+  invalidateAdmin(['participants', 'registrations', 'results', 'dashboard']);
   return body.data;
 }
 
@@ -1188,6 +1188,33 @@ export async function exportBankQuestions(bankId: string, format: 'xlsx' = 'xlsx
     `brainpulses-question-export.${format}`,
     { blocking: true, timeoutMs: 120_000 },
   );
+}
+
+export async function createManualRegistration(payload: {
+  activityId: string;
+  name: string;
+  email: string;
+  phone?: string;
+  course?: string;
+  city?: string;
+}) {
+  if (useFixtures) {
+    invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
+    return {
+      participantId: crypto.randomUUID(),
+      code: 'BP00000000',
+      name: payload.name,
+      activity: '',
+    };
+  }
+  const data = await apiPostData<{
+    participantId: string;
+    code: string;
+    name: string;
+    activity: string;
+  }>('/api/registrations/manual', payload, idempotencyHeaders());
+  invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
+  return data;
 }
 
 export async function assignRegistrations(activityId: string, participantIds: string[]) {

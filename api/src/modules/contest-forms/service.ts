@@ -1,8 +1,9 @@
-import { randomBytes, randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { FlowStatus } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
+import { nextRegistrationId } from '../../lib/registration-id.js';
 import { readInlineImage } from '../files/service.js';
 import type { SaveFormInput } from './schema.js';
 import {
@@ -586,15 +587,6 @@ function formatWhen(date: Date) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
-}
-
-async function nextRegistrationId() {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const code = `BP${String(randomInt(0, 100_000_000)).padStart(8, '0')}`;
-    const taken = await prisma.participant.findFirst({ where: { code }, select: { id: true } });
-    if (!taken) return code;
-  }
-  throw conflict('Could not create a Registration ID. Try again.');
 }
 
 export async function register(slug: string, answers: Record<string, AnswerValue>) {
