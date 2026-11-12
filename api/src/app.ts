@@ -1,37 +1,30 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import express from 'express';
+import express, { type RequestHandler, type Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { RedisStore } from 'rate-limit-redis';
 import { env } from './config/env.js';
 import { createCorsOriginDelegate } from './lib/cors-origin.js';
 import { getRedis, isRedisReady } from './lib/redis.js';
-import { prisma } from './lib/prisma.js';
 
 import { errorHandler } from './middleware/error-handler.js';
 import { requestId } from './middleware/request-id.js';
 import { requestTimeout } from './middleware/request-timeout.js';
-import { activitiesRouter } from './modules/activities/routes.js';
-import { adminAttemptsRouter } from './modules/attempts/admin-routes.js';
-import { attemptsRouter } from './modules/attempts/routes.js';
-import { auditRouter } from './modules/audit/routes.js';
-import { authRouter } from './modules/auth/routes.js';
-import { banksRouter } from './modules/banks/routes.js';
-import { dashboardRouter } from './modules/dashboard/routes.js';
-import { contestsRouter } from './modules/contests/routes.js';
-import { contestFormsRouter, publicContestFormsRouter } from './modules/contest-forms/routes.js';
-import { filesRouter } from './modules/files/routes.js';
-import { sponsorsRouter } from './modules/sponsors/routes.js';
-import { registrationsRouter } from './modules/registrations/routes.js';
-import { assessmentReportsRouter } from './modules/assessment-reports/routes.js';
-import { quizReportsRouter } from './modules/quiz-reports/routes.js';
-import { resultsRouter } from './modules/results/routes.js';
-import { settingsRouter } from './modules/settings/routes.js';
-import { participantPortalRouter } from './modules/participant-portal/routes.js';
-import { participantsRouter } from './modules/participants/routes.js';
-import { usersRouter } from './modules/users/routes.js';
-import { jobsRouter } from './modules/jobs/routes.js';
+
+/** Load a router on the first request and reuse it after that. */
+function lazyRouter(load: () => Promise<Router>): RequestHandler {
+  let router: Router | undefined;
+  let loading: Promise<Router> | undefined;
+  return (req, res, next) => {
+    if (router) return router(req, res, next);
+    const pending = (loading ??= load().then((loaded) => {
+      router = loaded;
+      return loaded;
+    }));
+    return pending.then((loaded) => loaded(req, res, next));
+  };
+}
 
 export function createApp() {
   const app = express();
@@ -133,6 +126,7 @@ export function createApp() {
 
   app.get('/health/ready', async (_req, res) => {
     try {
+      const { prisma } = await import('./lib/prisma.js');
       await prisma.$queryRaw`SELECT 1`;
       if (!isRedisReady()) {
         res.status(503).json({ ok: false, postgres: true, redis: false });
@@ -154,27 +148,101 @@ export function createApp() {
     }
     next();
   });
-  app.use('/api/auth', authLimiter, authRouter);
-  app.use('/api/public/contest-forms', publicContestFormsRouter);
-  app.use('/api/participant', participantPortalRouter);
-  app.use('/api/participants', participantsRouter);
-  app.use('/api/sponsors', sponsorsRouter);
-  app.use('/api/contests', contestsRouter);
-  app.use('/api/contest-forms', contestFormsRouter);
-  app.use('/api/users', usersRouter);
-  app.use('/api/activities', activitiesRouter);
-  app.use('/api/banks', banksRouter);
-  app.use('/api/registrations', registrationsRouter);
-  app.use('/api/attempts', attemptsRouter);
-  app.use('/api/admin/attempts', adminAttemptsRouter);
-  app.use('/api/results', resultsRouter);
-  app.use('/api/quiz-reports', quizReportsRouter);
-  app.use('/api/assessment-reports', assessmentReportsRouter);
-  app.use('/api/dashboard', dashboardRouter);
-  app.use('/api/settings', settingsRouter);
-  app.use('/api/audit', auditRouter);
-  app.use('/api/files', filesRouter);
-  app.use('/api/jobs', jobsRouter);
+  app.use(
+    '/api/auth',
+    authLimiter,
+    lazyRouter(() => import('./modules/auth/routes.js').then((m) => m.authRouter)),
+  );
+  app.use(
+    '/api/public/contest-forms',
+    lazyRouter(() =>
+      import('./modules/contest-forms/routes.js').then((m) => m.publicContestFormsRouter),
+    ),
+  );
+  app.use(
+    '/api/participant',
+    lazyRouter(() =>
+      import('./modules/participant-portal/routes.js').then((m) => m.participantPortalRouter),
+    ),
+  );
+  app.use(
+    '/api/participants',
+    lazyRouter(() => import('./modules/participants/routes.js').then((m) => m.participantsRouter)),
+  );
+  app.use(
+    '/api/sponsors',
+    lazyRouter(() => import('./modules/sponsors/routes.js').then((m) => m.sponsorsRouter)),
+  );
+  app.use(
+    '/api/contests',
+    lazyRouter(() => import('./modules/contests/routes.js').then((m) => m.contestsRouter)),
+  );
+  app.use(
+    '/api/contest-forms',
+    lazyRouter(() => import('./modules/contest-forms/routes.js').then((m) => m.contestFormsRouter)),
+  );
+  app.use(
+    '/api/users',
+    lazyRouter(() => import('./modules/users/routes.js').then((m) => m.usersRouter)),
+  );
+  app.use(
+    '/api/activities',
+    lazyRouter(() => import('./modules/activities/routes.js').then((m) => m.activitiesRouter)),
+  );
+  app.use(
+    '/api/banks',
+    lazyRouter(() => import('./modules/banks/routes.js').then((m) => m.banksRouter)),
+  );
+  app.use(
+    '/api/registrations',
+    lazyRouter(() =>
+      import('./modules/registrations/routes.js').then((m) => m.registrationsRouter),
+    ),
+  );
+  app.use(
+    '/api/attempts',
+    lazyRouter(() => import('./modules/attempts/routes.js').then((m) => m.attemptsRouter)),
+  );
+  app.use(
+    '/api/admin/attempts',
+    lazyRouter(() =>
+      import('./modules/attempts/admin-routes.js').then((m) => m.adminAttemptsRouter),
+    ),
+  );
+  app.use(
+    '/api/results',
+    lazyRouter(() => import('./modules/results/routes.js').then((m) => m.resultsRouter)),
+  );
+  app.use(
+    '/api/quiz-reports',
+    lazyRouter(() => import('./modules/quiz-reports/routes.js').then((m) => m.quizReportsRouter)),
+  );
+  app.use(
+    '/api/assessment-reports',
+    lazyRouter(() =>
+      import('./modules/assessment-reports/routes.js').then((m) => m.assessmentReportsRouter),
+    ),
+  );
+  app.use(
+    '/api/dashboard',
+    lazyRouter(() => import('./modules/dashboard/routes.js').then((m) => m.dashboardRouter)),
+  );
+  app.use(
+    '/api/settings',
+    lazyRouter(() => import('./modules/settings/routes.js').then((m) => m.settingsRouter)),
+  );
+  app.use(
+    '/api/audit',
+    lazyRouter(() => import('./modules/audit/routes.js').then((m) => m.auditRouter)),
+  );
+  app.use(
+    '/api/files',
+    lazyRouter(() => import('./modules/files/routes.js').then((m) => m.filesRouter)),
+  );
+  app.use(
+    '/api/jobs',
+    lazyRouter(() => import('./modules/jobs/routes.js').then((m) => m.jobsRouter)),
+  );
 
   app.use(errorHandler);
   return app;

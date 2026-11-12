@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import { writeAudit } from '../../lib/audit.js';
 import { badRequest, notFound, unprocessable } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
@@ -193,7 +192,8 @@ function sampleRows(): Record<AssessmentImportHeader, string>[] {
 }
 
 export async function buildAssessmentSampleWorkbook(): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const instructions = workbook.addWorksheet('Instructions');
   instructions.addRow(['BrainPulses assessment question import']);
   instructions.addRow([]);
@@ -298,8 +298,8 @@ function autoMapping(rawHeaders: string[]): ColumnMapping {
 async function readWorkbookRows(
   buffer: Buffer,
 ): Promise<{ headers: string[]; dataRows: string[][] }> {
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+  const { loadWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await loadWorkbook(buffer);
   const sheet =
     workbook.getWorksheet('Questions') ??
     workbook.worksheets.find((s) => s.name.toLowerCase().includes('question')) ??
@@ -357,18 +357,18 @@ function validateMappedRows(
       });
       continue;
     }
+    const { round: _round, ...bankFields } = row;
+    void _round;
+    const bankRow = { ...bankFields, sheetRow: row.sheetRow } as Record<
+      BankImportHeader,
+      string
+    > & {
+      sheetRow: number;
+    };
+    for (const h of BANK_IMPORT_HEADERS) {
+      if (bankRow[h] === undefined) bankRow[h] = '';
+    }
     try {
-      const { round: _round, ...bankFields } = row;
-      void _round;
-      const bankRow = { ...bankFields, sheetRow: row.sheetRow } as Record<
-        BankImportHeader,
-        string
-      > & {
-        sheetRow: number;
-      };
-      for (const h of BANK_IMPORT_HEADERS) {
-        if (bankRow[h] === undefined) bankRow[h] = '';
-      }
       rowToCreatePayload(bankRow, 'assessment');
       valid.push(row);
     } catch (err) {

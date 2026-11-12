@@ -101,6 +101,13 @@ export default defineConfig(({ command, mode }) => {
       'import.meta.env.QA_UPLOAD_IMAGE_SIZE_CAPPING': JSON.stringify(
         String(qaUploadImageSizeCapping),
       ),
+      // envDir is false, so Vite does not expose .env.dev to the page unless it is defined here.
+      'import.meta.env.VITE_PARTICIPANT_ORIGIN': JSON.stringify(
+        fileEnv.VITE_PARTICIPANT_ORIGIN ?? '',
+      ),
+      'import.meta.env.VITE_PARTICIPANT_DEV_PORT': JSON.stringify(
+        fileEnv.VITE_PARTICIPANT_DEV_PORT ?? '',
+      ),
     },
     resolve: {
       alias: {

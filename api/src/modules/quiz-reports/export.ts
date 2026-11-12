@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import {
   AUTO_SUBMIT_REASON_LABEL,
   formatDuration,
@@ -128,7 +127,8 @@ export async function buildReportWorkbook(
   rows: ReportRow[],
   columns: ReportSortKey[],
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const sheet = workbook.addWorksheet('Results');
   const defs = columns.map((key) => REPORT_COLUMNS.find((column) => column.key === key)!);
   sheet.addRow(defs.map((column) => column.label));

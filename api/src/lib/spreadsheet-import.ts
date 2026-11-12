@@ -1,11 +1,12 @@
-import ExcelJS from 'exceljs';
+import type { CellValue, Row, Workbook, Worksheet } from 'exceljs';
 import { unprocessable } from './errors.js';
+import { loadWorkbook } from './excel-workbook.js';
+import { xlsxOnlyRejectedMessage } from './xlsx-file.js';
 
 /** Data rows per file. One past this is rejected; this exact count is accepted. */
 export const MAX_IMPORT_ROWS = 1000;
 /** Header scan is inclusive: row 20 can be the header, row 21 cannot. */
 export const HEADER_SCAN_LIMIT = 20;
-export const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
 
 export type ImportIssueParts = {
   sheetRow: number;
@@ -56,12 +57,6 @@ export function summarizeImportFailure(issueCount: number, noun = 'issue'): stri
   const n = Math.max(0, issueCount);
   const label = n === 1 ? noun : `${noun}s`;
   return `Import blocked: ${n} ${label} found. Fix the rows listed below, then upload again. Download Sample Excel if you need the correct column layout.`;
-}
-
-export function xlsxOnlyRejectedMessage(originalName?: string): string {
-  const name = originalName?.trim();
-  const fileBit = name ? ` “${name}”` : '';
-  return `File${fileBit} is not a supported spreadsheet. Upload an Excel (.xlsx) file only. Download Sample Excel for the correct template.`;
 }
 
 function headerList(keys: string[], labels?: Partial<Record<string, string>>): string {
@@ -126,7 +121,7 @@ export function readImportedText(value: string): string {
   return trimmed;
 }
 
-export function cellText(value: ExcelJS.CellValue): string {
+export function cellText(value: CellValue): string {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return readImportedText(String(value));
@@ -175,7 +170,7 @@ function buildAliasMap<T extends string>(
   return map;
 }
 
-export function excelRowCells(row: ExcelJS.Row): string[] {
+export function excelRowCells(row: Row): string[] {
   const cells: string[] = [];
   row.eachCell((cell, col) => {
     cells[col - 1] = cellText(cell.value);
@@ -183,7 +178,7 @@ export function excelRowCells(row: ExcelJS.Row): string[] {
   return cells.map((cell) => cell ?? '');
 }
 
-function sheetPreview(sheet: ExcelJS.Worksheet): string[][] {
+function sheetPreview(sheet: Worksheet): string[][] {
   const last = Math.min(Math.max(sheet.rowCount, 1), HEADER_SCAN_LIMIT);
   const rows: string[][] = [];
   for (let rowNumber = 1; rowNumber <= last; rowNumber += 1) {
@@ -278,10 +273,7 @@ function findHeader<T extends string>(
   return best;
 }
 
-function sheetHeaderScore<T extends string>(
-  sheet: ExcelJS.Worksheet,
-  aliasMap: Map<string, T>,
-): number {
+function sheetHeaderScore<T extends string>(sheet: Worksheet, aliasMap: Map<string, T>): number {
   let best = 0;
   for (const row of sheetPreview(sheet)) {
     const candidate = mapHeaderRow(row, aliasMap, 0);
@@ -291,17 +283,17 @@ function sheetHeaderScore<T extends string>(
 }
 
 function pickWorksheet<T extends string>(
-  workbook: ExcelJS.Workbook,
+  workbook: Workbook,
   preferredName: string | undefined,
   aliasMap: Map<string, T>,
   required: readonly T[],
-): ExcelJS.Worksheet {
+): Worksheet {
   if (preferredName) {
     const named = workbook.getWorksheet(preferredName);
     if (named && sheetHeaderScore(named, aliasMap) === required.length) return named;
   }
 
-  let bestSheet: ExcelJS.Worksheet | null = null;
+  let bestSheet: Worksheet | null = null;
   let bestScore = 0;
   for (const sheet of workbook.worksheets) {
     const score = sheetHeaderScore(sheet, aliasMap);
@@ -365,9 +357,9 @@ export async function parseXlsxWorkbook<T extends string>(
     throw unprocessable(xlsxOnlyRejectedMessage(filename));
   }
 
-  const workbook = new ExcelJS.Workbook();
+  let workbook: Workbook;
   try {
-    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    workbook = await loadWorkbook(buffer);
   } catch {
     throw unprocessable(
       `Excel file “${filename}” could not be parsed. Upload a valid .xlsx file. Download Sample Excel for the correct template.`,
@@ -396,8 +388,4 @@ export async function parseXlsxWorkbook<T extends string>(
     ignoredColumns: header.ignored,
     headerRow: header.index + 1,
   };
-}
-
-export function isXlsxFilename(name: string): boolean {
-  return /\.xlsx$/i.test(name) && !/\.xlsx\./i.test(name);
 }

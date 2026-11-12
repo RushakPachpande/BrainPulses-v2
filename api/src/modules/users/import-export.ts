@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import { sanitizeCsvCell } from '../../lib/csv.js';
 import {
   formatImportIssue,
@@ -75,7 +74,8 @@ function sampleRows(): Record<UserImportHeader, string>[] {
 }
 
 export async function buildUserSampleWorkbook(): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const instructions = workbook.addWorksheet('Instructions');
   instructions.addRow(['BrainPulses admin user import']);
   instructions.addRow([]);

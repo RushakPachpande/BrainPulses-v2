@@ -3,7 +3,6 @@ import { env } from '../../config/env.js';
 import { AppError } from '../errors.js';
 import { isRedisReady } from '../redis.js';
 import { bullmqConnection } from './connection.js';
-import { processJobPayload } from './processors.js';
 import {
   QUEUE_NAME,
   type JobName,
@@ -102,6 +101,7 @@ async function runInlineJob(
         ? payload.actor.userId
         : null;
   try {
+    const { processJobPayload } = await import('./processors.js');
     const result = await processJobPayload(payload, jobId);
     inlineJobs.set(jobId, {
       name,

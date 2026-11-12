@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import { AUTO_SUBMIT_REASON_LABEL, formatDuration, formatMarks } from '../quiz-reports/rows.js';
 import type { AssessmentReportRow, AssessmentSortKey } from './rows.js';
 
@@ -132,7 +131,8 @@ export async function buildAssessmentWorkbook(
   rows: AssessmentReportRow[],
   columns: AssessmentSortKey[],
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const sheet = workbook.addWorksheet('Results');
   const defs = columns.map((key) => ASSESSMENT_COLUMNS.find((column) => column.key === key)!);
   sheet.addRow(defs.map((column) => column.label));

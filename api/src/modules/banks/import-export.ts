@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { stringify } from 'csv-stringify/sync';
-import ExcelJS from 'exceljs';
+import type { Worksheet } from 'exceljs';
 import type { z } from 'zod';
 import { sanitizeCsvCell } from '../../lib/csv.js';
 import {
@@ -782,7 +782,7 @@ function sampleDataRows(kind: BankKind = 'assessment'): Record<BankImportHeader,
 }
 
 function fillSheetFromRows(
-  sheet: ExcelJS.Worksheet,
+  sheet: Worksheet,
   rows: Record<BankImportHeader, string>[],
   headers: readonly BankImportHeader[] = BANK_IMPORT_HEADERS,
 ) {
@@ -797,7 +797,8 @@ function fillSheetFromRows(
 }
 
 export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const instructions = workbook.addWorksheet('Instructions');
   const headers = headersForKind(kind);
   instructions.addRow([
@@ -923,7 +924,8 @@ export async function buildExportWorkbook(
   questions: ExportableQuestion[],
   kind: BankKind = 'assessment',
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const sheet = workbook.addWorksheet('Questions');
   const headers = headersForKind(kind);
   fillSheetFromRows(

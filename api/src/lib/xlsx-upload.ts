@@ -1,6 +1,6 @@
 import multer from 'multer';
 import { badRequest } from './errors.js';
-import { IMPORT_MAX_BYTES, isXlsxFilename, xlsxOnlyRejectedMessage } from './spreadsheet-import.js';
+import { IMPORT_MAX_BYTES, isXlsxFilename, xlsxOnlyRejectedMessage } from './xlsx-file.js';
 
 /** Multipart field `file` — Excel (.xlsx) only, 10 MB max. */
 export const xlsxImportUpload = multer({

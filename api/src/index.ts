@@ -1,8 +1,6 @@
 import 'temporal-polyfill/full/global';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
-import { disconnectPrisma } from './lib/prisma.js';
-import { closeJobQueue } from './lib/queue/queues.js';
 import { closeRedis, initRedis, isRedisReady } from './lib/redis.js';
 
 async function main() {
@@ -19,18 +17,34 @@ async function main() {
   // Slightly above requestTimeout so incomplete headers are not cut mid-body.
   server.headersTimeout = env.REQUEST_TIMEOUT_MS + 5_000;
 
-  const shutdown = async (signal: string) => {
-    console.log(`[api] ${signal} received, shutting down`);
-    server.close(async () => {
-      await closeJobQueue().catch(() => undefined);
-      await closeRedis();
-      await disconnectPrisma();
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) {
       process.exit(0);
+      return;
+    }
+    shuttingDown = true;
+    console.log(`[api] ${signal} received, shutting down`);
+    // Nodemon waits until this process exits. Cleanup must not be able to hold the port.
+    const forceExit = setTimeout(() => process.exit(0), 1_000);
+    server.close(() => {
+      void (async () => {
+        try {
+          const { closeJobQueue } = await import('./lib/queue/queues.js');
+          const { disconnectPrisma } = await import('./lib/prisma.js');
+          await closeJobQueue().catch(() => undefined);
+          await closeRedis();
+          await disconnectPrisma();
+        } finally {
+          clearTimeout(forceExit);
+          process.exit(0);
+        }
+      })();
     });
   };
 
-  process.on('SIGINT', () => void shutdown('SIGINT'));
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 main().catch((err) => {
