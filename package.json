@@ -85,6 +85,6 @@
     "tailwindcss:upgrade:participant": "npm run tailwindcss:upgrade --prefix participant"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6"
+    "concurrently": "^10.0.7"
   }
 }
