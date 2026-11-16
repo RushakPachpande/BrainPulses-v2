@@ -45,7 +45,7 @@ Internet
 
 1. DNS A/AAAA for `server`, `admin`, and `participant.brainpulses.com` → this VPS (must resolve before certbot).
 2. Clone the repo to `/root/apps/BrainPulses_v2.0`.
-3. Have Twilio credentials and a Let's Encrypt contact email ready.
+3. Have a Let's Encrypt contact email ready. Twilio credentials are only needed when phone login should be on.
 
 ### Run
 
@@ -53,6 +53,7 @@ Internet
 cd /root/apps/BrainPulses_v2.0
 
 export CERTBOT_EMAIL=you@example.com
+# Optional. Omit these to leave phone login off (TWILIO_ENABLED=false).
 export TWILIO_ACCOUNT_SID=ACxxxxxxxx
 export TWILIO_AUTH_TOKEN=xxxxxxxx
 export TWILIO_FROM_NUMBER=+1xxxxxxxxxx
@@ -64,7 +65,7 @@ sudo -E bash setup.sh
 
 1. Install Node 22, Docker, nginx, certbot, rsync, pm2; open ufw for SSH / 80 / 443 (tcp+udp).
 2. Create root `.env` with generated Postgres/Redis passwords (if missing).
-3. Create `api/.env.prod` from the example; inject DB/Redis URLs and a generated `JWT_SECRET`; apply Twilio from the environment. **Exits** if Twilio placeholders remain.
+3. Create `api/.env.prod` from the example; inject DB/Redis URLs and a generated `JWT_SECRET`. Leaves `TWILIO_ENABLED=false` unless real Twilio values are exported. **Exits** only when `TWILIO_ENABLED=true` and placeholders remain.
 4. Copy SPA `.env.prod` examples when missing.
 5. `docker compose up -d` (db+redis only) and wait until healthy.
 6. `npm ci` + `prisma migrate deploy` (no seed) + API build + PM2 `startOrReload` of `api/ecosystem.config.cjs` (API **and** BullMQ worker) with `--env production` + `pm2 save` / startup.

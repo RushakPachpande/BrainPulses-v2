@@ -13,14 +13,15 @@ Clone: `/root/apps/BrainPulses_v2.0`. Detail: [`docs/ops/DEPLOY.md`](docs/ops/DE
 
 - DNS for the three hosts → this VPS
 - Root shell
-- Twilio SID, token, from-number
 - Let's Encrypt email
+- Twilio SID, token, and from-number only if phone login should be on (`TWILIO_ENABLED=true`)
 
 ## First setup
 
 ```bash
 cd /root/apps/BrainPulses_v2.0
 export CERTBOT_EMAIL=you@example.com
+# Optional. Omit these to leave phone login off (TWILIO_ENABLED=false).
 export TWILIO_ACCOUNT_SID=…
 export TWILIO_AUTH_TOKEN=…
 export TWILIO_FROM_NUMBER=…

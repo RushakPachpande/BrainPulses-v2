@@ -6,6 +6,7 @@
 #   - Run as root from the cloned repo (or any cwd; script finds its root)
 #
 #   export CERTBOT_EMAIL=you@example.com
+#   # Optional phone login. Omit these to leave TWILIO_ENABLED=false.
 #   export TWILIO_ACCOUNT_SID=… TWILIO_AUTH_TOKEN=… TWILIO_FROM_NUMBER=…
 #   sudo -E bash setup.sh
 #
@@ -141,24 +142,32 @@ bootstrap_env() {
   if [[ -n "${TWILIO_FROM_NUMBER:-}" ]]; then
     set_env_kv api/.env.prod TWILIO_FROM_NUMBER "$TWILIO_FROM_NUMBER"
   fi
-  set_env_kv api/.env.prod TWILIO_ENABLED true
   set_env_kv api/.env.prod NODE_ENV production
   set_env_kv api/.env.prod HOST 127.0.0.1
   set_env_kv api/.env.prod TRUST_PROXY 1
   set_env_kv api/.env.prod COOKIE_SECURE true
 
-  local sid token from
+  local sid token from enabled twilio_ready
   sid="$(get_env_kv api/.env.prod TWILIO_ACCOUNT_SID || true)"
   token="$(get_env_kv api/.env.prod TWILIO_AUTH_TOKEN || true)"
   from="$(get_env_kv api/.env.prod TWILIO_FROM_NUMBER || true)"
-  if [[ -z "$sid" || "$sid" == "replace-me" || -z "$token" || "$token" == "replace-me" || -z "$from" || "$from" == "+1xxxxxxxxxx" ]]; then
-    die "Twilio placeholders remain in api/.env.prod.
+  enabled="$(get_env_kv api/.env.prod TWILIO_ENABLED || true)"
+  twilio_ready=false
+  if [[ -n "$sid" && "$sid" != "replace-me" && -n "$token" && "$token" != "replace-me" && -n "$from" && "$from" != "+1xxxxxxxxxx" ]]; then
+    twilio_ready=true
+  fi
+  if [[ "$twilio_ready" == true && -n "${TWILIO_ACCOUNT_SID:-}${TWILIO_AUTH_TOKEN:-}${TWILIO_FROM_NUMBER:-}" ]]; then
+    set_env_kv api/.env.prod TWILIO_ENABLED true
+  elif [[ "$twilio_ready" != true && "$enabled" == "true" ]]; then
+    die "TWILIO_ENABLED=true but Twilio placeholders remain in api/.env.prod.
 Export real values and re-run:
   export TWILIO_ACCOUNT_SID=…
   export TWILIO_AUTH_TOKEN=…
   export TWILIO_FROM_NUMBER=…
   sudo -E bash setup.sh
-Or edit api/.env.prod directly."
+Or set TWILIO_ENABLED=false to keep registration-ID login only."
+  elif [[ "$enabled" != "true" ]]; then
+    set_env_kv api/.env.prod TWILIO_ENABLED false
   fi
 
   if [[ ! -f admin/.env.prod ]]; then

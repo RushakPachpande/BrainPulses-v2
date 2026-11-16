@@ -96,20 +96,15 @@ const envSchema = z
         message: 'COOKIE_SECURE must be true in production.',
       });
     }
-    if (!data.TWILIO_ENABLED) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['TWILIO_ENABLED'],
-        message: 'TWILIO_ENABLED must be true in production.',
-      });
-    }
-    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
-      if (!data[key]) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [key],
-          message: `${key} is required in production.`,
-        });
+    if (data.TWILIO_ENABLED) {
+      for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
+        if (!data[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required in production when TWILIO_ENABLED=true.`,
+          });
+        }
       }
     }
   });
