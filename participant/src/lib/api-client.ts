@@ -99,6 +99,12 @@ function apiBaseUrl(): string {
   return raw.replace(/\/$/, '');
 }
 
+/** Absolute API URL for browser assets (`<img src>`) that cannot use the fetch client. */
+export function apiUrl(path: string): string {
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  return `${apiBaseUrl()}${normalized}`;
+}
+
 async function parseApiError(res: Response): Promise<ApiError> {
   try {
     const body = (await res.json()) as {

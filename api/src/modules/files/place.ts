@@ -3,6 +3,7 @@ import path from 'node:path';
 import { env } from '../../config/env.js';
 import { prisma } from '../../lib/prisma.js';
 import {
+  absoluteStoragePath,
   fileIdsInAnswerKey,
   fileIdsInText,
   moveUploadFile,
@@ -22,8 +23,8 @@ export async function placeOwnedImage(
   if (!file) return 'missing';
 
   const root = path.resolve(env.UPLOAD_DIR);
-  const previousPath = file.storagePath;
-  const moved = await moveUploadFile(root, previousPath, organizationId, dest);
+  const previousStored = file.storagePath;
+  const moved = await moveUploadFile(root, previousStored, organizationId, dest);
   if (moved.status !== 'moved') return moved.status;
 
   try {
@@ -32,7 +33,10 @@ export async function placeOwnedImage(
       data: { storagePath: moved.storagePath },
     });
   } catch (err) {
-    await rename(moved.storagePath, previousPath).catch(() => undefined);
+    await rename(
+      absoluteStoragePath(root, moved.storagePath),
+      absoluteStoragePath(root, previousStored),
+    ).catch(() => undefined);
     throw err;
   }
   return 'moved';

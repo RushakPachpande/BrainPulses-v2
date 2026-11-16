@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select';
-import { ApiError, apiGetData, apiPostData } from '../lib/api-client';
+import { ApiError, apiGetData, apiPostData, apiUrl } from '../lib/api-client';
 import '../styles/register.css';
 
 type PublicField = {
@@ -288,7 +288,10 @@ function Intro({ form, slug }: { form: PublicFormBody; slug: string }) {
     <section className="intro" aria-labelledby="contest-name">
       {form.contestImage ? (
         <figure className="cover">
-          <img src={`/api/public/contest-forms/${encodeURIComponent(slug)}/image/contest`} alt="" />
+          <img
+            src={apiUrl(`/api/public/contest-forms/${encodeURIComponent(slug)}/image/contest`)}
+            alt=""
+          />
         </figure>
       ) : null}
       {sponsor ? (

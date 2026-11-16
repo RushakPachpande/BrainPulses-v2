@@ -7,10 +7,11 @@ import bcrypt from 'bcryptjs';
 import { Pool } from 'pg';
 import { PrismaClient, type ActivityKind, type FlowStatus } from '#prisma';
 import {
+  absoluteStoragePath,
   destinationRelative,
   pendingRelative,
-  relativeFromRoot,
   resolveUnderRoot,
+  toDbStoragePath,
   type ImageDestination,
 } from '../src/modules/files/paths.js';
 
@@ -88,13 +89,11 @@ async function seedImage(input: {
   fileName: string;
   rgb: [number, number, number];
 }) {
-  const storagePath = resolveUnderRoot(
-    uploadRoot,
-    pendingRelative(input.organizationId, input.fileName),
-  );
-  await mkdir(path.dirname(storagePath), { recursive: true });
+  const relativeKey = pendingRelative(input.organizationId, input.fileName);
+  const absolutePath = resolveUnderRoot(uploadRoot, relativeKey);
+  await mkdir(path.dirname(absolutePath), { recursive: true });
   const bytes = solidPng(64, input.rgb);
-  await writeFile(storagePath, bytes);
+  await writeFile(absolutePath, bytes);
   return prisma.fileObject.create({
     data: {
       organizationId: input.organizationId,
@@ -102,7 +101,7 @@ async function seedImage(input: {
       originalName: input.fileName,
       mimeType: 'image/png',
       sizeBytes: bytes.length,
-      storagePath,
+      storagePath: toDbStoragePath(relativeKey),
       finalizedAt: new Date(),
     },
   });
@@ -114,17 +113,18 @@ async function placeSeedImage(
   storagePath: string,
   dest: ImageDestination,
 ) {
-  const relative = relativeFromRoot(uploadRoot, storagePath);
-  const fileName = relative?.split('/').pop();
+  const currentPath = absoluteStoragePath(uploadRoot, storagePath);
+  const fileName = currentPath.split(/[/\\]/).pop();
   if (!fileName) return;
-  const nextPath = resolveUnderRoot(
-    uploadRoot,
-    destinationRelative(organizationId, fileName, dest),
-  );
-  if (path.resolve(nextPath) === path.resolve(storagePath)) return;
+  const nextRelative = destinationRelative(organizationId, fileName, dest);
+  const nextPath = resolveUnderRoot(uploadRoot, nextRelative);
+  if (path.resolve(nextPath) === path.resolve(currentPath)) return;
   await mkdir(path.dirname(nextPath), { recursive: true });
-  await rename(storagePath, nextPath);
-  await prisma.fileObject.update({ where: { id: fileId }, data: { storagePath: nextPath } });
+  await rename(currentPath, nextPath);
+  await prisma.fileObject.update({
+    where: { id: fileId },
+    data: { storagePath: toDbStoragePath(nextRelative) },
+  });
 }
 
 const quizBehaviourSettings = {
@@ -160,7 +160,11 @@ async function wipeOrganizationContent(organizationId: string) {
     select: { id: true, storagePath: true },
   });
   for (const file of files) {
-    await unlink(file.storagePath).catch(() => undefined);
+    try {
+      await unlink(absoluteStoragePath(uploadRoot, file.storagePath));
+    } catch {
+      // ignore missing or unreadable legacy paths
+    }
   }
   if (files.length > 0) {
     await prisma.fileObject.deleteMany({
