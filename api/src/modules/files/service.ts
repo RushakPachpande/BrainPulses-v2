@@ -6,7 +6,20 @@ import { pipeline } from 'node:stream/promises';
 import { Transform, type Readable } from 'node:stream';
 import { env } from '../../config/env.js';
 import { badRequest, forbidden, notFound } from '../../lib/errors.js';
-import { resolveUnderRoot, storageRelativeForInitiate } from './paths.js';
+import {
+  absoluteStoragePath,
+  resolveUnderRoot,
+  storageRelativeForInitiate,
+  toDbStoragePath,
+} from './paths.js';
+
+function uploadRoot() {
+  return path.resolve(env.UPLOAD_DIR);
+}
+
+function diskPath(stored: string) {
+  return absoluteStoragePath(uploadRoot(), stored);
+}
 import { buildPage, listEnvelope, prismaCursorArgs, type ListQuery } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
 import { getRedis } from '../../lib/redis.js';
@@ -88,11 +101,9 @@ export async function initiateUpload(
   assertAllowedFile(input.originalName, input.mimeType);
 
   const storageName = `${randomUUID()}${path.extname(input.originalName).toLowerCase()}`;
-  const storagePath = resolveUnderRoot(
-    env.UPLOAD_DIR,
-    storageRelativeForInitiate(organizationId, storageName, input.purpose),
-  );
-  await mkdir(path.dirname(storagePath), { recursive: true });
+  const relativeKey = storageRelativeForInitiate(organizationId, storageName, input.purpose);
+  const absolutePath = resolveUnderRoot(uploadRoot(), relativeKey);
+  await mkdir(path.dirname(absolutePath), { recursive: true });
 
   const file = await prisma.fileObject.create({
     data: {
@@ -101,7 +112,7 @@ export async function initiateUpload(
       originalName: input.originalName,
       mimeType: input.mimeType,
       sizeBytes: input.sizeBytes,
-      storagePath,
+      storagePath: toDbStoragePath(relativeKey),
     },
   });
 
@@ -123,20 +134,21 @@ export async function finalizeUpload(
   if (!file) throw notFound('File not found.');
   if (file.finalizedAt) throw badRequest('File already finalized.');
 
+  const absolutePath = diskPath(file.storagePath);
   try {
-    await pipeline(stream, byteLimitTransform(file.sizeBytes), createWriteStream(file.storagePath));
+    await pipeline(stream, byteLimitTransform(file.sizeBytes), createWriteStream(absolutePath));
   } catch (err) {
     try {
-      await unlink(file.storagePath);
+      await unlink(absolutePath);
     } catch {
       // ignore
     }
     throw err;
   }
 
-  const info = await stat(file.storagePath);
+  const info = await stat(absolutePath);
   if (info.size > file.sizeBytes) {
-    await unlink(file.storagePath).catch(() => undefined);
+    await unlink(absolutePath).catch(() => undefined);
     throw badRequest('Upload exceeds declared size.');
   }
 
@@ -212,7 +224,7 @@ export async function downloadWithToken(token: string) {
   });
   if (!file) throw notFound('File not found.');
 
-  const buffer = await readFile(file.storagePath);
+  const buffer = await readFile(diskPath(file.storagePath));
   return { file, buffer };
 }
 
@@ -280,7 +292,7 @@ export async function readInlineImage(organizationId: string, fileId: string) {
   if (!file.mimeType.startsWith('image/')) {
     throw badRequest('Only images can be shown inline.');
   }
-  const buffer = await readFile(file.storagePath);
+  const buffer = await readFile(diskPath(file.storagePath));
   return { file, buffer };
 }
 
@@ -290,7 +302,7 @@ export async function deletePendingFile(organizationId: string, fileId: string) 
   });
   if (!file) return;
   try {
-    await unlink(file.storagePath);
+    await unlink(diskPath(file.storagePath));
   } catch {
     // ignore missing file
   }

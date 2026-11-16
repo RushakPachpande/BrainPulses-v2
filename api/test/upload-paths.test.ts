@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import {
+  absoluteStoragePath,
   assignOwners,
   destinationKey,
   moveUploadFile,
@@ -11,6 +12,7 @@ import {
   recordSlug,
   relocationTarget,
   storageRelativeForInitiate,
+  toDbStoragePath,
   type ImageDestination,
 } from '../src/modules/files/paths.js';
 
@@ -43,6 +45,20 @@ describe('upload paths', () => {
     assert.equal(storageRelativeForInitiate(ORG, 'notes.pdf'), `${ORG}/notes.pdf`);
   });
 
+  it('stores portable /uploads paths and resolves them under UPLOAD_DIR', () => {
+    const key = `${ORG}/pending/${FILE}`;
+    assert.equal(toDbStoragePath(key), `/uploads/${key}`);
+    const root = path.join(os.tmpdir(), 'bp-resolve-root');
+    assert.equal(
+      absoluteStoragePath(root, `/uploads/${key}`),
+      path.resolve(root, ORG, 'pending', FILE),
+    );
+    assert.equal(
+      absoluteStoragePath(root, `D:/Code/BrainPulses v2.0/api/uploads/${key}`),
+      path.resolve(root, ORG, 'pending', FILE),
+    );
+  });
+
   it('moves a single-owner file out of the flat organization folder', async () => {
     const root = await tempRoot();
     const legacy = path.join(root, ORG, FILE);
@@ -58,11 +74,8 @@ describe('upload paths', () => {
     assert.ok(target);
     const moved = await moveUploadFile(root, legacy, ORG, target);
     assert.equal(moved.status, 'moved');
-    assert.equal(await readFile(moved.storagePath, 'utf8'), 'img');
-    assert.equal(
-      path.relative(root, moved.storagePath).split(path.sep).join('/'),
-      `${ORG}/sponsors/nextgen-6499/${FILE}`,
-    );
+    assert.equal(moved.storagePath, `/uploads/${ORG}/sponsors/nextgen-6499/${FILE}`);
+    assert.equal(await readFile(absoluteStoragePath(root, moved.storagePath), 'utf8'), 'img');
     const again = await moveUploadFile(root, moved.storagePath, ORG, target);
     assert.equal(again.status, 'left');
   });

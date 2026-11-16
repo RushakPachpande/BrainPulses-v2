@@ -181,14 +181,25 @@ function isLocalHost(hostname: string) {
   return a === 172 && b >= 16 && b <= 31;
 }
 
+/** admin.example.com → https://participant.example.com (used when VITE_PARTICIPANT_ORIGIN is unset). */
+export function participantOriginFromAdminHost(hostname: string, protocol: string): string | null {
+  if (!hostname.startsWith('admin.')) return null;
+  return `${protocol}//participant.${hostname.slice('admin.'.length)}`;
+}
+
 export function registrationUrl(slug: string) {
   const configured = import.meta.env.VITE_PARTICIPANT_ORIGIN?.trim().replace(/\/$/, '');
   if (configured) return `${configured}/register/${slug}`;
-  if (typeof window !== 'undefined' && isLocalHost(window.location.hostname)) {
-    const url = new URL(window.location.origin);
-    const participantPort = import.meta.env.VITE_PARTICIPANT_DEV_PORT?.trim() || '5174';
-    url.port = participantPort;
-    return `${url.origin}/register/${slug}`;
+  if (typeof window !== 'undefined') {
+    const { hostname, protocol, origin } = window.location;
+    if (isLocalHost(hostname)) {
+      const url = new URL(origin);
+      const participantPort = import.meta.env.VITE_PARTICIPANT_DEV_PORT?.trim() || '5174';
+      url.port = participantPort;
+      return `${url.origin}/register/${slug}`;
+    }
+    const sibling = participantOriginFromAdminHost(hostname, protocol);
+    if (sibling) return `${sibling}/register/${slug}`;
   }
   return `/register/${slug}`;
 }

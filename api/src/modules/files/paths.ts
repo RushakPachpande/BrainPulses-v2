@@ -167,6 +167,48 @@ export function relativeFromRoot(root: string, absolutePath: string): string | n
   return relative.split(path.sep).join('/');
 }
 
+/** Portable DB prefix. Disk files still live under `UPLOAD_DIR` (usually `api/uploads`). */
+export const UPLOADS_DB_PREFIX = '/uploads';
+
+/** Normalize a key under the uploads root to `/uploads/...` (forward slashes only). */
+export function toDbStoragePath(relativeKey: string): string {
+  const key = relativeKey
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/^uploads\//i, '');
+  if (!key || key.includes('..')) {
+    throw new Error('Invalid storage key');
+  }
+  return `${UPLOADS_DB_PREFIX}/${key}`;
+}
+
+/**
+ * Extract the key under `UPLOAD_DIR` from a DB value or legacy absolute path.
+ * Accepts `/uploads/...`, `uploads/...`, bare `org/...`, or `.../uploads/...` absolutes.
+ */
+export function relativeKeyFromStored(stored: string): string | null {
+  const normalized = stored.replace(/\\/g, '/');
+  const afterUploads = normalized.match(/(?:^|\/)uploads\/(.+)$/i);
+  if (afterUploads?.[1]) {
+    const key = afterUploads[1].replace(/^\/+/, '');
+    return key.includes('..') ? null : key;
+  }
+  if (/^[a-zA-Z]:\//.test(normalized) || normalized.startsWith('/')) {
+    return null;
+  }
+  const key = normalized.replace(/^\/+/, '');
+  return !key || key.includes('..') ? null : key;
+}
+
+/** Resolve a DB `storage_path` (portable or legacy absolute) to an absolute disk path. */
+export function absoluteStoragePath(root: string, stored: string): string {
+  const key = relativeKeyFromStored(stored);
+  if (key) return resolveUnderRoot(root, key);
+  const relative = relativeFromRoot(root, stored);
+  if (relative) return resolveUnderRoot(root, relative);
+  throw new Error('Invalid storage path');
+}
+
 /** Pending uploads and the old flat `{org}/{file}` layout can still move. */
 export function isRelocatableKey(relativeKey: string, organizationId: string): boolean {
   const org = sanitizeSegment(organizationId, 'org');
@@ -229,28 +271,37 @@ export function relocationTarget<T>(decision: T | 'ambiguous' | undefined): T | 
 
 export async function moveUploadFile(
   root: string,
-  currentAbsolute: string,
+  currentStored: string,
   organizationId: string,
   dest: ImageDestination,
 ): Promise<{ status: 'moved' | 'left' | 'missing'; storagePath: string }> {
-  const relative = relativeFromRoot(root, currentAbsolute);
+  let currentPath: string;
+  try {
+    currentPath = absoluteStoragePath(root, currentStored);
+  } catch {
+    return { status: 'missing', storagePath: currentStored };
+  }
+  const relative = relativeFromRoot(root, currentPath);
   if (!relative || !isRelocatableKey(relative, organizationId)) {
-    return { status: 'left', storagePath: path.resolve(currentAbsolute) };
+    if (relative) return { status: 'left', storagePath: toDbStoragePath(relative) };
+    const key = relativeKeyFromStored(currentStored);
+    return { status: 'left', storagePath: key ? toDbStoragePath(key) : currentStored };
   }
   const fileName = relative.split('/').pop();
-  if (!fileName) return { status: 'left', storagePath: path.resolve(currentAbsolute) };
+  if (!fileName) {
+    return { status: 'left', storagePath: toDbStoragePath(relative) };
+  }
   const nextRelative = destinationRelative(organizationId, fileName, dest);
   if (nextRelative === relative) {
-    return { status: 'left', storagePath: resolveUnderRoot(root, relative) };
+    return { status: 'left', storagePath: toDbStoragePath(relative) };
   }
-  const currentPath = resolveUnderRoot(root, relative);
   const nextPath = resolveUnderRoot(root, nextRelative);
   try {
     await stat(currentPath);
   } catch {
-    return { status: 'missing', storagePath: currentPath };
+    return { status: 'missing', storagePath: toDbStoragePath(relative) };
   }
   await mkdir(path.dirname(nextPath), { recursive: true });
   await rename(currentPath, nextPath);
-  return { status: 'moved', storagePath: nextPath };
+  return { status: 'moved', storagePath: toDbStoragePath(nextRelative) };
 }
