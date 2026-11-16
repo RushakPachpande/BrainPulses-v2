@@ -1,22 +1,9 @@
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router';
 import { PageLoader } from '../components/loading-overlay';
-import { useParticipantPages } from '../hooks/use-participant-pages';
-import {
-  DEFAULT_PARTICIPANT_PAGES,
-  firstEnabledParticipantPath,
-  participantPageForPath,
-} from '../lib/participant-pages';
+import { useAllotment } from '../hooks/use-allotment';
+import { allotmentAllowsPath, allotmentLandingPath } from '../lib/allotment';
 import { ParticipantShell } from './participant-shell';
-
-function PagesUnavailable() {
-  return (
-    <div className="empty-state" role="status">
-      <b>No participant pages are available right now</b>
-      <span>An administrator can turn pages back on from settings.</span>
-    </div>
-  );
-}
 
 export function ParticipantPageGuard({
   children,
@@ -26,12 +13,11 @@ export function ParticipantPageGuard({
   shell?: boolean;
 }) {
   const location = useLocation();
-  const pagesQuery = useParticipantPages();
-  const pages = pagesQuery.data ?? (pagesQuery.isError ? DEFAULT_PARTICIPANT_PAGES : null);
+  const allotment = useAllotment();
 
-  if (!pages) {
+  if (allotment.pending) {
     return shell ? (
-      <ParticipantShell pages={null}>
+      <ParticipantShell>
         <PageLoader />
       </ParticipantShell>
     ) : (
@@ -39,31 +25,16 @@ export function ParticipantPageGuard({
     );
   }
 
-  const dest = firstEnabledParticipantPath(pages);
-  if (!dest) {
-    return shell ? (
-      <ParticipantShell pages={pages}>
-        <PagesUnavailable />
-      </ParticipantShell>
-    ) : (
-      <PagesUnavailable />
-    );
-  }
-
-  const page = participantPageForPath(location.pathname);
-  if (page && !pages[page]) {
-    return <Navigate to={dest} replace />;
+  if (!allotmentAllowsPath(location.pathname, allotment)) {
+    return <Navigate to={allotmentLandingPath(allotment)} replace />;
   }
 
   if (!shell) return children;
-  return <ParticipantShell pages={pages}>{children}</ParticipantShell>;
+  return <ParticipantShell>{children}</ParticipantShell>;
 }
 
 export function EnabledHome() {
-  const pagesQuery = useParticipantPages();
-  const pages = pagesQuery.data ?? (pagesQuery.isError ? DEFAULT_PARTICIPANT_PAGES : null);
-  if (!pages) return <PageLoader />;
-  const dest = firstEnabledParticipantPath(pages);
-  if (!dest) return <PagesUnavailable />;
-  return <Navigate to={dest} replace />;
+  const allotment = useAllotment();
+  if (allotment.pending) return <PageLoader />;
+  return <Navigate to={allotmentLandingPath(allotment)} replace />;
 }

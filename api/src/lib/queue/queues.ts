@@ -3,7 +3,6 @@ import { env } from '../../config/env.js';
 import { AppError } from '../errors.js';
 import { isRedisReady } from '../redis.js';
 import { bullmqConnection } from './connection.js';
-import { processJobPayload } from './processors.js';
 import {
   QUEUE_NAME,
   type JobName,
@@ -62,9 +61,8 @@ export function useInlineQueue(): boolean {
 }
 
 async function assertCapacity(q: Queue<JobPayload, JobResult, JobName>) {
-  const counts = await q.getJobCounts('waiting', 'delayed', 'active', 'paused');
-  const depth =
-    (counts.waiting ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0) + (counts.paused ?? 0);
+  const counts = await q.getJobCounts('waiting', 'delayed', 'active');
+  const depth = (counts.waiting ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0);
   if (depth >= env.QUEUE_MAX_WAITING) {
     throw new AppError(
       503,
@@ -84,49 +82,59 @@ export type EnqueuedJob = {
  * Enqueue a job (or run inline in test/inline mode).
  * SMS failures are swallowed by the caller; other jobs surface AppError.
  */
+async function runInlineJob(
+  name: JobName,
+  payload: JobPayload,
+  jobId: string,
+): Promise<EnqueuedJob> {
+  const organizationId =
+    'organizationId' in payload && typeof payload.organizationId === 'string'
+      ? payload.organizationId
+      : null;
+  const userId =
+    'userId' in payload && typeof payload.userId === 'string'
+      ? payload.userId
+      : 'actor' in payload &&
+          payload.actor &&
+          'userId' in payload.actor &&
+          typeof payload.actor.userId === 'string'
+        ? payload.actor.userId
+        : null;
+  try {
+    const { processJobPayload } = await import('./processors.js');
+    const result = await processJobPayload(payload, jobId);
+    inlineJobs.set(jobId, {
+      name,
+      status: 'completed',
+      result,
+      error: null,
+      organizationId,
+      userId,
+    });
+    return { jobId, status: 'completed', result };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Job failed.';
+    inlineJobs.set(jobId, {
+      name,
+      status: 'failed',
+      result: null,
+      error: message,
+      organizationId,
+      userId,
+    });
+    throw err;
+  }
+}
+
 export async function enqueueJob(
   name: JobName,
   payload: JobPayload,
-  opts?: { jobId?: string; priority?: number },
+  opts?: { jobId?: string; priority?: number; forceInline?: boolean },
 ): Promise<EnqueuedJob> {
-  if (useInlineQueue()) {
-    const jobId = opts?.jobId ?? `inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const organizationId =
-      'organizationId' in payload && typeof payload.organizationId === 'string'
-        ? payload.organizationId
-        : null;
-    const userId =
-      'userId' in payload && typeof payload.userId === 'string'
-        ? payload.userId
-        : 'actor' in payload &&
-            payload.actor &&
-            'userId' in payload.actor &&
-            typeof payload.actor.userId === 'string'
-          ? payload.actor.userId
-          : null;
-    try {
-      const result = await processJobPayload(payload, jobId);
-      inlineJobs.set(jobId, {
-        name,
-        status: 'completed',
-        result,
-        error: null,
-        organizationId,
-        userId,
-      });
-      return { jobId, status: 'completed', result };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Job failed.';
-      inlineJobs.set(jobId, {
-        name,
-        status: 'failed',
-        result: null,
-        error: message,
-        organizationId,
-        userId,
-      });
-      throw err;
-    }
+  const jobId = opts?.jobId ?? `inline-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  // Report downloads complete in-process so admin does not depend on a separate worker.
+  if (useInlineQueue() || opts?.forceInline) {
+    return runInlineJob(name, payload, jobId);
   }
 
   if (!isRedisReady()) {
@@ -183,20 +191,9 @@ export async function getJobSnapshot(jobId: string): Promise<{
   organizationId: string | null;
   userId: string | null;
 }> {
-  if (useInlineQueue()) {
-    const saved = inlineJobs.get(jobId);
-    if (!saved) {
-      return {
-        jobId,
-        name: undefined,
-        status: 'unknown',
-        progress: 0,
-        result: null,
-        error: 'Job not found.',
-        organizationId: null,
-        userId: null,
-      };
-    }
+  // forceInline jobs are stored here even when Redis/BullMQ is otherwise enabled.
+  const saved = inlineJobs.get(jobId);
+  if (saved) {
     return {
       jobId,
       name: saved.name,
@@ -206,6 +203,19 @@ export async function getJobSnapshot(jobId: string): Promise<{
       error: saved.error,
       organizationId: saved.organizationId,
       userId: saved.userId,
+    };
+  }
+
+  if (useInlineQueue()) {
+    return {
+      jobId,
+      name: undefined,
+      status: 'unknown',
+      progress: 0,
+      result: null,
+      error: 'Job not found.',
+      organizationId: null,
+      userId: null,
     };
   }
 

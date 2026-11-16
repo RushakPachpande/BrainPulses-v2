@@ -34,7 +34,7 @@ const phonePartsObject = z.object({
   organizationSlug: z.string().min(1).optional(),
 });
 
-function refinePhoneParts<T extends z.ZodTypeAny>(schema: T) {
+function refinePhoneParts<T extends z.ZodType>(schema: T) {
   return schema.superRefine((data, ctx) => {
     const body = data as z.infer<typeof phonePartsObject>;
     if (!isValidNationalMobile(body.countryCode, body.mobileNumber)) {

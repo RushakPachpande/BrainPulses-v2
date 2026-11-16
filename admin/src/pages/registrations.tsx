@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -7,7 +7,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
-  DownloadIcon,
   PlusIcon,
   RotateCcwIcon,
   UserIcon,
@@ -19,7 +18,8 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { RowActions } from '@/components/row-actions';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
-import { useConfirm } from '@/components/use-confirm';
+import { selectionMatches } from '@/lib/multi-select';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -39,19 +39,23 @@ import { ApiError } from '@/lib/api-client';
 import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { deleteAttempt, getRegistrations, type ActivityKind } from '@/services';
 import {
-  assessmentNames,
-  quizNames,
-  participantCities,
-  participantCourses,
-} from '@/services/fixtures';
+  deleteAttempt,
+  deleteParticipant,
+  getActivities,
+  getRegistrations,
+  type ActivityKind,
+} from '@/services';
+import { AddRegistrationDialog } from '@/pages/add-registration-dialog';
 import type { RegistrationRow as Registration } from '@/services/types';
 
 const EMPTY_ROWS: Registration[] = [];
 
 type SortKey =
-  'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'bank' | 'assignment' | 'attempt';
+  'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'assignment' | 'attempt';
+
+const ASSIGNMENT_OPTIONS = ['Assigned', 'Pending'];
+const ATTEMPT_OPTIONS = ['Completed', 'In Progress', 'Not Started'];
 
 function compareRows(a: Registration, b: Registration, key: SortKey) {
   return String(a[key]).localeCompare(String(b[key]), undefined, { numeric: true });
@@ -64,7 +68,6 @@ const registrationPlacement: Record<SortKey, RecordColumn<Registration>['placeme
   phone: 'wide',
   registered: 'details',
   activity: 'primary',
-  bank: 'details',
   assignment: 'primary',
   attempt: 'status',
 };
@@ -83,8 +86,6 @@ function renderRegistrationCell(key: SortKey, row: Registration) {
       return row.registered;
     case 'activity':
       return row.activity;
-    case 'bank':
-      return row.bank;
     case 'assignment':
       return <AssignmentStatusPill value={row.assignment} />;
     case 'attempt':
@@ -104,7 +105,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
   const attemptLabel = isQuiz ? 'Attempt Status' : 'Participant Status';
-  const activityOptions = isQuiz ? quizNames : assessmentNames;
   const acrossLabel = isQuiz ? 'Across all quizzes' : 'Across all assessments';
 
   const sortColumns: { key: SortKey; label: string }[] = [
@@ -114,7 +114,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'phone', label: 'Phone' },
     { key: 'registered', label: 'Registration Date' },
     { key: 'activity', label: activityLabel },
-    { key: 'bank', label: 'Assigned Question Bank' },
     { key: 'assignment', label: 'Assignment Status' },
     { key: 'attempt', label: attemptLabel },
   ];
@@ -134,19 +133,47 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     queryFn: () => getRegistrations(kind),
     enabled: Boolean(orgId),
   });
+  const { data: activityList } = useQuery({
+    queryKey: adminQueryKeys.activities(orgId, kind),
+    queryFn: () => getActivities(kind),
+    enabled: Boolean(orgId),
+  });
   const rows = data ?? EMPTY_ROWS;
+
+  const [addOpen, setAddOpen] = useState(false);
+
+  async function onDeleteRegistration(row: Registration) {
+    const password = await confirmSensitiveDelete(confirm, {
+      title: `Delete ${row.name}'s registration?`,
+      description: 'Permanently removes this participant. This cannot be undone.',
+      details: [
+        'Their registrations, attempts, scores, and reports are deleted.',
+        'They are removed from every quiz, assessment, and contest form they are on.',
+        'The live registration link can sign them up again as a new Registration ID.',
+      ],
+      confirmLabel: 'Delete registration',
+    });
+    if (!password) return;
+    try {
+      await deleteParticipant(row.participantId, password);
+      toast.success('Registration deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete registration.');
+    }
+  }
 
   async function onDeleteAttempt(row: Registration) {
     if (!row.attemptId) return;
     const inProgress = row.attempt === 'In Progress';
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
       description: inProgress
         ? 'Removes the open attempt so the participant can start again as if they never began. This cannot be undone.'
-        : "Removes the participant's attempt and score. They can start again as if they never attempted.",
+        : "Removes the participant's attempt and score. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete attempt',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
@@ -159,11 +186,9 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     }
   }
   const [search, setSearch] = useState('');
-  const [activity, setActivity] = useState('All');
-  const [city, setCity] = useState('All');
-  const [course, setCourse] = useState('All');
-  const [assignment, setAssignment] = useState('All');
-  const [attempt, setAttempt] = useState('All');
+  const [activity, setActivity] = useState<string[]>([]);
+  const [assignment, setAssignment] = useState<string[]>([]);
+  const [attempt, setAttempt] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
@@ -179,12 +204,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
       {
         label: 'Total Registrations',
         value: String(total),
-        detail: (
-          <>
-            <span className="text-success">↑ 12%</span>
-            <span className="text-muted-foreground"> · {acrossLabel}</span>
-          </>
-        ),
+        detail: <span className="text-muted-foreground">{acrossLabel}</span>,
         icon: UsersIcon,
         tone: 'bg-chart-2/15 text-chart-2',
       },
@@ -212,49 +232,39 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     ] as const;
   }, [rows, acrossLabel]);
 
+  const activityOptions = useMemo(
+    () =>
+      [...new Set((activityList ?? []).map((item) => item.name.trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [activityList],
+  );
+
   const filters: ToolbarFilter[] = [
     {
       name: activityLabel,
-      options: ['All', ...activityOptions],
-      value: activity,
-      onValueChange: (value) => {
-        setActivity(value);
-        setPage(1);
-      },
-    },
-    {
-      name: 'City',
-      options: ['All', ...participantCities],
-      value: city,
-      onValueChange: (value) => {
-        setCity(value);
-        setPage(1);
-      },
-    },
-    {
-      name: 'Course',
-      options: ['All', ...participantCourses],
-      value: course,
-      onValueChange: (value) => {
-        setCourse(value);
+      options: activityOptions,
+      values: activity,
+      onValuesChange: (values) => {
+        setActivity(values);
         setPage(1);
       },
     },
     {
       name: 'Assignment Status',
-      options: ['All', 'Assigned', 'Pending'],
-      value: assignment,
-      onValueChange: (value) => {
-        setAssignment(value);
+      options: ASSIGNMENT_OPTIONS,
+      values: assignment,
+      onValuesChange: (values) => {
+        setAssignment(values);
         setPage(1);
       },
     },
     {
       name: attemptLabel,
-      options: ['All', 'Completed', 'In Progress', 'Not Started'],
-      value: attempt,
-      onValueChange: (value) => {
-        setAttempt(value);
+      options: ATTEMPT_OPTIONS,
+      values: attempt,
+      onValuesChange: (values) => {
+        setAttempt(values);
         setPage(1);
       },
     },
@@ -263,11 +273,9 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     let next = rows.filter((row) => {
-      if (activity !== 'All' && row.activity !== activity) return false;
-      if (city !== 'All' && row.city !== city) return false;
-      if (course !== 'All' && row.course !== course) return false;
-      if (assignment !== 'All' && row.assignment !== assignment) return false;
-      if (attempt !== 'All' && row.attempt !== attempt) return false;
+      if (!selectionMatches(activity, row.activity)) return false;
+      if (!selectionMatches(assignment, row.assignment)) return false;
+      if (!selectionMatches(attempt, row.attempt)) return false;
       if (!query) return true;
       return (
         row.id.toLowerCase().includes(query) ||
@@ -284,7 +292,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     }
 
     return next;
-  }, [rows, search, activity, city, course, assignment, attempt, sortKey, sortDir]);
+  }, [rows, search, activity, assignment, attempt, sortKey, sortDir]);
 
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
@@ -304,11 +312,9 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
 
   function clearFilters() {
     setSearch('');
-    setActivity('All');
-    setCity('All');
-    setCourse('All');
-    setAssignment('All');
-    setAttempt('All');
+    setActivity([]);
+    setAssignment([]);
+    setAttempt([]);
     setPage(1);
   }
 
@@ -329,42 +335,30 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeaderActions>
-          <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-            <DownloadIcon data-icon="inline-start" />
-            Download Filtered Data
-          </Button>
-          {canEdit ? (
-            <Button asChild className="w-full sm:w-auto">
-              <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
-                <PlusIcon data-icon="inline-start" />
-                Add Registration
-              </Link>
+        {canEdit ? (
+          <PageHeaderActions>
+            <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
+              <PlusIcon data-icon="inline-start" />
+              Add registration
             </Button>
-          ) : null}
-        </PageHeaderActions>
-        <ListPageSkeleton columns={8} />
+          </PageHeaderActions>
+        ) : null}
+        <ListPageSkeleton columns={7} />
+        {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
       </div>
     );
   }
 
   return (
     <div ref={ref} className="flex flex-col gap-4">
-      <PageHeaderActions>
-        <Button type="button" variant="outline" className="w-full sm:w-auto" disabled>
-          <DownloadIcon data-icon="inline-start" />
-          Download Filtered Data
-        </Button>
-        {canEdit ? (
-          <Button asChild className="w-full sm:w-auto">
-            <Link to={isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new'}>
-              <PlusIcon data-icon="inline-start" />
-              Add Registration
-            </Link>
+      {canEdit ? (
+        <PageHeaderActions>
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
+            <PlusIcon data-icon="inline-start" />
+            Add registration
           </Button>
-        ) : null}
-      </PageHeaderActions>
-
+        </PageHeaderActions>
+      ) : null}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
@@ -455,6 +449,15 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                       }
                     : undefined
                 }
+                removeRegistration={
+                  canFull
+                    ? {
+                        onClick: () => {
+                          void onDeleteRegistration(row);
+                        },
+                      }
+                    : undefined
+                }
                 remove={
                   canFull && row.attemptId
                     ? {
@@ -536,6 +539,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
           </div>
         </CardContent>
       </Card>
+      {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
     </div>
   );
 }

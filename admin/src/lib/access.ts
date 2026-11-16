@@ -69,3 +69,7 @@ export function canMutateOrg(membership: AuthMembership | null | undefined): boo
 export function canManageUsersOrSettings(membership: AuthMembership | null | undefined): boolean {
   return meets(membership, maxOrgAccess(membership), 'full');
 }
+
+export function isSuperAdmin(membership: AuthMembership | null | undefined): boolean {
+  return membership?.role === 'super_admin';
+}

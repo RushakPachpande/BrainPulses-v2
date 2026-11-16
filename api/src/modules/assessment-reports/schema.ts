@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { enumListSchema, uuidListSchema } from '../../lib/query-list.js';
 
 export const assessmentSortKeySchema = z.enum([
   'code',
@@ -24,11 +25,11 @@ export const assessmentSortKeySchema = z.enum([
 
 export const assessmentReportQuerySchema = z.object({
   q: z.string().trim().max(200).optional().default(''),
-  activityId: z.string().uuid().optional(),
-  roundId: z.string().uuid().optional(),
-  activityStatus: z.enum(['any', 'active', 'expired', 'inactive']).default('any'),
-  attemptStatus: z.enum(['any', 'completed', 'in_progress', 'not_started']).default('any'),
-  autoSubmitted: z.enum(['any', 'yes', 'no']).default('any'),
+  activityId: uuidListSchema(),
+  roundId: uuidListSchema(),
+  activityStatus: enumListSchema(['active', 'expired', 'inactive'] as const),
+  attemptStatus: enumListSchema(['completed', 'in_progress', 'not_started'] as const),
+  autoSubmitted: enumListSchema(['yes', 'no'] as const),
   sort: assessmentSortKeySchema.default('submitted'),
   dir: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
@@ -42,7 +43,7 @@ export const assessmentReportQuerySchema = z.object({
 export const assessmentExportQuerySchema = assessmentReportQuerySchema
   .omit({ page: true, pageSize: true })
   .extend({
-    format: z.enum(['xlsx', 'csv']).default('xlsx'),
+    format: z.enum(['xlsx']).default('xlsx'),
     includeAbsent: z.enum(['true', 'false']).default('false'),
     columns: z.string().trim().min(1).max(500),
   });

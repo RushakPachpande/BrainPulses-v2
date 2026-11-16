@@ -10,6 +10,7 @@ import {
 import { RowActions } from '@/components/row-actions';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
+import { selectionMatches } from '@/lib/multi-select';
 import { useConfirm } from '@/components/use-confirm';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -81,7 +82,7 @@ export function QuizQuestionsPanel({
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [bulkAction, setBulkAction] = useState<'activate' | 'deactivate' | null>(null);
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [dialog, setDialog] = useState<DialogMode>(null);
@@ -138,8 +139,9 @@ export function QuizQuestionsPanel({
   const filteredQuestions = useMemo(() => {
     const q = search.trim().toLowerCase();
     return questions.filter((item) => {
-      if (statusFilter === 'Active' && !isQuestionActive(item)) return false;
-      if (statusFilter === 'Inactive' && isQuestionActive(item)) return false;
+      if (!selectionMatches(statusFilter, isQuestionActive(item) ? 'Active' : 'Inactive')) {
+        return false;
+      }
       if (!q) return true;
       return (
         item.question.toLowerCase().includes(q) ||
@@ -167,9 +169,9 @@ export function QuizQuestionsPanel({
   const filters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['All', 'Active', 'Inactive'],
-      value: statusFilter,
-      onValueChange: setStatusFilter,
+      options: ['Active', 'Inactive'],
+      values: statusFilter,
+      onValuesChange: setStatusFilter,
     },
   ];
 

@@ -1,0 +1,864 @@
+/* Public registration page. Scoped so login.css stays the login screen. */
+.register-screen {
+  --fg: #1a0b47;
+  --muted: #625a86;
+  --faint: #8f88ae;
+  --accent: #4a2aa8;
+  --accent-ink: #fff;
+  --accent-soft: #efe9fc;
+  --card: #fff;
+  --card-line: rgba(74, 42, 168, 0.12);
+  --field: #fbfafe;
+  --field-line: #dcd5ee;
+  --field-hover: #c6bce4;
+  --good: #1e7a55;
+  --good-soft: #e3f3ea;
+  --bad: #b4323c;
+  --bad-soft: #fcebec;
+  --warn: #8a5a06;
+  --warn-soft: #fdf2dc;
+  --panel: rgba(255, 255, 255, 0.55);
+  --panel-line: rgba(255, 255, 255, 0.75);
+  --shadow: 0 30px 60px -30px rgba(52, 24, 140, 0.45), 0 2px 6px rgba(52, 24, 140, 0.06);
+  --ring: 0 0 0 4px rgba(74, 42, 168, 0.16);
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--fg);
+  font:
+    500 15px/1.55 Manrope,
+    ui-sans-serif,
+    system-ui,
+    sans-serif;
+}
+
+body.dk2 .register-screen {
+  --fg: #f1ecff;
+  --muted: #b3a9da;
+  --faint: #857bb0;
+  --accent: #b9a6ff;
+  --accent-ink: #170a3d;
+  --accent-soft: #2a1f5c;
+  --card: #1a1238;
+  --card-line: rgba(185, 166, 255, 0.16);
+  --field: #140d2e;
+  --field-line: #3a2e6b;
+  --field-hover: #53448f;
+  --good: #7cd6a8;
+  --good-soft: #173a2b;
+  --bad: #f2949a;
+  --bad-soft: #3e1e28;
+  --warn: #f0c070;
+  --warn-soft: #3a2d15;
+  --panel: rgba(26, 18, 56, 0.55);
+  --panel-line: rgba(185, 166, 255, 0.14);
+  --shadow: 0 30px 60px -28px #000, 0 2px 6px rgba(0, 0, 0, 0.3);
+  --ring: 0 0 0 4px rgba(185, 166, 255, 0.22);
+}
+
+.register-screen a {
+  color: var(--accent);
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
+.register-screen :focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.register-screen .top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px 28px;
+}
+
+.register-screen .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--fg);
+  font:
+    800 21px/1 Sora,
+    sans-serif;
+  letter-spacing: -0.02em;
+  text-decoration: none;
+}
+
+.register-screen .brand img {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+}
+
+.register-screen .mode {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--accent);
+  box-shadow:
+    0 6px 20px rgba(74, 42, 168, 0.16),
+    0 0 0 1px var(--card-line);
+  cursor: pointer;
+}
+
+.register-screen .mode:hover {
+  transform: scale(1.05);
+}
+
+.register-screen .mode svg {
+  width: 21px;
+  height: 21px;
+}
+
+.register-screen main {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  gap: 56px;
+  align-items: start;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 12px 28px 56px;
+}
+
+.register-screen main.solo {
+  grid-template-columns: minmax(0, 460px);
+  justify-content: center;
+}
+
+.register-screen .intro {
+  max-width: 520px;
+  padding-top: 8px;
+}
+
+.register-screen .cover {
+  margin: 0 0 22px;
+  overflow: hidden;
+  aspect-ratio: 16 / 7;
+  border-radius: 22px;
+  background: var(--accent-soft);
+  box-shadow:
+    0 24px 46px -26px rgba(52, 24, 140, 0.55),
+    0 0 0 1px var(--panel-line);
+}
+
+.register-screen .cover img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.register-screen .sponsor {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px 6px 6px;
+  border: 1px solid var(--panel-line);
+  border-radius: 99px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+}
+
+.register-screen .sponsor i {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f08ab4, #7a44e0);
+  color: #fff;
+  font:
+    800 12px Sora,
+    sans-serif;
+  font-style: normal;
+}
+
+.register-screen .sponsor b {
+  color: var(--fg);
+  font-weight: 800;
+}
+
+.register-screen h1 {
+  margin: 18px 0 14px;
+  color: var(--fg);
+  font:
+    800 clamp(34px, 4.4vw, 54px) / 1.05 Sora,
+    sans-serif;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+}
+
+.register-screen .welcome {
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.register-screen .facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.register-screen .fact {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  background: var(--panel);
+  backdrop-filter: blur(10px);
+}
+
+.register-screen .fact svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.register-screen .fact small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.register-screen .fact b {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.register-screen .fact.urgent {
+  border-color: transparent;
+  background: var(--warn-soft);
+}
+
+.register-screen .fact.urgent svg,
+.register-screen .fact.urgent small {
+  color: var(--warn);
+}
+
+.register-screen .steps {
+  display: grid;
+  gap: 14px;
+  max-width: 440px;
+  margin: 34px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.register-screen .steps li {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.register-screen .steps .n {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid var(--panel-line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--accent);
+  font:
+    800 14px Sora,
+    sans-serif;
+}
+
+.register-screen .steps b {
+  display: block;
+  font-weight: 800;
+}
+
+.register-screen .steps span {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.register-screen .card {
+  position: relative;
+  overflow: hidden;
+  padding: 30px 30px 26px;
+  border: 1px solid var(--card-line);
+  border-radius: 24px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+
+.register-screen .card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 4px;
+  background: linear-gradient(90deg, #5b2bc4, #b488ff, #f08ab4);
+}
+
+.register-screen .card h2 {
+  font:
+    800 23px/1.2 Sora,
+    sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.register-screen .card .sub {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.register-screen form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.register-screen .field,
+.register-screen .row2 > * {
+  min-width: 0;
+}
+
+.register-screen .row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.register-screen .field label,
+.register-screen .field legend {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.register-screen .req {
+  margin-left: 2px;
+  color: var(--bad);
+}
+
+.register-screen .opt {
+  color: var(--faint);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.register-screen .ctrl {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1.5px solid var(--field-line);
+  border-radius: 12px;
+  background: var(--field);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.register-screen .ctrl:hover {
+  border-color: var(--field-hover);
+}
+
+.register-screen .ctrl:focus-within {
+  border-color: var(--accent);
+  background: var(--card);
+  box-shadow: var(--ring);
+}
+
+.register-screen .ctrl input,
+.register-screen .ctrl textarea,
+.register-screen .ctrl .select-trigger {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  outline: none;
+  font: inherit;
+}
+
+.register-screen .ctrl input,
+.register-screen .ctrl .select-trigger {
+  padding: 12px 14px;
+  font-size: 15px;
+}
+
+.register-screen .ctrl textarea {
+  min-height: 96px;
+  padding: 12px 14px;
+  resize: vertical;
+  font-size: 15px;
+}
+
+.register-screen .ctrl input::placeholder,
+.register-screen .ctrl textarea::placeholder {
+  color: var(--faint);
+}
+
+.register-screen .ctrl .select-trigger {
+  height: auto;
+  min-height: 48px;
+  justify-content: space-between;
+  box-shadow: none;
+  text-align: left;
+}
+
+.register-screen .ctrl .select-trigger[data-placeholder] {
+  color: var(--faint);
+}
+
+.register-screen .select-trigger-icon {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  color: var(--muted);
+}
+
+.register-screen .pre {
+  display: flex;
+  align-items: center;
+  align-self: stretch;
+  gap: 10px;
+  padding: 0 0 0 14px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.register-screen .pre::after {
+  content: '';
+  width: 1px;
+  height: 22px;
+  background: var(--field-line);
+}
+
+.register-screen .field.err .ctrl {
+  border-color: var(--bad);
+}
+
+.register-screen .field.err .ctrl:focus-within {
+  box-shadow: 0 0 0 4px rgba(180, 50, 60, 0.14);
+}
+
+.register-screen .help {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.register-screen .msg {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--bad);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.register-screen .msg svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.register-screen .checks {
+  display: grid;
+  gap: 8px;
+}
+
+.register-screen .checks label,
+.register-screen .consent {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  margin: 0;
+  font-weight: 500;
+}
+
+.register-screen .consent {
+  padding: 13px 14px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  font-size: 14px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.register-screen .checks input,
+.register-screen .consent input {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-top: 1px;
+  accent-color: var(--accent);
+}
+
+.register-screen .field.err .consent {
+  background: var(--bad-soft);
+  box-shadow: inset 0 0 0 1.5px var(--bad);
+}
+
+.register-screen .submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 15px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #5b2bc4, #3a1690);
+  color: #fff;
+  box-shadow:
+    0 18px 30px -16px #3a1690,
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  font:
+    800 16px Sora,
+    sans-serif;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+body.dk2 .register-screen .submit {
+  background: linear-gradient(135deg, #c9b8ff, #9a7cf0);
+  color: #170a3d;
+  box-shadow: 0 18px 30px -16px #000;
+}
+
+.register-screen .submit:hover {
+  filter: brightness(1.08);
+}
+
+.register-screen .submit:disabled,
+.register-screen .submit[aria-busy='true'] {
+  pointer-events: none;
+  filter: saturate(0.7);
+}
+
+.register-screen .submit svg {
+  width: 18px;
+  height: 18px;
+}
+
+.register-screen .spin {
+  width: 18px;
+  height: 18px;
+  animation: register-spin 0.7s linear infinite;
+}
+
+@keyframes register-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.register-screen .login {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+.register-screen .secure {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 2px;
+  color: var(--faint);
+  font-size: 12px;
+}
+
+.register-screen .secure svg {
+  width: 13px;
+  height: 13px;
+}
+
+.register-screen .alert {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  border-radius: 12px;
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.register-screen .alert svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+}
+
+.register-screen .done {
+  padding: 10px 0 4px;
+  text-align: center;
+}
+
+.register-screen .done .ok,
+.register-screen .state-ic {
+  display: grid;
+  margin: 0 auto 14px;
+  place-items: center;
+}
+
+.register-screen .done .ok {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.register-screen .done .ok svg {
+  width: 32px;
+  height: 32px;
+}
+
+.register-screen .done h2 {
+  font-size: 25px;
+}
+
+.register-screen .done h2:focus {
+  outline: none;
+}
+
+.register-screen .idbox {
+  margin: 20px 0 6px;
+  padding: 16px;
+  border: 1.5px dashed var(--accent);
+  border-radius: 16px;
+  background: var(--accent-soft);
+}
+
+.register-screen .idbox small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.register-screen .idrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.register-screen .idrow b {
+  color: var(--accent);
+  font:
+    800 30px Sora,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+}
+
+.register-screen .copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--field-line);
+  border-radius: 10px;
+  background: var(--card);
+  color: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.register-screen .copy svg {
+  width: 15px;
+  height: 15px;
+}
+
+.register-screen .done p {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.register-screen .done .next {
+  margin-top: 20px;
+}
+
+.register-screen .state-ic {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.register-screen .state-ic svg {
+  width: 28px;
+  height: 28px;
+}
+
+.register-screen .status {
+  color: var(--muted);
+}
+
+.register-screen .toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 6;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--fg);
+  color: var(--card);
+  font-size: 14px;
+  font-weight: 700;
+  transform: translateX(-50%);
+}
+
+.register-select {
+  z-index: 80;
+  overflow: hidden;
+  border: 1px solid #dcd5ee;
+  border-radius: 12px;
+  background: #fff;
+  color: #1a0b47;
+  box-shadow: 0 18px 40px -22px rgba(58, 26, 166, 0.45);
+}
+
+.register-select.select-content-popper {
+  width: var(--radix-select-trigger-width);
+  min-width: 12rem;
+}
+
+.register-select .select-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 14px 8px 36px;
+  font:
+    500 15px Manrope,
+    sans-serif;
+  cursor: pointer;
+  outline: none;
+}
+
+.register-select .select-item[data-highlighted] {
+  background: #efe9fc;
+}
+
+.register-select .select-item-indicator {
+  position: absolute;
+  left: 12px;
+  display: grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+}
+
+.register-select .select-item-indicator svg,
+.register-select .select-scroll-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+body.dk2 .register-select {
+  border-color: #3a2e6b;
+  background: #1a1238;
+  color: #f1ecff;
+}
+
+body.dk2 .register-select .select-item[data-highlighted] {
+  background: #2a1f5c;
+}
+
+@media (max-width: 920px) {
+  .register-screen main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+    max-width: 560px;
+    padding: 0 16px 96px;
+  }
+
+  .register-screen .top {
+    padding: 14px 16px;
+  }
+
+  .register-screen h1 {
+    margin: 12px 0 8px;
+  }
+
+  .register-screen .welcome {
+    font-size: 15.5px;
+  }
+
+  .register-screen .facts {
+    margin-top: 16px;
+  }
+
+  .register-screen .steps {
+    display: none;
+  }
+
+  .register-screen .card {
+    padding: 24px 18px 22px;
+    border-radius: 20px;
+  }
+
+  .register-screen .cover {
+    margin-bottom: 14px;
+    aspect-ratio: 12 / 5;
+    border-radius: 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .register-screen .row2 {
+    grid-template-columns: 1fr;
+  }
+
+  .register-screen .facts {
+    gap: 8px;
+  }
+
+  .register-screen .fact {
+    flex: 1 1 100%;
+    padding: 9px 13px;
+  }
+
+  .register-screen .idrow b {
+    font-size: 25px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .register-screen .mode:hover,
+  .register-screen .spin {
+    transform: none;
+    animation: none;
+  }
+}

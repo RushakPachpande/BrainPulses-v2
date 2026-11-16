@@ -21,8 +21,8 @@ Requirements: Node.js **22+**, Docker Desktop, npm 10+.
 ```powershell
 # From repo root
 if (-not (Test-Path api\.env.dev)) { Copy-Item api\.env.dev.example api\.env.dev }
-if (-not (Test-Path admin\.env)) { Copy-Item admin\.env.example admin\.env }
-if (-not (Test-Path client\.env)) { Copy-Item client\.env.example client\.env }
+if (-not (Test-Path admin\.env.dev)) { Copy-Item admin\.env.dev.example admin\.env.dev }
+if (-not (Test-Path participant\.env.dev)) { Copy-Item participant\.env.dev.example participant\.env.dev }
 
 npm ci --prefix api
 npm run db:up
@@ -33,7 +33,7 @@ npm ci --prefix admin
 npm ci --prefix client
 ```
 
-Confirm `admin/.env` has `VITE_USE_FIXTURES=false` and `api/.env.dev` includes:
+Confirm `admin/.env.dev` has `VITE_USE_FIXTURES=false` and `api/.env.dev` includes:
 
 ```text
 HOST=0.0.0.0

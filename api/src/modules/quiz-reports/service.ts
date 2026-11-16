@@ -342,8 +342,8 @@ export async function exportQuizReportRows(
     ? filtered
     : filtered.filter((row) => row.attemptStatus === 'completed');
   const quiz =
-    query.activityId != null
-      ? loaded.options.quizzes.find((item) => item.id === query.activityId)
+    query.activityId.length === 1
+      ? loaded.options.quizzes.find((item) => item.id === query.activityId[0])
       : undefined;
   return { rows, quizName: quiz?.name ?? null };
 }

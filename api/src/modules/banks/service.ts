@@ -7,12 +7,12 @@ import { prisma } from '../../lib/prisma.js';
 import type { z } from 'zod';
 import { formatImportIssue } from '../../lib/spreadsheet-import.js';
 import {
-  buildExportCsv,
   buildExportWorkbook,
-  buildSampleCsv,
   buildSampleWorkbook,
+  formatQuestionImportError,
   newImportQuestionCode,
   parseBankQuestionsFile,
+  sampleWorkbookFilename,
   rowToCreatePayload,
   type BankImportRow,
   type ExportableQuestion,
@@ -23,6 +23,7 @@ import { saveSharedPassage, stripPassageText } from './passages.js';
 import {
   assertTypeAllowedForKind,
   normalizeAnswerKeyImages,
+  type BankKind,
   type bankListQuerySchema,
   type bulkQuestionStatusSchema,
   type createBankSchema,
@@ -412,8 +413,13 @@ export async function createQuestion(
   bankId: string,
   input: z.infer<typeof createQuestionSchema>,
   passageCache?: Map<string, string>,
+  opts?: {
+    bank?: { id: string; kind: ActivityKind };
+    skipAudit?: boolean;
+  },
 ) {
-  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  const bank =
+    opts?.bank ?? (await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } }));
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'edit');
   assertTypeAllowedForKind(bank.kind, input.type);
@@ -444,14 +450,16 @@ export async function createQuestion(
 
   await placeQuestionImages(organizationId, bankId, linked.answerKey, input.options);
 
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'question.create',
-    targetType: 'question',
-    targetId: question.id,
-  });
+  if (!opts?.skipAudit) {
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId,
+      action: 'question.create',
+      targetType: 'question',
+      targetId: question.id,
+    });
+  }
 
   return mapQuestionAdmin({
     ...question,
@@ -684,32 +692,27 @@ export async function setBankQuestionsActive(
   return { updated: result.count };
 }
 
-function importRowMessage(sheetRow: number, err: unknown): string {
+function importRowMessage(row: BankImportRow, kind: BankKind, err: unknown): string {
   if (err instanceof Prisma.PrismaClientKnownRequestError) {
     if (err.code === 'P2002') {
       return formatImportIssue({
-        sheetRow,
-        problem: 'this row duplicates an existing question code in the bank',
-        expected: 'a unique question, or omit the duplicate row',
+        sheetRow: row.sheetRow,
+        column: 'Question',
+        value: row.question,
+        problem: 'this question could not be saved because it clashes with one already in the bank',
+        expected:
+          'remove this row, or change it so it is a new question. Import adds questions and does not update ones already there',
       });
     }
     return formatImportIssue({
-      sheetRow,
-      problem: 'the row could not be saved',
-      expected: 'valid question fields matching the sample Excel',
+      sheetRow: row.sheetRow,
+      column: 'Question',
+      value: row.question,
+      problem: 'this row could not be saved',
+      expected: 'compare it with Sample Excel, fix the cell, and upload again',
     });
   }
-  if (err instanceof Error && err.message) {
-    return formatImportIssue({
-      sheetRow,
-      problem: err.message.replace(/\.$/, ''),
-    });
-  }
-  return formatImportIssue({
-    sheetRow,
-    problem: 'the row could not be imported',
-    expected: 'fix the listed columns using Sample Excel as a guide',
-  });
+  return formatQuestionImportError(row, kind, err);
 }
 
 async function importFromRows(
@@ -746,6 +749,7 @@ async function importFromRows(
   const issues: ImportIssue[] = [];
   let created = 0;
   const passageCache = new Map<string, string>();
+  const bankRef = { id: bank.id, kind: bank.kind as ActivityKind };
 
   for (const row of rows) {
     try {
@@ -760,12 +764,13 @@ async function importFromRows(
           code: payload.code ?? newImportQuestionCode(row.sheetRow, created + issues.length),
         },
         passageCache,
+        { bank: bankRef, skipAudit: true },
       );
       created += 1;
     } catch (err) {
       issues.push({
         row: row.sheetRow,
-        message: importRowMessage(row.sheetRow, err),
+        message: importRowMessage(row, bank.kind, err),
       });
     }
   }
@@ -791,7 +796,14 @@ export async function importQuestionsFile(
   file: { buffer: Buffer; originalname: string; mimetype?: string },
   idempotencyKey?: string,
 ) {
-  const rows = await parseBankQuestionsFile(file.buffer, file.originalname, file.mimetype);
+  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
+  if (!bank) throw notFound('Question bank not found.');
+  const rows = await parseBankQuestionsFile(
+    file.buffer,
+    file.originalname,
+    file.mimetype,
+    bank.kind,
+  );
   return importFromRows(organizationId, actorUserId, actor, bankId, rows, idempotencyKey);
 }
 
@@ -803,18 +815,10 @@ export async function sampleQuestionsWorkbook(
   const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
   if (!bank) throw notFound('Question bank not found.');
   assertBankAccess(actor, bank.kind, 'view');
-  return buildSampleWorkbook(bank.kind);
-}
-
-export async function sampleQuestionsCsv(
-  organizationId: string,
-  actor: AccessActor,
-  bankId: string,
-) {
-  const bank = await prisma.questionBank.findFirst({ where: { organizationId, id: bankId } });
-  if (!bank) throw notFound('Question bank not found.');
-  assertBankAccess(actor, bank.kind, 'view');
-  return buildSampleCsv(bank.kind);
+  return {
+    buffer: await buildSampleWorkbook(bank.kind),
+    filename: sampleWorkbookFilename(bank.kind),
+  };
 }
 
 export async function exportQuestionsWorkbook(
@@ -835,26 +839,6 @@ export async function exportQuestionsWorkbook(
     metadata: { format: 'xlsx', count: questions.length },
   });
   return buffer;
-}
-
-export async function exportQuestionsCsv(
-  organizationId: string,
-  actorUserId: string,
-  actor: AccessActor,
-  bankId: string,
-) {
-  const { kind, questions } = await loadExportableQuestions(organizationId, actor, bankId);
-  const csv = buildExportCsv(questions, kind);
-  await writeAudit({
-    organizationId,
-    actorType: 'user',
-    actorUserId,
-    action: 'bank.export',
-    targetType: 'question_bank',
-    targetId: bankId,
-    metadata: { format: 'csv', count: questions.length },
-  });
-  return csv;
 }
 
 async function loadExportableQuestions(

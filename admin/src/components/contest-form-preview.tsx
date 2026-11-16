@@ -1,22 +1,12 @@
 import { useState } from 'react';
 import { AuthImage } from '@/components/auth-image';
+import { ContestFormFieldInput } from '@/components/contest-form-field-input';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import {
   formatIst,
   previewIssues,
   sampleRegistrationId,
   type ContestFormRecord,
-  type FormField,
 } from '@/lib/contest-form';
 
 type Answers = Record<string, string | string[] | boolean>;
@@ -104,9 +94,10 @@ export function ContestFormPreview({
       </div>
       <div className="mt-4 flex flex-col gap-3">
         {fields.map((field) => (
-          <PreviewField
+          <ContestFormFieldInput
             key={field.id}
             field={field}
+            idPrefix="preview"
             value={answers[field.id]}
             error={errors[field.id]}
             onChange={(value) => setAnswers((current) => ({ ...current, [field.id]: value }))}
@@ -118,109 +109,5 @@ export function ContestFormPreview({
       </Button>
       <p className="mt-3 text-center text-sm text-muted-foreground">Already registered? Log in</p>
     </form>
-  );
-}
-
-function PreviewField({
-  field,
-  value,
-  error,
-  onChange,
-}: {
-  field: FormField;
-  value: string | string[] | boolean | undefined;
-  error?: string;
-  onChange: (value: string | string[] | boolean) => void;
-}) {
-  const id = `preview-${field.id}`;
-  return (
-    <div>
-      {field.type === 'consent' ? (
-        <label className="flex items-start gap-2 text-sm" htmlFor={id}>
-          <Checkbox
-            id={id}
-            checked={value === true}
-            onCheckedChange={(checked) => onChange(checked === true)}
-          />
-          <span>
-            {field.consentText || field.label}
-            {field.termsLink ? (
-              <>
-                {' '}
-                <a href={field.termsLink} className="underline">
-                  Full terms
-                </a>
-              </>
-            ) : null}
-          </span>
-        </label>
-      ) : (
-        <>
-          <label className="text-sm font-medium" htmlFor={id}>
-            {field.label}
-            {field.required ? ' *' : ''}
-          </label>
-          {field.help ? <p className="text-xs text-muted-foreground">{field.help}</p> : null}
-          {field.type === 'textarea' ? (
-            <Textarea
-              id={id}
-              className="mt-1"
-              value={typeof value === 'string' ? value : ''}
-              placeholder={field.placeholder}
-              onChange={(event) => onChange(event.target.value)}
-            />
-          ) : field.type === 'dropdown' ? (
-            <Select
-              value={typeof value === 'string' && value ? value : undefined}
-              onValueChange={(next) => onChange(next)}
-            >
-              <SelectTrigger id={id} className="mt-1 w-full" aria-label={field.label}>
-                <SelectValue placeholder="Choose" />
-              </SelectTrigger>
-              <SelectContent>
-                {(field.options ?? []).map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : field.type === 'multi_select' ? (
-            <div className="mt-1 flex flex-col gap-1">
-              {(field.options ?? []).map((option) => {
-                const picked = Array.isArray(value) ? value : [];
-                return (
-                  <label key={option} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={picked.includes(option)}
-                      onCheckedChange={(checked) =>
-                        onChange(
-                          checked ? [...picked, option] : picked.filter((item) => item !== option),
-                        )
-                      }
-                    />
-                    {option}
-                  </label>
-                );
-              })}
-            </div>
-          ) : (
-            <Input
-              id={id}
-              className="mt-1"
-              type={field.type === 'number' ? 'number' : field.type === 'email' ? 'email' : 'text'}
-              value={typeof value === 'string' ? value : ''}
-              placeholder={field.type === 'phone' ? '+91' : field.placeholder}
-              onChange={(event) => onChange(event.target.value)}
-            />
-          )}
-        </>
-      )}
-      {error ? (
-        <p className="mt-1 text-sm text-destructive" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
   );
 }

@@ -1,4 +1,4 @@
-import { apiGetData, apiPostData, apiPatchData } from '@/lib/api-client';
+import { apiGetData, apiPatchData, apiPostData, apiRequest } from '@/lib/api-client';
 import type { ContestFormOverview, ContestFormQuiz, ContestFormRecord } from '@/lib/contest-form';
 
 export type SaveContestFormPayload = {
@@ -47,6 +47,14 @@ export function updateContestForm(id: string, payload: SaveContestFormPayload) {
 
 export function regenerateContestFormLink(id: string) {
   return apiPostData<ContestFormRecord>(`/api/contest-forms/${id}/regenerate-link`, {});
+}
+
+export async function deleteContestForm(id: string, password: string) {
+  const body = await apiRequest<{ data: { deleted: true; participantsRemoved: number } }>(
+    `/api/contest-forms/${id}`,
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+  );
+  return body.data;
 }
 
 export function giveContestFormQuizzes(id: string, activityIds: string[]) {

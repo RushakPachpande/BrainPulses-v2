@@ -19,8 +19,8 @@ import { ConfirmProvider } from '@/components/confirm-dialog';
 import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
-import { NotificationsMenu } from '@/components/notifications-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { isSuperAdmin } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
 import { ChangePasswordDialog } from '@/pages/change-password-dialog';
 import { changeOwnPassword } from '@/services';
@@ -93,7 +93,6 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/settings', label: 'General', end: true },
-      { to: '/settings/participant-portal', label: 'Participant portal', end: true },
       { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },
@@ -347,7 +346,14 @@ export function AdminLayout() {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  const navItems = nav;
+  const navItems = nav.map((item) => {
+    if (item.to !== '/settings' || !item.children) return item;
+    if (auth.status === 'authenticated' && isSuperAdmin(auth.membership)) return item;
+    return {
+      ...item,
+      children: item.children.filter((child) => child.to !== '/settings/design-system'),
+    };
+  });
 
   useEffect(() => {
     document.title = `${meta.title} · BrainPulses Admin`;
@@ -413,9 +419,7 @@ export function AdminLayout() {
                 <div className="truncate text-xs text-muted-foreground">{userRole}</div>
               </div>
               <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-                <ThemeToggle />
                 <ChangePasswordButton />
-                <SignOutButton />
               </div>
             </div>
           </SidebarFooter>
@@ -426,7 +430,7 @@ export function AdminLayout() {
               <SidebarTrigger />
               <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
                 <ThemeToggle />
-                <NotificationsMenu />
+                <SignOutButton />
               </div>
             </header>
             <div className="mx-auto flex w-full min-w-0 max-w-[1600px] flex-1 flex-col gap-4 px-3.5 py-4 md:px-7 md:py-7">

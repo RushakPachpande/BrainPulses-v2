@@ -1,12 +1,14 @@
 import { randomBytes } from 'node:crypto';
 import { stringify } from 'csv-stringify/sync';
-import ExcelJS from 'exceljs';
+import type { Worksheet } from 'exceljs';
 import type { z } from 'zod';
 import { sanitizeCsvCell } from '../../lib/csv.js';
 import {
+  formatImportIssue,
   MAX_IMPORT_ROWS,
   parseXlsxWorkbook,
   readImportedText,
+  type ImportIssueParts,
   type SpreadsheetColumnSpec,
 } from '../../lib/spreadsheet-import.js';
 import {
@@ -46,11 +48,35 @@ export const BANK_IMPORT_HEADERS = [
 
 export type BankImportHeader = (typeof BANK_IMPORT_HEADERS)[number];
 
-/** Quiz sheets use the same columns. `type` may be blank; see `rowToCreatePayload`. */
-export const QUIZ_BANK_IMPORT_HEADERS = BANK_IMPORT_HEADERS;
+/** Quiz sheets omit assessment-only columns (numeric, text answers, passages). */
+export const QUIZ_BANK_IMPORT_HEADERS = [
+  'type',
+  'question',
+  'points',
+  'optionA',
+  'optionB',
+  'optionC',
+  'optionD',
+  'optionE',
+  'optionF',
+  'correct',
+  'stemImageUrl',
+  'optionA_imageUrl',
+  'optionB_imageUrl',
+  'optionC_imageUrl',
+  'optionD_imageUrl',
+  'optionE_imageUrl',
+  'optionF_imageUrl',
+] as const satisfies readonly BankImportHeader[];
 
-export function headersForKind(_kind: BankKind = 'assessment'): readonly BankImportHeader[] {
-  return BANK_IMPORT_HEADERS;
+export function headersForKind(kind: BankKind = 'assessment'): readonly BankImportHeader[] {
+  return kind === 'quiz' ? QUIZ_BANK_IMPORT_HEADERS : BANK_IMPORT_HEADERS;
+}
+
+export function sampleWorkbookFilename(kind: BankKind = 'assessment'): string {
+  return kind === 'quiz'
+    ? 'brainpulses-quiz-questions-sample.xlsx'
+    : 'brainpulses-assessment-bank-questions-sample.xlsx';
 }
 
 export const BANK_IMPORT_COLUMNS: SpreadsheetColumnSpec<BankImportHeader>[] = [
@@ -119,13 +145,40 @@ export function emptyBankImportRow(sheetRow = 2): BankImportRow {
   return row;
 }
 
+export const QUESTION_HEADER_LABELS: Record<BankImportHeader, string> = {
+  type: 'Type',
+  question: 'Question',
+  points: 'Points',
+  optionA: 'Option A',
+  optionB: 'Option B',
+  optionC: 'Option C',
+  optionD: 'Option D',
+  optionE: 'Option E',
+  optionF: 'Option F',
+  correct: 'Correct answer',
+  numericValue: 'Numeric answer',
+  numericTolerance: 'Allowed margin',
+  referenceAnswer: 'Sample answer',
+  stemImageUrl: 'Question image link',
+  optionA_imageUrl: 'Option A image link',
+  optionB_imageUrl: 'Option B image link',
+  optionC_imageUrl: 'Option C image link',
+  optionD_imageUrl: 'Option D image link',
+  optionE_imageUrl: 'Option E image link',
+  optionF_imageUrl: 'Option F image link',
+  passageText: 'Passage',
+};
+
 export async function parseBankQuestionsFile(
   buffer: Buffer,
   filename: string,
   _mimetype?: string,
+  kind: BankKind = 'assessment',
 ): Promise<BankImportRow[]> {
   const parsed = await parseXlsxWorkbook(buffer, filename, {
     columns: BANK_IMPORT_COLUMNS,
+    required: headersForKind(kind),
+    labels: QUESTION_HEADER_LABELS,
     preferredSheetName: 'Questions',
     emptyNoun: 'questions',
   });
@@ -404,6 +457,179 @@ export function rowToCreatePayload(
   return parsed.data;
 }
 
+function typeHelp(kind: BankKind): string {
+  return kind === 'quiz'
+    ? 'single_mcq when one answer is right, or multiple_mcq when more than one answer is right. You can also write MCQ or MSQ'
+    : 'single_mcq (one right answer), multiple_mcq (select all that apply), true_false, numeric, short_text, long_text, or comprehension_mcq. You can also write the labels from the question form, such as Single choice or True / False';
+}
+
+function clipCell(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= 60) return trimmed;
+  return `${trimmed.slice(0, 57)}…`;
+}
+
+/**
+ * Turn a question-row failure into a sentence that names the column, the cell
+ * contents, and what to type instead.
+ */
+export function formatQuestionImportError(
+  row: BankImportRow,
+  kind: BankKind,
+  err: unknown,
+): string {
+  const raw = (err instanceof Error ? err.message : 'This row could not be read.').replace(
+    /\.$/,
+    '',
+  );
+  const about =
+    row.question.trim() && !/question/i.test(raw) ? `For “${clipCell(row.question)}”, ` : '';
+  const column = (header: BankImportHeader) => QUESTION_HEADER_LABELS[header];
+  const cell = (header: BankImportHeader) => row[header] ?? '';
+
+  let detail: Omit<ImportIssueParts, 'sheetRow'> = {
+    problem: `${about}${raw.charAt(0).toLowerCase()}${raw.slice(1)}`,
+    expected: 'fix this cell using Sample Excel as a guide, then upload again',
+  };
+
+  if (/^unknown type/i.test(raw) || /type is required/i.test(raw)) {
+    detail = {
+      column: column('type'),
+      value: cell('type'),
+      problem: cell('type').trim()
+        ? `${about}“${clipCell(cell('type'))}” is not a question type this import understands`
+        : `${about}the Type cell is empty`,
+      expected: typeHelp(kind),
+      example: 'single_mcq',
+    };
+  } else if (/only support single-choice/i.test(raw)) {
+    detail = {
+      column: column('type'),
+      value: cell('type'),
+      problem: `${about}quizzes only accept one-answer or select-all questions. “${clipCell(cell('type') || raw)}” is a different kind of question`,
+      expected:
+        'change Type to single_mcq or multiple_mcq, or move this row to an assessment import',
+      example: 'single_mcq',
+    };
+  } else if (/not allowed for assessment/i.test(raw)) {
+    detail = {
+      column: column('type'),
+      value: cell('type'),
+      problem: `${about}assessments do not include the type “${clipCell(cell('type'))}”`,
+      expected: typeHelp('assessment'),
+      example: 'true_false',
+    };
+  } else if (/question is required|question text or image/i.test(raw)) {
+    detail = {
+      column: column('question'),
+      value: cell('question'),
+      problem:
+        kind === 'quiz'
+          ? 'the Question cell is empty, and Question image link is empty too'
+          : 'the Question cell is empty',
+      expected:
+        kind === 'quiz'
+          ? 'write the question, or leave the question blank only when Question image link has an image address'
+          : 'write the question participants will see',
+      example: 'Which planet is known as the Red Planet?',
+    };
+  } else if (/points must be a positive/i.test(raw)) {
+    detail = {
+      column: column('points'),
+      value: cell('points'),
+      problem: `${about}points must be a number greater than 0`,
+      expected: 'a number such as 1 or 2. Leave the cell blank to use 1 point',
+      example: '1',
+    };
+  } else if (/points must be less than/i.test(raw)) {
+    detail = {
+      column: column('points'),
+      value: cell('points'),
+      problem: `${about}the point value is too large`,
+      expected: 'a number below 100000000',
+      example: '1',
+    };
+  } else if (/numericvalue is required|numeric answer value is required/i.test(raw)) {
+    detail = {
+      column: column('numericValue'),
+      value: cell('numericValue'),
+      problem: `${about}a numerical question needs the right answer`,
+      expected: 'the number the participant must enter',
+      example: '56',
+    };
+  } else if (/numericvalue must be a number|numeric answer must be a number/i.test(raw)) {
+    detail = {
+      column: column('numericValue'),
+      value: cell('numericValue'),
+      problem: `${about}the numeric answer is not a number`,
+      expected: 'digits only, with a minus sign if the answer is negative',
+      example: '56',
+    };
+  } else if (/numerictolerance must be a number/i.test(raw)) {
+    detail = {
+      column: column('numericTolerance'),
+      value: cell('numericTolerance'),
+      problem: `${about}the allowed margin is not a number`,
+      expected: '0 when the answer must be exact, or a margin such as 0.5',
+      example: '0',
+    };
+  } else if (/mark true or false/i.test(raw)) {
+    detail = {
+      column: column('correct'),
+      value: cell('correct'),
+      problem: `${about}the correct answer is not True or False`,
+      expected:
+        'True or False. A also means True, and B means False. Leave Option A and Option B blank',
+      example: 'True',
+    };
+  } else if (/passagetext is required|passage text is required/i.test(raw)) {
+    detail = {
+      column: column('passageText'),
+      value: cell('passageText'),
+      problem: `${about}a comprehension question needs the reading passage`,
+      expected: 'the passage text. Use the same text on every question that shares that passage',
+      example: 'The quick brown fox jumps over the lazy dog.',
+    };
+  } else if (/at least two options|2.6 options|exactly two options/i.test(raw)) {
+    const trueFalse = /true\/false/i.test(raw);
+    detail = {
+      column: column('optionA'),
+      value: cell('optionA'),
+      problem: trueFalse
+        ? `${about}a True / False question must end up with exactly two choices`
+        : `${about}this question needs at least two answer choices`,
+      expected: trueFalse
+        ? 'leave Option A–F blank and put True or False in Correct answer. A means True and B means False'
+        : 'fill at least two of Option A through Option F. Each choice needs text, an image link, or both',
+      example: trueFalse ? 'True' : 'Venus',
+    };
+  } else if (/mark exactly one correct|mark at least one correct/i.test(raw)) {
+    const multi = /at least one/i.test(raw);
+    const entered = cell('correct').trim();
+    detail = {
+      column: column('correct'),
+      value: cell('correct'),
+      problem: entered
+        ? `${about}“${clipCell(entered)}” does not match ${multi ? 'the right answers' : 'one answer choice'}`
+        : `${about}the Correct answer cell is empty`,
+      expected: multi
+        ? 'every right answer, as letters separated by commas, or the exact option text'
+        : 'one letter, such as B, or the exact text of the right option',
+      example: multi ? 'A,C' : 'B',
+    };
+  } else if (/each option needs text/i.test(raw)) {
+    detail = {
+      column: column('optionA'),
+      value: cell('optionA'),
+      problem: `${about}an answer choice is empty`,
+      expected: 'text, an image link, or both for every choice you include',
+      example: 'Mars',
+    };
+  }
+
+  return formatImportIssue({ sheetRow: row.sheetRow, ...detail });
+}
+
 function sampleDataRows(kind: BankKind = 'assessment'): Record<BankImportHeader, string>[] {
   const blank = (): Record<BankImportHeader, string> => {
     const o = {} as Record<BankImportHeader, string>;
@@ -527,32 +753,6 @@ function sampleDataRows(kind: BankKind = 'assessment'): Record<BankImportHeader,
   }
   {
     const r = blank();
-    r.type = 'image_mcq';
-    r.question = 'Which color is shown in the stem image?';
-    r.points = '1';
-    r.stemImageUrl = 'https://example.com/stem.png';
-    r.optionA = 'Red';
-    r.optionB = 'Blue';
-    r.optionC = 'Green';
-    r.correct = 'B';
-    rows.push(r);
-  }
-  {
-    const r = blank();
-    r.type = 'image_selection';
-    r.question = 'Select all images that show a cat.';
-    r.points = '2';
-    r.optionA = 'Cat 1';
-    r.optionB = 'Dog';
-    r.optionC = 'Cat 2';
-    r.optionA_imageUrl = 'https://example.com/cat1.png';
-    r.optionB_imageUrl = 'https://example.com/dog.png';
-    r.optionC_imageUrl = 'https://example.com/cat2.png';
-    r.correct = 'A,C';
-    rows.push(r);
-  }
-  {
-    const r = blank();
     r.type = 'comprehension_mcq';
     r.question = 'According to the passage, what color is the fox?';
     r.points = '1';
@@ -582,7 +782,7 @@ function sampleDataRows(kind: BankKind = 'assessment'): Record<BankImportHeader,
 }
 
 function fillSheetFromRows(
-  sheet: ExcelJS.Worksheet,
+  sheet: Worksheet,
   rows: Record<BankImportHeader, string>[],
   headers: readonly BankImportHeader[] = BANK_IMPORT_HEADERS,
 ) {
@@ -597,10 +797,13 @@ function fillSheetFromRows(
 }
 
 export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const instructions = workbook.addWorksheet('Instructions');
   const headers = headersForKind(kind);
-  instructions.addRow(['BrainPulses question bank import']);
+  instructions.addRow([
+    kind === 'quiz' ? 'BrainPulses quiz question import' : 'BrainPulses assessment question import',
+  ]);
   instructions.addRow([]);
   instructions.addRow(['1. Fill the Questions sheet. Do not rename the column headers.']);
   instructions.addRow([
@@ -637,11 +840,16 @@ export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promis
     ]);
     instructions.addRow(['9. short_text and long_text use optional referenceAnswer.']);
     instructions.addRow([
-      '10. comprehension_mcq requires passageText on every row. Rows with the same passage text share one passage. image_selection requires an image URL on every filled option.',
+      '10. comprehension_mcq requires passageText on every row. Rows with the same passage text share one passage.',
+    ]);
+    instructions.addRow([
+      '11. Choice questions may add a stem image (stemImageUrl) and option images (optionA_imageUrl and so on).',
     ]);
   }
   instructions.addRow([
-    'Mark correct with letters (B or A,C), the option text (Mars), or True/False. optionA–F can be text, an image URL, or both.',
+    kind === 'quiz'
+      ? 'Mark correct with letters (B or A,C) or the option text (Mars). Option text and option image URLs are separate columns.'
+      : 'Mark correct with letters (B or A,C), the option text (Mars), or True/False. Option text and option image URLs are separate columns.',
   ]);
   instructions.addRow([
     'stemImageUrl is the question image. Use a library path such as /api/files/<id> or an https URL.',
@@ -716,7 +924,8 @@ export async function buildExportWorkbook(
   questions: ExportableQuestion[],
   kind: BankKind = 'assessment',
 ): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const sheet = workbook.addWorksheet('Questions');
   const headers = headersForKind(kind);
   fillSheetFromRows(

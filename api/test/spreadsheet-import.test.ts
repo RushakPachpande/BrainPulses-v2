@@ -7,8 +7,6 @@ import {
   parseParticipantsFile,
   PARTICIPANT_IMPORT_HEADERS,
 } from '../src/modules/participants/import-export.js';
-import { parseUsersFile, USER_IMPORT_HEADERS } from '../src/modules/users/import-export.js';
-
 async function sheetBuffer(
   sheetName: string,
   headers: string[],
@@ -66,20 +64,6 @@ describe('spreadsheet import helpers', () => {
         return true;
       },
     );
-  });
-
-  it('maps shifted user columns', async () => {
-    const order = ['quizAccess', 'password', 'email', 'name', 'role', 'assessmentAccess'];
-    const buffer = await sheetBuffer(
-      'Users',
-      [...USER_IMPORT_HEADERS],
-      [['view', 'ChangeMe123!', 'priya@org.example', 'Priya', 'admin', 'full']],
-      order,
-    );
-    const { rows } = await parseUsersFile(buffer, 'users.xlsx');
-    assert.equal(rows[0]?.email, 'priya@org.example');
-    assert.equal(rows[0]?.password, 'ChangeMe123!');
-    assert.equal(rows[0]?.quizAccess, 'view');
   });
 
   it('rejects csv filenames in the shared reader', async () => {

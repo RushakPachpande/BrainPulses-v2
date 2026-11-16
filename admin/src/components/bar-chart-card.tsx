@@ -1,4 +1,4 @@
-import { Bar, BarChart, Cell, XAxis } from 'recharts';
+import { Bar, BarChart, Cell, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ChartContainer,
@@ -15,6 +15,7 @@ export function BarChartCard({
   caption,
   labels,
   emphasizeLast = true,
+  scaleMax,
 }: {
   title: string;
   values: number[];
@@ -22,8 +23,12 @@ export function BarChartCard({
   caption: string;
   labels?: string[];
   emphasizeLast?: boolean;
+  scaleMax?: number;
 }) {
-  const axis = labels ?? getMonths();
+  const axis =
+    labels && labels.length === values.length
+      ? labels
+      : values.map((_, index) => getMonths()[index] ?? `${index + 1}`);
   const data = values.map((value, index) => ({
     label: axis[index],
     value,
@@ -46,8 +51,9 @@ export function BarChartCard({
         >
           <BarChart data={data} accessibilityLayer>
             <XAxis dataKey="label" tickLine={false} axisLine={false} />
+            <YAxis hide domain={scaleMax != null ? [0, scaleMax] : [0, 'auto']} />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="value" radius={6}>
+            <Bar dataKey="value" radius={6} maxBarSize={56}>
               {data.map((entry) => (
                 <Cell key={entry.label} fill={entry.fill} fillOpacity={entry.opacity} />
               ))}

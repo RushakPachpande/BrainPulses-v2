@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon, Loader2Icon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { StatusBadge } from '@/components/status-badge';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
@@ -190,13 +190,11 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   }
 
   async function onDeleteResponse() {
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: 'Delete this response?',
       description:
         "Removes the participant's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete response',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     setSaving(true);

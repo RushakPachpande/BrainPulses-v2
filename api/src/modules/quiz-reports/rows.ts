@@ -78,11 +78,11 @@ export type ReportRow = {
 
 export type ReportQuery = {
   q: string;
-  contestId?: string;
-  activityId?: string;
-  quizStatus: 'any' | 'active' | 'expired' | 'inactive';
-  attemptStatus: 'any' | AttemptStatusLabel;
-  autoSubmitted: 'any' | 'yes' | 'no';
+  contestId: string[];
+  activityId: string[];
+  quizStatus: Array<'active' | 'expired' | 'inactive'>;
+  attemptStatus: AttemptStatusLabel[];
+  autoSubmitted: Array<'yes' | 'no'>;
   sort: ReportSortKey;
   dir: 'asc' | 'desc';
 };
@@ -234,12 +234,36 @@ export function filterReportRows(rows: ReportRow[], query: ReportQuery): ReportR
     if (q && !row.code.toLowerCase().includes(q) && !row.name.toLowerCase().includes(q)) {
       return false;
     }
-    if (query.contestId && row.contestId !== query.contestId) return false;
-    if (query.activityId && row.activityId !== query.activityId) return false;
-    if (query.quizStatus !== 'any' && row.quizStatus !== query.quizStatus) return false;
-    if (query.attemptStatus !== 'any' && row.attemptStatus !== query.attemptStatus) return false;
-    if (query.autoSubmitted === 'yes' && row.autoSubmitted !== true) return false;
-    if (query.autoSubmitted === 'no' && row.autoSubmitted !== false) return false;
+    if (
+      query.contestId.length > 0 &&
+      (!row.contestId || !query.contestId.includes(row.contestId))
+    ) {
+      return false;
+    }
+    if (query.activityId.length > 0 && !query.activityId.includes(row.activityId)) return false;
+    if (
+      query.quizStatus.length > 0 &&
+      !query.quizStatus.some((status) => status === row.quizStatus)
+    ) {
+      return false;
+    }
+    if (query.attemptStatus.length > 0 && !query.attemptStatus.includes(row.attemptStatus)) {
+      return false;
+    }
+    if (
+      query.autoSubmitted.length === 1 &&
+      query.autoSubmitted[0] === 'yes' &&
+      row.autoSubmitted !== true
+    ) {
+      return false;
+    }
+    if (
+      query.autoSubmitted.length === 1 &&
+      query.autoSubmitted[0] === 'no' &&
+      row.autoSubmitted !== false
+    ) {
+      return false;
+    }
     return true;
   });
 }

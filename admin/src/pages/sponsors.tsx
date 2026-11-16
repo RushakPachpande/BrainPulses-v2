@@ -7,9 +7,8 @@ import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { ListPager, MediaCard, MediaCardGrid } from '@/components/media-card-grid';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { Toolbar } from '@/components/toolbar';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
-import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useOrgId } from '@/hooks/use-org-id';
@@ -18,7 +17,7 @@ import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { SponsorEditorDialog } from '@/pages/sponsor-editor-dialog';
 import { SponsorViewDialog } from '@/pages/sponsor-view-dialog';
-import { deleteSponsor, getSponsors, type Sponsor } from '@/services';
+import { deleteSponsor, getSponsor, getSponsors, type Sponsor } from '@/services';
 
 const EMPTY: Sponsor[] = [];
 
@@ -32,6 +31,10 @@ function contestCount(count: number) {
   return count === 1 ? '1 contest' : `${count} contests`;
 }
 
+function sponsorBlocked(sponsor: Sponsor) {
+  return sponsor.contests > 0 || sponsor.activities > 0 || sponsor.registrationForms > 0;
+}
+
 export function SponsorsPage() {
   const auth = useAuth();
   const orgId = useOrgId();
@@ -40,6 +43,7 @@ export function SponsorsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const canDelete = canManageUsersOrSettings(membership);
+  const isSuperAdmin = membership?.role === 'super_admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -51,22 +55,34 @@ export function SponsorsPage() {
   const sponsors = data ?? EMPTY;
 
   async function onDeleteSponsor(sponsor: Sponsor) {
-    if (!canDelete) return;
-    const password = await confirm({
-      title: `Delete “${sponsor.name}”?`,
-      description:
-        'Permanently removes this sponsor. Contests and quizzes that still use it must be unlinked first. This cannot be undone.',
+    if (!canDelete || sponsorBlocked(sponsor)) return;
+    let current: Sponsor;
+    try {
+      current = await getSponsor(sponsor.id);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not load this sponsor.');
+      return;
+    }
+    if (sponsorBlocked(current)) {
+      toast.error(
+        'Cannot delete this sponsor while contests, quizzes, or a registration form still use it. Remove those links first.',
+      );
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'sponsors'] });
+      return;
+    }
+    const password = await confirmSensitiveDelete(confirm, {
+      title: `Delete “${current.name}”?`,
+      description: 'Permanently removes this sponsor. This cannot be undone.',
+      details: ['The sponsor image stays in the image library.'],
       confirmLabel: 'Delete permanently',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
-      await deleteSponsor(sponsor.id, password);
+      await deleteSponsor(current.id, password);
       toast.success('Sponsor deleted.');
       await queryClient.invalidateQueries({ queryKey: ['admin', 'sponsors'] });
-      if (viewId === sponsor.id) setViewId(null);
-      if (editor === sponsor.id) setEditor(null);
+      if (viewId === current.id) setViewId(null);
+      if (editor === current.id) setEditor(null);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not delete sponsor.');
     }
@@ -83,7 +99,7 @@ export function SponsorsPage() {
     const create = searchParams.get('create') === '1';
     if (!view && !edit && !create) return;
     if (view && loading) return;
-    if (view) {
+    if (view && isSuperAdmin) {
       if (sponsors.some((sponsor) => sponsor.id === view)) setViewId(view);
       else toast.error('Could not load sponsor.');
     }
@@ -94,7 +110,7 @@ export function SponsorsPage() {
     next.delete('edit');
     next.delete('create');
     setSearchParams(next, { replace: true });
-  }, [canMutate, loading, searchParams, setSearchParams, sponsors]);
+  }, [canMutate, isSuperAdmin, loading, searchParams, setSearchParams, sponsors]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -129,7 +145,8 @@ export function SponsorsPage() {
     setSortDir('asc');
   }
 
-  const viewing = viewId ? sponsors.find((sponsor) => sponsor.id === viewId) : undefined;
+  const viewing =
+    isSuperAdmin && viewId ? sponsors.find((sponsor) => sponsor.id === viewId) : undefined;
   const viewDialog = viewing ? (
     <SponsorViewDialog
       sponsor={viewing}
@@ -173,7 +190,7 @@ export function SponsorsPage() {
       <>
         <div className="flex flex-col gap-4">
           {headerActions}
-          <ListPageSkeleton layout="cards" kpiCount={1} />
+          <ListPageSkeleton layout="cards" kpiCount={0} />
         </div>
         {viewDialog}
         {editorDialog}
@@ -185,15 +202,6 @@ export function SponsorsPage() {
     <>
       <div className="flex flex-col gap-4">
         {headerActions}
-
-        <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardDescription>Total sponsors</CardDescription>
-              <CardTitle className="text-2xl">{sponsors.length}</CardTitle>
-            </CardHeader>
-          </Card>
-        </section>
 
         <Toolbar
           filters={[]}
@@ -235,9 +243,13 @@ export function SponsorsPage() {
           renderItem={(sponsor) => (
             <MediaCard
               kind="sponsor"
-              onView={() => setViewId(sponsor.id)}
+              onView={isSuperAdmin ? () => setViewId(sponsor.id) : undefined}
               onEdit={canMutate ? () => setEditor(sponsor.id) : undefined}
-              onDelete={canDelete ? () => void onDeleteSponsor(sponsor) : undefined}
+              onDelete={
+                canDelete && !sponsorBlocked(sponsor)
+                  ? () => void onDeleteSponsor(sponsor)
+                  : undefined
+              }
               title={sponsor.name}
               imageFileId={sponsor.imageFileId}
               badge={contestCount(sponsor.contests)}

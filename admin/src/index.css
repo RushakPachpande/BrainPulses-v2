@@ -1,6 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import './shadcn-tailwind.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -191,8 +191,11 @@
   [data-slot='button']:not([data-size='icon']):not([data-size='icon-xs']):not(
       [data-size='icon-sm']
     ):not([data-size='icon-lg']),
-  /* PopoverTrigger asChild replaces data-slot=button — keep field triggers at --control-h. */
+  /* asChild triggers replace data-slot=button — keep them at --control-h. */
   [data-slot='popover-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
+      [data-size='icon-sm']
+    ):not([data-size='icon-lg']),
+  [data-slot='dropdown-menu-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
       [data-size='icon-sm']
     ):not([data-size='icon-lg']),
   [data-slot='input'],
@@ -226,11 +229,15 @@
   }
 }
 
-/* Icon buttons in the workspace stay square. size-* utilities would otherwise keep the width at 32px while min-height stretches them to 44px. */
+/* Icon buttons in the workspace and sidebar footer stay square. size-* utilities would otherwise keep the width at 32px while min-height stretches them to 44px. */
 [data-slot='sidebar-inset'] [data-slot='button'][data-size='icon'],
 [data-slot='sidebar-inset'] [data-slot='button'][data-size='icon-sm'],
 [data-slot='sidebar-inset'] [data-slot='button'][data-size='icon-lg'],
-[data-slot='sidebar-inset'] [data-slot='button'][data-size='icon-xs'] {
+[data-slot='sidebar-inset'] [data-slot='button'][data-size='icon-xs'],
+[data-slot='sidebar-footer'] [data-slot='button'][data-size='icon'],
+[data-slot='sidebar-footer'] [data-slot='button'][data-size='icon-sm'],
+[data-slot='sidebar-footer'] [data-slot='button'][data-size='icon-lg'],
+[data-slot='sidebar-footer'] [data-slot='button'][data-size='icon-xs'] {
   width: var(--control-h);
   height: var(--control-h);
   min-width: var(--control-h);
@@ -937,6 +944,9 @@ body,
 [data-slot='select-trigger'],
 [data-slot='textarea'],
 [data-slot='popover-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
+    [data-size='icon-sm']
+  ):not([data-size='icon-lg']),
+[data-slot='dropdown-menu-trigger']:not([data-size='icon']):not([data-size='icon-xs']):not(
     [data-size='icon-sm']
   ):not([data-size='icon-lg']) {
   font-size: 1rem;

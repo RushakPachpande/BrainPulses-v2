@@ -161,11 +161,11 @@ Export real values and re-run:
 Or edit api/.env.prod directly."
   fi
 
-  if [[ ! -f admin/.env.production ]]; then
-    cp admin/.env.production.example admin/.env.production
+  if [[ ! -f admin/.env.prod ]]; then
+    cp admin/.env.prod.example admin/.env.prod
   fi
-  if [[ ! -f participant/.env.production ]]; then
-    cp participant/.env.production.example participant/.env.production
+  if [[ ! -f participant/.env.prod ]]; then
+    cp participant/.env.prod.example participant/.env.prod
   fi
 }
 

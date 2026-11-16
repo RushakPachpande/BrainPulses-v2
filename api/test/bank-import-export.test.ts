@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import ExcelJS from 'exceljs';
 import { AppError } from '../src/lib/errors.js';
+import { buildAssessmentSampleWorkbook } from '../src/modules/activities/assessment-import.js';
 import { isImportFilename } from '../src/modules/banks/upload.js';
 import { authorableTypesForKind } from '../src/modules/banks/schema.js';
 import {
@@ -11,6 +12,7 @@ import {
   buildSampleCsv,
   buildSampleWorkbook,
   emptyBankImportRow,
+  formatQuestionImportError,
   newImportQuestionCode,
   parseBankQuestionsFile,
   rowToCreatePayload,
@@ -88,7 +90,12 @@ describe('question spreadsheet samples', () => {
 
   it('imports the quiz sample as single-choice and multiple-choice only', async () => {
     const buffer = await buildSampleWorkbook('quiz');
-    const rows = await parseBankQuestionsFile(Buffer.from(buffer), 'quiz-sample.xlsx');
+    const rows = await parseBankQuestionsFile(
+      Buffer.from(buffer),
+      'quiz-sample.xlsx',
+      undefined,
+      'quiz',
+    );
     const types = rows.map((r) => rowToCreatePayload(r, 'quiz').type);
     assert.ok(types.includes('single_mcq'));
     assert.ok(types.includes('multiple_mcq'));
@@ -103,10 +110,83 @@ describe('question spreadsheet samples', () => {
       .join('\n');
     assert.match(notes, /multiple_mcq/);
     assert.doesNotMatch(notes, /always single/i);
-    assert.equal(
-      buildSampleCsv('quiz').split('\n')[0],
-      buildSampleCsv('assessment').split('\n')[0],
+    const quizHeader = buildSampleCsv('quiz').split('\n')[0] ?? '';
+    const assessmentHeader = buildSampleCsv('assessment').split('\n')[0] ?? '';
+    assert.ok(quizHeader.includes('correct'));
+    assert.ok(!quizHeader.includes('numericValue'));
+    assert.ok(!quizHeader.includes('passageText'));
+    assert.ok(!quizHeader.includes('referenceAnswer'));
+    assert.ok(assessmentHeader.includes('numericValue'));
+    assert.ok(assessmentHeader.includes('passageText'));
+  });
+
+  it('imports the assessment activity sample as assessment types with a round', async () => {
+    const buffer = await buildAssessmentSampleWorkbook();
+    const rows = await parseBankQuestionsFile(Buffer.from(buffer), 'assessment-sample.xlsx');
+    const types = rows.map((r) => rowToCreatePayload(r, 'assessment').type);
+    assert.deepEqual(new Set(types), authorableTypesForKind('assessment'));
+    assert.ok(types.every((type) => type !== 'image_mcq' && type !== 'image_selection'));
+    const comprehension = rows.filter((r) => r.type === 'comprehension_mcq');
+    assert.equal(comprehension.length, 2);
+    assert.equal(comprehension[0]?.passageText, comprehension[1]?.passageText);
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    const sheet = workbook.getWorksheet('Questions');
+    assert.ok(sheet);
+    let roundCol = 0;
+    sheet.getRow(1).eachCell((cell, col) => {
+      if (cell.value === 'round') roundCol = col;
+    });
+    assert.ok(roundCol > 0);
+    assert.equal(sheet.getRow(2).getCell(roundCol).value, 'Round 1');
+  });
+});
+
+describe('question import error text', () => {
+  it('names the empty type cell and what to type', () => {
+    const message = formatQuestionImportError(
+      row({ type: '', question: 'What is 2 + 2?', points: '1' }),
+      'assessment',
+      new Error('type is required'),
     );
+    assert.match(message, /Sheet row 2/);
+    assert.match(message, /Type/);
+    assert.match(message, /empty/i);
+    assert.match(message, /single_mcq/);
+    assert.match(message, /What is 2 \+ 2/);
+  });
+
+  it('tells a quiz importer that numerical questions belong on an assessment', () => {
+    const message = formatQuestionImportError(
+      row({ type: 'numeric', question: 'What is 2 + 2?', numericValue: '4' }),
+      'quiz',
+      new Error(
+        'Quiz banks only support single-choice or multiple-choice questions. Got “numeric”.',
+      ),
+    );
+    assert.match(message, /Type/);
+    assert.match(message, /numeric/);
+    assert.match(message, /assessment/i);
+    assert.match(message, /single_mcq/);
+  });
+
+  it('shows the correct-answer cell when it matches no option', () => {
+    const message = formatQuestionImportError(
+      row({
+        type: 'single_mcq',
+        question: 'Color?',
+        optionA: 'Red',
+        optionB: 'Blue',
+        correct: 'Green',
+      }),
+      'assessment',
+      new Error('Mark exactly one correct option.'),
+    );
+    assert.match(message, /Correct answer/);
+    assert.match(message, /Green/);
+    assert.match(message, /Color\?/);
+    assert.match(message, /letter/);
   });
 });
 

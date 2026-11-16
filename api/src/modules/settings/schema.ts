@@ -6,6 +6,6 @@ export const groupParamSchema = z.object({
 
 export const patchSettingsSchema = z
   .object({
-    values: z.record(z.unknown()),
+    values: z.record(z.string(), z.unknown()),
   })
   .strict();

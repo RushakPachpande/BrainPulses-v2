@@ -7,13 +7,17 @@ import { placeOwnedImage } from '../files/place.js';
 import { assertCatalogImage } from '../files/service.js';
 import type { createSponsorSchema, sponsorListQuerySchema, updateSponsorSchema } from './schema.js';
 
+const sponsorCount = {
+  _count: { select: { contests: true, activities: true, registrationForms: true } },
+} as const;
+
 function mapSponsor(row: {
   id: string;
   name: string;
   imageFileId: string;
   createdAt: Date;
   updatedAt: Date;
-  _count?: { contests: number };
+  _count: { contests: number; activities: number; registrationForms: number };
 }) {
   return {
     id: row.id,
@@ -21,7 +25,9 @@ function mapSponsor(row: {
     imageFileId: row.imageFileId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    contests: row._count?.contests ?? 0,
+    contests: row._count.contests,
+    activities: row._count.activities,
+    registrationForms: row._count.registrationForms,
   };
 }
 
@@ -38,7 +44,7 @@ export async function listSponsors(
     prisma.sponsor.count({ where }),
     prisma.sponsor.findMany({
       where,
-      include: { _count: { select: { contests: true } } },
+      include: sponsorCount,
       ...prismaCursorArgs(query, sort),
     }),
   ]);
@@ -49,7 +55,7 @@ export async function listSponsors(
 export async function getSponsor(organizationId: string, id: string) {
   const row = await prisma.sponsor.findFirst({
     where: { organizationId, id },
-    include: { _count: { select: { contests: true } } },
+    include: sponsorCount,
   });
   if (!row) throw notFound('Sponsor not found.');
   return mapSponsor(row);
@@ -67,7 +73,7 @@ export async function createSponsor(
       name: input.name,
       imageFileId: input.imageFileId,
     },
-    include: { _count: { select: { contests: true } } },
+    include: sponsorCount,
   });
   await placeOwnedImage(organizationId, row.imageFileId, {
     kind: 'sponsor',
@@ -100,7 +106,7 @@ export async function updateSponsor(
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
     },
-    include: { _count: { select: { contests: true } } },
+    include: sponsorCount,
   });
   await placeOwnedImage(organizationId, row.imageFileId, {
     kind: 'sponsor',
@@ -121,15 +127,16 @@ export async function updateSponsor(
 export async function deleteSponsor(organizationId: string, actorUserId: string, id: string) {
   const existing = await prisma.sponsor.findFirst({
     where: { organizationId, id },
-    include: { _count: { select: { contests: true, activities: true } } },
+    include: sponsorCount,
   });
   if (!existing) throw notFound('Sponsor not found.');
 
   const contests = existing._count.contests;
   const activities = existing._count.activities;
-  if (contests > 0 || activities > 0) {
+  const forms = existing._count.registrationForms;
+  if (contests > 0 || activities > 0 || forms > 0) {
     throw conflict(
-      `Cannot delete this sponsor while ${contests} contest${contests === 1 ? '' : 's'} and ${activities} activit${activities === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
+      `Cannot delete this sponsor while ${contests} contest${contests === 1 ? '' : 's'}, ${activities} activit${activities === 1 ? 'y' : 'ies'}, and ${forms} registration form${forms === 1 ? '' : 's'} still use it. Remove those links first.`,
     );
   }
 

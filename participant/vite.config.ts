@@ -1,6 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import { defineConfig, loadEnv } from 'vite';
+import { defineConfig } from 'vite';
+import { loadFixedEnv } from './load-fixed-env.ts';
 
 const apiProxyTarget = process.env.VITE_API_PROXY_TARGET ?? 'http://127.0.0.1:3002';
 
@@ -38,11 +39,13 @@ function resolvePort(fileEnv: Record<string, string>, fallback: number): number 
 }
 
 export default defineConfig(({ mode }) => {
-  const fileEnv = loadEnv(mode, import.meta.dirname, '');
-  const port = resolvePort(fileEnv, 5175);
+  const fileEnv = loadFixedEnv(import.meta.dirname, mode);
+  const port = resolvePort(fileEnv, 5174);
   const allowedHosts = devAllowedHosts(process.env.DEV_ALLOWED_HOSTS || fileEnv.DEV_ALLOWED_HOSTS);
 
   return {
+    // Disable Vite's default `.env`, `.env.local`, `.env.[mode]` loading.
+    envDir: false,
     plugins: [react(), tailwindcss()],
     server: {
       host: '0.0.0.0',

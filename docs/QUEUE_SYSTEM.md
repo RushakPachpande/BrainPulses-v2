@@ -19,7 +19,6 @@ Local/tests: `QUEUE_INLINE=true` or `NODE_ENV=test` runs processors in-process (
 | `report.quiz-export` | `GET /api/quiz-reports/export` | File under `uploads/temporary/jobs/` |
 | `report.assessment-export` | `GET /api/assessment-reports/export` | Same |
 | `import.participants` | `POST /api/participants/import` | Import JSON (or 202 + poll) |
-| `import.users` | `POST /api/users/import` | Import JSON (or 202 + poll) |
 | `import.bank-questions` | `POST /api/banks/:id/import` | Import JSON (or 202 + poll) |
 
 ## Client handshake

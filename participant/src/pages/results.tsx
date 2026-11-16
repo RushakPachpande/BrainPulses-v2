@@ -7,32 +7,37 @@ import { PageLoader } from '../components/loading-overlay';
 import { PortalHeader } from '../components/portal-header';
 import { IconCheck } from '../components/portal-icons';
 import { StoredImage } from '../components/stored-image';
+import { FilterMultiSelect } from '../components/filter-multi-select';
 import { Heading } from '../components/ui-bits';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-} from '../components/ui/select';
 import { useAuth } from '../contexts/auth-context';
-import { useParticipantPages } from '../hooks/use-participant-pages';
 import { answerLabel, formatDateLabel, formatKind } from '../lib/format';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { clientQueryKeys } from '../lib/query-keys';
 import { getResult, listActivities, listResults } from '../services/api';
 import type { ParticipantResultDetail } from '../services/types';
 
-const RESULT_FILTERS = ['All', 'Quiz', 'Assessment'] as const;
+const RESULT_FILTERS = ['Quiz', 'Assessment'] as const;
+
+function shownAnswer(question: ParticipantResultDetail['review'][number]) {
+  const raw = answerLabel(question.yourAnswer);
+  if (!raw) return 'Not answered';
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const option = question.options.find((item) => item.label === part);
+      if (!option?.body) return option?.label ?? part;
+      return `${option.label}. ${option.body}`;
+    })
+    .join(', ');
+}
 
 export function ResultsPage() {
   const navigate = useNavigate();
   const { participant } = useAuth();
-  const pagesQuery = useParticipantPages();
-  const quizzesOn = pagesQuery.data?.quizzes ?? true;
-  const assessmentsOn = pagesQuery.data?.assessments ?? true;
   const participantId = participant?.id ?? '';
-  const [filter, setFilter] = useState<(typeof RESULT_FILTERS)[number]>('All');
+  const [filter, setFilter] = useState<string[]>([]);
 
   const {
     data: attempts = [],
@@ -49,9 +54,9 @@ export function ResultsPage() {
     () =>
       attempts.filter(
         (a) =>
-          filter === 'All' ||
-          (filter === 'Quiz' && a.kind === 'quiz') ||
-          (filter === 'Assessment' && a.kind === 'assessment'),
+          filter.length === 0 ||
+          (filter.includes('Quiz') && a.kind === 'quiz') ||
+          (filter.includes('Assessment') && a.kind === 'assessment'),
       ),
     [attempts, filter],
   );
@@ -100,24 +105,13 @@ export function ResultsPage() {
           <h2>Attempt history</h2>
           <p>Your most recent submissions appear first.</p>
         </div>
-        <Select
-          value={filter}
-          onValueChange={(value) => setFilter(value as (typeof RESULT_FILTERS)[number])}
+        <FilterMultiSelect
+          label="Type"
+          options={RESULT_FILTERS}
+          values={filter}
+          onValuesChange={setFilter}
           disabled={loading}
-        >
-          <SelectTrigger aria-label="Type" className="results-type-filter">
-            <span className="select-trigger-label">Type: {filter}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {RESULT_FILTERS.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+        />
       </div>
       {loading ? (
         <div className="panel results-table" aria-busy="true" aria-live="polite">
@@ -181,24 +175,16 @@ export function ResultsPage() {
                 </li>
               </ol>
               <div className="results-empty-actions">
-                {quizzesOn ? (
-                  <button
-                    className="btn primary"
-                    type="button"
-                    onClick={() => navigate('/quizzes')}
-                  >
-                    Start a quiz <ArrowRight size={15} aria-hidden />
-                  </button>
-                ) : null}
-                {assessmentsOn ? (
-                  <button
-                    className="btn outline"
-                    type="button"
-                    onClick={() => navigate('/assessments')}
-                  >
-                    Browse assessments
-                  </button>
-                ) : null}
+                <button className="btn primary" type="button" onClick={() => navigate('/quizzes')}>
+                  Start a quiz <ArrowRight size={15} aria-hidden />
+                </button>
+                <button
+                  className="btn outline"
+                  type="button"
+                  onClick={() => navigate('/assessments')}
+                >
+                  Browse assessments
+                </button>
               </div>
             </>
           ) : (
@@ -208,7 +194,7 @@ export function ResultsPage() {
               </div>
               <b>No matching results</b>
               <span>Try a different filter to see your attempts.</span>
-              <button className="btn outline" type="button" onClick={() => setFilter('All')}>
+              <button className="btn outline" type="button" onClick={() => setFilter([])}>
                 Show all results
               </button>
             </>
@@ -463,7 +449,7 @@ export function ResultDetailPage() {
               {question.questionImageUrl ? (
                 <StoredImage src={question.questionImageUrl} alt="" />
               ) : null}
-              <p>{answerLabel(question.yourAnswer) ?? 'Not answered'}</p>
+              <p>{shownAnswer(question)}</p>
             </div>
           ))}
         </section>

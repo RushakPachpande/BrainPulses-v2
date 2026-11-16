@@ -75,8 +75,7 @@ export type {
 } from './types';
 
 /** Fixtures are a local DEV-only bypass. Production builds always hit the API. */
-const useFixtures =
-  import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true';
+const useFixtures = import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true';
 
 type ApiParticipantRow = Parameters<typeof mapParticipantFromApi>[0];
 type ApiUserRow = Parameters<typeof mapUserFromApi>[0];
@@ -672,11 +671,11 @@ export async function updateParticipant(
   },
 ) {
   if (useFixtures) {
-    invalidateAdmin(['participants', 'dashboard']);
+    invalidateAdmin(['participants', 'registrations', 'dashboard']);
     return { id, ...payload };
   }
   const data = await apiPatchData(`/api/participants/${id}`, payload);
-  invalidateAdmin(['participants', 'dashboard']);
+  invalidateAdmin(['participants', 'registrations', 'dashboard']);
   return data;
 }
 
@@ -849,6 +848,7 @@ export async function importParticipants(file: File): Promise<SpreadsheetImportR
     '/api/participants/import',
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   const { resolveImportResult } = await import('@/lib/jobs');
   const result = await resolveImportResult(data);
@@ -863,38 +863,15 @@ export async function downloadParticipantsSample(): Promise<void> {
 
 export async function deleteParticipant(participantId: string, password: string) {
   if (useFixtures) {
-    invalidateAdmin(['participants', 'dashboard']);
+    invalidateAdmin(['participants', 'registrations', 'results', 'dashboard']);
     return { deleted: true as const, email: '' };
   }
   const body = await apiRequest<{ data: { deleted: true; email: string } }>(
     `/api/participants/${participantId}`,
     { method: 'DELETE', body: JSON.stringify({ password }) },
   );
-  invalidateAdmin(['participants', 'dashboard']);
+  invalidateAdmin(['participants', 'registrations', 'results', 'dashboard']);
   return body.data;
-}
-
-export async function importUsers(file: File): Promise<SpreadsheetImportResult> {
-  assertXlsxImportFile(file);
-  if (useFixtures) {
-    return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
-  }
-  const form = new FormData();
-  form.append('file', file);
-  const data = await apiPostFormData<SpreadsheetImportResult | { jobId: string; status: string }>(
-    '/api/users/import',
-    form,
-    idempotencyHeaders(),
-  );
-  const { resolveImportResult } = await import('@/lib/jobs');
-  const result = await resolveImportResult(data);
-  invalidateAdmin(['users', 'dashboard']);
-  return result;
-}
-
-export async function downloadUsersSample(): Promise<void> {
-  if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
-  await apiDownloadBlob('/api/users/sample.xlsx', 'brainpulses-users-sample.xlsx');
 }
 
 export async function deleteSponsor(sponsorId: string, password: string) {
@@ -1092,6 +1069,7 @@ export async function importBankQuestions(bankId: string, file: File): Promise<B
     `/api/banks/${bankId}/import`,
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   const { resolveImportResult } = await import('@/lib/jobs');
   const result = await resolveImportResult(data);
@@ -1152,6 +1130,8 @@ export async function previewAssessmentQuestionsImport(
   return apiPostFormData<AssessmentImportPreview>(
     `/api/activities/${activityId}/questions/import/preview`,
     form,
+    undefined,
+    { blocking: true },
   );
 }
 
@@ -1171,33 +1151,54 @@ export async function confirmAssessmentQuestionsImport(
     `/api/activities/${activityId}/questions/import`,
     form,
     idempotencyHeaders(),
+    { blocking: true, timeoutMs: 120_000 },
   );
   invalidateAdmin(['activities', 'banks']);
   return data;
 }
 
-export async function exportBankQuestions(
-  bankId: string,
-  format: 'xlsx' | 'csv' = 'xlsx',
-): Promise<void> {
+export async function exportBankQuestions(bankId: string, format: 'xlsx' = 'xlsx'): Promise<void> {
   if (useFixtures) throw new Error('Export is unavailable in fixture mode.');
   await apiDownloadBlob(
     `/api/banks/${bankId}/questions/export.${format}`,
     `brainpulses-question-export.${format}`,
+    { blocking: true, timeoutMs: 120_000 },
   );
 }
 
-export async function assignRegistrations(activityId: string, participantIds: string[]) {
+export async function createManualRegistration(
+  payload:
+    | {
+        activityId: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string;
+      }
+    | {
+        activityId: string;
+        formId: string;
+        answers: Record<string, string | string[] | boolean>;
+      },
+) {
+  const name =
+    'formId' in payload ? 'Participant' : `${payload.firstName} ${payload.lastName}`.trim();
   if (useFixtures) {
-    invalidateAdmin(['registrations', 'activities', 'dashboard']);
-    return [];
+    invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
+    return {
+      participantId: crypto.randomUUID(),
+      code: 'BP00000000',
+      name,
+      activity: '',
+    };
   }
-  const data = await apiPostData(
-    '/api/registrations/assign',
-    { activityId, participantIds },
-    idempotencyHeaders(),
-  );
-  invalidateAdmin(['registrations', 'activities', 'dashboard']);
+  const data = await apiPostData<{
+    participantId: string;
+    code: string;
+    name: string;
+    activity: string;
+  }>('/api/registrations/manual', payload, idempotencyHeaders());
+  invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
   return data;
 }
 

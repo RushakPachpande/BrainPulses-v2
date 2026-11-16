@@ -1,39 +1,35 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../contexts/auth-context';
-import type { ParticipantPages } from '../lib/participant-pages';
-import { clientQueryKeys } from '../lib/query-keys';
-import { listActivities } from '../services/api';
-import { IconList, IconLogout, IconPanel, IconQuiz } from '../components/portal-icons';
+import { useAllotment } from '../hooks/use-allotment';
+import { allotmentLandingPath } from '../lib/allotment';
+import { IconList, IconLogout, IconQuiz } from '../components/portal-icons';
 import { PortalBrand } from '../components/portal-brand';
 import { ThemeButton } from '../components/theme-button';
 
-function useNarrow() {
-  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width:860px)').matches);
-  useEffect(() => {
-    const media = window.matchMedia('(max-width:860px)');
-    const onChange = () => setNarrow(media.matches);
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, []);
-  return narrow;
+function Chevron() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden>
+      <path
+        d="M6 9l6 6 6-6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
-export function ParticipantShell({
-  pages,
-  children,
-}: {
-  pages: ParticipantPages | null;
-  children?: ReactNode;
-}) {
+export function ParticipantShell({ children }: { children?: ReactNode }) {
   const { participant, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const narrow = useNarrow();
-  const [collapsed, setCollapsed] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const participantId = participant?.id ?? '';
+  const allotment = useAllotment();
+  const menuId = useId();
+  const accountRef = useRef<HTMLDivElement>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
   const name = participant?.name ?? 'Participant';
   const initials = name
     .split(' ')
@@ -43,110 +39,99 @@ export function ParticipantShell({
     .join('')
     .toUpperCase();
 
-  const quizzes = useQuery({
-    queryKey: clientQueryKeys.activities(participantId, 'quiz'),
-    queryFn: () => listActivities('quiz'),
-    enabled: Boolean(participantId) && (pages?.quizzes ?? true),
-  });
-  const assessments = useQuery({
-    queryKey: clientQueryKeys.activities(participantId, 'assessment'),
-    queryFn: () => listActivities('assessment'),
-    enabled: Boolean(participantId) && (pages?.assessments ?? true),
-  });
+  function goHome() {
+    if (allotment.pending) {
+      navigate('/');
+      return;
+    }
+    navigate(allotmentLandingPath(allotment));
+  }
+
+  function logOut() {
+    signOut();
+    navigate('/login', { replace: true });
+  }
 
   useEffect(() => {
-    setMobileOpen(false);
+    setAccountOpen(false);
   }, [location.pathname]);
 
   useEffect(() => {
-    document.body.classList.toggle('pc', collapsed && !narrow);
-    document.body.classList.toggle('mx', mobileOpen && narrow);
+    if (!accountOpen) return;
+    function onPointer(event: PointerEvent) {
+      if (!accountRef.current?.contains(event.target as Node)) setAccountOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === 'Escape') setAccountOpen(false);
+    }
+    document.addEventListener('pointerdown', onPointer);
+    document.addEventListener('keydown', onKey);
     return () => {
-      document.body.classList.remove('pc', 'mx');
+      document.removeEventListener('pointerdown', onPointer);
+      document.removeEventListener('keydown', onKey);
     };
-  }, [collapsed, mobileOpen, narrow]);
-
-  function togglePanel() {
-    if (narrow) setMobileOpen((open) => !open);
-    else setCollapsed((value) => !value);
-  }
+  }, [accountOpen]);
 
   return (
     <>
-      <button
-        className="scrim"
-        id="scrim"
-        type="button"
-        aria-label="Close menu"
-        onClick={() => setMobileOpen(false)}
-      />
-      <aside className="side" aria-label="Menu">
-        <div className="sh">
-          <PortalBrand onHome={() => navigate('/dashboard')} />
-          <button
-            className="tg"
-            id="tgl"
-            type="button"
-            title="Hide panel"
-            aria-label="Hide panel"
-            onClick={togglePanel}
-          >
-            <IconPanel expanded />
-          </button>
-        </div>
-        <nav className="nv">
-          {pages?.quizzes !== false && (quizzes.isPending || (quizzes.data?.length ?? 0) > 0) ? (
-            <NavLink to="/quizzes" className={({ isActive }) => (isActive ? 'on' : '')}>
+      <header className="topbar">
+        <PortalBrand onHome={goHome} />
+        <nav className="topnav" aria-label="Portal">
+          {allotment.hasQuiz ? (
+            <NavLink
+              to="/quizzes"
+              className={({ isActive }) => (isActive ? 'on' : '')}
+              aria-label={allotment.quizCount > 0 ? `Quizzes, ${allotment.quizCount}` : 'Quizzes'}
+            >
               <IconQuiz />
               <span>Quizzes</span>
-              <i>{quizzes.data?.length ?? 0}</i>
             </NavLink>
           ) : null}
-          {pages?.assessments !== false &&
-          (assessments.isPending || (assessments.data?.length ?? 0) > 0) ? (
-            <NavLink to="/assessments" className={({ isActive }) => (isActive ? 'on' : '')}>
+          {allotment.hasAssessment ? (
+            <NavLink
+              to="/assessments"
+              className={({ isActive }) => (isActive ? 'on' : '')}
+              aria-label={
+                allotment.assessmentCount > 0
+                  ? `Assessments, ${allotment.assessmentCount}`
+                  : 'Assessments'
+              }
+            >
               <IconList />
               <span>Assessments</span>
-              <i>{assessments.data?.length ?? 0}</i>
             </NavLink>
           ) : null}
         </nav>
-        <div className="sb">
-          <div className="us">
-            <div className="av">{initials || 'BP'}</div>
-            <div>
-              <b>{name}</b>
-              <small>{participant?.code ?? 'Participant'}</small>
-            </div>
+        <div className="topbar-end">
+          <ThemeButton className="thm topbar-theme" />
+          <div className="account" ref={accountRef}>
+            <button
+              className="account-btn"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={accountOpen}
+              aria-controls={menuId}
+              onClick={() => setAccountOpen((open) => !open)}
+            >
+              <span className="av">{initials || 'BP'}</span>
+              <Chevron />
+              <span className="sr-only">{name}</span>
+            </button>
+            {accountOpen ? (
+              <div className="account-menu" id={menuId} role="menu">
+                <div className="account-id">
+                  <b>{name}</b>
+                  <small>{participant?.code ?? 'Participant'}</small>
+                </div>
+                <button className="lo" type="button" role="menuitem" onClick={logOut}>
+                  <IconLogout />
+                  <span>Log out</span>
+                </button>
+              </div>
+            ) : null}
           </div>
-          <button
-            className="lo"
-            id="logout"
-            type="button"
-            onClick={() => {
-              signOut();
-              navigate('/login', { replace: true });
-            }}
-          >
-            <IconLogout />
-            <span>Log out</span>
-          </button>
         </div>
-      </aside>
-      <div className="fb">
-        <button
-          className="tg"
-          id="tgl2"
-          type="button"
-          title="Show panel"
-          aria-label="Show panel"
-          onClick={togglePanel}
-        >
-          <IconPanel expanded={false} />
-        </button>
-        <PortalBrand onHome={() => navigate('/dashboard')} />
-      </div>
-      <ThemeButton />
+      </header>
       <main className="main">{children}</main>
       <footer className="app-footer">
         <span>© 2026 BrainPulses</span>

@@ -7,13 +7,13 @@ import { config } from 'dotenv';
 export const apiRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * Load environment variables from a mode-specific file.
+ * Load env from exactly one allowed file (first match wins):
  *
- * - development / test / unset → prefer `.env.dev`, then `.env`
- * - production → prefer `.env.prod`, then `.env`
+ * - production → `.env.prod`, then `.env`
+ * - anything else → `.env.dev`, then `.env`
  *
- * NODE_ENV often lives inside the file, so we key off the process value that
- * was already set by the shell, nodemon, or the process manager.
+ * No other names (`.env.production`, `.env.local`, `.env.p`, …) are read.
+ * NODE_ENV is taken from the process (shell / nodemon / PM2), not from guessing filenames.
  */
 export function resolveEnvPath(): string | undefined {
   const isProduction = process.env.NODE_ENV === 'production';

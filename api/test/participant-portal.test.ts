@@ -109,7 +109,7 @@ describe('participant portal', () => {
     assert.equal(other.status, 404);
   });
 
-  it('turns a participant page off for lists and attempt start', async () => {
+  it('keeps quizzes available when a stored page toggle is off', async () => {
     const app = await getTestApp();
     const token = await participantToken();
     const signIn = await request(app, 'POST', '/api/auth/sign-in', {
@@ -147,20 +147,15 @@ describe('participant portal', () => {
       });
       assert.equal(pages.status, 200);
       const flags = (pages.body as { data: { quizzes: boolean; overview: boolean } }).data;
-      assert.equal(flags.quizzes, false);
+      assert.equal(flags.quizzes, true);
       assert.equal(flags.overview, true);
 
       const quizzes = await request(app, 'GET', '/api/participant/activities?kind=quiz&limit=50', {
         headers: { authorization: `Bearer ${token}` },
       });
-      assert.equal(quizzes.status, 403);
-
-      const all = await request(app, 'GET', '/api/participant/activities?kind=all&limit=50', {
-        headers: { authorization: `Bearer ${token}` },
-      });
-      assert.equal(all.status, 200);
-      const list = (all.body as { data: { kind: string }[] }).data;
-      assert.ok(list.every((item) => item.kind !== 'quiz'));
+      assert.equal(quizzes.status, 200);
+      const quizList = (quizzes.body as { data: { code: string }[] }).data;
+      assert.ok(quizList.some((item) => item.code === 'QZ-26001'));
 
       const activity = await prisma.activity.findFirst({ where: { code: 'QZ-26001' } });
       assert.ok(activity);
@@ -168,7 +163,7 @@ describe('participant portal', () => {
         headers: { authorization: `Bearer ${token}` },
         body: { activityId: activity.id },
       });
-      assert.equal(start.status, 403);
+      assert.notEqual(start.status, 403);
     } finally {
       await request(app, 'PATCH', '/api/settings/general', {
         headers: { authorization: `Bearer ${admin}` },

@@ -2,7 +2,6 @@ import { NavLink } from 'react-router';
 import {
   BarChart3Icon,
   ClipboardListIcon,
-  PanelsTopLeftIcon,
   SettingsIcon,
   UsersIcon,
   type LucideIcon,
@@ -38,15 +37,7 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
   {
     prefix: '/settings',
     label: 'Settings',
-    links: [
-      { to: '/settings', label: 'General', icon: SettingsIcon, end: true },
-      {
-        to: '/settings/participant-portal',
-        label: 'Participant portal',
-        icon: PanelsTopLeftIcon,
-        end: true,
-      },
-    ],
+    links: [{ to: '/settings', label: 'General', icon: SettingsIcon, end: true }],
   },
 ];
 

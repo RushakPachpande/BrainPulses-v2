@@ -44,11 +44,11 @@ function formatDisplayRange(from: string, to: string) {
 }
 
 export function dateRangeLabel(value: DateRangeValue) {
-  if (value.preset === 'all') return 'Date Range: All';
-  if (value.preset === 'today') return 'Date Range: Today';
-  if (value.preset === 'last7') return 'Date Range: Last 7 days';
+  if (value.preset === 'all') return 'All';
+  if (value.preset === 'today') return 'Today';
+  if (value.preset === 'last7') return 'Last 7 days';
   if (value.from && value.to) return formatDisplayRange(value.from, value.to);
-  return 'Date Range: Custom';
+  return 'Custom';
 }
 
 /** Parse fixture dates like "03 Sep 2026" or "15 Oct 2026" to yyyy-MM-dd. */

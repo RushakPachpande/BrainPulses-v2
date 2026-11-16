@@ -39,9 +39,6 @@ const ActivityWizardPage = lazy(() =>
 const RegistrationsPage = lazy(() =>
   import('@/pages/registrations').then((m) => ({ default: m.RegistrationsPage })),
 );
-const AssignRegistrationPage = lazy(() =>
-  import('@/pages/assign-registration').then((m) => ({ default: m.AssignRegistrationPage })),
-);
 const RegistrationDetailPage = lazy(() =>
   import('@/pages/registration-detail').then((m) => ({ default: m.RegistrationDetailPage })),
 );
@@ -56,11 +53,6 @@ const ResultDetailPage = lazy(() =>
 );
 const GeneralSettingsPage = lazy(() =>
   import('@/pages/settings-general').then((m) => ({ default: m.GeneralSettingsPage })),
-);
-const ParticipantPortalSettingsPage = lazy(() =>
-  import('@/pages/settings-participant-portal').then((m) => ({
-    default: m.ParticipantPortalSettingsPage,
-  })),
 );
 const DesignSystemPage = lazy(() =>
   import('@/pages/design-system').then((m) => ({ default: m.DesignSystemPage })),
@@ -174,10 +166,6 @@ export function AppRoutes() {
               element={<ActivityWizardPage kind="assessment" mode="edit" />}
             />
             <Route
-              path="assessments/registrations/new"
-              element={<AssignRegistrationPage kind="assessment" />}
-            />
-            <Route
               path="assessments/registrations/:registrationId/edit"
               element={<RegistrationDetailPage kind="assessment" mode="edit" />}
             />
@@ -202,22 +190,17 @@ export function AppRoutes() {
               element={<ActivityWizardPage kind="quiz" mode="edit" />}
             />
             <Route
-              path="quizzes/registrations/new"
-              element={<AssignRegistrationPage kind="quiz" />}
-            />
-            <Route
               path="quizzes/registrations/:registrationId/edit"
               element={<RegistrationDetailPage kind="quiz" mode="edit" />}
             />
           </Route>
 
           <Route path="settings" element={<GeneralSettingsPage />} />
-          <Route path="settings/participant-portal" element={<ParticipantPortalSettingsPage />} />
-          <Route
-            path="settings/student-portal"
-            element={<Navigate to="/settings/participant-portal" replace />}
-          />
-          <Route path="settings/design-system" element={<DesignSystemPage />} />
+          <Route path="settings/participant-portal" element={<Navigate to="/settings" replace />} />
+          <Route path="settings/student-portal" element={<Navigate to="/settings" replace />} />
+          <Route element={<RequireAccess gate={{ type: 'superAdmin' }} />}>
+            <Route path="settings/design-system" element={<DesignSystemPage />} />
+          </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Route>

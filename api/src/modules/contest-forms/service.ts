@@ -1,8 +1,10 @@
-import { randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type { FlowStatus } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
+import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
+import { nextRegistrationId } from '../../lib/registration-id.js';
 import { readInlineImage } from '../files/service.js';
 import type { SaveFormInput } from './schema.js';
 import {
@@ -417,7 +419,17 @@ export async function regenerateLink(organizationId: string, userId: string, id:
   if (existing.status !== 'saved' || !existing.slug || !existing.contest) {
     throw badRequest('Save the registration form before creating a new link.');
   }
-  const slug = await uniqueSlug(slugifyContest(existing.contest.name), id);
+  const base = slugifyContest(existing.contest.name);
+  // New link must differ from the current slug (uniqueSlug excludes this form otherwise).
+  let slug = await uniqueSlug(`${base}-${randomBytes(3).toString('hex')}`);
+  let guard = 0;
+  while (slug === existing.slug && guard < 5) {
+    slug = await uniqueSlug(`${base}-${randomBytes(3).toString('hex')}`);
+    guard += 1;
+  }
+  if (slug === existing.slug) {
+    throw badRequest('Could not create a new registration link. Try again.');
+  }
   await prisma.contestRegistrationForm.update({
     where: { id },
     data: {
@@ -552,6 +564,7 @@ export async function publicForm(slug: string) {
       contestImage: form.showContestImage && form.contestImageFileId ? true : false,
       sponsorImage: form.showSponsorName && form.sponsorImageFileId ? true : false,
       closesAt: form.closesAt,
+      seats: form.seats,
       seatsLeft: form.seats == null ? null : Math.max(0, form.seats - form.registrationCount),
       fields: form.fields.filter((field) => !field.deleted),
       domainRestriction: form.domainRestriction,
@@ -576,15 +589,6 @@ function formatWhen(date: Date) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
-}
-
-async function nextRegistrationId() {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const code = `BP${String(randomInt(0, 100_000_000)).padStart(8, '0')}`;
-    const taken = await prisma.participant.findFirst({ where: { code }, select: { id: true } });
-    if (!taken) return code;
-  }
-  throw conflict('Could not create a Registration ID. Try again.');
 }
 
 export async function register(slug: string, answers: Record<string, AnswerValue>) {
@@ -722,4 +726,62 @@ export async function register(slug: string, answers: Record<string, AnswerValue
     code,
     message: 'Use it to log in. Your quizzes appear after you log in.',
   };
+}
+
+type FormWipeTx = {
+  contestFormSubmission: {
+    findMany(args: {
+      where: { organizationId: string; formId: string };
+      select: { participantId: true };
+    }): Promise<Array<{ participantId: string }>>;
+  };
+  participant: {
+    deleteMany(args: { where: { organizationId: string; id: { in: string[] } } }): Promise<unknown>;
+  };
+  contestRegistrationForm: {
+    deleteMany(args: { where: { organizationId: string; id: string } }): Promise<unknown>;
+  };
+};
+
+/** Deletes everyone who submitted this form, then the form. Quizzes and assessments stay. */
+export async function wipeRegistrationForm(tx: FormWipeTx, organizationId: string, formId: string) {
+  const submissions = await tx.contestFormSubmission.findMany({
+    where: { organizationId, formId },
+    select: { participantId: true },
+  });
+  const participantIds = [...new Set(submissions.map((row) => row.participantId))];
+  if (participantIds.length > 0) {
+    await tx.participant.deleteMany({
+      where: { organizationId, id: { in: participantIds } },
+    });
+  }
+  await tx.contestRegistrationForm.deleteMany({ where: { organizationId, id: formId } });
+  return participantIds.length;
+}
+
+export async function deleteForm(organizationId: string, actorUserId: string, id: string) {
+  const existing = await prisma.contestRegistrationForm.findFirst({
+    where: { organizationId, id },
+    select: { id: true, contest: { select: { name: true } } },
+  });
+  if (!existing) throw notFound('Registration form not found.');
+
+  const participantsRemoved = await prisma.$transaction((tx) =>
+    wipeRegistrationForm(tx, organizationId, id),
+  );
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'contest_form.delete',
+    targetType: 'contest_form',
+    targetId: id,
+    metadata: {
+      contestName: existing.contest?.name ?? null,
+      participantsRemoved,
+    },
+  });
+  await invalidateDashboard(organizationId);
+  return { deleted: true as const, participantsRemoved };
 }

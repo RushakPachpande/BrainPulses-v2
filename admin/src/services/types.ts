@@ -35,7 +35,8 @@ export type Activity = {
   iconTone: number;
   status: string;
   registered: number;
-  attempts: number;
+  sponsorName: string;
+  contestName: string;
   start: string;
   end: string;
   startTime: string;
@@ -129,6 +130,8 @@ export type Sponsor = {
   createdAt: string;
   updatedAt: string;
   contests: number;
+  activities: number;
+  registrationForms: number;
 };
 
 export type ImageLibraryPurpose = 'catalog' | 'question';
@@ -150,6 +153,14 @@ export type Contest = {
   imageFileId: string;
   createdAt: string;
   updatedAt: string;
+  /** Quizzes still linked to this contest. Delete stays hidden while this is above zero. */
+  activityCount: number;
+  /** Present when a registration form still belongs to this contest. */
+  registrationForm: {
+    status: 'draft' | 'saved';
+    submissionCount: number;
+    quizCount: number;
+  } | null;
 };
 
 export type ActivityDetail = Activity & {
@@ -198,7 +209,6 @@ export type RegistrationRow = {
   phone: string;
   registered: string;
   activity: string;
-  bank: string;
   assignment: string;
   attempt: string;
   /** Present when the participant has an open or completed attempt. */
@@ -239,6 +249,8 @@ export type DashboardData = {
   charts: ReadonlyArray<{
     title: string;
     values: number[];
+    labels?: string[];
+    scaleMax?: number;
     color: string;
     caption: string;
   }>;

@@ -15,8 +15,8 @@ export function createClientQueryClient() {
       queries: {
         staleTime: STALE_MS,
         gcTime: GC_MS,
-        refetchOnMount: 'always',
-        refetchOnWindowFocus: true,
+        refetchOnMount: true,
+        refetchOnWindowFocus: false,
         refetchOnReconnect: true,
         retry: 1,
       },

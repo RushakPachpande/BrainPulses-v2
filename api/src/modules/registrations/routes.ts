@@ -9,7 +9,8 @@ import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
   assignSchema,
-  exportQuerySchema,
+  assignableQuerySchema,
+  manualRegistrationSchema,
   registrationListQuerySchema,
   unassignSchema,
 } from './schema.js';
@@ -24,6 +25,12 @@ registrationsRouter.get(
   validate({ query: registrationListQuerySchema }),
   controller.list,
 );
+registrationsRouter.get(
+  '/assignable',
+  requireOrgAccess('edit'),
+  validate({ query: assignableQuerySchema }),
+  controller.assignable,
+);
 registrationsRouter.post(
   '/assign',
   requireOrgAccess('edit'),
@@ -31,14 +38,14 @@ registrationsRouter.post(
   controller.assign,
 );
 registrationsRouter.post(
+  '/manual',
+  requireOrgAccess('edit'),
+  validate({ body: manualRegistrationSchema }),
+  controller.createManual,
+);
+registrationsRouter.post(
   '/unassign',
   requireOrgAccess('edit'),
   validate({ body: unassignSchema }),
   controller.unassign,
-);
-registrationsRouter.get(
-  '/export',
-  requireOrgAccess('view'),
-  validate({ query: exportQuerySchema }),
-  controller.exportCsv,
 );

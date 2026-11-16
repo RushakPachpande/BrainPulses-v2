@@ -11,6 +11,20 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function assignable(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.listAssignable(
+      actor.organizationId,
+      actor,
+      String(req.query.activityId),
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function assign(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
@@ -27,6 +41,16 @@ export async function assign(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function createManual(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.createManual(actor.organizationId, actor, req.body);
+    res.status(201).json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function unassign(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
@@ -37,22 +61,6 @@ export async function unassign(req: Request, res: Response, next: NextFunction) 
       req.body.participantIds,
     );
     res.json({ data });
-  } catch (err) {
-    next(err);
-  }
-}
-
-export async function exportCsv(req: Request, res: Response, next: NextFunction) {
-  try {
-    const actor = userActor(req);
-    const csv = await service.exportCsv(
-      actor.organizationId,
-      actor,
-      req.query.activityId as string,
-    );
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="brainpulses-registrations.csv"');
-    res.send(csv);
   } catch (err) {
     next(err);
   }

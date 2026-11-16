@@ -68,7 +68,7 @@ const appRouter = createBrowserRouter(
           </Route>
           <Route element={<ShellLayout />}>
             <Route index element={<EnabledHome />} />
-            <Route path="/dashboard" element={<LibraryPage kind="quiz" />} />
+            <Route path="/dashboard" element={<EnabledHome />} />
             <Route path="/quizzes" element={<LibraryPage kind="quiz" />} />
             <Route path="/assessments" element={<LibraryPage kind="assessment" />} />
             <Route path="*" element={<EnabledHome />} />

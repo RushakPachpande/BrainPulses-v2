@@ -19,7 +19,8 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { RowActions } from '@/components/row-actions';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
-import { useConfirm } from '@/components/use-confirm';
+import { selectionMatches } from '@/lib/multi-select';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import {
   ALL_DATE_RANGE,
   isDateInRange,
@@ -50,27 +51,40 @@ import type { Activity } from '@/services/types';
 
 const EMPTY_ACTIVITIES: Activity[] = [];
 
-type SortKey = 'name' | 'status' | 'registered' | 'attempts' | 'start' | 'end';
+type SortKey = 'name' | 'status' | 'registered' | 'sponsor' | 'contest' | 'start' | 'end';
 
 const activityPlacement: Record<SortKey, RecordColumn<Activity>['placement']> = {
   name: 'title',
   status: 'status',
   registered: 'primary',
-  attempts: 'primary',
+  sponsor: 'details',
+  contest: 'details',
   start: 'details',
   end: 'details',
 };
 
 function compareActivities(a: Activity, b: Activity, key: SortKey) {
-  const left = a[key];
-  const right = b[key];
+  const left = activitySortValue(a, key);
+  const right = activitySortValue(b, key);
   if (typeof left === 'number' && typeof right === 'number') return left - right;
   return String(left).localeCompare(String(right), undefined, { numeric: true });
 }
 
-function attemptPercent(activity: Activity) {
-  if (activity.registered <= 0) return 0;
-  return Math.min(100, Math.round((activity.attempts / activity.registered) * 100));
+function namedFilterOptions(names: string[], emptyLabel: string) {
+  const present = [
+    ...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0)),
+  ].sort((a, b) => a.localeCompare(b));
+  const options = present.map((name) => ({ value: name, label: name }));
+  if (names.some((name) => name.trim().length === 0)) {
+    options.push({ value: '', label: emptyLabel });
+  }
+  return options;
+}
+
+function activitySortValue(activity: Activity, key: SortKey) {
+  if (key === 'sponsor') return activity.sponsorName;
+  if (key === 'contest') return activity.contestName;
+  return activity[key];
 }
 
 export function ActivityListPage({ kind }: { kind: ActivityKind }) {
@@ -93,7 +107,8 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     { key: 'name', label: nameLabel },
     { key: 'status', label: 'Status' },
     { key: 'registered', label: 'Registered Participants' },
-    { key: 'attempts', label: 'Attempts' },
+    { key: 'sponsor', label: 'Sponsor' },
+    { key: 'contest', label: 'Contest' },
     { key: 'start', label: 'Start Date' },
     { key: 'end', label: 'End Date' },
   ];
@@ -108,13 +123,15 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
 
   async function onDeleteQuiz(item: Activity) {
     if (!isQuiz || !canFull) return;
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete “${item.name}”?`,
-      description:
-        'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
+      description: 'Permanently removes this quiz. This cannot be undone.',
+      details: [
+        'Registrations, attempts, and scores for this quiz are deleted.',
+        'This quiz’s private question bank is deleted. Shared question banks stay.',
+        'Links from registration forms to this quiz are removed. Those forms stay.',
+      ],
       confirmLabel: 'Delete quiz',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
@@ -157,20 +174,67 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     },
   ];
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('All');
+  const [status, setStatus] = useState<string[]>([]);
+  const [sponsor, setSponsor] = useState<string[]>([]);
+  const [contest, setContest] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRangeValue>(ALL_DATE_RANGE);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
+  const statusOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          activities.map((item) => item.status.trim()).filter((value) => value.length > 0),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    [activities],
+  );
+
+  const sponsorOptions = useMemo(
+    () =>
+      namedFilterOptions(
+        activities.map((item) => item.sponsorName),
+        'No sponsor',
+      ),
+    [activities],
+  );
+  const contestOptions = useMemo(
+    () =>
+      namedFilterOptions(
+        activities.map((item) => item.contestName),
+        'No contest',
+      ),
+    [activities],
+  );
+
   const filters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['All', 'Active', 'Scheduled', 'Expired', 'Draft', 'Completed', 'Archived'],
-      value: status,
-      onValueChange: (value) => {
-        setStatus(value);
+      options: statusOptions,
+      values: status,
+      onValuesChange: (values) => {
+        setStatus(values);
+        setPage(1);
+      },
+    },
+    {
+      name: 'Sponsor',
+      options: sponsorOptions,
+      values: sponsor,
+      onValuesChange: (values) => {
+        setSponsor(values);
+        setPage(1);
+      },
+    },
+    {
+      name: 'Contest',
+      options: contestOptions,
+      values: contest,
+      onValuesChange: (values) => {
+        setContest(values);
         setPage(1);
       },
     },
@@ -179,10 +243,17 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     let rows = activities.filter((item) => {
-      if (status !== 'All' && item.status !== status) return false;
+      if (!selectionMatches(status, item.status)) return false;
+      if (!selectionMatches(sponsor, item.sponsorName)) return false;
+      if (!selectionMatches(contest, item.contestName)) return false;
       if (!isDateInRange(parseFixtureDate(item.start), dateRange)) return false;
       if (!query) return true;
-      return item.name.toLowerCase().includes(query) || item.subtitle.toLowerCase().includes(query);
+      return (
+        item.name.toLowerCase().includes(query) ||
+        item.subtitle.toLowerCase().includes(query) ||
+        item.sponsorName.toLowerCase().includes(query) ||
+        item.contestName.toLowerCase().includes(query)
+      );
     });
 
     if (sortKey) {
@@ -193,7 +264,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
     }
 
     return rows;
-  }, [activities, search, status, dateRange, sortKey, sortDir]);
+  }, [activities, search, status, sponsor, contest, dateRange, sortKey, sortDir]);
 
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
@@ -213,7 +284,9 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
 
   function clearFilters() {
     setSearch('');
-    setStatus('All');
+    setStatus([]);
+    setSponsor([]);
+    setContest([]);
     setDateRange(ALL_DATE_RANGE);
     setPage(1);
   }
@@ -247,23 +320,10 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
         return <FlowStatusPill status={item.status} />;
       case 'registered':
         return <span className="tabular-nums">{item.registered}</span>;
-      case 'attempts': {
-        const percent = attemptPercent(item);
-        return (
-          <div className="min-w-28">
-            <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-              <span className="tabular-nums">{item.attempts}</span>
-              <span className="tabular-nums text-muted-foreground">{percent}%</span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div
-                className="h-full rounded-full bg-primary transition-[width]"
-                style={{ width: `${percent}%` }}
-              />
-            </div>
-          </div>
-        );
-      }
+      case 'sponsor':
+        return item.sponsorName || '—';
+      case 'contest':
+        return item.contestName || '—';
       case 'start':
         return (
           <div className="leading-tight">
@@ -303,7 +363,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
             </Button>
           </PageHeaderActions>
         ) : null}
-        <ListPageSkeleton columns={6} />
+        <ListPageSkeleton columns={7} />
       </div>
     );
   }
@@ -413,6 +473,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                     ? { label: 'Delete', onClick: () => void onDeleteQuiz(item) }
                     : undefined
                 }
+                iconsOnly={!narrow}
               />
             )}
             onRowOpen={(item) => navigate(`${listPath}/${item.id}`)}

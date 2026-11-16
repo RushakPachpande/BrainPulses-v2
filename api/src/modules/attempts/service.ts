@@ -241,6 +241,8 @@ function mapAttempt(
     participantId: string;
     disqualified?: boolean;
     isAuthoritative?: boolean;
+    currentQuestionIndex?: number;
+    closedQuestionVersionIds?: string[];
     responses?: {
       questionVersionId: string;
       answer: Prisma.JsonValue;
@@ -291,6 +293,8 @@ function mapAttempt(
     showQuestionPanel,
     questionsCompulsory,
     forwardOnly,
+    currentQuestionIndex: a.currentQuestionIndex ?? 0,
+    closedQuestionVersionIds: a.closedQuestionVersionIds ?? [],
     responses: (a.responses ?? []).map((r) => ({
       questionVersionId: r.questionVersionId,
       answer: r.answer,
@@ -902,6 +906,8 @@ export async function saveAttempt(
   input: {
     revision: number;
     responses: { questionVersionId: string; answer: unknown }[];
+    currentQuestionIndex?: number;
+    closedQuestionVersionIds?: string[];
   },
 ) {
   const attempt = await prisma.attempt.findFirst({
@@ -950,6 +956,18 @@ export async function saveAttempt(
   const perQuestion =
     live.activity.kind === 'quiz' && live.activity.durationMode === 'per_question';
 
+  const progressData: {
+    revision: number;
+    currentQuestionIndex?: number;
+    closedQuestionVersionIds?: string[];
+  } = { revision: nextRevision };
+  if (typeof input.currentQuestionIndex === 'number') {
+    progressData.currentQuestionIndex = input.currentQuestionIndex;
+  }
+  if (input.closedQuestionVersionIds) {
+    progressData.closedQuestionVersionIds = input.closedQuestionVersionIds;
+  }
+
   await prisma.$transaction(async (tx) => {
     const guarded = await tx.attempt.updateMany({
       where: {
@@ -960,7 +978,7 @@ export async function saveAttempt(
         // Per-question: allow a final save after the question window expires (advance follows).
         ...(perQuestion ? {} : { deadlineAt: { gt: new Date() } }),
       },
-      data: { revision: nextRevision },
+      data: progressData,
     });
     if (guarded.count !== 1) {
       throw conflict('Stale revision. Reload the attempt and retry.', {
@@ -1227,8 +1245,7 @@ async function submitAttemptInternal(
   const holdUntilPublish =
     attempt.activity.kind === 'assessment' &&
     !roundPublished &&
-    (roundSettings?.scoreRelease === 'after_publish' ||
-      roundNeedsManualPublish(questionTypes));
+    (roundSettings?.scoreRelease === 'after_publish' || roundNeedsManualPublish(questionTypes));
   const releaseStatus =
     quizPublished || roundPublished || (attempt.activity.kind === 'assessment' && !holdUntilPublish)
       ? ('published' as const)

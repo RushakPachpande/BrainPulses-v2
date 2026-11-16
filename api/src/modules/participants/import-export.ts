@@ -1,4 +1,3 @@
-import ExcelJS from 'exceljs';
 import { sanitizeCsvCell } from '../../lib/csv.js';
 import {
   formatImportIssue,
@@ -38,6 +37,15 @@ export async function parseParticipantsFile(
 ): Promise<{ rows: ParticipantImportRow[]; ignoredColumns: string[] }> {
   const parsed = await parseXlsxWorkbook(buffer, filename, {
     columns: PARTICIPANT_IMPORT_COLUMNS,
+    labels: {
+      name: 'Name',
+      email: 'Email',
+      phone: 'Phone',
+      course: 'Course',
+      city: 'City',
+      cohort: 'Cohort',
+      code: 'Unique ID',
+    },
     preferredSheetName: 'Participants',
     emptyNoun: 'participants',
   });
@@ -71,7 +79,8 @@ function sampleRows(): Record<ParticipantImportHeader, string>[] {
 }
 
 export async function buildParticipantSampleWorkbook(): Promise<Buffer> {
-  const workbook = new ExcelJS.Workbook();
+  const { createWorkbook } = await import('../../lib/excel-workbook.js');
+  const workbook = await createWorkbook();
   const instructions = workbook.addWorksheet('Instructions');
   instructions.addRow(['BrainPulses participant import']);
   instructions.addRow([]);

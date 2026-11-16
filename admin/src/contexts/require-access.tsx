@@ -6,13 +6,15 @@ import {
   canEditKind,
   canManageUsersOrSettings,
   canMutateOrg,
+  isSuperAdmin,
   type ActivityKind,
 } from '@/lib/access';
 
 export type AccessGate =
   | { type: 'editKind'; kind: ActivityKind }
   | { type: 'mutateOrg' }
-  | { type: 'manageUsersOrSettings' };
+  | { type: 'manageUsersOrSettings' }
+  | { type: 'superAdmin' };
 
 function allowed(membership: Parameters<typeof canEditKind>[0], gate: AccessGate): boolean {
   switch (gate.type) {
@@ -22,6 +24,8 @@ function allowed(membership: Parameters<typeof canEditKind>[0], gate: AccessGate
       return canMutateOrg(membership);
     case 'manageUsersOrSettings':
       return canManageUsersOrSettings(membership);
+    case 'superAdmin':
+      return isSuperAdmin(membership);
   }
 }
 
@@ -33,6 +37,9 @@ function fallbackPath(gate: AccessGate, pathname: string): string {
   }
   if (gate.type === 'manageUsersOrSettings') {
     return '/users';
+  }
+  if (gate.type === 'superAdmin') {
+    return '/settings';
   }
   return '/participants';
 }

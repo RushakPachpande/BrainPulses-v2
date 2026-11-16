@@ -3,6 +3,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { wipeRegistrationForm } from '../contest-forms/service.js';
 import { placeOwnedImage } from '../files/place.js';
 import { assertCatalogImage } from '../files/service.js';
 import type { contestListQuerySchema, createContestSchema, updateContestSchema } from './schema.js';
@@ -16,6 +17,11 @@ function mapContest(row: {
   createdAt: Date;
   updatedAt: Date;
   sponsor?: { id: string; name: string } | null;
+  _count: { activities: number };
+  registrationForm: {
+    status: 'draft' | 'saved';
+    _count: { submissions: number; quizzes: number };
+  } | null;
 }) {
   return {
     id: row.id,
@@ -26,10 +32,27 @@ function mapContest(row: {
     imageFileId: row.imageFileId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    activityCount: row._count.activities,
+    registrationForm: row.registrationForm
+      ? {
+          status: row.registrationForm.status,
+          submissionCount: row.registrationForm._count.submissions,
+          quizCount: row.registrationForm._count.quizzes,
+        }
+      : null,
   };
 }
 
-const includeSponsor = { sponsor: { select: { id: true, name: true } } } as const;
+const contestInclude = {
+  sponsor: { select: { id: true, name: true } },
+  _count: { select: { activities: true } },
+  registrationForm: {
+    select: {
+      status: true,
+      _count: { select: { submissions: true, quizzes: true } },
+    },
+  },
+} as const;
 
 async function assertSponsor(organizationId: string, sponsorId: string) {
   const sponsor = await prisma.sponsor.findFirst({
@@ -53,7 +76,7 @@ export async function listContests(
     prisma.contest.count({ where }),
     prisma.contest.findMany({
       where,
-      include: includeSponsor,
+      include: contestInclude,
       ...prismaCursorArgs(query, sort),
     }),
   ]);
@@ -64,7 +87,7 @@ export async function listContests(
 export async function getContest(organizationId: string, id: string) {
   const row = await prisma.contest.findFirst({
     where: { organizationId, id },
-    include: includeSponsor,
+    include: contestInclude,
   });
   if (!row) throw notFound('Contest not found.');
   return mapContest(row);
@@ -85,7 +108,7 @@ export async function createContest(
       description: input.description,
       imageFileId: input.imageFileId,
     },
-    include: includeSponsor,
+    include: contestInclude,
   });
   await placeOwnedImage(organizationId, row.imageFileId, {
     kind: 'contest',
@@ -132,7 +155,7 @@ export async function updateContest(
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.imageFileId !== undefined ? { imageFileId: input.imageFileId } : {}),
     },
-    include: includeSponsor,
+    include: contestInclude,
   });
   await placeOwnedImage(organizationId, row.imageFileId, {
     kind: 'contest',
@@ -155,20 +178,28 @@ export async function updateContest(
 export async function deleteContest(organizationId: string, actorUserId: string, id: string) {
   const existing = await prisma.contest.findFirst({
     where: { organizationId, id },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { activities: true } },
+      registrationForm: { select: { id: true } },
+    },
   });
   if (!existing) throw notFound('Contest not found.');
 
-  const activities = await prisma.activity.count({
-    where: { organizationId, contestId: id },
-  });
+  const activities = existing._count.activities;
   if (activities > 0) {
     throw conflict(
       `Cannot delete this contest while ${activities} activit${activities === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
     );
   }
 
-  await prisma.contest.delete({ where: { id } });
+  const participantsRemoved = await prisma.$transaction(async (tx) => {
+    const formId = existing.registrationForm?.id;
+    const removed = formId ? await wipeRegistrationForm(tx, organizationId, formId) : 0;
+    await tx.contest.delete({ where: { id } });
+    return removed;
+  });
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -176,7 +207,11 @@ export async function deleteContest(organizationId: string, actorUserId: string,
     action: 'contest.delete',
     targetType: 'contest',
     targetId: id,
-    metadata: { name: existing.name },
+    metadata: {
+      name: existing.name,
+      registrationFormRemoved: Boolean(existing.registrationForm),
+      participantsRemoved,
+    },
   });
   return { deleted: true, name: existing.name };
 }

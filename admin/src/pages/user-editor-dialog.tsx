@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { FormDialog } from '@/components/form-dialog';
+import { PasswordInput } from '@/components/password-input';
 import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
@@ -13,7 +14,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
+import { useAuth } from '@/contexts/auth-context';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { ApiError } from '@/lib/api-client';
 import {
@@ -47,6 +49,9 @@ export function UserEditorDialog({
 }) {
   const formId = useId();
   const confirm = useConfirm();
+  const auth = useAuth();
+  const actorIsSuperAdmin =
+    auth.status === 'authenticated' && auth.membership.role === 'super_admin';
   const closeRef = useRef(onOpenChange);
   closeRef.current = onOpenChange;
   const [name, setName] = useState('');
@@ -189,13 +194,15 @@ export function UserEditorDialog({
 
   async function onDelete() {
     if (!userId || saving) return;
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete “${name || 'this user'}”?`,
-      description:
-        'Permanently removes this account and all organization memberships. They cannot sign in again. This cannot be undone.',
+      description: 'Permanently removes this account. This cannot be undone.',
+      details: [
+        'Every organization membership for this account is removed.',
+        'They cannot sign in again.',
+        'Any reattempt grants this person issued are removed.',
+      ],
       confirmLabel: 'Delete permanently',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     setSaving(true);
@@ -248,7 +255,8 @@ export function UserEditorDialog({
               Deactivate
             </Button>
           ) : null}
-          {mode === 'edit' ? (
+          {mode === 'edit' &&
+          !(auth.status === 'authenticated' && email !== '' && auth.user.email === email) ? (
             <Button
               type="button"
               variant="destructive"
@@ -301,9 +309,8 @@ export function UserEditorDialog({
                 <FieldLabel htmlFor={`${formId}-password`}>
                   Password <span className="text-destructive">*</span>
                 </FieldLabel>
-                <Input
+                <PasswordInput
                   id={`${formId}-password`}
-                  type="password"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   required
@@ -327,7 +334,9 @@ export function UserEditorDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                    {actorIsSuperAdmin ? (
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
               </Field>

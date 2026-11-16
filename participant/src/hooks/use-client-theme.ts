@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { readStorage, writeStorage } from '../storage';
+import { readSessionStorage, writeSessionStorage } from '../storage';
 
 const STORAGE_KEY = 'brainpulses-client-theme';
 
 export type ClientThemeMode = 'dark' | 'light';
 
 export function readClientDark(): boolean {
-  return readStorage(STORAGE_KEY) === 'dark';
+  return readSessionStorage(STORAGE_KEY) === 'dark';
 }
 
 export function applyClientTheme(dark: boolean) {
@@ -14,7 +14,12 @@ export function applyClientTheme(dark: boolean) {
   root.classList.toggle('dark', dark);
   document.body.classList.toggle('dk2', dark);
   root.style.colorScheme = dark ? 'dark' : 'light';
-  writeStorage(STORAGE_KEY, dark ? 'dark' : 'light');
+  writeSessionStorage(STORAGE_KEY, dark ? 'dark' : 'light');
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Shared dark/light theme for the participant portal. Default is light. */

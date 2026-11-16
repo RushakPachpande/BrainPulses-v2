@@ -35,9 +35,9 @@ import {
 } from '../../lib/participant-sessions.js';
 import {
   getParticipantLoginOptions,
-  isParticipantPhoneLoginEnabled,
+  readParticipantLoginImage,
 } from '../../lib/participant-login.js';
-import { DEV_FIXED_OTP, DEV_FIXED_OTP_PHONE, sendSmsOtp } from '../../lib/twilio.js';
+import { isTwilioConfigured, sendSmsOtp } from '../../lib/twilio.js';
 import type { Participant } from '#prisma';
 
 const REFRESH_COOKIE = 'bp_refresh';
@@ -564,10 +564,10 @@ async function resolveParticipantForPhone(input: {
 async function issueAndSendOtp(participant: ParticipantWithOrg, phone: string): Promise<string> {
   await assertOtpSendAllowed(participant.organizationId, phone);
 
-  const otp =
-    env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED && phone === DEV_FIXED_OTP_PHONE
-      ? DEV_FIXED_OTP
-      : generateOtpDigits();
+  const otp = generateOtpDigits();
+  if (env.NODE_ENV !== 'production') {
+    console.info(`[otp] ${phone}: ${otp}`);
+  }
 
   await storeParticipantOtp({
     organizationId: participant.organizationId,
@@ -602,6 +602,10 @@ export async function participantLoginOptions(organizationSlug?: string) {
   return getParticipantLoginOptions(organizationSlug);
 }
 
+export async function participantLoginImage(organizationSlug?: string) {
+  return readParticipantLoginImage(organizationSlug);
+}
+
 /** Always returns a generic success payload (no user enumeration). */
 export async function participantRequestOtp(input: {
   countryCode: string;
@@ -611,9 +615,13 @@ export async function participantRequestOtp(input: {
   const phone = toE164(input.countryCode, input.mobileNumber);
   if (!phone) throw badRequest('Invalid phone number.');
 
+  if (!isTwilioConfigured()) {
+    throw forbidden('Phone sign-in is not available.');
+  }
+
   let debugOtp: string | undefined;
   const participant = await resolveParticipantForPhone(input);
-  if (participant && (await isParticipantPhoneLoginEnabled(participant.organizationId))) {
+  if (participant) {
     const storedPhone = participant.phone ? (normalizePhone(participant.phone) ?? phone) : phone;
     try {
       const otp = await issueAndSendOtp(participant, storedPhone);
@@ -623,12 +631,8 @@ export async function participantRequestOtp(input: {
       // except in test where clients need the signal.
       if (env.NODE_ENV === 'test') throw err;
     }
-  } else if (env.NODE_ENV !== 'production' && !env.TWILIO_ENABLED) {
-    // Do not invent digits here — a logged code looks real but was never stored,
-    // so verify always fails with "Invalid or expired OTP".
-    console.info(
-      `[otp] TWILIO_ENABLED=false — no matching participant for ${phone}; OTP not issued`,
-    );
+  } else if (env.NODE_ENV !== 'production') {
+    console.info(`[otp] ${phone}: no matching participant; OTP not issued`);
   }
 
   return {
@@ -656,11 +660,12 @@ export async function participantVerifyOtp(input: {
   const phone = toE164(input.countryCode, input.mobileNumber);
   if (!phone) throw badRequest('Invalid phone number.');
 
+  if (!isTwilioConfigured()) {
+    throw forbidden('Phone sign-in is not available.');
+  }
+
   const participant = await resolveParticipantForPhone(input);
   if (!participant) throw unauthorized('Invalid or expired OTP.');
-  if (!(await isParticipantPhoneLoginEnabled(participant.organizationId))) {
-    throw forbidden('Phone sign-in is turned off for your organization.');
-  }
 
   const storedPhone = participant.phone ? (normalizePhone(participant.phone) ?? phone) : phone;
   // Validate without consuming so SESSION_ACTIVE can retry with replaceSession.

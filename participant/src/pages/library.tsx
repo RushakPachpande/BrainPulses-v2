@@ -4,7 +4,6 @@ import { PageLoader } from '../components/loading-overlay';
 import { StoredImage } from '../components/stored-image';
 import { IconArrow, PulseLine } from '../components/portal-icons';
 import { useAuth } from '../contexts/auth-context';
-import { useParticipantPages } from '../hooks/use-participant-pages';
 import { formatAttemptAllowance } from '../lib/attempt-allowance';
 import { formatDuration } from '../lib/format';
 import { clientQueryKeys } from '../lib/query-keys';
@@ -55,8 +54,6 @@ function openShort(item: ParticipantActivity) {
 export function LibraryPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
   const { participant } = useAuth();
-  const pagesQuery = useParticipantPages();
-  const resultsOn = pagesQuery.data?.results ?? true;
   const participantId = participant?.id ?? '';
   const word = kind === 'quiz' ? 'quiz' : 'assessment';
   const plural = kind === 'quiz' ? 'quizzes' : 'assessments';
@@ -75,7 +72,6 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
   function open(item: ParticipantActivity) {
     const status = cardStatus(item);
     if (status === 'Completed') {
-      if (!resultsOn) return;
       if (item.latestResultId) navigate(`/results/${item.latestResultId}`);
       return;
     }
@@ -101,8 +97,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
           const status = cardStatus(item);
           const win = windowLabel(item, status);
           const attempts = formatAttemptAllowance(item);
-          const disabled =
-            status === 'Upcoming' || status === 'Closed' || (status === 'Completed' && !resultsOn);
+          const disabled = status === 'Upcoming' || status === 'Closed';
           const label =
             status === 'Upcoming'
               ? `Opens ${openShort(item)}`

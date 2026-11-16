@@ -366,12 +366,14 @@ export async function exportAssessmentRows(
   const rows = query.includeAbsent
     ? filtered
     : filtered.filter((row) => row.attemptStatus === 'completed');
-  const assessment = query.activityId
-    ? loaded.options.assessments.find((item) => item.id === query.activityId)
-    : undefined;
-  const round = query.roundId
-    ? loaded.options.rounds.find((item) => item.id === query.roundId)
-    : undefined;
+  const assessment =
+    query.activityId.length === 1
+      ? loaded.options.assessments.find((item) => item.id === query.activityId[0])
+      : undefined;
+  const round =
+    query.roundId.length === 1
+      ? loaded.options.rounds.find((item) => item.id === query.roundId[0])
+      : undefined;
   return {
     rows,
     assessmentName: assessment?.name ?? null,

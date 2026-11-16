@@ -19,7 +19,7 @@ export function importResultFromCounts(
       summary: `No ${noun} were created.`,
       created: 0,
       issues,
-      tip: 'Fix the listed rows in your sheet, or download Sample Excel for the expected columns, then import again.',
+      tip: 'Each line names the Excel row, the column, what is in the cell, and what to type instead. Row 1 is usually the header. Fix those cells, then import again.',
     };
   }
   if (issues.length > 0) {
@@ -29,7 +29,7 @@ export function importResultFromCounts(
       summary: `${created} ${noun}${created === 1 ? '' : 's'} created; some rows were skipped.`,
       created,
       issues,
-      tip: 'Review skipped rows, fix them, and re-import only the failed rows if needed.',
+      tip: 'The rows above were skipped. Fix only those rows and import that smaller file, so the ones that already succeeded are not added again.',
     };
   }
   return {

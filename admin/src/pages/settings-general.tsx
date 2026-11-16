@@ -1,54 +1,20 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
-import { Building2Icon, CheckCircle2Icon, LanguagesIcon, SaveIcon, XIcon } from 'lucide-react';
+import { Building2Icon, CheckCircle2Icon, ImageIcon, SaveIcon, XIcon } from 'lucide-react';
+import { CatalogImageField } from '@/components/catalog-image-field';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useAuth } from '@/contexts/auth-context';
 import { canManageUsersOrSettings } from '@/lib/access';
-import { getSettingsGroup, patchSettingsGroup } from '@/services';
+import { getSettingsGroup, patchSettingsGroup, uploadCatalogImage } from '@/services';
 
 const initialSettings = {
   platformName: 'BrainPulses',
   organization: 'BrainPulses Learning Pvt. Ltd.',
-  timezone: 'Asia/Kolkata',
-  dateFormat: 'DD MMM YYYY',
-  timeFormat: '12-hour',
-  language: 'English',
 };
-
-const LOCALE_TO_LANGUAGE: Record<string, string> = {
-  'en-IN': 'English',
-  en: 'English',
-  'hi-IN': 'Hindi',
-  hi: 'Hindi',
-  'mr-IN': 'Marathi',
-  mr: 'Marathi',
-};
-
-const LANGUAGE_TO_LOCALE: Record<string, string> = {
-  English: 'en-IN',
-  Hindi: 'hi-IN',
-  Marathi: 'mr-IN',
-};
-
-function localeToLanguage(locale: string, fallback: string) {
-  return LOCALE_TO_LANGUAGE[locale] ?? LOCALE_TO_LANGUAGE[locale.split('-')[0] ?? ''] ?? fallback;
-}
-
-function languageToLocale(language: string) {
-  return LANGUAGE_TO_LOCALE[language] ?? language;
-}
 
 function SettingField({
   label,
@@ -73,6 +39,9 @@ export function GeneralSettingsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canManage = canManageUsersOrSettings(membership);
   const [settings, setSettings] = useState(initialSettings);
+  const [loginImageFileId, setLoginImageFileId] = useState('');
+  const [loginImageFile, setLoginImageFile] = useState<File | null>(null);
+  const [loginImageEpoch, setLoginImageEpoch] = useState(0);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -83,11 +52,12 @@ export function GeneralSettingsPage() {
           ...current,
           platformName: String(values.orgDisplayName ?? current.platformName),
           organization: String(values.organizationName ?? current.organization),
-          timezone: String(values.timezone ?? current.timezone),
-          dateFormat: String(values.dateFormat ?? current.dateFormat),
-          timeFormat: String(values.timeFormat ?? current.timeFormat),
-          language: localeToLanguage(String(values.locale ?? ''), current.language),
         }));
+        setLoginImageFileId(
+          typeof values.participantLoginImageFileId === 'string'
+            ? values.participantLoginImageFileId
+            : '',
+        );
       })
       .catch(() => {
         /* keep defaults */
@@ -103,14 +73,20 @@ export function GeneralSettingsPage() {
     if (!canManage) return;
     setSaving(true);
     try {
+      let participantLoginImageFileId: string | null = loginImageFileId.trim()
+        ? loginImageFileId.trim()
+        : null;
+      if (loginImageFile) {
+        participantLoginImageFileId = await uploadCatalogImage(loginImageFile);
+      }
       await patchSettingsGroup('general', {
         orgDisplayName: settings.platformName,
         organizationName: settings.organization,
-        timezone: settings.timezone,
-        dateFormat: settings.dateFormat,
-        timeFormat: settings.timeFormat,
-        locale: languageToLocale(settings.language),
+        participantLoginImageFileId,
       });
+      setLoginImageFileId(participantLoginImageFileId ?? '');
+      setLoginImageFile(null);
+      setLoginImageEpoch((epoch) => epoch + 1);
       setSaved(true);
       toast.success('General settings saved.');
     } catch (err) {
@@ -121,6 +97,9 @@ export function GeneralSettingsPage() {
   }
   function reset() {
     setSettings(initialSettings);
+    setLoginImageFileId('');
+    setLoginImageFile(null);
+    setLoginImageEpoch((epoch) => epoch + 1);
     setSaved(false);
   }
 
@@ -134,8 +113,8 @@ export function GeneralSettingsPage() {
           <div className="min-w-0">
             <p className="text-sm font-medium">Workspace defaults</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              These preferences set the default display format for administrators. User-specific
-              preferences may override them where supported.
+              Organization name is used when choosing an organization. The login image is shown on
+              the participant sign-in screen.
             </p>
           </div>
         </CardContent>
@@ -187,80 +166,48 @@ export function GeneralSettingsPage() {
         <CardHeader className="border-b border-border/70 px-5 py-4 sm:px-6">
           <div className="flex items-start gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <LanguagesIcon className="size-5" />
+              <ImageIcon className="size-5" />
             </span>
             <div>
-              <CardTitle>Regional preferences</CardTitle>
+              <CardTitle>Participant login image</CardTitle>
               <CardDescription className="mt-1">
-                Choose how dates, times and language appear across the platform.
+                Shown to the left of the participant sign-in card. It keeps its own shape, up to a
+                maximum size, and stacks above the card on a phone. Clear it to hide the image.
               </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="px-5 py-5 sm:px-6">
-          <div className="grid grid-cols-1 gap-x-5 gap-y-5 sm:grid-cols-2 xl:grid-cols-4">
-            <SettingField label="Time zone">
-              <Select value={settings.timezone} onValueChange={(v) => update('timezone', v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectGroup>
-                    <SelectItem value="Asia/Kolkata">India Standard Time (UTC+05:30)</SelectItem>
-                    <SelectItem value="UTC">Coordinated Universal Time (UTC)</SelectItem>
-                    <SelectItem value="Europe/London">London (UTC+00:00 / UTC+01:00)</SelectItem>
-                    <SelectItem value="America/New_York">
-                      New York (UTC−05:00 / UTC−04:00)
-                    </SelectItem>
-                    <SelectItem value="Asia/Singapore">Singapore (UTC+08:00)</SelectItem>
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
-            </SettingField>
-            <SettingField label="Date format">
-              <Select value={settings.dateFormat} onValueChange={(v) => update('dateFormat', v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DD MMM YYYY">DD MMM YYYY · 13 Oct 2026</SelectItem>
-                  <SelectItem value="DD/MM/YYYY">DD/MM/YYYY · 13/10/2026</SelectItem>
-                  <SelectItem value="MM/DD/YYYY">MM/DD/YYYY · 10/13/2026</SelectItem>
-                  <SelectItem value="YYYY-MM-DD">YYYY-MM-DD · 2026-10-13</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingField>
-            <SettingField label="Time format">
-              <Select value={settings.timeFormat} onValueChange={(v) => update('timeFormat', v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="12-hour">12-hour · 2:30 PM</SelectItem>
-                  <SelectItem value="24-hour">24-hour · 14:30</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingField>
-            <SettingField label="Language">
-              <Select value={settings.language} onValueChange={(v) => update('language', v)}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="English">English</SelectItem>
-                  <SelectItem value="Hindi">Hindi</SelectItem>
-                  <SelectItem value="Marathi">Marathi</SelectItem>
-                </SelectContent>
-              </Select>
-            </SettingField>
-          </div>
+          <CatalogImageField
+            key={loginImageEpoch}
+            id="participant-login-image"
+            label="Login image"
+            fileId={loginImageFileId}
+            alt="Participant login image"
+            disabled={!canManage || saving}
+            required={false}
+            onFile={(next) => {
+              setLoginImageFile(next);
+              setSaved(false);
+            }}
+            onPickExisting={(id) => {
+              setLoginImageFile(null);
+              setLoginImageFileId(id);
+              setSaved(false);
+            }}
+            onClear={() => {
+              setLoginImageFileId('');
+              setLoginImageFile(null);
+              setSaved(false);
+            }}
+          />
         </CardContent>
       </Card>
       <div className="sticky bottom-3 z-10 flex flex-col gap-3 rounded-xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur sm:flex-row sm:items-center sm:justify-between sm:px-4">
         <div className="min-h-5 text-sm" aria-live="polite">
           {saved ? (
             <span className="inline-flex items-center gap-2 text-emerald-600">
-              <CheckCircle2Icon className="size-4" /> Changes saved in this prototype.
+              <CheckCircle2Icon className="size-4" /> Changes saved.
             </span>
           ) : (
             <span className="text-muted-foreground">

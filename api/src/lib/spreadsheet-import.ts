@@ -1,11 +1,12 @@
-import ExcelJS from 'exceljs';
+import type { CellValue, Row, Workbook, Worksheet } from 'exceljs';
 import { unprocessable } from './errors.js';
+import { loadWorkbook } from './excel-workbook.js';
+import { xlsxOnlyRejectedMessage } from './xlsx-file.js';
 
 /** Data rows per file. One past this is rejected; this exact count is accepted. */
 export const MAX_IMPORT_ROWS = 1000;
 /** Header scan is inclusive: row 20 can be the header, row 21 cannot. */
 export const HEADER_SCAN_LIMIT = 20;
-export const IMPORT_MAX_BYTES = 10 * 1024 * 1024;
 
 export type ImportIssueParts = {
   sheetRow: number;
@@ -45,8 +46,8 @@ export function formatImportIssue(parts: ImportIssueParts): string {
     parts.value !== undefined
       ? `: ${quoteValue(parts.value)} — ${parts.problem}`
       : `: ${parts.problem}`;
-  const expectedBit = parts.expected ? ` Expected: ${parts.expected}.` : '';
-  const exampleBit = parts.example ? ` Example: ${parts.example}.` : '';
+  const expectedBit = parts.expected ? ` What to enter: ${parts.expected}.` : '';
+  const exampleBit = parts.example ? ` For example: ${parts.example}.` : '';
   return `${where}${valueBit}.${expectedBit}${exampleBit}`
     .replace(/\.\.+/g, '.')
     .replace(/\. \./g, '.');
@@ -58,24 +59,31 @@ export function summarizeImportFailure(issueCount: number, noun = 'issue'): stri
   return `Import blocked: ${n} ${label} found. Fix the rows listed below, then upload again. Download Sample Excel if you need the correct column layout.`;
 }
 
-export function xlsxOnlyRejectedMessage(originalName?: string): string {
-  const name = originalName?.trim();
-  const fileBit = name ? ` “${name}”` : '';
-  return `File${fileBit} is not a supported spreadsheet. Upload an Excel (.xlsx) file only. Download Sample Excel for the correct template.`;
+function headerList(keys: string[], labels?: Partial<Record<string, string>>): string {
+  return keys
+    .map((key) => {
+      const label = labels?.[key];
+      return label && label.toLowerCase() !== key.toLowerCase() ? `${label} (${key})` : key;
+    })
+    .join(', ');
 }
 
 export function missingImportColumnsMessage(
   missing: string[],
   found: string[],
   unrecognized: string[],
+  labels?: Partial<Record<string, string>>,
 ): string {
   const parts = [
-    `The spreadsheet is missing required columns. Expected headers: ${missing.join(', ')}.`,
+    `The spreadsheet is missing required columns. Expected headers: ${headerList(missing, labels)}.`,
   ];
-  if (found.length > 0) parts.push(`Found: ${found.join(', ')}.`);
+  if (found.length > 0) parts.push(`Found: ${headerList(found, labels)}.`);
+  parts.push(
+    'Put these names in the header row (usually row 1). You can change the column order, but do not rename a header. Data starts on the next row.',
+  );
   if (unrecognized.length > 0) {
     parts.push(
-      `Unrecognized headers (check spelling): ${unrecognized.join(', ')}. Download Sample Excel and keep the header row exactly as shown.`,
+      `These headers were not recognized: ${unrecognized.join(', ')}. Check the spelling against Sample Excel.`,
     );
   } else {
     parts.push('Download Sample Excel and keep the header row exactly as shown.');
@@ -83,12 +91,17 @@ export function missingImportColumnsMessage(
   return parts.join(' ');
 }
 
-export function duplicateImportColumnsMessage(key: string, headers: string[]): string {
-  return `The spreadsheet has more than one column for “${key}” (${headers.join(', ')}). Keep only one column per field. Download Sample Excel for the correct layout.`;
+export function duplicateImportColumnsMessage(
+  key: string,
+  headers: string[],
+  label?: string,
+): string {
+  const named = label ? ` (${label})` : '';
+  return `The spreadsheet has more than one column for “${key}”${named}: ${headers.join(' and ')}. Keep only one column for that field and delete the extra one. Download Sample Excel if you need the correct layout.`;
 }
 
 export function emptyImportMessage(what: string): string {
-  return `No ${what} found in the file. Add at least one data row under the header, or download Sample Excel for the correct layout.`;
+  return `No ${what} found in the file. The header row is there, but nothing is filled in under it. Add at least one data row, or download Sample Excel and replace the example rows with your own.`;
 }
 
 export function noWorksheetMessage(): string {
@@ -96,7 +109,7 @@ export function noWorksheetMessage(): string {
 }
 
 export function tooManyImportRowsMessage(max = MAX_IMPORT_ROWS): string {
-  return `Too many rows. A file can contain up to ${max} data rows.`;
+  return `This file has too many rows. One import can include up to ${max} data rows, not counting the header. Split the sheet and upload the rest as a second file.`;
 }
 
 /** Undo the leading apostrophe sanitizeCsvCell adds so a round-trip keeps the real text. */
@@ -108,7 +121,7 @@ export function readImportedText(value: string): string {
   return trimmed;
 }
 
-export function cellText(value: ExcelJS.CellValue): string {
+export function cellText(value: CellValue): string {
   if (value == null) return '';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return readImportedText(String(value));
@@ -157,7 +170,7 @@ function buildAliasMap<T extends string>(
   return map;
 }
 
-export function excelRowCells(row: ExcelJS.Row): string[] {
+export function excelRowCells(row: Row): string[] {
   const cells: string[] = [];
   row.eachCell((cell, col) => {
     cells[col - 1] = cellText(cell.value);
@@ -165,7 +178,7 @@ export function excelRowCells(row: ExcelJS.Row): string[] {
   return cells.map((cell) => cell ?? '');
 }
 
-function sheetPreview(sheet: ExcelJS.Worksheet): string[][] {
+function sheetPreview(sheet: Worksheet): string[][] {
   const last = Math.min(Math.max(sheet.rowCount, 1), HEADER_SCAN_LIMIT);
   const rows: string[][] = [];
   for (let rowNumber = 1; rowNumber <= last; rowNumber += 1) {
@@ -220,6 +233,7 @@ function findHeader<T extends string>(
   rows: string[][],
   aliasMap: Map<string, T>,
   required: readonly T[],
+  labels?: Partial<Record<T, string>>,
 ): HeaderCandidate<T> {
   let best: HeaderCandidate<T> | null = null;
   let bestScore = 0;
@@ -237,7 +251,7 @@ function findHeader<T extends string>(
 
   if (!best) {
     throw unprocessable(
-      missingImportColumnsMessage([...required], [], []).replace(
+      missingImportColumnsMessage([...required], [], [], labels).replace(
         'Expected headers:',
         `No header row found in the first ${HEADER_SCAN_LIMIT} rows. Expected headers:`,
       ),
@@ -246,21 +260,20 @@ function findHeader<T extends string>(
 
   if (best.duplicates.length > 0) {
     const first = best.duplicates[0]!;
-    throw unprocessable(duplicateImportColumnsMessage(first.key, first.headers));
+    throw unprocessable(
+      duplicateImportColumnsMessage(first.key, first.headers, labels?.[first.key]),
+    );
   }
 
   const missing = required.filter((key) => !best.foundKeys.includes(key));
   if (missing.length > 0) {
-    throw unprocessable(missingImportColumnsMessage(missing, best.foundKeys, best.ignored));
+    throw unprocessable(missingImportColumnsMessage(missing, best.foundKeys, best.ignored, labels));
   }
 
   return best;
 }
 
-function sheetHeaderScore<T extends string>(
-  sheet: ExcelJS.Worksheet,
-  aliasMap: Map<string, T>,
-): number {
+function sheetHeaderScore<T extends string>(sheet: Worksheet, aliasMap: Map<string, T>): number {
   let best = 0;
   for (const row of sheetPreview(sheet)) {
     const candidate = mapHeaderRow(row, aliasMap, 0);
@@ -270,17 +283,17 @@ function sheetHeaderScore<T extends string>(
 }
 
 function pickWorksheet<T extends string>(
-  workbook: ExcelJS.Workbook,
+  workbook: Workbook,
   preferredName: string | undefined,
   aliasMap: Map<string, T>,
   required: readonly T[],
-): ExcelJS.Worksheet {
+): Worksheet {
   if (preferredName) {
     const named = workbook.getWorksheet(preferredName);
     if (named && sheetHeaderScore(named, aliasMap) === required.length) return named;
   }
 
-  let bestSheet: ExcelJS.Worksheet | null = null;
+  let bestSheet: Worksheet | null = null;
   let bestScore = 0;
   for (const sheet of workbook.worksheets) {
     const score = sheetHeaderScore(sheet, aliasMap);
@@ -318,6 +331,8 @@ export type ParseXlsxOptions<T extends string> = {
   columns: readonly SpreadsheetColumnSpec<T>[];
   /** Official keys that must all be present (defaults to every column key). */
   required?: readonly T[];
+  /** Plain names for header keys, used in missing-column errors. */
+  labels?: Partial<Record<T, string>>;
   preferredSheetName?: string;
   emptyNoun: string;
   maxRows?: number;
@@ -342,9 +357,9 @@ export async function parseXlsxWorkbook<T extends string>(
     throw unprocessable(xlsxOnlyRejectedMessage(filename));
   }
 
-  const workbook = new ExcelJS.Workbook();
+  let workbook: Workbook;
   try {
-    await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+    workbook = await loadWorkbook(buffer);
   } catch {
     throw unprocessable(
       `Excel file “${filename}” could not be parsed. Upload a valid .xlsx file. Download Sample Excel for the correct template.`,
@@ -355,7 +370,7 @@ export async function parseXlsxWorkbook<T extends string>(
   const required = options.required ?? keys;
   const aliasMap = buildAliasMap(options.columns);
   const sheet = pickWorksheet(workbook, options.preferredSheetName, aliasMap, required);
-  const header = findHeader(sheetPreview(sheet), aliasMap, required);
+  const header = findHeader(sheetPreview(sheet), aliasMap, required, options.labels);
 
   const maxRows = options.maxRows ?? MAX_IMPORT_ROWS;
   const rows: Array<Record<T, string> & { sheetRow: number }> = [];
@@ -373,8 +388,4 @@ export async function parseXlsxWorkbook<T extends string>(
     ignoredColumns: header.ignored,
     headerRow: header.index + 1,
   };
-}
-
-export function isXlsxFilename(name: string): boolean {
-  return /\.xlsx$/i.test(name) && !/\.xlsx\./i.test(name);
 }

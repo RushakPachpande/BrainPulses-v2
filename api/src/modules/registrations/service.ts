@@ -1,13 +1,22 @@
 import { stringify } from 'csv-stringify/sync';
 import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
+import { invalidateDashboard } from '../../lib/cache.js';
 import { sanitizeCsvCell } from '../../lib/csv.js';
-import { notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { nextRegistrationId } from '../../lib/registration-id.js';
 import { assertActivityAccess } from '../activities/service.js';
+import {
+  normalizeEmail,
+  normalizeMobile,
+  validateAnswers,
+  type AnswerValue,
+  type FormField,
+} from '../contest-forms/rules.js';
 import type { z } from 'zod';
-import type { registrationListQuerySchema } from './schema.js';
+import type { manualRegistrationSchema, registrationListQuerySchema } from './schema.js';
 
 export type RegistrationActor = {
   userId: string;
@@ -147,6 +156,51 @@ export async function listRegistrations(
   return listEnvelope(items, page);
 }
 
+export async function listAssignable(
+  organizationId: string,
+  actor: RegistrationActor,
+  activityId: string,
+) {
+  const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
+  if (!activity) throw notFound('Activity not found.');
+  assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, activity.kind, 'edit');
+
+  const links = await prisma.contestFormQuiz.findMany({
+    where: { organizationId, activityId },
+    select: { formId: true },
+  });
+  const formIds = links.map((link) => link.formId);
+  if (formIds.length === 0) return [];
+
+  const submissions = await prisma.contestFormSubmission.findMany({
+    where: { organizationId, formId: { in: formIds }, participant: { isActive: true } },
+    select: {
+      participantId: true,
+      participant: { select: { id: true, code: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const assigned = await prisma.registration.findMany({
+    where: {
+      organizationId,
+      activityId,
+      status: 'assigned',
+      participantId: { in: submissions.map((row) => row.participantId) },
+    },
+    select: { participantId: true },
+  });
+  const assignedIds = new Set(assigned.map((row) => row.participantId));
+  const seen = new Set<string>();
+  const people = [];
+  for (const row of submissions) {
+    if (seen.has(row.participantId) || assignedIds.has(row.participantId)) continue;
+    seen.add(row.participantId);
+    people.push(row.participant);
+  }
+  people.sort((a, b) => a.name.localeCompare(b.name));
+  return people;
+}
+
 export async function assign(
   organizationId: string,
   actor: RegistrationActor,
@@ -171,6 +225,23 @@ export async function assign(
       const meta = prior.metadata as { result?: unknown };
       if (meta.result) return meta.result;
     }
+  }
+
+  const links = await prisma.contestFormQuiz.findMany({
+    where: { organizationId, activityId },
+    select: { formId: true },
+  });
+  const formIds = links.map((link) => link.formId);
+  if (formIds.length === 0) {
+    throw badRequest('This activity is not on a registration form.');
+  }
+  const submissions = await prisma.contestFormSubmission.findMany({
+    where: { organizationId, formId: { in: formIds }, participantId: { in: participantIds } },
+    select: { participantId: true },
+  });
+  const registeredIds = new Set(submissions.map((row) => row.participantId));
+  if (participantIds.some((id) => !registeredIds.has(id))) {
+    throw badRequest('Only people who registered for this contest can be assigned.');
   }
 
   const results = [];
@@ -208,6 +279,184 @@ export async function assign(
   });
 
   return results;
+}
+
+const MOBILE_RE = /^[6-9]\d{9}$/;
+
+function formFields(value: unknown): FormField[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is FormField => {
+    if (!item || typeof item !== 'object') return false;
+    const row = item as Partial<FormField>;
+    return typeof row.id === 'string' && typeof row.key === 'string';
+  });
+}
+
+function answerText(
+  fields: FormField[],
+  answers: Record<string, AnswerValue>,
+  key: string,
+): string {
+  const field = fields.find((item) => !item.deleted && item.key === key);
+  if (!field) return '';
+  const value = answers[field.id];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function storedAnswers(
+  fields: FormField[],
+  answers: Record<string, AnswerValue>,
+): Prisma.InputJsonObject {
+  const stored: Record<string, string | string[] | boolean> = {};
+  for (const field of fields) {
+    if (field.deleted) continue;
+    const value = answers[field.id];
+    if (typeof value === 'string' || typeof value === 'boolean' || Array.isArray(value)) {
+      stored[field.id] = value;
+    }
+  }
+  return stored as Prisma.InputJsonObject;
+}
+
+function rejectAnswerIssues(issues: { field: string; message: string }[]) {
+  if (issues.length === 0) return;
+  const fields: Record<string, string> = {};
+  for (const issue of issues) {
+    if (!fields[issue.field]) fields[issue.field] = issue.message;
+  }
+  throw badRequest('Check the registration form and try again.', fields);
+}
+
+export async function createManual(
+  organizationId: string,
+  actor: RegistrationActor,
+  input: z.infer<typeof manualRegistrationSchema>,
+) {
+  const activity = await prisma.activity.findFirst({
+    where: { organizationId, id: input.activityId },
+    select: { id: true, kind: true, name: true },
+  });
+  if (!activity) throw notFound('Activity not found.');
+  assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, activity.kind, 'edit');
+
+  const activityIds = new Set<string>([activity.id]);
+  let formId: string | null = null;
+  let answers: Prisma.InputJsonObject | null = null;
+  let firstName: string;
+  let lastName: string;
+  let email: string;
+  let phone: string;
+
+  if ('formId' in input) {
+    const form = await prisma.contestRegistrationForm.findFirst({
+      where: { organizationId, id: input.formId, status: 'saved' },
+      select: { id: true, fields: true, quizzes: { select: { activityId: true } } },
+    });
+    if (!form) throw notFound('Registration form not found.');
+    if (!form.quizzes.some((quiz) => quiz.activityId === activity.id)) {
+      throw badRequest('That registration form is not for this activity.');
+    }
+    const fields = formFields(form.fields);
+    rejectAnswerIssues(validateAnswers(fields, input.answers));
+    firstName = answerText(fields, input.answers, 'first_name');
+    lastName = answerText(fields, input.answers, 'last_name');
+    email = normalizeEmail(answerText(fields, input.answers, 'email'));
+    phone = normalizeMobile(answerText(fields, input.answers, 'mobile'));
+    if (!firstName || !email) {
+      throw badRequest('This form needs a first name and an email.');
+    }
+    if (phone && !MOBILE_RE.test(phone)) {
+      throw badRequest('Enter a 10-digit mobile number.');
+    }
+    for (const quiz of form.quizzes) activityIds.add(quiz.activityId);
+    formId = form.id;
+    answers = storedAnswers(fields, input.answers);
+  } else {
+    firstName = input.firstName.trim().replace(/\s+/g, ' ');
+    lastName = input.lastName.trim().replace(/\s+/g, ' ');
+    email = normalizeEmail(input.email);
+    phone = normalizeMobile(input.phone);
+    if (!MOBILE_RE.test(phone)) {
+      throw badRequest('Enter a 10-digit mobile number.', {
+        phone: 'Enter a 10-digit mobile number.',
+      });
+    }
+  }
+
+  const linked = await prisma.activity.findMany({
+    where: { organizationId, id: { in: [...activityIds] } },
+    select: { id: true, kind: true },
+  });
+  const linkedIds = new Set(linked.map((item) => item.id));
+  for (const item of linked) {
+    if (item.id === activity.id) continue;
+    assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, item.kind, 'edit');
+  }
+
+  const name = `${firstName} ${lastName}`.trim();
+  const code = await nextRegistrationId();
+
+  try {
+    const created = await prisma.$transaction(async (tx) => {
+      const participant = await tx.participant.create({
+        data: {
+          organizationId,
+          code,
+          name,
+          firstName,
+          lastName: lastName || null,
+          email,
+          phone: MOBILE_RE.test(phone) ? phone : null,
+        },
+        select: { id: true, code: true, name: true },
+      });
+      const now = new Date();
+      await tx.registration.createMany({
+        data: [...linkedIds].map((activityId) => ({
+          organizationId,
+          activityId,
+          participantId: participant.id,
+          status: 'assigned',
+          assignedAt: now,
+        })),
+      });
+      if (formId && answers) {
+        await tx.contestFormSubmission.create({
+          data: {
+            organizationId,
+            formId,
+            participantId: participant.id,
+            email,
+            mobile: MOBILE_RE.test(phone) ? phone : null,
+            answers,
+          },
+        });
+      }
+      return participant;
+    });
+
+    await writeAudit({
+      organizationId,
+      actorType: 'user',
+      actorUserId: actor.userId,
+      action: 'registration.manual',
+      targetType: 'participant',
+      targetId: created.id,
+      metadata: { code: created.code, activityId: activity.id, formId },
+    });
+    await invalidateDashboard(organizationId);
+    return {
+      participantId: created.id,
+      code: created.code,
+      name: created.name,
+      activity: activity.name,
+    };
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      throw conflict('A participant with that Registration ID already exists.');
+    }
+    throw err;
+  }
 }
 
 export async function unassign(

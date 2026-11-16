@@ -5,7 +5,6 @@ import { AttemptQuestionBlock } from '../components/attempt-question-block';
 import { PageLoader } from '../components/loading-overlay';
 import { ThemeButton } from '../components/theme-button';
 import { useLeaveGuard } from '../hooks/use-leave-guard';
-import { useParticipantPages } from '../hooks/use-participant-pages';
 import { ApiError } from '../lib/api-client';
 import {
   answerFromResponse,
@@ -14,7 +13,6 @@ import {
   type AttemptAnswerValue,
 } from '../lib/attempt-answers';
 import { timeRemaining } from '../lib/format';
-import { firstEnabledParticipantPath, isParticipantPageOffError } from '../lib/participant-pages';
 import {
   advanceAttempt,
   clearSubmitIdempotencyKey,
@@ -34,7 +32,6 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [searchParams] = useSearchParams();
   const roundIdParam = searchParams.get('roundId') ?? undefined;
   const navigate = useNavigate();
-  const pagesQuery = useParticipantPages();
   const [attempt, setAttempt] = useState<AttemptState | null>(null);
   const [questions, setQuestions] = useState<AttemptQuestion[]>([]);
   const [qIndex, setQIndex] = useState(0);
@@ -59,6 +56,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const [pendingSave, setPendingSave] = useState(false);
   /** Per-question timer expired with no answer — do not block compulsory submit. */
   const [timedOutUnanswered, setTimedOutUnanswered] = useState<Set<string>>(() => new Set());
+  const [closedIds, setClosedIds] = useState<Set<string>>(() => new Set());
   const revisionRef = useRef(0);
   const saveTimer = useRef<number | null>(null);
   const pendingAnswersRef = useRef<AnswerMap | null>(null);
@@ -68,6 +66,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const sessionEndedRef = useRef(false);
   const answersRef = useRef<AnswerMap>({});
   const attemptIdRef = useRef<string | null>(null);
+  const qIndexRef = useRef(0);
+  const closedIdsRef = useRef<Set<string>>(new Set());
+  const savingInFlightRef = useRef(false);
+  const forwardOnlyRef = useRef(false);
 
   useLeaveGuard(
     !allowLeave && (Boolean(attempt && !busy) || submitting || savingInFlight || pendingSave),
@@ -102,13 +104,43 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       }
       setAnswers(mapped);
       answersRef.current = mapped;
-      setTimedOutUnanswered(new Set());
+      const closed = new Set(data.attempt.closedQuestionVersionIds ?? []);
+      // Timer-skipped unanswered questions are closed; keep them in timedOut so compulsory submit still works.
+      const timedOut = new Set<string>();
+      for (const id of closed) {
+        if (!isAnswered(mapped[id])) timedOut.add(id);
+      }
+      setTimedOutUnanswered(timedOut);
+      setClosedIds(closed);
+      closedIdsRef.current = closed;
+      forwardOnlyRef.current = fo;
       let startIndex = 0;
       if (opts?.resume && data.questions.length > 0) {
-        const firstOpen = data.questions.findIndex((q) => !isAnswered(mapped[q.questionVersionId]));
-        startIndex = firstOpen >= 0 ? firstOpen : Math.max(0, data.questions.length - 1);
+        const stored = data.attempt.currentQuestionIndex;
+        if (typeof stored === 'number' && stored >= 0 && stored < data.questions.length) {
+          startIndex = stored;
+        } else {
+          const firstOpen = data.questions.findIndex((q) => {
+            if (closed.has(q.questionVersionId)) return false;
+            return !isAnswered(mapped[q.questionVersionId]);
+          });
+          startIndex = firstOpen >= 0 ? firstOpen : Math.max(0, data.questions.length - 1);
+        }
+        // Forward-only: never land on a closed question after resume.
+        if (fo) {
+          while (
+            startIndex < data.questions.length &&
+            closed.has(data.questions[startIndex]!.questionVersionId)
+          ) {
+            startIndex += 1;
+          }
+          if (startIndex >= data.questions.length) {
+            startIndex = Math.max(0, data.questions.length - 1);
+          }
+        }
       }
       setQIndex(startIndex);
+      qIndexRef.current = startIndex;
       setMaxVisitedIndex(startIndex);
       autoSubmitted.current = false;
       const remaining = Math.max(
@@ -169,17 +201,6 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     void load();
   }, [load]);
 
-  const pages = pagesQuery.data;
-  const pageOff =
-    isParticipantPageOffError(error) ||
-    (attempt?.activityKind === 'quiz' && pages?.quizzes === false) ||
-    (attempt?.activityKind === 'assessment' && pages?.assessments === false);
-
-  useEffect(() => {
-    if (!pages || !pageOff) return;
-    navigate(firstEnabledParticipantPath(pages) ?? '/', { replace: true });
-  }, [navigate, pageOff, pages]);
-
   useEffect(() => {
     if (!attempt?.softProctoring) return;
 
@@ -207,10 +228,15 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         questionVersionId,
         answer,
       }));
-      if (responses.length === 0) return;
+      const hasProgress = closedIdsRef.current.size > 0 || typeof qIndexRef.current === 'number';
+      if (responses.length === 0 && !hasProgress) return;
       setSavingInFlight(true);
+      savingInFlightRef.current = true;
       try {
-        const saved = await saveAttempt(attempt.id, revisionRef.current, responses);
+        const saved = await saveAttempt(attempt.id, revisionRef.current, responses, {
+          currentQuestionIndex: qIndexRef.current,
+          closedQuestionVersionIds: [...closedIdsRef.current],
+        });
         revisionRef.current = saved.revision;
         setAttempt(saved.attempt);
       } catch (err) {
@@ -238,6 +264,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         );
       } finally {
         setSavingInFlight(false);
+        savingInFlightRef.current = false;
       }
     },
     [attempt, load, navigate],
@@ -270,6 +297,18 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }, [answers]);
 
   useEffect(() => {
+    qIndexRef.current = qIndex;
+  }, [qIndex]);
+
+  useEffect(() => {
+    closedIdsRef.current = closedIds;
+  }, [closedIds]);
+
+  useEffect(() => {
+    forwardOnlyRef.current = forwardOnly;
+  }, [forwardOnly]);
+
+  useEffect(() => {
     return () => {
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current);
@@ -282,10 +321,13 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }, []);
 
   useEffect(() => {
+    // Tab/minimize must not save or reset. Only flush on a real page close/hide of the document.
     const flushKeepalive = () => {
       if (sessionEndedRef.current) return;
       const attemptId = attemptIdRef.current;
       if (!attemptId) return;
+      // Avoid a second save with the same revision while a normal save is in flight.
+      if (savingInFlightRef.current) return;
       if (saveTimer.current) {
         window.clearTimeout(saveTimer.current);
         saveTimer.current = null;
@@ -296,16 +338,15 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         questionVersionId,
         answer,
       }));
-      saveAttemptKeepalive(attemptId, revisionRef.current, responses);
+      if (responses.length === 0) return;
+      saveAttemptKeepalive(attemptId, revisionRef.current, responses, {
+        currentQuestionIndex: qIndexRef.current,
+        closedQuestionVersionIds: [...closedIdsRef.current],
+      });
     };
     window.addEventListener('pagehide', flushKeepalive);
-    const onVisibility = () => {
-      if (document.visibilityState === 'hidden') flushKeepalive();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
     return () => {
       window.removeEventListener('pagehide', flushKeepalive);
-      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -322,6 +363,17 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   useEffect(() => {
     setMaxVisitedIndex((prev) => Math.max(prev, qIndex));
   }, [qIndex]);
+
+  function closeQuestion(questionVersionId: string) {
+    if (!forwardOnlyRef.current) return;
+    setClosedIds((prev) => {
+      if (prev.has(questionVersionId)) return prev;
+      const next = new Set(prev);
+      next.add(questionVersionId);
+      closedIdsRef.current = next;
+      return next;
+    });
+  }
 
   const doSubmit = useCallback(
     async (force = false) => {
@@ -385,11 +437,22 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       window.clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+    const leaving = questions[qIndexRef.current];
+    if (leaving) {
+      setClosedIds((prev) => {
+        if (prev.has(leaving.questionVersionId)) return prev;
+        const next = new Set(prev);
+        next.add(leaving.questionVersionId);
+        closedIdsRef.current = next;
+        return next;
+      });
+    }
     const latest = pendingAnswersRef.current ?? answersRef.current;
     pendingAnswersRef.current = null;
     setPendingSave(false);
     try {
-      if (Object.keys(latest).length) await enqueueSave(latest);
+      // Always flush progress (closed questions + index) before renewing the deadline.
+      await enqueueSave(latest);
       await saveChainRef.current.catch(() => undefined);
       const data = await advanceAttempt(attempt.id);
       if (data.submitted && data.result) {
@@ -408,25 +471,39 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       );
       setSeconds(remaining);
       autoSubmitted.current = false;
-      setQIndex((i) => Math.min(i + 1, Math.max(0, questions.length - 1)));
+      setQIndex((i) => {
+        let next = Math.min(i + 1, Math.max(0, questions.length - 1));
+        while (
+          next < questions.length &&
+          closedIdsRef.current.has(questions[next]!.questionVersionId)
+        ) {
+          next += 1;
+        }
+        if (next >= questions.length) next = Math.max(0, questions.length - 1);
+        qIndexRef.current = next;
+        return next;
+      });
     } catch (err) {
       autoSubmitted.current = false;
       setError(err instanceof ApiError ? err.message : 'Could not move to the next question.');
     }
-  }, [attempt, navigate, questions.length, submitting]);
+  }, [attempt, navigate, questions, submitting]);
 
   useEffect(() => {
     if (!attempt || busy || seconds > 0 || autoSubmitted.current || submitting) return;
     autoSubmitted.current = true;
     if (attempt.durationMode === 'per_question') {
       const current = questions[qIndex];
-      if (current && !isAnswered(answersRef.current[current.questionVersionId])) {
-        setTimedOutUnanswered((prev) => {
-          if (prev.has(current.questionVersionId)) return prev;
-          const next = new Set(prev);
-          next.add(current.questionVersionId);
-          return next;
-        });
+      if (current) {
+        closeQuestion(current.questionVersionId);
+        if (!isAnswered(answersRef.current[current.questionVersionId])) {
+          setTimedOutUnanswered((prev) => {
+            if (prev.has(current.questionVersionId)) return prev;
+            const next = new Set(prev);
+            next.add(current.questionVersionId);
+            return next;
+          });
+        }
       }
       const isLast = qIndex >= questions.length - 1;
       if (isLast) {
@@ -468,6 +545,10 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }
 
   function advanceToQuestion(index: number) {
+    const leaving = questions[qIndex];
+    if (leaving && index !== qIndex && forwardOnly) {
+      closeQuestion(leaving.questionVersionId);
+    }
     if (allOnPage) {
       document.getElementById(`attempt-q-${index}`)?.scrollIntoView({
         behavior: 'smooth',
@@ -475,6 +556,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       });
     }
     setQIndex(index);
+    qIndexRef.current = index;
   }
 
   const questionsCompulsory = attempt?.questionsCompulsory !== false;
@@ -496,6 +578,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
 
   function goToQuestion(index: number) {
     if (forwardOnly) {
+      // Closed questions stay closed — never navigate back to them.
+      const target = questions[index];
+      if (target && closedIds.has(target.questionVersionId) && index < qIndex) return;
       // One-at-a-time: no sidebar jumps — only Next / Previous chrome advances.
       if (!allOnPage && index !== qIndex) return;
       // All-on-page: may jump forward, never back past farthest visited.
@@ -618,7 +703,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     if (first !== undefined) setQIndex(first);
   }
 
-  if ((busy && !attempt) || pageOff) {
+  if (busy && !attempt) {
     return <PageLoader />;
   }
 
