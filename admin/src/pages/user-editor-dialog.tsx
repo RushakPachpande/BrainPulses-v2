@@ -50,6 +50,8 @@ export function UserEditorDialog({
   const formId = useId();
   const confirm = useConfirm();
   const auth = useAuth();
+  const actorIsSuperAdmin =
+    auth.status === 'authenticated' && auth.membership.role === 'super_admin';
   const closeRef = useRef(onOpenChange);
   closeRef.current = onOpenChange;
   const [name, setName] = useState('');
@@ -332,7 +334,9 @@ export function UserEditorDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                    {actorIsSuperAdmin ? (
+                      <SelectItem value="super_admin">Super Admin</SelectItem>
+                    ) : null}
                   </SelectContent>
                 </Select>
               </Field>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { PasswordInput } from '@/components/password-input';
 import { ConfirmContext, type ConfirmFn, type ConfirmOptions } from '@/components/use-confirm';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -106,14 +107,26 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             </form>
           ) : null}
           {shown?.details && shown.details.length > 0 ? (
-            <ul
-              aria-label="What will be deleted"
-              className="list-disc space-y-1 pl-5 text-sm text-foreground"
-            >
-              {shown.details.map((detail) => (
-                <li key={detail}>{detail}</li>
-              ))}
-            </ul>
+            shown.destructive ? (
+              <Alert variant="destructive" className="border-destructive/40 bg-destructive/10">
+                <AlertDescription className="text-destructive">
+                  <ul aria-label="What will be deleted" className="list-disc space-y-1 pl-4">
+                    {shown.details.map((detail) => (
+                      <li key={detail}>{detail}</li>
+                    ))}
+                  </ul>
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <ul
+                aria-label="What will be deleted"
+                className="list-disc space-y-1 pl-5 text-sm text-foreground"
+              >
+                {shown.details.map((detail) => (
+                  <li key={detail}>{detail}</li>
+                ))}
+              </ul>
+            )
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => settle(false)}>

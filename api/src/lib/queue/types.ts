@@ -22,7 +22,6 @@ export type JobName =
   | 'report.quiz-export'
   | 'report.assessment-export'
   | 'import.participants'
-  | 'import.users'
   | 'import.bank-questions';
 
 export type JobStatus =
@@ -58,7 +57,7 @@ export type AssessmentExportJob = {
 };
 
 export type SpreadsheetImportJob = {
-  type: 'import.participants' | 'import.users' | 'import.bank-questions';
+  type: 'import.participants' | 'import.bank-questions';
   organizationId: string;
   userId: string;
   actor?: ImportActor;

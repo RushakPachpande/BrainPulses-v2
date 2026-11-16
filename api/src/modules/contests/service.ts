@@ -3,6 +3,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
+import { wipeRegistrationForm } from '../contest-forms/service.js';
 import { placeOwnedImage } from '../files/place.js';
 import { assertCatalogImage } from '../files/service.js';
 import type { contestListQuerySchema, createContestSchema, updateContestSchema } from './schema.js';
@@ -193,14 +194,11 @@ export async function deleteContest(organizationId: string, actorUserId: string,
     );
   }
 
-  await prisma.$transaction(async (tx) => {
+  const participantsRemoved = await prisma.$transaction(async (tx) => {
     const formId = existing.registrationForm?.id;
-    if (formId) {
-      await tx.contestFormSubmission.deleteMany({ where: { organizationId, formId } });
-      await tx.contestFormQuiz.deleteMany({ where: { organizationId, formId } });
-      await tx.contestRegistrationForm.delete({ where: { id: formId } });
-    }
+    const removed = formId ? await wipeRegistrationForm(tx, organizationId, formId) : 0;
     await tx.contest.delete({ where: { id } });
+    return removed;
   });
   await writeAudit({
     organizationId,
@@ -209,7 +207,11 @@ export async function deleteContest(organizationId: string, actorUserId: string,
     action: 'contest.delete',
     targetType: 'contest',
     targetId: id,
-    metadata: { name: existing.name, registrationFormRemoved: Boolean(existing.registrationForm) },
+    metadata: {
+      name: existing.name,
+      registrationFormRemoved: Boolean(existing.registrationForm),
+      participantsRemoved,
+    },
   });
   return { deleted: true, name: existing.name };
 }

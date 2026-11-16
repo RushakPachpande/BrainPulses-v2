@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -9,7 +9,6 @@ import {
   ClockIcon,
   PlusIcon,
   RotateCcwIcon,
-  UserPlusIcon,
   UserIcon,
   UsersIcon,
 } from 'lucide-react';
@@ -53,7 +52,7 @@ import type { RegistrationRow as Registration } from '@/services/types';
 const EMPTY_ROWS: Registration[] = [];
 
 type SortKey =
-  'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'bank' | 'assignment' | 'attempt';
+  'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'assignment' | 'attempt';
 
 const ASSIGNMENT_OPTIONS = ['Assigned', 'Pending'];
 const ATTEMPT_OPTIONS = ['Completed', 'In Progress', 'Not Started'];
@@ -69,7 +68,6 @@ const registrationPlacement: Record<SortKey, RecordColumn<Registration>['placeme
   phone: 'wide',
   registered: 'details',
   activity: 'primary',
-  bank: 'details',
   assignment: 'primary',
   attempt: 'status',
 };
@@ -88,8 +86,6 @@ function renderRegistrationCell(key: SortKey, row: Registration) {
       return row.registered;
     case 'activity':
       return row.activity;
-    case 'bank':
-      return row.bank;
     case 'assignment':
       return <AssignmentStatusPill value={row.assignment} />;
     case 'attempt':
@@ -118,7 +114,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     { key: 'phone', label: 'Phone' },
     { key: 'registered', label: 'Registration Date' },
     { key: 'activity', label: activityLabel },
-    { key: 'bank', label: 'Assigned Question Bank' },
     { key: 'assignment', label: 'Assignment Status' },
     { key: 'attempt', label: attemptLabel },
   ];
@@ -146,15 +141,14 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const rows = data ?? EMPTY_ROWS;
 
   const [addOpen, setAddOpen] = useState(false);
-  const assignPath = isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new';
 
   async function onDeleteRegistration(row: Registration) {
     const password = await confirmSensitiveDelete(confirm, {
       title: `Delete ${row.name}'s registration?`,
       description: 'Permanently removes this participant. This cannot be undone.',
       details: [
-        'Their attempts and scores are deleted.',
-        'They are removed from every activity they are on.',
+        'Their registrations, attempts, scores, and reports are deleted.',
+        'They are removed from every quiz, assessment, and contest form they are on.',
         'The live registration link can sign them up again as a new Registration ID.',
       ],
       confirmLabel: 'Delete registration',
@@ -343,19 +337,13 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
       <div className="flex flex-col gap-4">
         {canEdit ? (
           <PageHeaderActions>
-            <Button type="button" variant="outline" asChild className="w-full sm:w-auto">
-              <Link to={assignPath}>
-                <UserPlusIcon data-icon="inline-start" />
-                Assign participants
-              </Link>
-            </Button>
             <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
               <PlusIcon data-icon="inline-start" />
               Add registration
             </Button>
           </PageHeaderActions>
         ) : null}
-        <ListPageSkeleton columns={8} />
+        <ListPageSkeleton columns={7} />
         {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
       </div>
     );
@@ -365,12 +353,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     <div ref={ref} className="flex flex-col gap-4">
       {canEdit ? (
         <PageHeaderActions>
-          <Button type="button" variant="outline" asChild className="w-full sm:w-auto">
-            <Link to={assignPath}>
-              <UserPlusIcon data-icon="inline-start" />
-              Assign participants
-            </Link>
-          </Button>
           <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
             <PlusIcon data-icon="inline-start" />
             Add registration

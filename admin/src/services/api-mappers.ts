@@ -114,7 +114,8 @@ export function mapActivityFromApi(
     subtitle: string | null;
     status: string;
     registered: number;
-    attempts: number;
+    sponsor?: { name: string } | null;
+    contest?: { name: string } | null;
     startsAt: string | Date | null;
     endsAt: string | Date | null;
   },
@@ -127,7 +128,8 @@ export function mapActivityFromApi(
     iconTone: index % 6,
     status: row.status,
     registered: row.registered,
-    attempts: row.attempts,
+    sponsorName: row.sponsor?.name?.trim() ?? '',
+    contestName: row.contest?.name?.trim() ?? '',
     start: formatAdminDate(row.startsAt),
     end: formatAdminDate(row.endsAt),
     startTime: formatAdminTime(row.startsAt),
@@ -186,7 +188,6 @@ export function mapRegistrationFromApi(row: {
     phone: row.phone ?? '—',
     registered: formatAdminDate(row.registered),
     activity: row.activity,
-    bank: '—',
     assignment: formatAssignment(row.assignment),
     attempt: formatAttemptStatus(row.attempt),
     attemptId: row.attemptId ?? null,

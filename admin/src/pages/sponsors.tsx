@@ -43,6 +43,7 @@ export function SponsorsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const canDelete = canManageUsersOrSettings(membership);
+  const isSuperAdmin = membership?.role === 'super_admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -98,7 +99,7 @@ export function SponsorsPage() {
     const create = searchParams.get('create') === '1';
     if (!view && !edit && !create) return;
     if (view && loading) return;
-    if (view) {
+    if (view && isSuperAdmin) {
       if (sponsors.some((sponsor) => sponsor.id === view)) setViewId(view);
       else toast.error('Could not load sponsor.');
     }
@@ -109,7 +110,7 @@ export function SponsorsPage() {
     next.delete('edit');
     next.delete('create');
     setSearchParams(next, { replace: true });
-  }, [canMutate, loading, searchParams, setSearchParams, sponsors]);
+  }, [canMutate, isSuperAdmin, loading, searchParams, setSearchParams, sponsors]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -144,7 +145,8 @@ export function SponsorsPage() {
     setSortDir('asc');
   }
 
-  const viewing = viewId ? sponsors.find((sponsor) => sponsor.id === viewId) : undefined;
+  const viewing =
+    isSuperAdmin && viewId ? sponsors.find((sponsor) => sponsor.id === viewId) : undefined;
   const viewDialog = viewing ? (
     <SponsorViewDialog
       sponsor={viewing}
@@ -241,7 +243,7 @@ export function SponsorsPage() {
           renderItem={(sponsor) => (
             <MediaCard
               kind="sponsor"
-              onView={() => setViewId(sponsor.id)}
+              onView={isSuperAdmin ? () => setViewId(sponsor.id) : undefined}
               onEdit={canMutate ? () => setEditor(sponsor.id) : undefined}
               onDelete={
                 canDelete && !sponsorBlocked(sponsor)

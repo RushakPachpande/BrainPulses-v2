@@ -48,7 +48,7 @@ function contestDeleteCopy(contest: Contest) {
   ];
   if (form.submissionCount > 0) {
     details.push(
-      `${form.submissionCount} registration submission${form.submissionCount === 1 ? '' : 's'} will be deleted. Participant records stay.`,
+      `${form.submissionCount} registered participant${form.submissionCount === 1 ? '' : 's'} will be deleted, including their registrations, attempts, and reports. This includes any other contest they also joined.`,
     );
   }
   if (form.quizCount > 0) {
@@ -71,6 +71,7 @@ export function ContestsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const canDelete = canManageUsersOrSettings(membership);
+  const isSuperAdmin = membership?.role === 'super_admin';
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -129,7 +130,7 @@ export function ContestsPage() {
     const create = searchParams.get('create') === '1';
     if (!view && !edit && !create) return;
     if (view && loading) return;
-    if (view) {
+    if (view && isSuperAdmin) {
       if (contests.some((contest) => contest.id === view)) setViewId(view);
       else toast.error('Could not load contest.');
     }
@@ -140,7 +141,7 @@ export function ContestsPage() {
     next.delete('edit');
     next.delete('create');
     setSearchParams(next, { replace: true });
-  }, [canMutate, contests, loading, searchParams, setSearchParams]);
+  }, [canMutate, contests, isSuperAdmin, loading, searchParams, setSearchParams]);
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -180,7 +181,8 @@ export function ContestsPage() {
     setSortDir('asc');
   }
 
-  const viewing = viewId ? contests.find((contest) => contest.id === viewId) : undefined;
+  const viewing =
+    isSuperAdmin && viewId ? contests.find((contest) => contest.id === viewId) : undefined;
   const viewDialog = viewing ? (
     <ContestViewDialog
       contest={viewing}
@@ -277,7 +279,7 @@ export function ContestsPage() {
           renderItem={(contest) => (
             <MediaCard
               kind="contest"
-              onView={() => setViewId(contest.id)}
+              onView={isSuperAdmin ? () => setViewId(contest.id) : undefined}
               onEdit={canMutate ? () => setEditor(contest.id) : undefined}
               onDelete={
                 canDelete && contest.activityCount === 0

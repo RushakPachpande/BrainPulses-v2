@@ -81,21 +81,6 @@ async function processImport(data: SpreadsheetImportJob): Promise<ImportJobResul
       });
       return { kind: 'import', data: result };
     }
-    if (data.type === 'import.users') {
-      const service = await import('../../modules/users/service.js');
-      if (!data.actor) throw new Error('actor is required for user import.');
-      const result = await service.importUsersFile(
-        data.organizationId,
-        data.userId,
-        data.actor.role,
-        {
-          assessmentAccess: data.actor.assessmentAccess,
-          quizAccess: data.actor.quizAccess,
-        },
-        { buffer, originalname: data.originalname },
-      );
-      return { kind: 'import', data: result };
-    }
     if (data.type === 'import.bank-questions') {
       if (!data.bankId) throw new Error('bankId is required for bank question import.');
       if (!data.actor) throw new Error('actor is required for bank question import.');
@@ -138,7 +123,6 @@ export async function processJobPayload(
     case 'report.assessment-export':
       return processAssessmentExport(jobId, payload);
     case 'import.participants':
-    case 'import.users':
     case 'import.bank-questions':
       return processImport(payload);
     default: {

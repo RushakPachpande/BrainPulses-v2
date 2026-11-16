@@ -3,9 +3,11 @@ import {
   requireAuth,
   requireUser,
   requireOrgAccess,
+  requireRole,
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
+import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
 import * as controller from './controller.js';
 import {
   contestQuizzesQuerySchema,
@@ -51,6 +53,12 @@ contestFormsRouter.post(
   requireOrgAccess('edit'),
   validate({ params: idParamSchema }),
   controller.regenerate,
+);
+contestFormsRouter.delete(
+  '/:id',
+  requireRole('super_admin'),
+  validate({ params: idParamSchema, body: confirmPasswordSchema }),
+  controller.remove,
 );
 contestFormsRouter.post(
   '/:id/quizzes',

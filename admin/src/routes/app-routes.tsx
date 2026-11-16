@@ -39,9 +39,6 @@ const ActivityWizardPage = lazy(() =>
 const RegistrationsPage = lazy(() =>
   import('@/pages/registrations').then((m) => ({ default: m.RegistrationsPage })),
 );
-const AssignRegistrationPage = lazy(() =>
-  import('@/pages/assign-registration').then((m) => ({ default: m.AssignRegistrationPage })),
-);
 const RegistrationDetailPage = lazy(() =>
   import('@/pages/registration-detail').then((m) => ({ default: m.RegistrationDetailPage })),
 );
@@ -169,10 +166,6 @@ export function AppRoutes() {
               element={<ActivityWizardPage kind="assessment" mode="edit" />}
             />
             <Route
-              path="assessments/registrations/new"
-              element={<AssignRegistrationPage kind="assessment" />}
-            />
-            <Route
               path="assessments/registrations/:registrationId/edit"
               element={<RegistrationDetailPage kind="assessment" mode="edit" />}
             />
@@ -195,10 +188,6 @@ export function AppRoutes() {
             <Route
               path="quizzes/:activityId/edit"
               element={<ActivityWizardPage kind="quiz" mode="edit" />}
-            />
-            <Route
-              path="quizzes/registrations/new"
-              element={<AssignRegistrationPage kind="quiz" />}
             />
             <Route
               path="quizzes/registrations/:registrationId/edit"

@@ -874,30 +874,6 @@ export async function deleteParticipant(participantId: string, password: string)
   return body.data;
 }
 
-export async function importUsers(file: File): Promise<SpreadsheetImportResult> {
-  assertXlsxImportFile(file);
-  if (useFixtures) {
-    return { created: 0, issues: [{ row: 0, message: 'Import is unavailable in fixture mode.' }] };
-  }
-  const form = new FormData();
-  form.append('file', file);
-  const data = await apiPostFormData<SpreadsheetImportResult | { jobId: string; status: string }>(
-    '/api/users/import',
-    form,
-    idempotencyHeaders(),
-    { blocking: true, timeoutMs: 120_000 },
-  );
-  const { resolveImportResult } = await import('@/lib/jobs');
-  const result = await resolveImportResult(data);
-  invalidateAdmin(['users', 'dashboard']);
-  return result;
-}
-
-export async function downloadUsersSample(): Promise<void> {
-  if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
-  await apiDownloadBlob('/api/users/sample.xlsx', 'brainpulses-users-sample.xlsx');
-}
-
 export async function deleteSponsor(sponsorId: string, password: string) {
   if (useFixtures) {
     invalidateAdmin(['sponsors']);
@@ -1223,26 +1199,6 @@ export async function createManualRegistration(
     activity: string;
   }>('/api/registrations/manual', payload, idempotencyHeaders());
   invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
-  return data;
-}
-
-export async function getAssignableParticipants(activityId: string) {
-  return apiGetData<{ id: string; code: string; name: string; email: string }[]>(
-    `/api/registrations/assignable?activityId=${encodeURIComponent(activityId)}`,
-  );
-}
-
-export async function assignRegistrations(activityId: string, participantIds: string[]) {
-  if (useFixtures) {
-    invalidateAdmin(['registrations', 'activities', 'dashboard']);
-    return [];
-  }
-  const data = await apiPostData(
-    '/api/registrations/assign',
-    { activityId, participantIds },
-    idempotencyHeaders(),
-  );
-  invalidateAdmin(['registrations', 'activities', 'dashboard']);
   return data;
 }
 

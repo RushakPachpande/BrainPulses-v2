@@ -48,12 +48,7 @@ export const pageMeta: Record<string, PageMeta> = {
   '/assessments/registrations': {
     crumb: 'BrainPulses / Assessment / Registrations',
     title: 'Registrations & Participant Data',
-    description:
-      'View all participant registrations, their assigned question banks, and assessment status.',
-  },
-  '/assessments/registrations/new': {
-    crumb: 'BrainPulses / Assessment / Registrations / Assign',
-    title: 'Assign Participants',
+    description: 'View all participant registrations and assessment status.',
   },
   '/assessments/reports': {
     crumb: 'BrainPulses / Assessment / Reports',
@@ -70,12 +65,7 @@ export const pageMeta: Record<string, PageMeta> = {
   '/quizzes/registrations': {
     crumb: 'BrainPulses / Quiz / Registrations',
     title: 'Registrations & Participant Data',
-    description:
-      'View all participant registrations, their assigned question banks, and quiz attempt status.',
-  },
-  '/quizzes/registrations/new': {
-    crumb: 'BrainPulses / Quiz / Registrations / Assign',
-    title: 'Assign Participants',
+    description: 'View all participant registrations and quiz attempt status.',
   },
   '/quizzes/reports': {
     crumb: 'BrainPulses / Quiz / Reports',

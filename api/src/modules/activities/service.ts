@@ -149,7 +149,7 @@ function mapActivity(a: {
   sponsor?: { id: string; name: string } | null;
   contest?: { id: string; name: string } | null;
   settings?: Prisma.JsonValue | null;
-  _count?: { registrations: number; attempts: number; rounds?: number };
+  _count?: { registrations: number; attempts?: number; rounds?: number };
   rounds?: Array<Prisma.ActivityRoundGetPayload<{ include: typeof roundInclude }>>;
 }) {
   const registered = a._count?.registrations ?? 0;
@@ -183,7 +183,6 @@ function mapActivity(a: {
     contest: a.contest ? { id: a.contest.id, name: a.contest.name } : null,
     settings: a.kind === 'quiz' ? normalizeQuizSettingsJson(a.settings) : (a.settings ?? null),
     registered,
-    attempts: a._count?.attempts ?? 0,
     ...(rounds ? { rounds } : {}),
   };
   if (a.kind === 'quiz') {
@@ -194,7 +193,7 @@ function mapActivity(a: {
 }
 
 const listInclude = {
-  _count: { select: { registrations: true, attempts: true } },
+  _count: { select: { registrations: true } },
   sponsor: { select: { id: true, name: true } },
   contest: { select: { id: true, name: true } },
 } satisfies Prisma.ActivityInclude;

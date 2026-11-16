@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import type { FlowStatus } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
+import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { nextRegistrationId } from '../../lib/registration-id.js';
@@ -725,4 +726,62 @@ export async function register(slug: string, answers: Record<string, AnswerValue
     code,
     message: 'Use it to log in. Your quizzes appear after you log in.',
   };
+}
+
+type FormWipeTx = {
+  contestFormSubmission: {
+    findMany(args: {
+      where: { organizationId: string; formId: string };
+      select: { participantId: true };
+    }): Promise<Array<{ participantId: string }>>;
+  };
+  participant: {
+    deleteMany(args: { where: { organizationId: string; id: { in: string[] } } }): Promise<unknown>;
+  };
+  contestRegistrationForm: {
+    deleteMany(args: { where: { organizationId: string; id: string } }): Promise<unknown>;
+  };
+};
+
+/** Deletes everyone who submitted this form, then the form. Quizzes and assessments stay. */
+export async function wipeRegistrationForm(tx: FormWipeTx, organizationId: string, formId: string) {
+  const submissions = await tx.contestFormSubmission.findMany({
+    where: { organizationId, formId },
+    select: { participantId: true },
+  });
+  const participantIds = [...new Set(submissions.map((row) => row.participantId))];
+  if (participantIds.length > 0) {
+    await tx.participant.deleteMany({
+      where: { organizationId, id: { in: participantIds } },
+    });
+  }
+  await tx.contestRegistrationForm.deleteMany({ where: { organizationId, id: formId } });
+  return participantIds.length;
+}
+
+export async function deleteForm(organizationId: string, actorUserId: string, id: string) {
+  const existing = await prisma.contestRegistrationForm.findFirst({
+    where: { organizationId, id },
+    select: { id: true, contest: { select: { name: true } } },
+  });
+  if (!existing) throw notFound('Registration form not found.');
+
+  const participantsRemoved = await prisma.$transaction((tx) =>
+    wipeRegistrationForm(tx, organizationId, id),
+  );
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'contest_form.delete',
+    targetType: 'contest_form',
+    targetId: id,
+    metadata: {
+      contestName: existing.contest?.name ?? null,
+      participantsRemoved,
+    },
+  });
+  await invalidateDashboard(organizationId);
+  return { deleted: true as const, participantsRemoved };
 }

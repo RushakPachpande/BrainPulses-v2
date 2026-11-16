@@ -1,21 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  FileSpreadsheetIcon,
-  PlusIcon,
-  RotateCcwIcon,
-  UploadIcon,
-} from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { ImportResultDialog } from '@/components/import-result-dialog';
-import {
-  importResultFromCounts,
-  importResultFromError,
-  type ImportResultView,
-} from '@/components/import-result';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
@@ -48,9 +35,7 @@ import { UserEditorDialog } from '@/pages/user-editor-dialog';
 import { UserViewDialog } from '@/pages/user-view-dialog';
 import {
   deleteUserCompletely,
-  downloadUsersSample,
   getUsers,
-  importUsers,
   resetUserPassword,
   type AdminUser as User,
 } from '@/services';
@@ -115,53 +100,20 @@ export function UsersPage() {
   const actorUserId = auth.status === 'authenticated' ? auth.user.id : null;
   const isSuperAdmin = membership?.role === 'super_admin';
   const canManage = canManageUsersOrSettings(membership);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [resetting, setResetting] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.users(orgId),
     queryFn: () => getUsers(),
     enabled: Boolean(orgId),
   });
-  const users = data ?? EMPTY_USERS;
-
-  async function onSampleDownload() {
-    try {
-      await downloadUsersSample();
-      toast.success('Sample Excel downloaded.');
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not download sample.');
-    }
-  }
-
-  async function onImportFile(file: File | undefined) {
-    if (!file || !canManage) return;
-    setImporting(true);
-    try {
-      const result = await importUsers(file);
-      setImportResult(
-        importResultFromCounts(
-          result.created,
-          result.issues.map((issue) => issue.message),
-          'user',
-        ),
-      );
-      if (result.created > 0) {
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-        await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
-      }
-    } catch (err) {
-      setImportResult(importResultFromError(err));
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
+  const users = useMemo(
+    () => (data ?? EMPTY_USERS).filter((user) => isSuperAdmin || user.role !== 'Super Admin'),
+    [data, isSuperAdmin],
+  );
 
   async function onDeleteUser(user: User) {
     if (!canManage || !user.id) return;
@@ -234,18 +186,18 @@ export function UsersPage() {
     const create = searchParams.get('create') === '1';
     if (!view && !edit && !create) return;
     if (view && loading) return;
-    if (view) {
+    if (view && isSuperAdmin) {
       if (users.some((user) => user.id === view)) setViewId(view);
       else toast.error('Could not load user.');
     }
     if (canManage && create) setEditor('create');
-    if (canManage && edit) setEditor(edit);
+    if (isSuperAdmin && edit) setEditor(edit);
     const next = new URLSearchParams(searchParams);
     next.delete('view');
     next.delete('edit');
     next.delete('create');
     setSearchParams(next, { replace: true });
-  }, [canManage, loading, searchParams, setSearchParams, users]);
+  }, [canManage, isSuperAdmin, loading, searchParams, setSearchParams, users]);
 
   const roleOptions = useMemo(
     () =>
@@ -377,34 +329,6 @@ export function UsersPage() {
 
   const uploadActions = canManage ? (
     <PageHeaderActions>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        className="sr-only"
-        aria-label="Import users Excel file"
-        onChange={(e) => void onImportFile(e.target.files?.[0])}
-      />
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full sm:w-auto"
-        disabled={importing}
-        onClick={() => void onSampleDownload()}
-      >
-        <FileSpreadsheetIcon data-icon="inline-start" />
-        Sample Excel
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        className="w-full sm:w-auto"
-        disabled={importing}
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <UploadIcon data-icon="inline-start" />
-        {importing ? 'Importing…' : 'Upload Users'}
-      </Button>
       <Button type="button" className="w-full sm:w-auto" onClick={() => setEditor('create')}>
         <PlusIcon data-icon="inline-start" />
         Add User
@@ -479,46 +403,54 @@ export function UsersPage() {
                 ...records,
                 rowLabel: (user) => `Select ${user.name}`,
               }}
-              renderActions={(user) => {
-                const id = user.id;
-                const canReset = isSuperAdmin && Boolean(id) && Boolean(user.userId);
-                return (
-                  <RowActions
-                    view={
-                      id
-                        ? {
-                            onClick: () => setViewId(id),
+              renderActions={
+                isSuperAdmin
+                  ? (user) => {
+                      const id = user.id;
+                      const canReset = Boolean(id) && Boolean(user.userId);
+                      return (
+                        <RowActions
+                          view={
+                            id
+                              ? {
+                                  onClick: () => setViewId(id),
+                                }
+                              : undefined
                           }
-                        : undefined
-                    }
-                    edit={
-                      canManage && id
-                        ? {
-                            onClick: () => setEditor(id),
+                          edit={
+                            canManage && id
+                              ? {
+                                  onClick: () => setEditor(id),
+                                }
+                              : undefined
                           }
-                        : undefined
-                    }
-                    resetPassword={
-                      canReset
-                        ? {
-                            onClick: () => setResetTarget(user),
+                          resetPassword={
+                            canReset
+                              ? {
+                                  onClick: () => setResetTarget(user),
+                                }
+                              : undefined
                           }
-                        : undefined
-                    }
-                    remove={
-                      canManage && id && user.userId !== actorUserId
-                        ? {
-                            label: 'Delete',
-                            onClick: () => void onDeleteUser(user),
+                          remove={
+                            canManage && id && user.userId !== actorUserId
+                              ? {
+                                  label: 'Delete',
+                                  onClick: () => void onDeleteUser(user),
+                                }
+                              : undefined
                           }
-                        : undefined
+                        />
+                      );
                     }
-                  />
-                );
-              }}
-              onRowOpen={(user) => {
-                if (user.id) setViewId(user.id);
-              }}
+                  : undefined
+              }
+              onRowOpen={
+                isSuperAdmin
+                  ? (user) => {
+                      if (user.id) setViewId(user.id);
+                    }
+                  : undefined
+              }
             />
 
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -591,12 +523,6 @@ export function UsersPage() {
           if (!open && !resetting) setResetTarget(null);
         }}
         onSubmit={onResetPassword}
-      />
-      <ImportResultDialog
-        result={importResult}
-        onOpenChange={(open) => {
-          if (!open) setImportResult(null);
-        }}
       />
     </>
   );

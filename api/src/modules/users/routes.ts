@@ -9,7 +9,6 @@ import {
 import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
-import { xlsxImportUpload } from '../../lib/xlsx-upload.js';
 import {
   idParamSchema,
   inviteUserSchema,
@@ -27,13 +26,6 @@ usersRouter.get(
   requireOrgAccess('view'),
   validate({ query: userListQuerySchema }),
   controller.list,
-);
-usersRouter.get('/sample.xlsx', requireOrgAccess('view'), controller.sampleXlsx);
-usersRouter.post(
-  '/import',
-  requireOrgAccess('full'),
-  xlsxImportUpload.single('file'),
-  controller.importFile,
 );
 usersRouter.get(
   '/:id',

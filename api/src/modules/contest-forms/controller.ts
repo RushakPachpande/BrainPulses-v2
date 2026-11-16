@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { verifyActingUserPassword } from '../../lib/verify-acting-password.js';
 import { userActor } from '../../middleware/auth.js';
 import * as service from './service.js';
 import type { SaveFormInput } from './schema.js';
@@ -58,6 +59,21 @@ export async function update(req: Request, res: Response, next: NextFunction) {
       actor.userId,
       req.params.id as string,
       req.body as SaveFormInput,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function remove(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    await verifyActingUserPassword(actor.userId, req.body.password as string);
+    const data = await service.deleteForm(
+      actor.organizationId,
+      actor.userId,
+      req.params.id as string,
     );
     res.json({ data });
   } catch (err) {

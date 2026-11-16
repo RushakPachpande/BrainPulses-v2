@@ -35,7 +35,8 @@ export type Activity = {
   iconTone: number;
   status: string;
   registered: number;
-  attempts: number;
+  sponsorName: string;
+  contestName: string;
   start: string;
   end: string;
   startTime: string;
@@ -208,7 +209,6 @@ export type RegistrationRow = {
   phone: string;
   registered: string;
   activity: string;
-  bank: string;
   assignment: string;
   attempt: string;
   /** Present when the participant has an open or completed attempt. */
