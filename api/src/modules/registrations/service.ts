@@ -3,12 +3,18 @@ import { Prisma, type AccessLevel, type ActivityKind, type MembershipRole } from
 import { writeAudit } from '../../lib/audit.js';
 import { invalidateDashboard } from '../../lib/cache.js';
 import { sanitizeCsvCell } from '../../lib/csv.js';
-import { conflict, notFound } from '../../lib/errors.js';
+import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
-import { normalizePhone } from '../../lib/phone.js';
 import { prisma } from '../../lib/prisma.js';
 import { nextRegistrationId } from '../../lib/registration-id.js';
 import { assertActivityAccess } from '../activities/service.js';
+import {
+  normalizeEmail,
+  normalizeMobile,
+  validateAnswers,
+  type AnswerValue,
+  type FormField,
+} from '../contest-forms/rules.js';
 import type { z } from 'zod';
 import type { manualRegistrationSchema, registrationListQuerySchema } from './schema.js';
 
@@ -213,39 +219,50 @@ export async function assign(
   return results;
 }
 
-type LooseField = { id: string; key: string; type: string; deleted: boolean };
+const MOBILE_RE = /^[6-9]\d{9}$/;
 
-function looseFields(value: unknown): LooseField[] {
+function formFields(value: unknown): FormField[] {
   if (!Array.isArray(value)) return [];
-  const fields: LooseField[] = [];
-  for (const item of value) {
-    if (!item || typeof item !== 'object') continue;
-    const row = item as Record<string, unknown>;
-    if (typeof row.id !== 'string' || typeof row.key !== 'string') continue;
-    fields.push({
-      id: row.id,
-      key: row.key,
-      type: typeof row.type === 'string' ? row.type : 'text',
-      deleted: row.deleted === true,
-    });
-  }
-  return fields;
+  return value.filter((item): item is FormField => {
+    if (!item || typeof item !== 'object') return false;
+    const row = item as Partial<FormField>;
+    return typeof row.id === 'string' && typeof row.key === 'string';
+  });
 }
 
-function submissionAnswers(
-  fields: LooseField[],
-  input: { firstName: string; lastName: string; email: string; mobile: string },
+function answerText(
+  fields: FormField[],
+  answers: Record<string, AnswerValue>,
+  key: string,
+): string {
+  const field = fields.find((item) => !item.deleted && item.key === key);
+  if (!field) return '';
+  const value = answers[field.id];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function storedAnswers(
+  fields: FormField[],
+  answers: Record<string, AnswerValue>,
 ): Prisma.InputJsonObject {
-  const answers: Record<string, string | boolean> = {};
+  const stored: Record<string, string | string[] | boolean> = {};
   for (const field of fields) {
     if (field.deleted) continue;
-    if (field.key === 'first_name') answers[field.id] = input.firstName;
-    else if (field.key === 'last_name') answers[field.id] = input.lastName;
-    else if (field.key === 'email') answers[field.id] = input.email;
-    else if (field.key === 'mobile') answers[field.id] = input.mobile;
-    else if (field.type === 'consent') answers[field.id] = true;
+    const value = answers[field.id];
+    if (typeof value === 'string' || typeof value === 'boolean' || Array.isArray(value)) {
+      stored[field.id] = value;
+    }
   }
-  return answers;
+  return stored as Prisma.InputJsonObject;
+}
+
+function rejectAnswerIssues(issues: { field: string; message: string }[]) {
+  if (issues.length === 0) return;
+  const fields: Record<string, string> = {};
+  for (const issue of issues) {
+    if (!fields[issue.field]) fields[issue.field] = issue.message;
+  }
+  throw badRequest('Check the registration form and try again.', fields);
 }
 
 export async function createManual(
@@ -260,34 +277,62 @@ export async function createManual(
   if (!activity) throw notFound('Activity not found.');
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, activity.kind, 'edit');
 
-  const name = input.name.trim().replace(/\s+/g, ' ');
-  const [firstName, ...rest] = name.split(' ');
-  const lastName = rest.join(' ');
-  const email = input.email.trim().toLowerCase();
-  const phone = input.phone ? normalizePhone(input.phone) : null;
-  const course = input.course?.trim() || null;
-  const city = input.city?.trim() || null;
-
-  const forms = await prisma.contestRegistrationForm.findMany({
-    where: {
-      organizationId,
-      status: 'saved',
-      quizzes: { some: { activityId: activity.id } },
-    },
-    select: {
-      id: true,
-      fields: true,
-      quizzes: { select: { activityId: true } },
-    },
-  });
-
   const activityIds = new Set<string>([activity.id]);
-  for (const form of forms) {
+  let formId: string | null = null;
+  let answers: Prisma.InputJsonObject | null = null;
+  let firstName: string;
+  let lastName: string;
+  let email: string;
+  let phone: string;
+
+  if ('formId' in input) {
+    const form = await prisma.contestRegistrationForm.findFirst({
+      where: { organizationId, id: input.formId, status: 'saved' },
+      select: { id: true, fields: true, quizzes: { select: { activityId: true } } },
+    });
+    if (!form) throw notFound('Registration form not found.');
+    if (!form.quizzes.some((quiz) => quiz.activityId === activity.id)) {
+      throw badRequest('That registration form is not for this activity.');
+    }
+    const fields = formFields(form.fields);
+    rejectAnswerIssues(validateAnswers(fields, input.answers));
+    firstName = answerText(fields, input.answers, 'first_name');
+    lastName = answerText(fields, input.answers, 'last_name');
+    email = normalizeEmail(answerText(fields, input.answers, 'email'));
+    phone = normalizeMobile(answerText(fields, input.answers, 'mobile'));
+    if (!firstName || !email) {
+      throw badRequest('This form needs a first name and an email.');
+    }
+    if (phone && !MOBILE_RE.test(phone)) {
+      throw badRequest('Enter a 10-digit mobile number.');
+    }
     for (const quiz of form.quizzes) activityIds.add(quiz.activityId);
+    formId = form.id;
+    answers = storedAnswers(fields, input.answers);
+  } else {
+    firstName = input.firstName.trim().replace(/\s+/g, ' ');
+    lastName = input.lastName.trim().replace(/\s+/g, ' ');
+    email = normalizeEmail(input.email);
+    phone = normalizeMobile(input.phone);
+    if (!MOBILE_RE.test(phone)) {
+      throw badRequest('Enter a 10-digit mobile number.', {
+        phone: 'Enter a 10-digit mobile number.',
+      });
+    }
   }
 
+  const linked = await prisma.activity.findMany({
+    where: { organizationId, id: { in: [...activityIds] } },
+    select: { id: true, kind: true },
+  });
+  const linkedIds = new Set(linked.map((item) => item.id));
+  for (const item of linked) {
+    if (item.id === activity.id) continue;
+    assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, item.kind, 'edit');
+  }
+
+  const name = `${firstName} ${lastName}`.trim();
   const code = await nextRegistrationId();
-  const person = { firstName: firstName ?? name, lastName, email, mobile: phone ?? '' };
 
   try {
     const created = await prisma.$transaction(async (tx) => {
@@ -296,18 +341,16 @@ export async function createManual(
           organizationId,
           code,
           name,
-          firstName: person.firstName,
+          firstName,
           lastName: lastName || null,
           email,
-          phone,
-          course,
-          city,
+          phone: MOBILE_RE.test(phone) ? phone : null,
         },
         select: { id: true, code: true, name: true },
       });
       const now = new Date();
       await tx.registration.createMany({
-        data: [...activityIds].map((activityId) => ({
+        data: [...linkedIds].map((activityId) => ({
           organizationId,
           activityId,
           participantId: participant.id,
@@ -315,16 +358,16 @@ export async function createManual(
           assignedAt: now,
         })),
       });
-      if (forms.length > 0) {
-        await tx.contestFormSubmission.createMany({
-          data: forms.map((form) => ({
+      if (formId && answers) {
+        await tx.contestFormSubmission.create({
+          data: {
             organizationId,
-            formId: form.id,
+            formId,
             participantId: participant.id,
             email,
-            mobile: phone,
-            answers: submissionAnswers(looseFields(form.fields), person),
-          })),
+            mobile: MOBILE_RE.test(phone) ? phone : null,
+            answers,
+          },
         });
       }
       return participant;
@@ -337,11 +380,7 @@ export async function createManual(
       action: 'registration.manual',
       targetType: 'participant',
       targetId: created.id,
-      metadata: {
-        code: created.code,
-        activityId: activity.id,
-        formIds: forms.map((form) => form.id),
-      },
+      metadata: { code: created.code, activityId: activity.id, formId },
     });
     await invalidateDashboard(organizationId);
     return {

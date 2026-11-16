@@ -248,25 +248,27 @@ export function LoginPage() {
         </div>
         <LoginArt />
       </div>
-      <div className={`dlg ${replaceOpen ? 'open' : ''}`}>
-        <div className="dc" role="dialog" aria-modal="true" aria-labelledby="replace-title">
-          <h3 id="replace-title">Replace the other session?</h3>
-          <p>This Registration ID is already signed in somewhere else.</p>
-          <div className="da">
-            <button className="s" type="button" onClick={() => setReplaceOpen(false)}>
-              Stay out
-            </button>
-            <button
-              className="p"
-              type="button"
-              disabled={busy}
-              onClick={() => void (replaceMode === 'phone' ? verifyCode(true) : signIn(true))}
-            >
-              Continue here
-            </button>
+      {replaceOpen ? (
+        <div className="dlg open">
+          <div className="dc" role="dialog" aria-modal="true" aria-labelledby="replace-title">
+            <h3 id="replace-title">Replace the other session?</h3>
+            <p>This Registration ID is already signed in somewhere else.</p>
+            <div className="da">
+              <button className="s" type="button" onClick={() => setReplaceOpen(false)}>
+                Stay out
+              </button>
+              <button
+                className="p"
+                type="button"
+                disabled={busy}
+                onClick={() => void (replaceMode === 'phone' ? verifyCode(true) : signIn(true))}
+              >
+                Continue here
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

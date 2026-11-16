@@ -134,7 +134,16 @@ export function RegisterPage() {
               <h1>{form.contestName}</h1>
               {form.welcomeMessage ? <p>{form.welcomeMessage}</p> : null}
               {form.showRegistrationCloses && form.closesAt ? (
-                <p>Closes {new Date(form.closesAt).toLocaleString()}</p>
+                <p>
+                  Closes{' '}
+                  {new Date(form.closesAt).toLocaleString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </p>
               ) : null}
               {form.showSeatsLeft && form.seatsLeft != null ? (
                 <p>{form.seatsLeft} seats left</p>

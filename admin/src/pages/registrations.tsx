@@ -205,12 +205,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
       {
         label: 'Total Registrations',
         value: String(total),
-        detail: (
-          <>
-            <span className="text-success">↑ 12%</span>
-            <span className="text-muted-foreground"> · {acrossLabel}</span>
-          </>
-        ),
+        detail: <span className="text-muted-foreground">{acrossLabel}</span>,
         icon: UsersIcon,
         tone: 'bg-chart-2/15 text-chart-2',
       },

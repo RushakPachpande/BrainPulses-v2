@@ -2,11 +2,11 @@ import { useId, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { UserPlusIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { ContestFormFieldInput } from '@/components/contest-form-field-input';
 import { FormDialog } from '@/components/form-dialog';
 import { SaveButton } from '@/components/save-button';
 import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -18,8 +18,48 @@ import { useConfirm } from '@/components/use-confirm';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
+import { previewIssues, type ContestFormRecord, type FormField } from '@/lib/contest-form';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { createManualRegistration, getActivities, type ActivityKind } from '@/services';
+import { getContestFormOverview } from '@/services/contest-forms';
+
+type Answers = Record<string, string | string[] | boolean>;
+
+const BASIC_FIELDS: FormField[] = [
+  {
+    id: 'first_name',
+    key: 'first_name',
+    locked: true,
+    label: 'First name',
+    type: 'text',
+    required: true,
+  },
+  {
+    id: 'last_name',
+    key: 'last_name',
+    locked: true,
+    label: 'Last name',
+    type: 'text',
+    required: true,
+  },
+  {
+    id: 'email',
+    key: 'email',
+    locked: true,
+    label: 'Email',
+    type: 'email',
+    required: true,
+    placeholder: 'participant@example.com',
+  },
+  {
+    id: 'mobile',
+    key: 'mobile',
+    locked: true,
+    label: 'Mobile number',
+    type: 'phone',
+    required: true,
+  },
+];
 
 export function AddRegistrationDialog({
   kind,
@@ -34,9 +74,18 @@ export function AddRegistrationDialog({
   const orgId = useOrgId();
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
-  const { data: activities, isPending } = useQuery({
+  const { data: activities, isPending: activitiesPending } = useQuery({
     queryKey: adminQueryKeys.activities(orgId, kind),
     queryFn: () => getActivities(kind),
+    enabled: Boolean(orgId),
+  });
+  const {
+    data: overview,
+    isPending: formsPending,
+    isError: formsError,
+  } = useQuery({
+    queryKey: ['admin', 'contest-forms', orgId],
+    queryFn: () => getContestFormOverview(),
     enabled: Boolean(orgId),
   });
   const options = (activities ?? []).filter((activity) => {
@@ -44,14 +93,31 @@ export function AddRegistrationDialog({
     return status === 'active' || status === 'draft';
   });
   const [activityId, setActivityId] = useState('');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [course, setCourse] = useState('');
-  const [city, setCity] = useState('');
+  const [chosenFormId, setChosenFormId] = useState('');
+  const [answers, setAnswers] = useState<Answers>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const allowLeave = useLeaveGuard(dirty);
+
+  const matching = (overview?.forms ?? []).filter(
+    (form) => form.status === 'saved' && form.quizzes.some((quiz) => quiz.id === activityId),
+  );
+  const chosenForm =
+    matching.length === 1 ? matching[0] : matching.find((form) => form.id === chosenFormId);
+  const fields = (chosenForm ? chosenForm.fields : BASIC_FIELDS).filter((field) => !field.deleted);
+  const waiting = activitiesPending || formsPending;
+  const needsFormPick = matching.length > 1 && !chosenForm;
+  const showFields = Boolean(activityId) && !waiting && !formsError && !needsFormPick;
+
+  function markDirty() {
+    setDirty(true);
+  }
+
+  function resetAnswers() {
+    setAnswers({});
+    setErrors({});
+  }
 
   async function requestClose() {
     if (saving) return;
@@ -70,21 +136,36 @@ export function AddRegistrationDialog({
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (saving || isPending) return;
+    if (saving || waiting || formsError) return;
     if (!activityId) {
       toast.error(`Select a ${activityLabel.toLowerCase()}.`);
       return;
     }
+    if (matching.length > 1 && !chosenForm) {
+      toast.error('Select a registration form.');
+      return;
+    }
+    const issues = previewIssues(fields, answers);
+    if (issues.length > 0) {
+      const next: Record<string, string> = {};
+      for (const issue of issues) next[issue.field] = issue.message;
+      setErrors(next);
+      return;
+    }
+    setErrors({});
     setSaving(true);
     try {
-      const created = await createManualRegistration({
-        activityId,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || undefined,
-        course: course.trim() || undefined,
-        city: city.trim() || undefined,
-      });
+      const created = await createManualRegistration(
+        chosenForm
+          ? { activityId, formId: chosenForm.id, answers }
+          : {
+              activityId,
+              firstName: textAnswer('first_name'),
+              lastName: textAnswer('last_name'),
+              email: textAnswer('email'),
+              phone: textAnswer('mobile'),
+            },
+      );
       toast.success(`Registered ${created.name}. Registration ID ${created.code}.`);
       allowLeave();
       setDirty(false);
@@ -97,11 +178,16 @@ export function AddRegistrationDialog({
     }
   }
 
+  function textAnswer(id: string) {
+    const value = answers[id];
+    return typeof value === 'string' ? value.trim() : '';
+  }
+
   return (
     <FormDialog
       icon={UserPlusIcon}
       title="Add registration"
-      description={`Create a new Registration ID and assign a ${activityLabel.toLowerCase()}. If that activity is on a live registration form, they are registered there too.`}
+      description={`Create a new Registration ID and assign a ${activityLabel.toLowerCase()}. A saved registration form for that activity is used when one exists.`}
       busy={saving}
       size="lg"
       onOpenChange={(next) => {
@@ -117,13 +203,17 @@ export function AddRegistrationDialog({
           >
             Cancel
           </Button>
-          <SaveButton form={formId} pending={saving} disabled={isPending || options.length === 0}>
+          <SaveButton
+            form={formId}
+            pending={saving}
+            disabled={waiting || formsError || options.length === 0 || !showFields}
+          >
             Add registration
           </SaveButton>
         </>
       }
     >
-      <form id={formId} onSubmit={onSubmit} onChange={() => setDirty(true)}>
+      <form id={formId} onSubmit={onSubmit}>
         <FieldGroup>
           <Field>
             <FieldLabel htmlFor={`${formId}-activity`}>
@@ -132,10 +222,12 @@ export function AddRegistrationDialog({
             <Select
               value={activityId}
               onValueChange={(value) => {
-                setDirty(true);
+                markDirty();
                 setActivityId(value);
+                setChosenFormId('');
+                resetAnswers();
               }}
-              disabled={saving || isPending || options.length === 0}
+              disabled={saving || activitiesPending || options.length === 0}
             >
               <SelectTrigger
                 id={`${formId}-activity`}
@@ -144,7 +236,7 @@ export function AddRegistrationDialog({
               >
                 <SelectValue
                   placeholder={
-                    isPending
+                    activitiesPending
                       ? 'Loading…'
                       : options.length === 0
                         ? `No active or draft ${activityLabel.toLowerCase()}s`
@@ -161,69 +253,75 @@ export function AddRegistrationDialog({
               </SelectContent>
             </Select>
           </Field>
-          <Field>
-            <FieldLabel htmlFor={`${formId}-name`}>
-              Full name <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id={`${formId}-name`}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="e.g. Aisha Begum"
-              required
-              disabled={saving}
-              autoComplete="name"
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${formId}-email`}>
-              Email address <span className="text-destructive">*</span>
-            </FieldLabel>
-            <Input
-              id={`${formId}-email`}
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="participant@example.com"
-              required
-              disabled={saving}
-              autoComplete="email"
-            />
-          </Field>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {formsPending ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              Loading registration forms…
+            </p>
+          ) : null}
+          {formsError ? (
+            <p className="text-sm text-destructive" role="alert">
+              Could not load registration forms.
+            </p>
+          ) : null}
+          {matching.length > 1 ? (
             <Field>
-              <FieldLabel htmlFor={`${formId}-phone`}>Phone number</FieldLabel>
-              <Input
-                id={`${formId}-phone`}
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                placeholder="+91 98765 43210"
+              <FieldLabel htmlFor={`${formId}-form`}>
+                Registration form <span className="text-destructive">*</span>
+              </FieldLabel>
+              <Select
+                value={chosenFormId}
+                onValueChange={(value) => {
+                  markDirty();
+                  setChosenFormId(value);
+                  resetAnswers();
+                }}
                 disabled={saving}
-                autoComplete="tel"
-              />
+              >
+                <SelectTrigger
+                  id={`${formId}-form`}
+                  aria-label="Registration form"
+                  className="w-full"
+                >
+                  <SelectValue placeholder="Select a registration form" />
+                </SelectTrigger>
+                <SelectContent>
+                  {matching.map((form) => (
+                    <SelectItem key={form.id} value={form.id}>
+                      {formOptionLabel(form, matching)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
-            <Field>
-              <FieldLabel htmlFor={`${formId}-course`}>Course</FieldLabel>
-              <Input
-                id={`${formId}-course`}
-                value={course}
-                onChange={(event) => setCourse(event.target.value)}
-                disabled={saving}
-              />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel htmlFor={`${formId}-city`}>City</FieldLabel>
-            <Input
-              id={`${formId}-city`}
-              value={city}
-              onChange={(event) => setCity(event.target.value)}
-              disabled={saving}
-              autoComplete="address-level2"
-            />
-          </Field>
+          ) : null}
+          {showFields
+            ? fields.map((field) => (
+                <ContestFormFieldInput
+                  key={`${chosenForm?.id ?? 'basic'}-${field.id}`}
+                  field={field}
+                  idPrefix={formId}
+                  value={answers[field.id]}
+                  error={errors[field.id]}
+                  disabled={saving}
+                  onChange={(value) => {
+                    markDirty();
+                    setAnswers((current) => ({ ...current, [field.id]: value }));
+                  }}
+                />
+              ))
+            : null}
         </FieldGroup>
       </form>
     </FormDialog>
   );
+}
+
+function formOptionLabel(form: ContestFormRecord, forms: ContestFormRecord[]) {
+  const name = form.contestName.trim() || form.sponsorName.trim() || 'Registration form';
+  const duplicates = forms.filter(
+    (item) => (item.contestName.trim() || item.sponsorName.trim() || 'Registration form') === name,
+  );
+  if (duplicates.length < 2) return name;
+  const sponsor = form.sponsorName.trim();
+  return sponsor && sponsor !== name ? `${name} · ${sponsor}` : name;
 }

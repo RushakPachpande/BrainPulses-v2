@@ -2,7 +2,7 @@ import { env } from '../config/env.js';
 import { getRedis, isRedisReady } from './redis.js';
 
 export function dashboardCacheKey(organizationId: string): string {
-  return `dash:summary:${organizationId}`;
+  return `dash:summary:v2:${organizationId}`;
 }
 
 export async function cacheGet<T>(key: string): Promise<T | null> {

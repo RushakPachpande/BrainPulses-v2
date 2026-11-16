@@ -239,6 +239,8 @@ export type DashboardData = {
   charts: ReadonlyArray<{
     title: string;
     values: number[];
+    labels?: string[];
+    scaleMax?: number;
     color: string;
     caption: string;
   }>;

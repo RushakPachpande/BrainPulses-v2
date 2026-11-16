@@ -1190,20 +1190,29 @@ export async function exportBankQuestions(bankId: string, format: 'xlsx' = 'xlsx
   );
 }
 
-export async function createManualRegistration(payload: {
-  activityId: string;
-  name: string;
-  email: string;
-  phone?: string;
-  course?: string;
-  city?: string;
-}) {
+export async function createManualRegistration(
+  payload:
+    | {
+        activityId: string;
+        firstName: string;
+        lastName: string;
+        email: string;
+        phone: string;
+      }
+    | {
+        activityId: string;
+        formId: string;
+        answers: Record<string, string | string[] | boolean>;
+      },
+) {
+  const name =
+    'formId' in payload ? 'Participant' : `${payload.firstName} ${payload.lastName}`.trim();
   if (useFixtures) {
     invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
     return {
       participantId: crypto.randomUUID(),
       code: 'BP00000000',
-      name: payload.name,
+      name,
       activity: '',
     };
   }

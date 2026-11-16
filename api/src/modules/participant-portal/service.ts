@@ -291,9 +291,9 @@ export async function listMyActivities(
         openAttemptId: openAttempt?.id ?? null,
         latestResultId: latestCompleted?.result?.id ?? null,
         latestPercent: latestCompleted?.result ? toNumber(latestCompleted.result.percent) : null,
+        attemptsUsed,
         ...(activity.kind === 'quiz'
           ? {
-              attemptsUsed,
               maxAttempts,
               extraAttempts,
               canStartAnother,

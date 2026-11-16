@@ -316,105 +316,118 @@ svg {
   border-radius: 12px;
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
-/* left panel */
-.side {
-  position: fixed;
-  left: 14px;
-  top: 14px;
-  bottom: 14px;
-  width: 236px;
-  background: var(--card);
-  border-radius: 26px;
-  box-shadow:
-    0 0 0 1.5px var(--line),
-    0 24px 50px -30px var(--shadow);
-  padding: 18px 14px;
-  display: flex;
-  flex-direction: column;
-  z-index: 50;
-  transition: transform 0.22s ease;
-}
-.sh {
+/* top bar */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  width: 100%;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 2px 4px 18px;
+  gap: 18px;
+  min-height: 72px;
+  padding: 10px 28px;
+  background: var(--card);
+  border-bottom: 1px solid var(--line);
 }
-.sh .brand {
-  flex: 1;
-  font-size: 19px;
+.topbar .brand {
+  font-size: 18px;
 }
-.sh .brand img {
+.topbar .brand img {
   width: 32px;
   height: 32px;
 }
-.tg {
-  width: 34px;
-  height: 34px;
-  border-radius: 11px;
-  background: var(--card);
-  box-shadow: inset 0 0 0 1.5px var(--line);
-  display: grid;
-  place-items: center;
-  color: var(--ink);
-}
-.tg:hover {
-  box-shadow: inset 0 0 0 1.5px #9a86e8;
-}
-.nv a {
+.topnav {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: 46px;
-  padding: 0 14px;
-  border-radius: 14px;
-  font: 700 15px Manrope;
-  color: var(--mute);
-  margin-bottom: 6px;
-  cursor: pointer;
-  text-decoration: none;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+  gap: 4px;
+  min-width: 0;
 }
-.nv a:hover {
+.topnav a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font: 700 14.5px Manrope;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topnav a svg {
+  width: 18px;
+  height: 18px;
+}
+.topnav a:hover {
   background: var(--soft);
   text-decoration: none;
 }
-.nv a.on {
+.topnav a.on {
   background: var(--soft);
   color: var(--vio);
-  text-decoration: none;
 }
-body.dk2 .nv a.on {
+body.dk2 .topnav a.on {
   color: #fff;
 }
-.nv a i {
+.topbar-end {
   margin-left: auto;
-  font-style: normal;
-  font: 800 12px Manrope;
-  background: var(--card);
-  border-radius: 999px;
-  padding: 3px 9px;
-  box-shadow: inset 0 0 0 1.5px var(--line);
-  color: var(--mute);
-}
-.sb {
-  margin-top: auto;
-  border-top: 1.5px solid var(--line);
-  padding-top: 14px;
-}
-.us {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 4px 12px;
+  gap: 8px;
+  flex: none;
 }
-.us b {
+.topbar-theme {
+  position: static;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  box-shadow: none;
+  color: var(--mute);
+}
+.topbar-theme:hover {
+  background: var(--soft);
+}
+.account {
+  position: relative;
+}
+.account-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 44px;
+  padding: 0 6px 0 2px;
+  border-radius: 999px;
+  color: var(--mute);
+}
+.account-btn:hover {
+  background: var(--soft);
+}
+.account-btn .av {
+  width: 36px;
+  height: 36px;
+  font-size: 13px;
+}
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 220px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--card);
+  box-shadow:
+    0 0 0 1.5px var(--line),
+    0 18px 40px -24px var(--shadow);
+}
+.account-id {
+  padding: 2px 4px 12px;
+}
+.account-id b {
   display: block;
   font: 800 14px Manrope;
 }
-.us small {
+.account-id small {
   font: 600 12px Manrope;
   color: var(--mute);
 }
@@ -433,42 +446,10 @@ body.dk2 .nv a.on {
 .lo:hover {
   box-shadow: inset 0 0 0 1.5px #9a86e8;
 }
-.fb {
-  position: absolute;
-  left: 24px;
-  top: 18px;
-  display: none;
-  align-items: center;
-  gap: 12px;
-  z-index: 45;
-  height: 46px;
-}
-.fb .brand {
-  font-size: 20px;
-}
-.scrim {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 10, 55, 0.4);
-  z-index: 48;
-}
-body.pc .side {
-  transform: translateX(-120%);
-  pointer-events: none;
-  visibility: hidden;
-}
-body.pc .fb {
-  display: flex;
-}
-body.pc .main {
-  padding-left: 40px;
-}
 /* home */
 .main {
-  padding: 50px 40px 48px 278px;
-  min-height: 100vh;
-  transition: padding-left 0.22s ease;
+  padding: 36px 40px 48px;
+  min-height: calc(100vh - 72px);
 }
 .main h1 {
   font-size: 38px;
@@ -493,11 +474,8 @@ body.pc .main {
   letter-spacing: -0.03em;
   margin: 26px 0 16px;
 }
-body.pc .main {
-  padding-top: 84px;
-}
 .app-footer {
-  margin-left: 278px;
+  margin-left: 0;
   padding: 14px 40px 20px;
   border-top: 1px solid var(--line);
   display: flex;
@@ -505,18 +483,11 @@ body.pc .main {
   gap: 10px;
   color: var(--mute);
   font: 500 12px Manrope;
-  transition: margin-left 0.22s ease;
-}
-body.pc .app-footer {
-  margin-left: 40px;
 }
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 22px;
-}
-body.pc .grid {
-  grid-template-columns: repeat(4, 1fr);
 }
 .card {
   background: var(--card);
@@ -889,12 +860,13 @@ body.dk2 .ins-focus {
   place-content: center;
 }
 .ring b {
-  font: 800 40px Sora;
-  letter-spacing: -0.05em;
+  font: 800 22px Sora;
+  letter-spacing: -0.04em;
   line-height: 1;
+  white-space: nowrap;
 }
 .ring b span {
-  font-size: 22px;
+  font-size: 14px;
   color: #8a80a8;
 }
 .ring small {
@@ -1446,46 +1418,21 @@ body.dk2 .ins-focus {
   .grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  body.pc .grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 @media (max-width: 860px) {
-  .side {
-    transform: translateX(-120%);
-    visibility: hidden;
-    width: 260px;
+  .topbar {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding: 10px 14px;
   }
-  body.mx .side {
-    transform: none;
-    visibility: visible;
-    box-shadow:
-      0 0 0 1.5px var(--line),
-      0 24px 60px -10px rgba(10, 5, 40, 0.6);
+  .topnav {
+    order: 3;
+    flex: 1 0 100%;
   }
-  body.mx .scrim {
-    display: block;
+  .main {
+    padding: 24px 16px 40px;
   }
-  .fb {
-    display: flex !important;
-    left: 14px;
-  }
-  .fb .brand {
-    font-size: 18px;
-  }
-  .fb .brand img {
-    width: 30px;
-    height: 30px;
-  }
-  body.mx .fb {
-    visibility: hidden;
-  }
-  .main,
-  body.pc .main {
-    padding: 76px 16px 40px;
-  }
-  .app-footer,
-  body.pc .app-footer {
+  .app-footer {
     margin-left: 0;
     padding: 14px 16px max(14px, env(safe-area-inset-bottom));
     flex-wrap: wrap;
@@ -1495,8 +1442,7 @@ body.dk2 .ins-focus {
   .main h1 {
     font-size: 30px;
   }
-  .grid,
-  body.pc .grid {
+  .grid {
     grid-template-columns: 1fr;
     gap: 16px;
   }

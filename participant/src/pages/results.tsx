@@ -18,6 +18,21 @@ import type { ParticipantResultDetail } from '../services/types';
 
 const RESULT_FILTERS = ['Quiz', 'Assessment'] as const;
 
+function shownAnswer(question: ParticipantResultDetail['review'][number]) {
+  const raw = answerLabel(question.yourAnswer);
+  if (!raw) return 'Not answered';
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const option = question.options.find((item) => item.label === part);
+      if (!option?.body) return option?.label ?? part;
+      return `${option.label}. ${option.body}`;
+    })
+    .join(', ');
+}
+
 export function ResultsPage() {
   const navigate = useNavigate();
   const { participant } = useAuth();
@@ -434,7 +449,7 @@ export function ResultDetailPage() {
               {question.questionImageUrl ? (
                 <StoredImage src={question.questionImageUrl} alt="" />
               ) : null}
-              <p>{answerLabel(question.yourAnswer) ?? 'Not answered'}</p>
+              <p>{shownAnswer(question)}</p>
             </div>
           ))}
         </section>
