@@ -20,7 +20,7 @@ import { RowActions } from '@/components/row-actions';
 import { AssignmentStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { selectionMatches } from '@/lib/multi-select';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -40,20 +40,23 @@ import { ApiError } from '@/lib/api-client';
 import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
-import { deleteAttempt, deleteParticipant, getRegistrations, type ActivityKind } from '@/services';
-import { AddRegistrationDialog } from '@/pages/add-registration-dialog';
 import {
-  assessmentNames,
-  quizNames,
-  participantCities,
-  participantCourses,
-} from '@/services/fixtures';
+  deleteAttempt,
+  deleteParticipant,
+  getActivities,
+  getRegistrations,
+  type ActivityKind,
+} from '@/services';
+import { AddRegistrationDialog } from '@/pages/add-registration-dialog';
 import type { RegistrationRow as Registration } from '@/services/types';
 
 const EMPTY_ROWS: Registration[] = [];
 
 type SortKey =
   'id' | 'name' | 'email' | 'phone' | 'registered' | 'activity' | 'bank' | 'assignment' | 'attempt';
+
+const ASSIGNMENT_OPTIONS = ['Assigned', 'Pending'];
+const ATTEMPT_OPTIONS = ['Completed', 'In Progress', 'Not Started'];
 
 function compareRows(a: Registration, b: Registration, key: SortKey) {
   return String(a[key]).localeCompare(String(b[key]), undefined, { numeric: true });
@@ -106,7 +109,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const isQuiz = kind === 'quiz';
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
   const attemptLabel = isQuiz ? 'Attempt Status' : 'Participant Status';
-  const activityOptions = isQuiz ? quizNames : assessmentNames;
   const acrossLabel = isQuiz ? 'Across all quizzes' : 'Across all assessments';
 
   const sortColumns: { key: SortKey; label: string }[] = [
@@ -136,19 +138,26 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     queryFn: () => getRegistrations(kind),
     enabled: Boolean(orgId),
   });
+  const { data: activityList } = useQuery({
+    queryKey: adminQueryKeys.activities(orgId, kind),
+    queryFn: () => getActivities(kind),
+    enabled: Boolean(orgId),
+  });
   const rows = data ?? EMPTY_ROWS;
 
   const [addOpen, setAddOpen] = useState(false);
   const assignPath = isQuiz ? '/quizzes/registrations/new' : '/assessments/registrations/new';
 
   async function onDeleteRegistration(row: Registration) {
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete ${row.name}'s registration?`,
-      description:
-        'Removes this person, their attempts and scores, and every activity they are on. The live registration link can sign them up again as a new Registration ID. This cannot be undone.',
+      description: 'Permanently removes this participant. This cannot be undone.',
+      details: [
+        'Their attempts and scores are deleted.',
+        'They are removed from every activity they are on.',
+        'The live registration link can sign them up again as a new Registration ID.',
+      ],
       confirmLabel: 'Delete registration',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
@@ -165,14 +174,12 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   async function onDeleteAttempt(row: Registration) {
     if (!row.attemptId) return;
     const inProgress = row.attempt === 'In Progress';
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
       description: inProgress
         ? 'Removes the open attempt so the participant can start again as if they never began. This cannot be undone.'
-        : "Removes the participant's attempt and score. They can start again as if they never attempted.",
+        : "Removes the participant's attempt and score. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete attempt',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
@@ -186,8 +193,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   }
   const [search, setSearch] = useState('');
   const [activity, setActivity] = useState<string[]>([]);
-  const [city, setCity] = useState<string[]>([]);
-  const [course, setCourse] = useState<string[]>([]);
   const [assignment, setAssignment] = useState<string[]>([]);
   const [attempt, setAttempt] = useState<string[]>([]);
   const [sortKey, setSortKey] = useState<SortKey | null>(null);
@@ -233,6 +238,14 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     ] as const;
   }, [rows, acrossLabel]);
 
+  const activityOptions = useMemo(
+    () =>
+      [...new Set((activityList ?? []).map((item) => item.name.trim()).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [activityList],
+  );
+
   const filters: ToolbarFilter[] = [
     {
       name: activityLabel,
@@ -244,26 +257,8 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
       },
     },
     {
-      name: 'City',
-      options: participantCities,
-      values: city,
-      onValuesChange: (values) => {
-        setCity(values);
-        setPage(1);
-      },
-    },
-    {
-      name: 'Course',
-      options: participantCourses,
-      values: course,
-      onValuesChange: (values) => {
-        setCourse(values);
-        setPage(1);
-      },
-    },
-    {
       name: 'Assignment Status',
-      options: ['Assigned', 'Pending'],
+      options: ASSIGNMENT_OPTIONS,
       values: assignment,
       onValuesChange: (values) => {
         setAssignment(values);
@@ -272,7 +267,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     },
     {
       name: attemptLabel,
-      options: ['Completed', 'In Progress', 'Not Started'],
+      options: ATTEMPT_OPTIONS,
       values: attempt,
       onValuesChange: (values) => {
         setAttempt(values);
@@ -285,8 +280,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     const query = search.trim().toLowerCase();
     let next = rows.filter((row) => {
       if (!selectionMatches(activity, row.activity)) return false;
-      if (!selectionMatches(city, row.city)) return false;
-      if (!selectionMatches(course, row.course)) return false;
       if (!selectionMatches(assignment, row.assignment)) return false;
       if (!selectionMatches(attempt, row.attempt)) return false;
       if (!query) return true;
@@ -305,7 +298,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     }
 
     return next;
-  }, [rows, search, activity, city, course, assignment, attempt, sortKey, sortDir]);
+  }, [rows, search, activity, assignment, attempt, sortKey, sortDir]);
 
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
@@ -326,8 +319,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   function clearFilters() {
     setSearch('');
     setActivity([]);
-    setCity([]);
-    setCourse([]);
     setAssignment([]);
     setAttempt([]);
     setPage(1);

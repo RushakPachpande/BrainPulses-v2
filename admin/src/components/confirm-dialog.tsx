@@ -105,6 +105,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               />
             </form>
           ) : null}
+          {shown?.details && shown.details.length > 0 ? (
+            <ul
+              aria-label="What will be deleted"
+              className="list-disc space-y-1 pl-5 text-sm text-foreground"
+            >
+              {shown.details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => settle(false)}>
               Cancel

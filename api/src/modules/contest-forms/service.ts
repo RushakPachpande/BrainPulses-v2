@@ -563,6 +563,7 @@ export async function publicForm(slug: string) {
       contestImage: form.showContestImage && form.contestImageFileId ? true : false,
       sponsorImage: form.showSponsorName && form.sponsorImageFileId ? true : false,
       closesAt: form.closesAt,
+      seats: form.seats,
       seatsLeft: form.seats == null ? null : Math.max(0, form.seats - form.registrationCount),
       fields: form.fields.filter((field) => !field.deleted),
       domainRestriction: form.domainRestriction,

@@ -156,6 +156,51 @@ export async function listRegistrations(
   return listEnvelope(items, page);
 }
 
+export async function listAssignable(
+  organizationId: string,
+  actor: RegistrationActor,
+  activityId: string,
+) {
+  const activity = await prisma.activity.findFirst({ where: { organizationId, id: activityId } });
+  if (!activity) throw notFound('Activity not found.');
+  assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, activity.kind, 'edit');
+
+  const links = await prisma.contestFormQuiz.findMany({
+    where: { organizationId, activityId },
+    select: { formId: true },
+  });
+  const formIds = links.map((link) => link.formId);
+  if (formIds.length === 0) return [];
+
+  const submissions = await prisma.contestFormSubmission.findMany({
+    where: { organizationId, formId: { in: formIds }, participant: { isActive: true } },
+    select: {
+      participantId: true,
+      participant: { select: { id: true, code: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  const assigned = await prisma.registration.findMany({
+    where: {
+      organizationId,
+      activityId,
+      status: 'assigned',
+      participantId: { in: submissions.map((row) => row.participantId) },
+    },
+    select: { participantId: true },
+  });
+  const assignedIds = new Set(assigned.map((row) => row.participantId));
+  const seen = new Set<string>();
+  const people = [];
+  for (const row of submissions) {
+    if (seen.has(row.participantId) || assignedIds.has(row.participantId)) continue;
+    seen.add(row.participantId);
+    people.push(row.participant);
+  }
+  people.sort((a, b) => a.name.localeCompare(b.name));
+  return people;
+}
+
 export async function assign(
   organizationId: string,
   actor: RegistrationActor,
@@ -180,6 +225,23 @@ export async function assign(
       const meta = prior.metadata as { result?: unknown };
       if (meta.result) return meta.result;
     }
+  }
+
+  const links = await prisma.contestFormQuiz.findMany({
+    where: { organizationId, activityId },
+    select: { formId: true },
+  });
+  const formIds = links.map((link) => link.formId);
+  if (formIds.length === 0) {
+    throw badRequest('This activity is not on a registration form.');
+  }
+  const submissions = await prisma.contestFormSubmission.findMany({
+    where: { organizationId, formId: { in: formIds }, participantId: { in: participantIds } },
+    select: { participantId: true },
+  });
+  const registeredIds = new Set(submissions.map((row) => row.participantId));
+  if (participantIds.some((id) => !registeredIds.has(id))) {
+    throw badRequest('Only people who registered for this contest can be assigned.');
   }
 
   const results = [];

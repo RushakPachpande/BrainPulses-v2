@@ -1226,6 +1226,12 @@ export async function createManualRegistration(
   return data;
 }
 
+export async function getAssignableParticipants(activityId: string) {
+  return apiGetData<{ id: string; code: string; name: string; email: string }[]>(
+    `/api/registrations/assignable?activityId=${encodeURIComponent(activityId)}`,
+  );
+}
+
 export async function assignRegistrations(activityId: string, participantIds: string[]) {
   if (useFixtures) {
     invalidateAdmin(['registrations', 'activities', 'dashboard']);

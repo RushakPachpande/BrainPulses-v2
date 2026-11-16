@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { ArrowLeftIcon, Loader2Icon } from 'lucide-react';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { SaveButton } from '@/components/save-button';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { AccountStatusPill, AttemptStatusPill } from '@/components/status-pill';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
@@ -108,13 +108,15 @@ export function RegistrationDetailPage({
 
   async function onDeleteRegistration() {
     if (!row) return;
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete ${row.name}'s registration?`,
-      description:
-        'Removes this person, their attempts and scores, and every activity they are on. The live registration link can sign them up again as a new Registration ID. This cannot be undone.',
+      description: 'Permanently removes this participant. This cannot be undone.',
+      details: [
+        'Their attempts and scores are deleted.',
+        'They are removed from every activity they are on.',
+        'The live registration link can sign them up again as a new Registration ID.',
+      ],
       confirmLabel: 'Delete registration',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     setSaving(true);
@@ -133,14 +135,12 @@ export function RegistrationDetailPage({
   async function onDeleteAttempt() {
     if (!row?.attemptId) return;
     const inProgress = row.attempt === 'In Progress';
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: inProgress ? 'Delete this in-progress attempt?' : 'Delete this attempt?',
       description: inProgress
         ? 'Removes the open attempt so the participant can start again as if they never began. This cannot be undone.'
         : "Removes the participant's attempt and score for this activity. They can start again as if they never attempted. This cannot be undone.",
       confirmLabel: 'Delete attempt',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     setSaving(true);

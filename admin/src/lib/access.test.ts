@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AuthMembership } from '@/contexts/auth-context';
-import { canEditKind, canFullKind, canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import {
+  canEditKind,
+  canFullKind,
+  canManageUsersOrSettings,
+  canMutateOrg,
+  isSuperAdmin,
+} from '@/lib/access';
 
 const viewer: AuthMembership = {
   id: 'm1',
@@ -54,5 +60,7 @@ describe('access helpers', () => {
   it('bypasses ranks for super_admin', () => {
     expect(canEditKind(superAdmin, 'assessment')).toBe(true);
     expect(canManageUsersOrSettings(superAdmin)).toBe(true);
+    expect(isSuperAdmin(superAdmin)).toBe(true);
+    expect(isSuperAdmin(fullAdmin)).toBe(false);
   });
 });

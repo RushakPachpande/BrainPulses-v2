@@ -7,6 +7,10 @@ export const registrationListQuerySchema = listQuerySchema.extend({
   status: z.enum(['assigned', 'unassigned', 'all']).default('all'),
 });
 
+export const assignableQuerySchema = z.object({
+  activityId: z.string().uuid(),
+});
+
 export const assignSchema = z
   .object({
     activityId: z.string().uuid(),

@@ -20,6 +20,7 @@ import { useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { isSuperAdmin } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
 import { ChangePasswordDialog } from '@/pages/change-password-dialog';
 import { changeOwnPassword } from '@/services';
@@ -345,7 +346,14 @@ export function AdminLayout() {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  const navItems = nav;
+  const navItems = nav.map((item) => {
+    if (item.to !== '/settings' || !item.children) return item;
+    if (auth.status === 'authenticated' && isSuperAdmin(auth.membership)) return item;
+    return {
+      ...item,
+      children: item.children.filter((child) => child.to !== '/settings/design-system'),
+    };
+  });
 
   useEffect(() => {
     document.title = `${meta.title} · BrainPulses Admin`;

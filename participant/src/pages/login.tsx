@@ -16,7 +16,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = (location.state as { from?: string } | null)?.from ?? '/';
-  const [code, setCode] = useState(import.meta.env.DEV ? 'BP-24101' : '');
+  const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);

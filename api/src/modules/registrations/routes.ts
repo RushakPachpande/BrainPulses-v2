@@ -9,6 +9,7 @@ import { validate } from '../../middleware/validate.js';
 import * as controller from './controller.js';
 import {
   assignSchema,
+  assignableQuerySchema,
   manualRegistrationSchema,
   registrationListQuerySchema,
   unassignSchema,
@@ -23,6 +24,12 @@ registrationsRouter.get(
   requireOrgAccess('view'),
   validate({ query: registrationListQuerySchema }),
   controller.list,
+);
+registrationsRouter.get(
+  '/assignable',
+  requireOrgAccess('edit'),
+  validate({ query: assignableQuerySchema }),
+  controller.assignable,
 );
 registrationsRouter.post(
   '/assign',

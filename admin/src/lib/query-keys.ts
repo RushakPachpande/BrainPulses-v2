@@ -13,6 +13,8 @@ export const adminQueryKeys = {
   activities: (orgId: string, kind: string) => ['admin', 'activities', orgId, kind] as const,
   banks: (orgId: string, kind: string) => ['admin', 'banks', orgId, kind] as const,
   registrations: (orgId: string, kind: string) => ['admin', 'registrations', orgId, kind] as const,
+  assignable: (orgId: string, activityId: string) =>
+    ['admin', 'assignable', orgId, activityId] as const,
   results: (orgId: string, kind: string) => ['admin', 'results', orgId, kind] as const,
   quizReports: (orgId: string, query: string) => ['admin', 'quiz-reports', orgId, query] as const,
   quizReportDetail: (orgId: string, registrationId: string, attemptId: string) =>

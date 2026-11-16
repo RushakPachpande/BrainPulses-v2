@@ -7,7 +7,7 @@ import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { ListPager, MediaCard, MediaCardGrid } from '@/components/media-card-grid';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { Toolbar } from '@/components/toolbar';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
@@ -17,7 +17,7 @@ import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { ContestEditorDialog } from '@/pages/contest-editor-dialog';
 import { ContestViewDialog } from '@/pages/contest-view-dialog';
-import { deleteContest, getContests, type Contest } from '@/services';
+import { deleteContest, getContest, getContests, type Contest } from '@/services';
 
 const EMPTY: Contest[] = [];
 
@@ -32,6 +32,35 @@ const contestSortColumns: { key: SortKey; label: string }[] = [
 
 function compare(a: Contest, b: Contest, key: SortKey) {
   return a[key].localeCompare(b[key], undefined, { numeric: true });
+}
+
+function contestDeleteCopy(contest: Contest) {
+  const form = contest.registrationForm;
+  if (!form) {
+    return {
+      description: 'Permanently removes this contest. This cannot be undone.',
+      details: undefined,
+    };
+  }
+  const statusLabel = form.status === 'saved' ? 'saved' : 'draft';
+  const details = [
+    `The ${statusLabel} registration form for this contest will be deleted, including its public link.`,
+  ];
+  if (form.submissionCount > 0) {
+    details.push(
+      `${form.submissionCount} registration submission${form.submissionCount === 1 ? '' : 's'} will be deleted. Participant records stay.`,
+    );
+  }
+  if (form.quizCount > 0) {
+    details.push(
+      `${form.quizCount} quiz link${form.quizCount === 1 ? '' : 's'} on that form will be removed. The quizzes themselves stay.`,
+    );
+  }
+  return {
+    description:
+      'Permanently removes this contest and the registration form that belongs to it. This cannot be undone.',
+    details,
+  };
 }
 
 export function ContestsPage() {
@@ -53,24 +82,39 @@ export function ContestsPage() {
   const contests = data ?? EMPTY;
 
   async function onDeleteContest(contest: Contest) {
-    if (!canDelete) return;
-    const password = await confirm({
-      title: `Delete “${contest.name}”?`,
-      description:
-        'Permanently removes this contest. Quizzes that still use it must be unlinked first. This cannot be undone.',
+    if (!canDelete || contest.activityCount > 0) return;
+    let current: Contest;
+    try {
+      current = await getContest(contest.id);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not load this contest.');
+      return;
+    }
+    if (current.activityCount > 0) {
+      toast.error(
+        `Cannot delete this contest while ${current.activityCount} activit${current.activityCount === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
+      );
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contests'] });
+      return;
+    }
+    const copy = contestDeleteCopy(current);
+    const password = await confirmSensitiveDelete(confirm, {
+      title: `Delete “${current.name}”?`,
+      description: copy.description,
+      details: copy.details,
       confirmLabel: 'Delete permanently',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
-      await deleteContest(contest.id, password);
+      await deleteContest(current.id, password);
       toast.success('Contest deleted.');
       await queryClient.invalidateQueries({ queryKey: ['admin', 'contests'] });
-      if (viewId === contest.id) setViewId(null);
-      if (editor === contest.id) setEditor(null);
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+      if (viewId === current.id) setViewId(null);
+      if (editor === current.id) setEditor(null);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not delete contest.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contests'] });
     }
   }
   const [search, setSearch] = useState('');
@@ -235,7 +279,11 @@ export function ContestsPage() {
               kind="contest"
               onView={() => setViewId(contest.id)}
               onEdit={canMutate ? () => setEditor(contest.id) : undefined}
-              onDelete={canDelete ? () => void onDeleteContest(contest) : undefined}
+              onDelete={
+                canDelete && contest.activityCount === 0
+                  ? () => void onDeleteContest(contest)
+                  : undefined
+              }
               title={contest.name}
               imageFileId={contest.imageFileId}
               organizer={{ name: contest.sponsorName }}

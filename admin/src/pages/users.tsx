@@ -24,7 +24,7 @@ import { StatusBadge } from '@/components/status-badge';
 import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { selectionMatches } from '@/lib/multi-select';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -165,13 +165,15 @@ export function UsersPage() {
 
   async function onDeleteUser(user: User) {
     if (!canManage || !user.id) return;
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete “${user.name}”?`,
-      description:
-        'Permanently removes this account and all organization memberships. They cannot sign in again. This cannot be undone.',
+      description: 'Permanently removes this account. This cannot be undone.',
+      details: [
+        'Every organization membership for this account is removed.',
+        'They cannot sign in again.',
+        'Any reattempt grants this person issued are removed.',
+      ],
       confirmLabel: 'Delete permanently',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
@@ -245,10 +247,25 @@ export function UsersPage() {
     setSearchParams(next, { replace: true });
   }, [canManage, loading, searchParams, setSearchParams, users]);
 
+  const roleOptions = useMemo(
+    () =>
+      [...new Set(users.map((user) => user.role.trim()).filter((value) => value.length > 0))].sort(
+        (a, b) => a.localeCompare(b),
+      ),
+    [users],
+  );
+  const statusOptions = useMemo(
+    () =>
+      [
+        ...new Set(users.map((user) => user.status.trim()).filter((value) => value.length > 0)),
+      ].sort((a, b) => a.localeCompare(b)),
+    [users],
+  );
+
   const filters: ToolbarFilter[] = [
     {
       name: 'Role',
-      options: ['Super Admin', 'Admin'],
+      options: roleOptions,
       values: role,
       onValuesChange: (values) => {
         setRole(values);
@@ -257,7 +274,7 @@ export function UsersPage() {
     },
     {
       name: 'Status',
-      options: ['Active', 'Inactive'],
+      options: statusOptions,
       values: status,
       onValuesChange: (values) => {
         setStatus(values);
@@ -489,7 +506,7 @@ export function UsersPage() {
                         : undefined
                     }
                     remove={
-                      canManage && id
+                      canManage && id && user.userId !== actorUserId
                         ? {
                             label: 'Delete',
                             onClick: () => void onDeleteUser(user),

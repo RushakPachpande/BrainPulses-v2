@@ -50,7 +50,6 @@ import { canEditKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { getQuestionBanks, type ActivityKind } from '@/services';
-import { presentationTypes, questionTypes } from '@/services/fixtures';
 import type { QuestionBank as Bank } from '@/services/types';
 
 const EMPTY_BANKS: Bank[] = [];
@@ -59,7 +58,16 @@ type SortKey =
   'name' | 'description' | 'questions' | 'types' | 'presentation' | 'updated' | 'usedIn' | 'status';
 
 function uniqueTypes(values: string[]) {
-  return [...new Set(values.flatMap((value) => value.split(',').map((part) => part.trim())))];
+  return [
+    ...new Set(
+      values.flatMap((value) =>
+        value
+          .split(',')
+          .map((part) => part.trim())
+          .filter((part) => part.length > 0 && part !== '—'),
+      ),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
 }
 
 function bankPlacement(key: SortKey): RecordColumn<Bank>['placement'] {
@@ -133,11 +141,6 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   const [bulkSearch, setBulkSearch] = useState('');
   const [bulkSelectedId, setBulkSelectedId] = useState<string | null>(null);
 
-  const typeOptions = useMemo(
-    () => (isQuiz ? uniqueTypes(presentationTypes) : uniqueTypes(questionTypes)),
-    [isQuiz],
-  );
-
   const sortColumns: { key: SortKey; label: string }[] = isQuiz
     ? [
         { key: 'name', label: 'Question Bank Name' },
@@ -172,6 +175,17 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
     enabled: Boolean(orgId),
   });
   const banks = data ?? EMPTY_BANKS;
+  const typeOptions = useMemo(() => {
+    const source = banks.map((bank) => (isQuiz ? bank.presentation : bank.types));
+    return uniqueTypes(source);
+  }, [banks, isQuiz]);
+  const statusOptions = useMemo(
+    () =>
+      [
+        ...new Set(banks.map((bank) => bank.status.trim()).filter((status) => status.length > 0)),
+      ].sort((a, b) => a.localeCompare(b)),
+    [banks],
+  );
   const [search, setSearch] = useState('');
   const [type, setType] = useState<string[]>([]);
   const [status, setStatus] = useState<string[]>([]);
@@ -247,7 +261,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
     },
     {
       name: 'Status',
-      options: ['Active', 'Draft', 'Completed'],
+      options: statusOptions,
       values: status,
       onValuesChange: (values) => {
         setStatus(values);

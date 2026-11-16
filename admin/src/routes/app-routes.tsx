@@ -209,7 +209,9 @@ export function AppRoutes() {
           <Route path="settings" element={<GeneralSettingsPage />} />
           <Route path="settings/participant-portal" element={<Navigate to="/settings" replace />} />
           <Route path="settings/student-portal" element={<Navigate to="/settings" replace />} />
-          <Route path="settings/design-system" element={<DesignSystemPage />} />
+          <Route element={<RequireAccess gate={{ type: 'superAdmin' }} />}>
+            <Route path="settings/design-system" element={<DesignSystemPage />} />
+          </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>
       </Route>

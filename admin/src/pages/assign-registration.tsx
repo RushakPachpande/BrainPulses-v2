@@ -20,11 +20,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { assignRegistrations, getActivities, getParticipants, type ActivityKind } from '@/services';
-import type { Activity, Participant } from '@/services/types';
+import {
+  assignRegistrations,
+  getActivities,
+  getAssignableParticipants,
+  type ActivityKind,
+} from '@/services';
+import type { Activity } from '@/services/types';
 
 const EMPTY_ACTIVITIES: Activity[] = [];
-const EMPTY_PARTICIPANTS: Participant[] = [];
+const EMPTY_PARTICIPANTS: { id: string; code: string; name: string; email: string }[] = [];
 
 export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
   const navigate = useNavigate();
@@ -36,19 +41,25 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
     queryFn: () => getActivities(kind),
     enabled: Boolean(orgId),
   });
-  const { data: participantsData, isPending: participantsLoading } = useQuery({
-    queryKey: adminQueryKeys.participants(orgId),
-    queryFn: () => getParticipants(),
-    enabled: Boolean(orgId),
-  });
   const activities = activitiesData ?? EMPTY_ACTIVITIES;
-  const participants = participantsData ?? EMPTY_PARTICIPANTS;
-  const loading = activitiesLoading || participantsLoading;
+  const loading = activitiesLoading;
   const [activityId, setActivityId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const allowLeave = useLeaveGuard(dirty);
+
+  const {
+    data: participantsData,
+    isPending: participantsLoading,
+    isError: participantsError,
+    error: participantsErrorValue,
+  } = useQuery({
+    queryKey: adminQueryKeys.assignable(orgId, activityId),
+    queryFn: () => getAssignableParticipants(activityId),
+    enabled: Boolean(orgId && activityId),
+  });
+  const participants = activityId ? (participantsData ?? EMPTY_PARTICIPANTS) : EMPTY_PARTICIPANTS;
 
   const activityOptions = useMemo(
     () =>
@@ -137,6 +148,7 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
                   onValueChange={(value) => {
                     setDirty(true);
                     setActivityId(value);
+                    setSelected(new Set());
                   }}
                 >
                   <SelectTrigger aria-label="Activity">
@@ -153,9 +165,25 @@ export function AssignRegistrationPage({ kind }: { kind: ActivityKind }) {
               </Field>
               <Field>
                 <FieldLabel>Participants</FieldLabel>
+                <p className="text-sm text-muted-foreground">
+                  Only people who registered for this contest, and are not already assigned, are
+                  listed.
+                </p>
                 <div className="max-h-72 space-y-2 overflow-y-auto rounded-lg border p-3">
-                  {participants.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No participants found.</p>
+                  {!activityId ? (
+                    <p className="text-sm text-muted-foreground">Select an activity first.</p>
+                  ) : participantsLoading ? (
+                    <p className="text-sm text-muted-foreground">Loading registrations…</p>
+                  ) : participantsError ? (
+                    <p className="text-sm text-destructive">
+                      {participantsErrorValue instanceof ApiError
+                        ? participantsErrorValue.message
+                        : 'Could not load registered participants.'}
+                    </p>
+                  ) : participants.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No registered participants are waiting to be assigned.
+                    </p>
                   ) : (
                     participants.map((s) => (
                       <label key={s.id} className="flex items-center gap-3 text-sm">

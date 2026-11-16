@@ -11,6 +11,20 @@ export async function list(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function assignable(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.listAssignable(
+      actor.organizationId,
+      actor,
+      String(req.query.activityId),
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function assign(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);

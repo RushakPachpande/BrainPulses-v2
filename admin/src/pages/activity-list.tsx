@@ -20,7 +20,7 @@ import { RowActions } from '@/components/row-actions';
 import { FlowStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { selectionMatches } from '@/lib/multi-select';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import {
   ALL_DATE_RANGE,
   isDateInRange,
@@ -109,13 +109,15 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
 
   async function onDeleteQuiz(item: Activity) {
     if (!isQuiz || !canFull) return;
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete “${item.name}”?`,
-      description:
-        'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
+      description: 'Permanently removes this quiz. This cannot be undone.',
+      details: [
+        'Registrations, attempts, and scores for this quiz are deleted.',
+        'This quiz’s private question bank is deleted. Shared question banks stay.',
+        'Links from registration forms to this quiz are removed. Those forms stay.',
+      ],
       confirmLabel: 'Delete quiz',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     try {
@@ -165,10 +167,20 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
 
+  const statusOptions = useMemo(
+    () =>
+      [
+        ...new Set(
+          activities.map((item) => item.status.trim()).filter((value) => value.length > 0),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
+    [activities],
+  );
+
   const filters: ToolbarFilter[] = [
     {
       name: 'Status',
-      options: ['Active', 'Scheduled', 'Expired', 'Draft', 'Completed', 'Archived'],
+      options: statusOptions,
       values: status,
       onValuesChange: (values) => {
         setStatus(values);

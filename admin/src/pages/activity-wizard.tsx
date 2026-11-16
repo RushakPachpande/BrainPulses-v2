@@ -23,7 +23,7 @@ import { DateTimePicker } from '@/components/date-time-picker';
 import { FormPageSkeleton } from '@/components/loading-skeletons';
 import { RichTextEditor } from '@/components/rich-text-editor';
 import { FlowStatusPill } from '@/components/status-pill';
-import { useConfirm } from '@/components/use-confirm';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -671,13 +671,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
   async function handleDeleteQuiz() {
     if (!isQuiz || !canFull || !activityId) return;
-    const password = await confirm({
+    const password = await confirmSensitiveDelete(confirm, {
       title: `Delete this ${noun.toLowerCase()}?`,
-      description:
-        'Permanently removes this quiz and all registrations, attempts, and scores. Question banks are kept. This cannot be undone.',
+      description: 'Permanently removes this quiz. This cannot be undone.',
+      details: [
+        'Registrations, attempts, and scores for this quiz are deleted.',
+        'This quiz’s private question bank is deleted. Shared question banks stay.',
+        'Links from registration forms to this quiz are removed. Those forms stay.',
+      ],
       confirmLabel: 'Delete quiz',
-      destructive: true,
-      requirePassword: true,
     });
     if (!password) return;
     setSaving(true);

@@ -129,6 +129,8 @@ export type Sponsor = {
   createdAt: string;
   updatedAt: string;
   contests: number;
+  activities: number;
+  registrationForms: number;
 };
 
 export type ImageLibraryPurpose = 'catalog' | 'question';
@@ -150,6 +152,14 @@ export type Contest = {
   imageFileId: string;
   createdAt: string;
   updatedAt: string;
+  /** Quizzes still linked to this contest. Delete stays hidden while this is above zero. */
+  activityCount: number;
+  /** Present when a registration form still belongs to this contest. */
+  registrationForm: {
+    status: 'draft' | 'saved';
+    submissionCount: number;
+    quizCount: number;
+  } | null;
 };
 
 export type ActivityDetail = Activity & {
