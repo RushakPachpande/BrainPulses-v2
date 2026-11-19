@@ -5,9 +5,8 @@ import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/e
 import { prisma } from '../../lib/prisma.js';
 import { isQuizScoreVisible, parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
 import {
-  applyQuestionLimit,
-  blocksFromItems,
-  orderBlocks,
+  buildDisplayOrder,
+  selectAttemptItems,
   type QuestionOrderItem,
 } from '../../lib/question-order.js';
 import {
@@ -497,14 +496,12 @@ async function presentOpenAttempt(attemptId: string, organizationId: string) {
 }
 
 function buildAttemptOrders(
-  items: QuestionOrderItem[],
-  questionLimit: number | null,
+  selected: QuestionOrderItem[],
   optionsByVersion: Map<string, OptionRow[]>,
   shuffleQuestions: boolean,
   shuffleOptions: boolean,
 ): { questionOrder: string[]; optionOrders: OptionOrders } {
-  const blocks = applyQuestionLimit(blocksFromItems(items), questionLimit);
-  const questionOrder = orderBlocks(blocks, shuffleQuestions);
+  const questionOrder = buildDisplayOrder(selected, shuffleQuestions);
   const optionOrders: OptionOrders = {};
   if (shuffleOptions) {
     for (const id of questionOrder) {
@@ -843,9 +840,9 @@ export async function startAttempt(
         }
       : assessmentShuffle;
 
-  const candidateIds = applyQuestionLimit(blocksFromItems(orderItems), questionLimit).flatMap(
-    (block) => block.map((item) => item.id),
-  );
+  const shuffleQuestions = shuffle?.shuffleQuestions ?? false;
+  const selected = selectAttemptItems(orderItems, questionLimit, shuffleQuestions);
+  const candidateIds = selected.map((item) => item.id);
   if (candidateIds.length === 0) {
     throw badRequest('No questions available for this attempt.');
   }
@@ -860,10 +857,9 @@ export async function startAttempt(
   });
   const optionsByVersion = new Map(versionsForOpts.map((v) => [v.id, v.options]));
   const built = buildAttemptOrders(
-    orderItems,
-    questionLimit,
+    selected,
     optionsByVersion,
-    shuffle?.shuffleQuestions ?? false,
+    shuffleQuestions,
     shuffle?.shuffleOptions ?? false,
   );
   const questionOrder = built.questionOrder;
