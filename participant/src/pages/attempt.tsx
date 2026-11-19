@@ -64,6 +64,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   const saveChainRef = useRef<Promise<void>>(Promise.resolve());
   const autoSubmitted = useRef(false);
   const sessionEndedRef = useRef(false);
+  /** Submit, auto-submit, or delete has ended this attempt. Stops the clock and further saves. */
+  const attemptClosedRef = useRef(false);
+  const stopClockAndLeaveRef = useRef<(resultId?: string) => void>(() => {});
   const answersRef = useRef<AnswerMap>({});
   const attemptIdRef = useRef<string | null>(null);
   const qIndexRef = useRef(0);
@@ -240,6 +243,18 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         revisionRef.current = saved.revision;
         setAttempt(saved.attempt);
       } catch (err) {
+        if (err instanceof ApiError && err.status === 404) {
+          stopClockAndLeaveRef.current();
+          return;
+        }
+        if (
+          err instanceof ApiError &&
+          err.status === 409 &&
+          /no longer in progress|already submitted/i.test(err.message)
+        ) {
+          stopClockAndLeaveRef.current();
+          return;
+        }
         if (err instanceof ApiError && err.status === 409) {
           setError('Your attempt was updated elsewhere. Reloading…');
           await load();
@@ -270,6 +285,38 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
     [attempt, load, navigate],
   );
 
+  const stopClockAndLeave = useCallback(
+    (resultId?: string) => {
+      attemptClosedRef.current = true;
+      if (saveTimer.current) {
+        window.clearTimeout(saveTimer.current);
+        saveTimer.current = null;
+      }
+      pendingAnswersRef.current = null;
+      const activityId = attempt?.activityId;
+      const roundId = attempt?.roundId;
+      flushSync(() => {
+        setAllowLeave(true);
+        setSeconds(0);
+        setAttempt(null);
+        setSubmitting(false);
+      });
+      if (resultId && !roundId) {
+        navigate(`/results/${resultId}`, { replace: true });
+        return;
+      }
+      if (activityId) {
+        navigate(roundId ? `/assessments/${activityId}` : `/quizzes/${activityId}`, {
+          replace: true,
+        });
+        return;
+      }
+      navigate(roundId ? '/assessments' : '/quizzes', { replace: true });
+    },
+    [attempt?.activityId, attempt?.roundId, navigate],
+  );
+  stopClockAndLeaveRef.current = stopClockAndLeave;
+
   persistRef.current = persist;
 
   function enqueueSave(next: AnswerMap) {
@@ -280,7 +327,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }
 
   function queueSave(next: AnswerMap) {
-    if (sessionEndedRef.current) return;
+    if (sessionEndedRef.current || attemptClosedRef.current) return;
     if (saveTimer.current) window.clearTimeout(saveTimer.current);
     pendingAnswersRef.current = next;
     setPendingSave(true);
@@ -316,14 +363,14 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       }
       const pending = pendingAnswersRef.current;
       pendingAnswersRef.current = null;
-      if (pending) void enqueueSave(pending);
+      if (pending && !attemptClosedRef.current) void enqueueSave(pending);
     };
   }, []);
 
   useEffect(() => {
     // Tab/minimize must not save or reset. Only flush on a real page close/hide of the document.
     const flushKeepalive = () => {
-      if (sessionEndedRef.current) return;
+      if (sessionEndedRef.current || attemptClosedRef.current) return;
       const attemptId = attemptIdRef.current;
       if (!attemptId) return;
       // Avoid a second save with the same revision while a normal save is in flight.
@@ -351,12 +398,32 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
   }, []);
 
   useEffect(() => {
-    if (!attempt || busy) return;
+    if (!attempt || busy || submitting || attemptClosedRef.current) return;
+    const attemptId = attempt.id;
+    let ticks = 0;
     const t = window.setInterval(() => {
+      if (attemptClosedRef.current) return;
       setSeconds((s) => Math.max(0, s - 1));
+      ticks += 1;
+      // Another tab may have submitted, or an admin may have deleted this attempt.
+      if (ticks % 8 !== 0 || savingInFlightRef.current) return;
+      void resumeAttempt(attemptId)
+        .then((data) => {
+          if (attemptClosedRef.current) return;
+          if (data.submitted) {
+            if (data.attempt.id) clearSubmitIdempotencyKey(data.attempt.id);
+            stopClockAndLeaveRef.current(data.attempt.roundId ? undefined : data.result?.id);
+          }
+        })
+        .catch((err: unknown) => {
+          if (attemptClosedRef.current) return;
+          if (err instanceof ApiError && (err.status === 404 || err.status === 409)) {
+            stopClockAndLeaveRef.current();
+          }
+        });
     }, 1000);
     return () => window.clearInterval(t);
-  }, [attempt, busy]);
+  }, [attempt, busy, submitting]);
 
   const allOnPage = presentation === 'all_on_page';
 
@@ -393,13 +460,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       const key = submitIdempotencyKeyFor(attempt.id);
       // The guard must be off before navigate() runs, so commit the state synchronously.
       const leaveSubmitted = (resultId: string) => {
-        flushSync(() => {
-          setAllowLeave(true);
-          setMarked([]);
-        });
-        navigate(attempt.roundId ? `/assessments/${attempt.activityId}` : `/results/${resultId}`, {
-          replace: true,
-        });
+        stopClockAndLeaveRef.current(attempt.roundId ? undefined : resultId);
       };
       try {
         if (Object.keys(latest).length) await enqueueSave(latest);
@@ -409,6 +470,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         leaveSubmitted(data.result.id);
       } catch (err) {
         // Response may have committed on the server — align UI.
+        let stillOpen = false;
         try {
           const resumed = await resumeAttempt(attempt.id);
           if (resumed.submitted && resumed.result) {
@@ -417,8 +479,13 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             leaveSubmitted(resumed.result.id);
             return;
           }
+          stillOpen = true;
         } catch {
           /* fall through to error */
+        }
+        if (!stillOpen && err instanceof ApiError && (err.status === 404 || err.status === 409)) {
+          stopClockAndLeaveRef.current();
+          return;
         }
         setError(
           err instanceof ApiError
@@ -428,7 +495,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         setSubmitting(false);
       }
     },
-    [answers, attempt, navigate, submitting],
+    [answers, attempt, submitting],
   );
 
   const goToNextQuestionWithRenewedDeadline = useCallback(async () => {
@@ -457,11 +524,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       const data = await advanceAttempt(attempt.id);
       if (data.submitted && data.result) {
         clearSubmitIdempotencyKey(attempt.id);
-        flushSync(() => setAllowLeave(true));
-        navigate(
-          attempt.roundId ? `/assessments/${attempt.activityId}` : `/results/${data.result.id}`,
-          { replace: true },
-        );
+        stopClockAndLeaveRef.current(attempt.roundId ? undefined : data.result.id);
         return;
       }
       setAttempt(data.attempt);
@@ -485,9 +548,13 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
       });
     } catch (err) {
       autoSubmitted.current = false;
+      if (err instanceof ApiError && (err.status === 404 || err.status === 409)) {
+        stopClockAndLeaveRef.current();
+        return;
+      }
       setError(err instanceof ApiError ? err.message : 'Could not move to the next question.');
     }
-  }, [attempt, navigate, questions, submitting]);
+  }, [attempt, questions, submitting]);
 
   useEffect(() => {
     if (!attempt || busy || seconds > 0 || autoSubmitted.current || submitting) return;

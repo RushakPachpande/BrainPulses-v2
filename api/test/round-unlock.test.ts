@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { defaultRoundSettings, meetsPassRule } from '../src/lib/round-settings.js';
+import {
+  defaultRoundSettings,
+  meetsPassRule,
+  parseRoundSettings,
+} from '../src/lib/round-settings.js';
 import {
   canRetryRound,
   resultClearsRound,
+  roundGateSatisfied,
   roundIsCleared,
   roundNeedsManualPublish,
 } from '../src/lib/round-unlock.js';
@@ -70,5 +75,61 @@ describe('round unlock helpers', () => {
       result: { score: 10, percent: 40, passed: false, releaseStatus: 'published' },
     });
     assert.equal(canRetryRound(attempts, 'r1', settings, true), false);
+  });
+
+  it('keeps the next round locked when a required pass is missed', () => {
+    const settings = { ...defaultRoundSettings, passRequired: true, passingPercent: 40 };
+    const failed = [
+      {
+        id: 'a1',
+        status: 'submitted',
+        roundId: 'r1',
+        result: { score: 1, percent: 20, passed: false, releaseStatus: 'published' },
+      },
+    ];
+    assert.equal(roundGateSatisfied(failed, 'r1', settings, true), false);
+
+    const passed = [
+      {
+        id: 'a1',
+        status: 'submitted',
+        roundId: 'r1',
+        result: { score: 8, percent: 80, passed: true, releaseStatus: 'published' },
+      },
+    ];
+    assert.equal(roundGateSatisfied(passed, 'r1', settings, true), true);
+  });
+
+  it('opens the next round after a submitted attempt when a pass is not required', () => {
+    const settings = { ...defaultRoundSettings, passRequired: false };
+    const failed = [
+      {
+        id: 'a1',
+        status: 'submitted',
+        roundId: 'r1',
+        result: { score: 0, percent: 0, passed: false, releaseStatus: 'published' },
+      },
+    ];
+    assert.equal(roundGateSatisfied(failed, 'r1', settings, true), true);
+    assert.equal(roundIsCleared(failed, 'r1', settings, true), false);
+    assert.equal(canRetryRound(failed, 'r1', { ...settings, maxAttempts: 2 }, true), true);
+  });
+
+  it('does not treat an in-progress attempt as finishing a round', () => {
+    const settings = { ...defaultRoundSettings, passRequired: false };
+    const open = [
+      {
+        id: 'a1',
+        status: 'in_progress',
+        roundId: 'r1',
+        result: null,
+      },
+    ];
+    assert.equal(roundGateSatisfied(open, 'r1', settings, true), false);
+  });
+
+  it('treats a missing pass flag as required', () => {
+    const settings = parseRoundSettings({ passingPercent: 40, settings: {} });
+    assert.equal(settings.passRequired, true);
   });
 });

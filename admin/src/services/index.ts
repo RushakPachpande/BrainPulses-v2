@@ -319,6 +319,7 @@ export type ActivityRoundWrite = {
   id?: string;
   name: string;
   sortOrder: number;
+  instructions?: string | null;
   durationMinutes?: number | null;
   durationMode?: 'overall' | 'per_question';
   perQuestionSeconds?: number | null;
@@ -489,6 +490,7 @@ export async function getActivity(id: string, signal?: AbortSignal): Promise<Act
             negativeMarkPoints: 0,
             maxAttempts: 1,
             questionLimit: null,
+            passRequired: true,
           },
           imageFileId: null,
           bankIds: [],

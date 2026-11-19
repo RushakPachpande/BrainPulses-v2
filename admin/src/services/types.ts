@@ -101,12 +101,15 @@ export type RoundBehaviourSettings = {
   maxAttempts: number | null;
   /** Null means every active question. */
   questionLimit: number | null;
+  /** When false, submitting the round opens the next one without a pass mark. */
+  passRequired: boolean;
 };
 
 export type ActivityRoundDetail = {
   id: string;
   name: string;
   sortOrder: number;
+  instructions?: string | null;
   durationMinutes: number | null;
   durationMode?: DurationMode;
   perQuestionSeconds?: number | null;

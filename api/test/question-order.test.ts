@@ -4,6 +4,7 @@ import {
   applyQuestionLimit,
   blocksFromItems,
   orderBlocks,
+  servedQuestionCount,
   type QuestionOrderItem,
 } from '../src/lib/question-order.js';
 
@@ -35,7 +36,7 @@ describe('question order', () => {
     assert.equal(shuffled.filter((id) => id === 'n1' || id === 'n2').length, 2);
   });
 
-  it('does not split a passage to meet the question limit', () => {
+  it('skips a passage that does not fit and keeps filling the limit', () => {
     const blocks = blocksFromItems([
       item('a', null),
       item('c1', 'p', 0),
@@ -46,10 +47,28 @@ describe('question order', () => {
     const limited = applyQuestionLimit(blocks, 2);
     assert.deepEqual(
       limited.map((block) => block.map((row) => row.id)),
-      [['a']],
+      [['a'], ['b']],
     );
 
     const oversized = applyQuestionLimit(blocksFromItems([item('c1', 'p'), item('c2', 'p')]), 1);
     assert.equal(oversized.flat().length, 2);
+  });
+
+  it('serves the limit when the next passage is larger than the remaining slots', () => {
+    const blocks = blocksFromItems([
+      item('q1', null, 0),
+      item('p1', 'passage', 0),
+      item('p2', 'passage', 1),
+      item('p3', 'passage', 2),
+      item('p4', 'passage', 3),
+      item('p5', 'passage', 4),
+      item('p6', 'passage', 5),
+      item('p7', 'passage', 6),
+      item('q2', null, 1),
+      item('q3', null, 2),
+      item('q4', null, 3),
+      item('q5', null, 4),
+    ]);
+    assert.equal(servedQuestionCount(blocks.flat(), 5), 5);
   });
 });

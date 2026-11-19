@@ -37,8 +37,9 @@ export function blocksFromItems(items: QuestionOrderItem[]): QuestionOrderItem[]
 }
 
 /**
- * Take whole blocks until the next block would pass the limit.
- * A passage larger than the limit is served whole when it is the first block taken.
+ * Fill up to `limit` questions without splitting a passage.
+ * A passage that does not fit is skipped so later questions can still fill the limit.
+ * A passage larger than the limit is served whole only when nothing else has been chosen.
  */
 export function applyQuestionLimit(
   blocks: QuestionOrderItem[][],
@@ -48,13 +49,15 @@ export function applyQuestionLimit(
   const chosen: QuestionOrderItem[][] = [];
   let count = 0;
   for (const block of blocks) {
+    if (count + block.length <= limit) {
+      chosen.push(block);
+      count += block.length;
+      continue;
+    }
     if (chosen.length === 0 && block.length > limit) {
       chosen.push(block);
       break;
     }
-    if (count + block.length > limit) break;
-    chosen.push(block);
-    count += block.length;
   }
   return chosen;
 }

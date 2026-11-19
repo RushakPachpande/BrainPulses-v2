@@ -9,8 +9,10 @@ import {
   canRetryRound,
   parseRoundRow,
   resultClearsRound,
+  roundGateSatisfied,
   roundIsCleared,
 } from '../../lib/round-unlock.js';
+import { closeSupersededOpenAttempts } from '../attempts/service.js';
 import { scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
 import type {
@@ -69,6 +71,7 @@ export async function listMyActivities(
   participantId: string,
   query: z.infer<typeof participantActivitiesQuerySchema>,
 ) {
+  await closeSupersededOpenAttempts(organizationId, participantId);
   const where: Prisma.RegistrationWhereInput = {
     organizationId,
     participantId,
@@ -215,7 +218,7 @@ export async function listMyActivities(
             let previousCleared = true;
             if (index > 0) {
               const prev = activity.rounds[index - 1]!;
-              previousCleared = roundIsCleared(
+              previousCleared = roundGateSatisfied(
                 attempts,
                 prev.id,
                 parseRoundRow(prev),
@@ -244,6 +247,7 @@ export async function listMyActivities(
               id: round.id,
               name: round.name,
               sortOrder: round.sortOrder,
+              instructions: round.instructions ?? null,
               imageFileId: round.imageFileId,
               durationMinutes: roundSettings.durationMinutes ?? activity.durationMinutes,
               questionCount: qCount,
@@ -252,6 +256,7 @@ export async function listMyActivities(
               latestResultId: latestDone?.result?.id ?? null,
               attemptsUsed: submitted.length,
               maxAttempts: roundSettings.maxAttempts,
+              passRequired: roundSettings.passRequired,
               passed: latestResult ? resultClearsRound(latestResult, roundSettings, false) : null,
               resultPendingPublish: Boolean(
                 latestResult && latestResult.releaseStatus !== 'published',
@@ -501,6 +506,33 @@ export async function getMyResult(organizationId: string, participantId: string,
           }),
         ])
       : null;
+  const roundRow =
+    result.activity.kind === 'assessment' && result.attempt.roundId
+      ? await prisma.activityRound.findFirst({
+          where: { organizationId, id: result.attempt.roundId },
+          select: {
+            settings: true,
+            durationMinutes: true,
+            durationMode: true,
+            perQuestionSeconds: true,
+            presentation: true,
+            passMode: true,
+            passingPercent: true,
+            passingScore: true,
+          },
+        })
+      : null;
+  const roundAttemptsUsed = roundRow
+    ? await prisma.attempt.count({
+        where: {
+          organizationId,
+          activityId: result.activity.id,
+          participantId,
+          roundId: result.attempt.roundId,
+          status: { in: ['submitted', 'auto_submitted'] },
+        },
+      })
+    : null;
 
   return {
     id: result.id,
@@ -514,7 +546,13 @@ export async function getMyResult(organizationId: string, participantId: string,
           maxAttempts: quizSettings?.maxAttempts ?? 1,
           extraAttempts: attemptAllowance[1],
         }
-      : {}),
+      : roundRow
+        ? {
+            roundId: result.attempt.roundId,
+            attemptsUsed: roundAttemptsUsed ?? 0,
+            maxAttempts: parseRoundRow(roundRow).maxAttempts,
+          }
+        : {}),
     score: scoreOk ? toNumber(result.score) : null,
     maxScore: scoreOk ? toNumber(result.maxScore) : null,
     percent: scoreOk ? toNumber(result.percent) : null,

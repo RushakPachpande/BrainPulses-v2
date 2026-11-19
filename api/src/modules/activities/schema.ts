@@ -73,6 +73,7 @@ export const roundBehaviourSettingsSchema = z
     negativeMarkPoints: z.number().min(0).max(1000).default(0),
     maxAttempts: z.number().int().min(1).max(100).nullable().default(1),
     questionLimit: z.number().int().min(1).max(500).nullable().default(null),
+    passRequired: z.boolean().default(true),
   })
   .strict()
   .superRefine((val, ctx) => {
@@ -91,6 +92,7 @@ export const activityRoundInputSchema = z
     id: z.string().uuid().optional(),
     name: z.string().trim().min(1).max(120),
     sortOrder: z.number().int().min(0),
+    instructions: z.string().trim().max(10_000).optional().nullable(),
     durationMinutes: z.number().int().positive().optional().nullable(),
     durationMode: durationModeSchema.optional().default('overall'),
     perQuestionSeconds: z.number().int().positive().max(86_400).optional().nullable(),
@@ -120,6 +122,7 @@ export const activityRoundInputSchema = z
         path: ['durationMinutes'],
       });
     }
+    if (val.settings?.passRequired === false) return;
     const passMode = val.passMode ?? 'percent';
     if (passMode === 'percent') {
       if (val.passingPercent == null) {

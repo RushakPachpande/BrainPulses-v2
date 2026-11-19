@@ -277,6 +277,19 @@ export function ResultDetailPage() {
   const banner = fileId ? `/api/files/${fileId}` : null;
   const retry = useMemo(() => {
     if (!attempt) return null;
+    const round =
+      attempt.kind === 'assessment'
+        ? match?.rounds?.find((row) => row.id === attempt.roundId)
+        : undefined;
+    if (attempt.kind === 'assessment') {
+      const used = round?.attemptsUsed ?? attempt.attemptsUsed ?? 0;
+      const max = round?.maxAttempts ?? attempt.maxAttempts ?? null;
+      const left = max == null ? null : Math.max(0, max - used);
+      const canRetry = round
+        ? round.state === 'available' && (max == null || used < max)
+        : max == null || used < max;
+      return { used, max, left, canRetry };
+    }
     if (!match) {
       const used = Math.max(1, attempt.attemptsUsed ?? 1);
       const max = attempt.maxAttempts ?? null;

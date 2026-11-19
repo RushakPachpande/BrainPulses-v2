@@ -193,4 +193,39 @@ describe('attempts', () => {
     );
     assert.ok(new Date(resumed.attempt.deadlineAt).getTime() > Date.now());
   });
+
+  it('returns one open attempt when start is called twice together', async () => {
+    const app = await getTestApp();
+    const token = await participantToken();
+    const { activity, round } = await ensureRoundAssessment();
+    const participant = await prisma.participant.findFirst({
+      where: { email: 'participant1@mail.com' },
+    });
+    assert.ok(participant);
+    await prisma.attemptResponse.deleteMany({
+      where: { attempt: { participantId: participant.id, activityId: activity.id } },
+    });
+    await prisma.result.deleteMany({
+      where: { participantId: participant.id, activityId: activity.id },
+    });
+    await prisma.attempt.deleteMany({
+      where: { participantId: participant.id, activityId: activity.id },
+    });
+
+    const body = { activityId: activity.id, roundId: round.id };
+    const headers = { authorization: `Bearer ${token}` };
+    const [first, second] = await Promise.all([
+      request(app, 'POST', '/api/attempts/start', { headers, body }),
+      request(app, 'POST', '/api/attempts/start', { headers, body }),
+    ]);
+    assert.equal(first.status, 201);
+    assert.equal(second.status, 201);
+    const firstId = (first.body as { data: { attempt: { id: string } } }).data.attempt.id;
+    const secondId = (second.body as { data: { attempt: { id: string } } }).data.attempt.id;
+    assert.equal(firstId, secondId);
+    const open = await prisma.attempt.count({
+      where: { participantId: participant.id, activityId: activity.id, status: 'in_progress' },
+    });
+    assert.equal(open, 1);
+  });
 });

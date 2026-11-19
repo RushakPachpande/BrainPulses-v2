@@ -63,6 +63,24 @@ export function bestOrLatestResult(attempts: AttemptLike[], roundId: string): Re
   return null;
 }
 
+/**
+ * Whether this round unlocks the next one.
+ * A required pass uses the published passing result. Otherwise one submitted attempt is enough.
+ */
+export function roundGateSatisfied(
+  attempts: AttemptLike[],
+  roundId: string,
+  settings: RoundSettings,
+  needsPublish: boolean,
+): boolean {
+  if (settings.passRequired) return roundIsCleared(attempts, roundId, settings, needsPublish);
+  return attempts.some(
+    (attempt) =>
+      attempt.roundId === roundId &&
+      (attempt.status === 'submitted' || attempt.status === 'auto_submitted'),
+  );
+}
+
 export function roundAttemptCount(attempts: AttemptLike[], roundId: string): number {
   return authoritativeRoundAttempts(attempts, roundId).length;
 }
