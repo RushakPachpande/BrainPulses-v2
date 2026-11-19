@@ -13,7 +13,7 @@ import {
   roundIsCleared,
 } from '../../lib/round-unlock.js';
 import { closeSupersededOpenAttempts } from '../attempts/service.js';
-import { scoreObjective, toNumber } from '../attempts/scoring.js';
+import { correctAnswerLabels, scoreObjective, toNumber } from '../attempts/scoring.js';
 import type { z } from 'zod';
 import type {
   patchProfileSchema,
@@ -450,7 +450,7 @@ export async function getMyResult(organizationId: string, participantId: string,
       ? scoreObjective(version.type, version.answerKey, response.answer, pts)
       : null;
     const correctLabels = includeKeys
-      ? version.options.filter((o) => o.isCorrect).map((o) => o.label)
+      ? correctAnswerLabels(version.type, version.answerKey, version.options)
       : [];
     const key =
       version.answerKey &&

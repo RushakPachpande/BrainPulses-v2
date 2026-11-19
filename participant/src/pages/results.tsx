@@ -37,7 +37,11 @@ function shownAnswer(question: ParticipantResultDetail['review'][number]) {
 }
 
 function correctAnswerText(question: ParticipantResultDetail['review'][number]) {
-  return optionText(question, question.correctLabels);
+  const labels =
+    question.correctLabels.length > 0
+      ? question.correctLabels
+      : question.options.filter((option) => option.isCorrect).map((option) => option.label);
+  return optionText(question, labels);
 }
 
 export function ResultsPage() {
