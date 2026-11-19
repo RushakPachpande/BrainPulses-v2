@@ -40,7 +40,7 @@ async function processQuizExport(jobId: string, data: QuizExportJob): Promise<Ex
     includeAbsent: data.includeAbsent,
   } as never);
   const base = reportFileBase(exported.quizName);
-  const buffer = await buildReportWorkbook(exported.rows, data.columns as never);
+  const buffer = await buildReportWorkbook(exported.rows, exported.context);
   return writeExportFile(
     jobId,
     `${base}.xlsx`,
@@ -60,8 +60,8 @@ async function processAssessmentExport(
     ...data.query,
     includeAbsent: data.includeAbsent,
   } as never);
-  const base = assessmentFileBase(exported.assessmentName, exported.roundName);
-  const buffer = await buildAssessmentWorkbook(exported.rows, data.columns as never);
+  const base = assessmentFileBase(exported.assessmentName);
+  const buffer = await buildAssessmentWorkbook(exported.rows, exported.context);
   return writeExportFile(
     jobId,
     `${base}.xlsx`,

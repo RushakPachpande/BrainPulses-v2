@@ -103,10 +103,7 @@ export async function getAssessmentReportDetail(
 
 export async function downloadAssessmentReport(query: string): Promise<void> {
   const { downloadQueuedExport } = await import('@/lib/jobs');
-  await downloadQueuedExport(
-    `/api/assessment-reports/export?${query}`,
-    'BrainPulses-assessment-results.xlsx',
-  );
+  await downloadQueuedExport(`/api/assessment-reports/export?${query}`, 'assessment-report.xlsx');
 }
 
 export async function publishRoundResults(roundId: string) {

@@ -1,10 +1,24 @@
 import {
-  AUTO_SUBMIT_REASON_LABEL,
-  formatDuration,
-  formatMarks,
-  type ReportRow,
-  type ReportSortKey,
-} from './rows.js';
+  allowedTimeLabel,
+  assignSheetNames,
+  attemptStatusLabel,
+  attemptsUsedLabel,
+  autoSubmittedLabel,
+  blankNumber,
+  formatClock,
+  formatIst,
+  passMarkLabel,
+  type AttemptAnswers,
+  type ExportQuestion,
+  type NegativeMarking,
+  type ParticipantProfile,
+  type ReportSheet,
+  type SummaryHeader,
+  type Timing,
+  writeReportWorkbook,
+  yesNo,
+} from '../../lib/report-workbook.js';
+import { AUTO_SUBMIT_REASON_LABEL, type ReportRow, type ReportSortKey } from './rows.js';
 
 export const REPORT_COLUMNS: { key: ReportSortKey; label: string }[] = [
   { key: 'code', label: 'Registration ID' },
@@ -28,17 +42,46 @@ export const REPORT_COLUMNS: { key: ReportSortKey; label: string }[] = [
   { key: 'attemptStatus', label: 'Attempt status' },
 ];
 
-const SCORE_KEYS = new Set<ReportSortKey>([
-  'score',
-  'percent',
-  'result',
-  'correct',
-  'skipped',
-  'negative',
-  'timeTaken',
-  'submitted',
-  'autoSubmitted',
-]);
+export type QuizActivityExport = {
+  timing: Timing;
+  negative: NegativeMarking;
+};
+
+export type QuizExportContext = {
+  profiles: Map<string, ParticipantProfile>;
+  attempts: Map<string, AttemptAnswers>;
+  questions: Map<string, ExportQuestion>;
+  activities: Map<string, QuizActivityExport>;
+};
+
+const SUMMARY_HEADERS: SummaryHeader[] = [
+  { header: 'Registration ID', width: 18 },
+  { header: 'Participant Name', width: 22 },
+  { header: 'Email', width: 28 },
+  { header: 'Phone', width: 16 },
+  { header: 'Course', width: 16 },
+  { header: 'Cohort', width: 14 },
+  { header: 'City', width: 16 },
+  { header: 'Contest', width: 18 },
+  { header: 'Quiz', width: 22 },
+  { header: 'Started at', width: 22 },
+  { header: 'Submitted', width: 22 },
+  { header: 'Time taken', width: 14 },
+  { header: 'Allowed time', width: 16 },
+  { header: 'Auto-submitted', width: 28 },
+  { header: 'Marks scored', width: 14 },
+  { header: 'Total marks', width: 14 },
+  { header: '%', width: 10 },
+  { header: 'Pass mark', width: 12 },
+  { header: 'Result', width: 10 },
+  { header: 'Correct', width: 12 },
+  { header: 'Total questions', width: 16 },
+  { header: 'Skipped', width: 12 },
+  { header: 'Negative marks', width: 16 },
+  { header: 'Attempts used', width: 16 },
+  { header: 'Attempt status', width: 16 },
+  { header: 'Disqualified', width: 14 },
+];
 
 export function parseExportColumns(value: string): ReportSortKey[] {
   const allowed = new Map(REPORT_COLUMNS.map((column) => [column.key, column]));
@@ -51,90 +94,106 @@ export function parseExportColumns(value: string): ReportSortKey[] {
   return keys;
 }
 
-function attemptsLabel(row: ReportRow): string {
-  const allowed = row.attemptsAllowed == null ? 'Unlimited' : String(row.attemptsAllowed);
-  return `${row.attemptsStarted} of ${allowed}`;
+function text(value: string | null | undefined): string {
+  return value ?? '';
 }
 
-function statusLabel(status: ReportRow['attemptStatus']): string {
-  if (status === 'completed') return 'Completed';
-  if (status === 'in_progress') return 'In progress';
-  return 'Not started';
+function summaryCells(row: ReportRow, context: QuizExportContext): (string | number)[] {
+  const profile = context.profiles.get(row.registrationId);
+  const attempt = row.bestAttemptId ? context.attempts.get(row.bestAttemptId) : undefined;
+  const activity = context.activities.get(row.activityId);
+  const scored = row.score != null;
+  return [
+    row.code,
+    row.name,
+    row.email,
+    text(row.phone),
+    text(profile?.course),
+    text(profile?.cohort),
+    text(profile?.city),
+    text(row.contestName),
+    row.quizName,
+    formatIst(attempt?.startedAt),
+    scored ? formatIst(row.submittedAt) : '',
+    scored ? formatClock(row.timeTakenSeconds) : '',
+    allowedTimeLabel(activity?.timing),
+    autoSubmittedLabel(row.autoSubmitted, row.autoSubmitReason, AUTO_SUBMIT_REASON_LABEL),
+    blankNumber(row.score),
+    row.maxScore ?? 0,
+    row.percent == null ? '' : `${row.percent}%`,
+    passMarkLabel('percent', row.passingPercent, null),
+    row.result == null ? '' : row.result === 'pass' ? 'Pass' : 'Fail',
+    blankNumber(row.correct),
+    row.questionCount,
+    blankNumber(row.skipped),
+    blankNumber(row.negative),
+    attemptsUsedLabel(row.attemptsStarted, row.attemptsAllowed),
+    attemptStatusLabel(row.attemptStatus),
+    attempt ? yesNo(attempt.disqualified) : '',
+  ];
 }
 
-function cell(row: ReportRow, key: ReportSortKey): string | number {
-  const blankScore = row.score == null;
-  if (blankScore && SCORE_KEYS.has(key)) return '';
-  switch (key) {
-    case 'code':
-      return row.code;
-    case 'name':
-      return row.name;
-    case 'email':
-      return row.email;
-    case 'phone':
-      return row.phone ?? '';
-    case 'contest':
-      return row.contestName ?? '';
-    case 'quiz':
-      return row.quizName;
-    case 'attemptsUsed':
-      return attemptsLabel(row);
-    case 'score':
-      return row.score == null ? '' : formatMarks(row.score);
-    case 'maxScore':
-      return formatMarks(row.maxScore ?? 0);
-    case 'percent':
-      return row.percent == null ? '' : `${row.percent}%`;
-    case 'result':
-      return row.result == null ? '' : row.result === 'pass' ? 'Pass' : 'Fail';
-    case 'correct':
-      return row.correct ?? '';
-    case 'questionCount':
-      return row.questionCount;
-    case 'skipped':
-      return row.skipped ?? '';
-    case 'negative':
-      return row.negative ?? '';
-    case 'timeTaken':
-      return row.timeTakenSeconds == null ? '' : formatDuration(row.timeTakenSeconds);
-    case 'submitted':
-      return row.submittedAt ?? '';
-    case 'autoSubmitted':
-      if (row.autoSubmitted == null) return '';
-      if (!row.autoSubmitted) return 'No';
-      return row.autoSubmitReason
-        ? `Yes (${AUTO_SUBMIT_REASON_LABEL[row.autoSubmitReason]})`
-        : 'Yes';
-    case 'attemptStatus':
-      return statusLabel(row.attemptStatus);
-    default:
-      return '';
-  }
-}
-
-export function reportFileBase(quizName: string | null): string {
-  if (!quizName) return 'BrainPulses-results';
-  const slug = quizName
+function fileSlug(value: string) {
+  return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 60);
-  return `BrainPulses-results-${slug || 'quiz'}`;
+    .slice(0, 80);
+}
+
+/** `quiz-<name>-report`, or `quiz-report` when the file covers more than one. */
+export function reportFileBase(quizName: string | null): string {
+  const name = fileSlug(quizName ?? '');
+  return name ? `quiz-${name}-report` : 'quiz-report';
+}
+
+function sheetGroups(rows: ReportRow[]) {
+  const groups = new Map<string, { name: string; qualifier: string; rows: ReportRow[] }>();
+  for (const row of rows) {
+    const current = groups.get(row.activityId);
+    if (current) {
+      current.rows.push(row);
+      continue;
+    }
+    groups.set(row.activityId, {
+      name: row.quizName,
+      qualifier: row.contestName ?? '',
+      rows: [row],
+    });
+  }
+  return [...groups.values()].sort((a, b) => {
+    const name = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+    if (name !== 0) return name;
+    return a.qualifier.localeCompare(b.qualifier, undefined, { sensitivity: 'base' });
+  });
 }
 
 export async function buildReportWorkbook(
   rows: ReportRow[],
-  columns: ReportSortKey[],
+  context: QuizExportContext,
 ): Promise<Buffer> {
-  const { createWorkbook } = await import('../../lib/excel-workbook.js');
-  const workbook = await createWorkbook();
-  const sheet = workbook.addWorksheet('Results');
-  const defs = columns.map((key) => REPORT_COLUMNS.find((column) => column.key === key)!);
-  sheet.addRow(defs.map((column) => column.label));
-  for (const row of rows) {
-    sheet.addRow(columns.map((key) => cell(row, key)));
-  }
-  const buffer = await workbook.xlsx.writeBuffer();
-  return Buffer.from(buffer);
+  const groups = sheetGroups(rows);
+  const names = assignSheetNames(
+    groups.map((group) => ({ name: group.name, qualifier: group.qualifier })),
+  );
+  const sheets: ReportSheet[] = groups.map((group, index) => ({
+    sheetName: names[index] ?? group.name,
+    negative: context.activities.get(group.rows[0]?.activityId ?? '')?.negative ?? {
+      enabled: false,
+      penalty: 0,
+    },
+    lines: group.rows.map((row) => {
+      const attempt = row.bestAttemptId ? context.attempts.get(row.bestAttemptId) : undefined;
+      return {
+        summary: summaryCells(row, context),
+        questionIds: attempt?.questionIds ?? [],
+        answers: attempt?.answers ?? new Map(),
+      };
+    }),
+  }));
+  return writeReportWorkbook({
+    summaryHeaders: SUMMARY_HEADERS,
+    sheets,
+    questions: context.questions,
+  });
 }

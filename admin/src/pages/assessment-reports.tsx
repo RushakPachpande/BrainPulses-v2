@@ -712,7 +712,6 @@ export function AssessmentReportsPage() {
         query={`${query}${query ? '&' : ''}columns=${visible.join(',')}`}
         completed={summary?.completed ?? 0}
         registered={summary?.registered ?? 0}
-        columnCount={visible.length}
         onDownloadReport={downloadAssessmentReport}
         absentHint="Adds registered students with no submitted attempt on that round (Not started, and In progress while the assessment is active). Their score columns are left blank."
       />

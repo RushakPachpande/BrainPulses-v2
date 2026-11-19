@@ -609,7 +609,6 @@ export function QuizReportsPage() {
           .join(',')}`}
         completed={summary?.completed ?? 0}
         registered={summary?.registered ?? 0}
-        columnCount={columns.length}
       />
     </div>
   );

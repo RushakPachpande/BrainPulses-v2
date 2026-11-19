@@ -22,7 +22,6 @@ export function QuizReportDownloadDialog({
   query,
   completed,
   registered,
-  columnCount,
   onDownloadReport = downloadQuizReport,
   absentHint = QUIZ_ABSENT_HINT,
 }: {
@@ -31,7 +30,6 @@ export function QuizReportDownloadDialog({
   query: string;
   completed: number;
   registered: number;
-  columnCount: number;
   onDownloadReport?: (query: string) => Promise<void>;
   absentHint?: string;
 }) {
@@ -69,9 +67,10 @@ export function QuizReportDownloadDialog({
         <DialogHeader>
           <DialogTitle>Download report</DialogTitle>
           <DialogDescription>
-            Downloads an Excel file with the {count} participants matching your current filters and
-            search. Each row is the participant&apos;s best attempt. Columns: the {columnCount}{' '}
-            shown in the table (change them with the Columns button).
+            Downloads an Excel file for the {count} participants matching your current filters and
+            search. Each row is the counted attempt. An assessment file has one sheet per round, and
+            a quiz file has one sheet per quiz, with the question text, the answer, the correct
+            answer, and the marks.
           </DialogDescription>
         </DialogHeader>
         <label className="flex items-start gap-3 rounded-lg border border-input p-3">
