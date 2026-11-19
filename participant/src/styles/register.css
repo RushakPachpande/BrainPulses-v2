@@ -261,8 +261,11 @@ body.dk2 .register-screen {
   gap: 14px;
   max-width: 440px;
   margin: 34px 0 0;
-  padding: 0;
+  padding: 16px;
   list-style: none;
+  border: 1px solid var(--panel-line);
+  border-radius: 14px;
+  background: var(--panel);
 }
 
 .register-screen .steps li {
@@ -399,8 +402,7 @@ body.dk2 .register-screen {
   font: inherit;
 }
 
-.register-screen .ctrl input,
-.register-screen .ctrl .select-trigger {
+.register-screen .ctrl input {
   padding: 12px 14px;
   font-size: 15px;
 }
@@ -418,11 +420,21 @@ body.dk2 .register-screen {
 }
 
 .register-screen .ctrl .select-trigger {
-  height: auto;
-  min-height: 48px;
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 48px;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
   box-shadow: none;
+  line-height: 1.2;
   text-align: left;
+  cursor: pointer;
 }
 
 .register-screen .ctrl .select-trigger[data-placeholder] {
@@ -488,8 +500,7 @@ body.dk2 .register-screen {
   gap: 8px;
 }
 
-.register-screen .checks label,
-.register-screen .consent {
+.register-screen .checks label {
   display: flex;
   gap: 12px;
   align-items: flex-start;
@@ -497,25 +508,40 @@ body.dk2 .register-screen {
   font-weight: 500;
 }
 
-.register-screen .consent {
-  padding: 13px 14px;
+/* Beat `.field label { display: block }` so the box and text stay one centered row. */
+.register-screen .field label.consent {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 16px;
   border-radius: 12px;
   background: var(--accent-soft);
   font-size: 14px;
-  line-height: 1.45;
+  font-weight: 600;
+  line-height: 1.4;
   cursor: pointer;
 }
 
+.register-screen .field label.consent span {
+  flex: 1;
+  min-width: 0;
+}
+
 .register-screen .checks input,
-.register-screen .consent input {
-  width: 22px;
-  height: 22px;
+.register-screen .field label.consent input {
+  width: 20px;
+  height: 20px;
   flex: none;
-  margin-top: 1px;
+  margin: 0;
   accent-color: var(--accent);
 }
 
-.register-screen .field.err .consent {
+.register-screen .checks input {
+  margin-top: 1px;
+}
+
+.register-screen .field.err label.consent {
   background: var(--bad-soft);
   box-shadow: inset 0 0 0 1.5px var(--bad);
 }

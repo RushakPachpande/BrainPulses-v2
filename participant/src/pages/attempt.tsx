@@ -842,32 +842,31 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
           <img src="/brand.svg" alt="" />
           <span>BrainPulses</span>
         </div>
-        <div className={`segs ${perq ? 'perq' : ''}`}>
-          {questions.map((question, i) => {
-            const answered = isAnswered(answers[question.questionVersionId]);
-            const isMarked = marked.includes(i);
-            const cls = !allOnPage && i === qIndex ? 'c' : isMarked ? 'r' : answered ? 'a' : '';
-            const locked = perq || forwardOnly || !showQuestionPanel;
-            return (
-              <i
-                key={question.questionVersionId}
-                className={cls}
-                title={`Question ${i + 1}`}
-                role="button"
-                tabIndex={locked ? -1 : 0}
-                onClick={() => {
-                  if (!locked) goToQuestion(i);
-                }}
-                onKeyDown={(event) => {
-                  if ((event.key === 'Enter' || event.key === ' ') && !locked) {
-                    event.preventDefault();
-                    goToQuestion(i);
-                  }
-                }}
-              />
-            );
-          })}
-        </div>
+        {showQuestionPanel && !forwardOnly ? (
+          <div className="segs">
+            {questions.map((question, i) => {
+              const answered = isAnswered(answers[question.questionVersionId]);
+              const isMarked = marked.includes(i);
+              const cls = !allOnPage && i === qIndex ? 'c' : isMarked ? 'r' : answered ? 'a' : '';
+              return (
+                <i
+                  key={question.questionVersionId}
+                  className={cls}
+                  title={`Question ${i + 1}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => goToQuestion(i)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      goToQuestion(i);
+                    }
+                  }}
+                />
+              );
+            })}
+          </div>
+        ) : null}
         <div className={`tmr ${low ? 'low' : ''}`}>
           <i>
             <svg
@@ -900,30 +899,13 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
         </button>
       </div>
       {error ? <p className="portal-note">{error}</p> : null}
-      <div className="qwrap">
-        <section className="qcard">
-          {allOnPage ? (
-            questions.map((question, i) => (
-              <AttemptQuestionBlock
-                key={question.questionVersionId}
-                id={`attempt-q-${i}`}
-                question={question}
-                index={i}
-                total={questions.length}
-                answer={answers[question.questionVersionId]}
-                marked={marked.includes(i)}
-                showMarkForReview={!perq}
-                perQuestionSeconds={perq ? attempt.perQuestionSeconds : null}
-                onAnswer={(value) => setAnswer(question.questionVersionId, value)}
-                onClear={() => clearAnswer(question.questionVersionId)}
-                onToggleMarked={() =>
-                  setMarked((prev) =>
-                    prev.includes(i) ? prev.filter((idx) => idx !== i) : [...prev, i],
-                  )
-                }
-              />
-            ))
-          ) : q ? (
+      {/* Two-column layout for one-at-a-time with passage */}
+      {!allOnPage && q?.passageText ? (
+        <div className="qrow">
+          <aside className="qpassage">
+            <div className="rich-instructions">{q.passageText}</div>
+          </aside>
+          <section className="qcard">
             <AttemptQuestionBlock
               question={q}
               index={qIndex}
@@ -931,6 +913,7 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
               answer={answers[q.questionVersionId]}
               marked={marked.includes(qIndex)}
               showMarkForReview={!perq && !forwardOnly}
+              showPassageInline={false}
               perQuestionSeconds={perq ? attempt.perQuestionSeconds : null}
               onAnswer={(value) => setAnswer(q.questionVersionId, value)}
               onClear={() => clearAnswer(q.questionVersionId)}
@@ -940,55 +923,147 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
                 )
               }
             />
-          ) : null}
-          <div className="qf">
-            <button
-              type="button"
-              className="p"
-              id="prev"
-              disabled={qIndex === 0 || perq || forwardOnly || allOnPage}
-              onClick={() => {
-                if (qIndex > 0 && !perq && !forwardOnly) setQIndex(qIndex - 1);
-              }}
-            >
-              Previous
-            </button>
-            <span className="c" id="attempt-submit-status">
-              {answeredCount} of {questions.length} answered
-              {reviewCount ? ` · ${reviewCount} marked for review` : ''}
-              {questionsCompulsory && onSubmitSurface && !allRequiredAnswered
-                ? ' · Answer every remaining question to submit'
-                : ''}
-              {questionsCompulsory && !onSubmitSurface && !currentAnswered
-                ? ' · Answer to continue'
-                : ''}
-              {saving ? ' · Saving…' : ''}
-            </span>
-            {allOnPage || qIndex >= questions.length - 1 ? (
+            <div className="qf">
               <button
                 type="button"
-                className="nx sub"
-                id="next"
-                disabled={submitDisabled}
-                aria-describedby="attempt-submit-status"
-                onClick={requestSubmit}
+                className="p"
+                id="prev"
+                disabled={qIndex === 0 || perq || forwardOnly}
+                onClick={() => {
+                  if (qIndex > 0 && !perq && !forwardOnly) setQIndex(qIndex - 1);
+                }}
               >
-                Submit
+                Previous
               </button>
-            ) : (
+              <span className="c" id="attempt-submit-status">
+                {answeredCount} of {questions.length} answered
+                {reviewCount ? ` · ${reviewCount} marked for review` : ''}
+                {questionsCompulsory && onSubmitSurface && !allRequiredAnswered
+                  ? ' · Answer every remaining question to submit'
+                  : ''}
+                {questionsCompulsory && !onSubmitSurface && !currentAnswered
+                  ? ' · Answer to continue'
+                  : ''}
+                {saving ? ' · Saving…' : ''}
+              </span>
+              {qIndex >= questions.length - 1 ? (
+                <button
+                  type="button"
+                  className="nx sub"
+                  id="next"
+                  disabled={submitDisabled}
+                  aria-describedby="attempt-submit-status"
+                  onClick={requestSubmit}
+                >
+                  Submit
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="nx"
+                  id="next"
+                  disabled={nextDisabled}
+                  onClick={requestNext}
+                >
+                  Next question
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      ) : (
+        <div className="qwrap">
+          <section className="qcard">
+            {allOnPage ? (
+              questions.map((question, i) => (
+                <AttemptQuestionBlock
+                  key={question.questionVersionId}
+                  id={`attempt-q-${i}`}
+                  question={question}
+                  index={i}
+                  total={questions.length}
+                  answer={answers[question.questionVersionId]}
+                  marked={marked.includes(i)}
+                  showMarkForReview={!perq && !forwardOnly}
+                  perQuestionSeconds={perq ? attempt.perQuestionSeconds : null}
+                  onAnswer={(value) => setAnswer(question.questionVersionId, value)}
+                  onClear={() => clearAnswer(question.questionVersionId)}
+                  onToggleMarked={() =>
+                    setMarked((prev) =>
+                      prev.includes(i) ? prev.filter((idx) => idx !== i) : [...prev, i],
+                    )
+                  }
+                />
+              ))
+            ) : q ? (
+              <AttemptQuestionBlock
+                question={q}
+                index={qIndex}
+                total={questions.length}
+                answer={answers[q.questionVersionId]}
+                marked={marked.includes(qIndex)}
+                showMarkForReview={!perq && !forwardOnly}
+                perQuestionSeconds={perq ? attempt.perQuestionSeconds : null}
+                onAnswer={(value) => setAnswer(q.questionVersionId, value)}
+                onClear={() => clearAnswer(q.questionVersionId)}
+                onToggleMarked={() =>
+                  setMarked((prev) =>
+                    prev.includes(qIndex)
+                      ? prev.filter((idx) => idx !== qIndex)
+                      : [...prev, qIndex],
+                  )
+                }
+              />
+            ) : null}
+            <div className="qf">
               <button
                 type="button"
-                className="nx"
-                id="next"
-                disabled={nextDisabled}
-                onClick={requestNext}
+                className="p"
+                id="prev"
+                disabled={qIndex === 0 || perq || forwardOnly || allOnPage}
+                onClick={() => {
+                  if (qIndex > 0 && !perq && !forwardOnly) setQIndex(qIndex - 1);
+                }}
               >
-                Next question
+                Previous
               </button>
-            )}
-          </div>
-        </section>
-      </div>
+              <span className="c" id="attempt-submit-status">
+                {answeredCount} of {questions.length} answered
+                {reviewCount ? ` · ${reviewCount} marked for review` : ''}
+                {questionsCompulsory && onSubmitSurface && !allRequiredAnswered
+                  ? ' · Answer every remaining question to submit'
+                  : ''}
+                {questionsCompulsory && !onSubmitSurface && !currentAnswered
+                  ? ' · Answer to continue'
+                  : ''}
+                {saving ? ' · Saving…' : ''}
+              </span>
+              {allOnPage || qIndex >= questions.length - 1 ? (
+                <button
+                  type="button"
+                  className="nx sub"
+                  id="next"
+                  disabled={submitDisabled}
+                  aria-describedby="attempt-submit-status"
+                  onClick={requestSubmit}
+                >
+                  Submit
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="nx"
+                  id="next"
+                  disabled={nextDisabled}
+                  onClick={requestNext}
+                >
+                  Next question
+                </button>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
       <div className={`dlg ${dialog ? 'open' : ''}`}>
         {dialog ? (
           <div className="dc" role="dialog" aria-modal="true">

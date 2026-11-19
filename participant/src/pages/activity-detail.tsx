@@ -130,7 +130,6 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
             item={item}
             rounds={rounds}
             backLabel={backLabel}
-            closes={windowValue}
             error={error}
             blocked={blocked}
             ackedRounds={ackedRounds}
@@ -242,7 +241,6 @@ function RoundsView({
   item,
   rounds,
   backLabel,
-  closes,
   error,
   blocked,
   ackedRounds,
@@ -256,7 +254,6 @@ function RoundsView({
   item: ParticipantActivity;
   rounds: ParticipantActivityRound[];
   backLabel: string;
-  closes: string;
   error: string;
   blocked: boolean;
   ackedRounds: ReadonlySet<string>;
@@ -267,18 +264,6 @@ function RoundsView({
   onStart: (roundId: string) => void;
   onResult: (resultId: string | null) => void;
 }) {
-  const playable = rounds.find((r) => r.state === 'in_progress' || r.state === 'available');
-  const active = rounds.find((r) => r.id === selectedRoundId) ?? playable ?? rounds[0] ?? null;
-  const activeIndex = active ? rounds.indexOf(active) : -1;
-  const activeCanStart =
-    (active?.state === 'available' || active?.state === 'in_progress') &&
-    !active.resultPendingPublish;
-  const activeAck = active ? ackedRounds.has(active.id) : false;
-  const activeHtml = active?.instructions?.trim() ?? '';
-  const activeHasInstructions = !isInstructionsEmpty(activeHtml);
-  const totalMinutes = rounds.every((r) => r.durationMinutes != null)
-    ? rounds.reduce((sum, r) => sum + (r.durationMinutes ?? 0), 0)
-    : item.durationMinutes;
   const allPass = rounds.every((r) => r.passRequired !== false);
   const noneGated = rounds.every((r) => r.passRequired === false);
   const flow = allPass
@@ -325,8 +310,10 @@ function RoundsView({
               index={index}
               previous={index > 0 ? rounds[index - 1] : undefined}
               next={rounds[index + 1]}
-              selected={round.id === active?.id}
+              selected={round.id === selectedRoundId}
+              acked={ackedRounds.has(round.id)}
               onSelect={() => onSelect(round.id)}
+              onToggleAck={() => onToggleAck(round.id)}
               onStart={() => start(round)}
               onResult={() => onResult(round.latestResultId)}
             />
@@ -339,67 +326,6 @@ function RoundsView({
             : `Finish ${rounds.length === 2 ? 'both' : `all ${rounds.length}`} rounds to complete the assessment`}
         </p>
       </div>
-      <aside className="rp-side" id="before-start" aria-labelledby="before-start-title">
-        <h2 id="before-start-title">Before you start</h2>
-        <div className="facts">
-          <div>
-            <small>Questions</small>
-            <b>{item.questionCount}</b>
-          </div>
-          <div>
-            <small>Total time</small>
-            <b>{totalMinutes != null ? formatDuration(totalMinutes) : '—'}</b>
-          </div>
-          <div>
-            <small>Rounds</small>
-            <b>{rounds.length}</b>
-          </div>
-          <div>
-            <small>Closes</small>
-            <b>{closes}</b>
-          </div>
-        </div>
-        {active ? (
-          <>
-            <p className="rp-side__round" aria-live="polite">
-              Round {activeIndex + 1} · {active.name}
-            </p>
-            <InstructionsBody
-              html={activeHasInstructions ? sanitizeInstructionsHtml(activeHtml) : ''}
-              hasInstructions={activeHasInstructions}
-              label={`${active.name} instructions`}
-              defaults={ROUND_DEFAULTS}
-            />
-            {activeCanStart ? (
-              <>
-                <button
-                  className={`ack ${activeAck ? 'on' : ''}`}
-                  id={`ack-${active.id}`}
-                  type="button"
-                  role="checkbox"
-                  aria-checked={activeAck}
-                  onClick={() => onToggleAck(active.id)}
-                >
-                  <span className="bx">{activeAck ? <IconCheck size={16} /> : null}</span>
-                  <span>I have read the instructions and I am ready to begin.</span>
-                </button>
-                <p className="hint" style={{ visibility: activeAck ? 'hidden' : 'visible' }}>
-                  Tick the box to enable {active.state === 'in_progress' ? 'Resume' : 'Start'} round{' '}
-                  {activeIndex + 1}.
-                </p>
-              </>
-            ) : (
-              <p className="rp-side__note">
-                {active.resultPendingPublish
-                  ? 'Your result for this round will be published soon.'
-                  : active.state === 'completed'
-                    ? 'You have finished this round.'
-                    : 'You can tick the box here once this round opens.'}
-              </p>
-            )}
-          </>
-        ) : null}
-      </aside>
     </div>
   );
 }
@@ -410,7 +336,9 @@ function RoundCard({
   previous,
   next,
   selected,
+  acked,
   onSelect,
+  onToggleAck,
   onStart,
   onResult,
 }: {
@@ -419,7 +347,9 @@ function RoundCard({
   previous?: ParticipantActivityRound;
   next?: ParticipantActivityRound;
   selected: boolean;
+  acked: boolean;
   onSelect: () => void;
+  onToggleAck: () => void;
   onStart: () => void;
   onResult: () => void;
 }) {
@@ -427,6 +357,11 @@ function RoundCard({
   const completed = round.state === 'completed';
   const pending = Boolean(round.resultPendingPublish);
   const outOfAttempts = round.maxAttempts != null && (round.attemptsUsed ?? 0) >= round.maxAttempts;
+  const canStart =
+    (round.state === 'available' || round.state === 'in_progress') && !round.resultPendingPublish;
+  const showPrep = selected && canStart;
+  const instructionHtml = round.instructions?.trim() ?? '';
+  const hasInstructions = !isInstructionsEmpty(instructionHtml);
   const previousDone = previous
     ? previous.passRequired === false
       ? (previous.attemptsUsed ?? 0) > 0 || previous.state === 'completed'
@@ -477,6 +412,11 @@ function RoundCard({
       <article
         className={`rp-card ${selected ? 'is-selected' : ''}`}
         aria-label={`Round ${index + 1}: ${round.name}`}
+        onClick={(event) => {
+          const target = event.target;
+          if (!(target instanceof Element) || target.closest('button, a')) return;
+          onSelect();
+        }}
       >
         <div className="rp-art">
           {round.imageFileId ? (
@@ -502,7 +442,8 @@ function RoundCard({
                   type="button"
                   className="rp-name__btn"
                   aria-pressed={selected}
-                  aria-controls="before-start"
+                  aria-expanded={showPrep}
+                  aria-controls={showPrep ? `before-start-${round.id}` : undefined}
                   onClick={onSelect}
                 >
                   {round.name}
@@ -530,9 +471,45 @@ function RoundCard({
           </dl>
           <div className="rp-foot">
             <p>{gate}</p>
-            <RoundAction round={round} index={index} onStart={onStart} onResult={onResult} />
+            <RoundAction
+              round={round}
+              index={index}
+              hideStart={showPrep}
+              onStart={onStart}
+              onResult={onResult}
+            />
           </div>
         </div>
+        {showPrep ? (
+          <div className="rp-prep" id={`before-start-${round.id}`}>
+            <h2 className="rp-prep__title" id={`before-start-title-${round.id}`}>
+              Before you start
+            </h2>
+            <InstructionsBody
+              html={hasInstructions ? sanitizeInstructionsHtml(instructionHtml) : ''}
+              hasInstructions={hasInstructions}
+              label={`${round.name} instructions`}
+              defaults={ROUND_DEFAULTS}
+            />
+            <button
+              className={`ack ${acked ? 'on' : ''}`}
+              id={`ack-${round.id}`}
+              type="button"
+              role="checkbox"
+              aria-checked={acked}
+              onClick={onToggleAck}
+            >
+              <span className="bx">{acked ? <IconCheck size={16} /> : null}</span>
+              <span>I have read the instructions and I am ready to begin.</span>
+            </button>
+            <p className="hint" style={{ visibility: acked ? 'hidden' : 'visible' }}>
+              Tick the box to enable {round.state === 'in_progress' ? 'Resume' : 'Begin'}.
+            </p>
+            <button className="rp-cta rp-cta--p" type="button" disabled={!acked} onClick={onStart}>
+              {round.state === 'in_progress' ? 'Resume' : 'Begin'} <IconArrow />
+            </button>
+          </div>
+        ) : null}
       </article>
     </li>
   );
@@ -569,11 +546,13 @@ function InstructionsBody({
 function RoundAction({
   round,
   index,
+  hideStart,
   onStart,
   onResult,
 }: {
   round: ParticipantActivityRound;
   index: number;
+  hideStart: boolean;
   onStart: () => void;
   onResult: () => void;
 }) {
@@ -599,6 +578,7 @@ function RoundAction({
       </button>
     );
   }
+  if (hideStart) return null;
   return (
     <button className="rp-cta rp-cta--p" type="button" onClick={onStart}>
       {round.state === 'in_progress' ? 'Resume' : 'Start'} round {index + 1} <IconArrow />

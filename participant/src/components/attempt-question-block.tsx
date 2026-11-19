@@ -18,6 +18,7 @@ type Props = {
   answer: AttemptAnswerValue | undefined;
   marked: boolean;
   showMarkForReview?: boolean;
+  showPassageInline?: boolean;
   id?: string;
   perQuestionSeconds?: number | null;
   onAnswer: (answer: AttemptAnswerValue) => void;
@@ -32,6 +33,7 @@ export function AttemptQuestionBlock({
   answer,
   marked,
   showMarkForReview = true,
+  showPassageInline = true,
   id,
   perQuestionSeconds,
   onAnswer,
@@ -87,7 +89,9 @@ export function AttemptQuestionBlock({
           </button>
         ) : null}
       </div>
-      {q.passageText ? <div className="rich-instructions">{q.passageText}</div> : null}
+      {showPassageInline && q.passageText ? (
+        <div className="rich-instructions">{q.passageText}</div>
+      ) : null}
       {q.question.trim() ? <h2 className="qt">{q.question}</h2> : null}
       <p className="ql">
         {multi

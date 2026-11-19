@@ -661,6 +661,47 @@ body.dk2 .topnav a.on {
   line-height: 1.1;
   margin: 14px 0 22px;
 }
+.review-list {
+  margin-top: 18px;
+}
+.review-q {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+.review-q > span {
+  display: block;
+  margin-bottom: 6px;
+  font: 700 13px Manrope;
+  color: var(--mute);
+}
+.review-q.is-correct > span {
+  color: #13945a;
+}
+.review-q.is-wrong > span {
+  color: #c43b4e;
+}
+.review-q > b {
+  display: block;
+  margin-bottom: 8px;
+}
+.review-answer {
+  margin: 4px 0 0;
+  font: 700 15px/1.45 Manrope;
+}
+.review-answer--ok {
+  color: #13945a;
+}
+.review-answer--bad {
+  color: #c43b4e;
+}
+body.dk2 .review-q.is-correct > span,
+body.dk2 .review-answer--ok {
+  color: #3fd08e;
+}
+body.dk2 .review-q.is-wrong > span,
+body.dk2 .review-answer--bad {
+  color: #ff8d9a;
+}
 .facts {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -880,6 +921,7 @@ body.dk2 .ins-focus {
 .rp-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  cursor: pointer;
   background: var(--card);
   border-radius: 22px;
   overflow: hidden;
@@ -1096,6 +1138,29 @@ body.dk2 .rp-chip--wait {
 .rp-goal svg {
   color: #c79a3b;
 }
+.rp-prep {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 18px 18px;
+  border-top: 1px solid var(--line);
+}
+.rp-prep__title {
+  margin: 14px 0 0;
+  font-size: 18px;
+}
+.rp-prep .ins-focus,
+.rp-prep .ins {
+  margin: 0;
+}
+.rp-prep .hint {
+  margin-top: 0;
+  text-align: left;
+}
+.rp-prep .rp-cta {
+  align-self: flex-start;
+}
 .rp-side {
   background: var(--card);
   border-radius: 24px;
@@ -1166,17 +1231,6 @@ body.dk2 .rp-side__round {
   }
   .rp-cta {
     flex: none;
-  }
-}
-@media (min-width: 1024px) {
-  .rp {
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
-    gap: 32px;
-  }
-  .rp-side {
-    position: sticky;
-    top: 84px;
-    margin-top: 58px;
   }
 }
 @media (max-width: 639px) {
@@ -1473,6 +1527,40 @@ body.dk2 .rp-side__round {
   width: min(942px, 100%);
   margin: 6px auto 0;
   padding: 0 20px 40px;
+}
+/* Two-column layout for comprehension passages */
+.qrow {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+  width: min(1280px, 100%);
+  margin: 6px auto 0;
+  padding: 0 20px 40px;
+}
+@media (min-width: 1024px) {
+  .qrow {
+    grid-template-columns: minmax(320px, 420px) 1fr;
+  }
+}
+.qpassage {
+  background: var(--tint);
+  border-radius: 20px;
+  padding: 24px;
+  position: sticky;
+  top: 100px;
+  max-height: calc(100vh - 120px);
+  overflow-y: auto;
+  align-self: start;
+}
+.qpassage .rich-instructions {
+  font: 500 16px/1.7 Manrope;
+  color: var(--ink);
+}
+.qpassage .rich-instructions p {
+  margin-bottom: 14px;
+}
+.qpassage .rich-instructions p:last-child {
+  margin-bottom: 0;
 }
 .qcard {
   background: var(--card);
@@ -1879,6 +1967,20 @@ body.dk2 .rp-side__round {
   }
   .qwrap {
     padding: 0 12px 24px;
+  }
+  .qrow {
+    padding: 0 12px 24px;
+    gap: 16px;
+  }
+  .qpassage {
+    position: static;
+    max-height: none;
+    padding: 18px 16px;
+    border-radius: 18px;
+  }
+  .qpassage .rich-instructions {
+    font-size: 15px;
+    line-height: 1.6;
   }
   .qcard {
     padding: 18px 16px 0;
