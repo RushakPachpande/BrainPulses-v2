@@ -170,7 +170,9 @@ After changing SPA env files, run `update-deploy.sh` so the static builds pick t
 
 ## Ops notes
 
-- **Logs:** `pm2 logs brainpulses-api` / `pm2 logs brainpulses-worker`; files under `api/logs/`; nginx `/var/log/nginx/`; Compose json-file rotation is already set.
+- **Logs:** `pm2 logs brainpulses-api` / `pm2 logs brainpulses-worker`; files under `api/logs/`. `setup.sh` installs [`logrotate/brainpulses-api`](logrotate/brainpulses-api) (daily, 20 MB, keep 7, compressed). A machine that was set up before that change needs the snippet copied to `/etc/logrotate.d/brainpulses-api` once. This repo change does not SSH or reload the live VPS.
+- **Pools:** the API opens at most `DATABASE_POOL_MAX` Postgres connections (default 8). The worker PM2 app sets 4. Together that is 12, on top of whatever else is already on the VPS.
+- **Redis memory (planned, not applied here):** on the next maintenance window, add `--maxmemory 256mb --maxmemory-policy noeviction` to the Redis service command and recreate that container. `noeviction` makes Redis return an error instead of deleting sessions or jobs. Do not recreate it just to pick up this documentation.
 - **Queue / PM2 detail:** [`../QUEUE_SYSTEM.md`](../QUEUE_SYSTEM.md), [`../PM2_CONFIGURATION.md`](../PM2_CONFIGURATION.md), [`../LOAD_BALANCING.md`](../LOAD_BALANCING.md).
 - **GitHub Actions:** check and deploy are both manual `workflow_dispatch` — [`../GITHUB_ACTIONS.md`](../GITHUB_ACTIONS.md).
 - **Backups:** schedule `pg_dump` (or volume snapshots) for Postgres; Redis AOF is enabled; back up `api/uploads`.

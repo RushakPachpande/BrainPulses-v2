@@ -29,8 +29,17 @@ Deploy scripts (`setup.sh`, `update-deploy.sh`) call `pm2 startOrReload` on the 
 
 ## Graceful shutdown
 
-- API: closes HTTP server, queue producer, Redis, Prisma.
-- Worker: `kill_timeout` 30s; drains in-flight BullMQ jobs via `worker.close()`.
+- API: closes HTTP server, queue producer, Redis, Prisma. Production drain is 8 seconds, under `kill_timeout` 10s. Development drain is 1 second so nodemon can reload.
+- Worker: `kill_timeout` 30s; drains in-flight BullMQ jobs via `worker.close()`, with a 25 second force exit so a reload still finishes inside that budget. A single failed or stalled job is logged and does not exit the process.
+
+## Resource budget
+
+| Process | `DATABASE_POOL_MAX` | `max_memory_restart` |
+| --- | --- | --- |
+| `brainpulses-api` | 8 | 500M |
+| `brainpulses-worker` | 4 | 500M |
+
+Both stay at one fork. Do not raise either pool without measuring Postgres memory on the shared VPS.
 
 ## Clustering
 

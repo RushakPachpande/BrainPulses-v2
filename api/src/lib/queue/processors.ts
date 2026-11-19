@@ -1,4 +1,4 @@
-import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { env } from '../../config/env.js';
 import { sendSmsOtp } from '../twilio.js';
@@ -143,4 +143,43 @@ export async function writeImportTempFile(
   const tempPath = path.join(dir, `import-${jobKey}${ext}`);
   await writeFile(tempPath, buffer);
   return tempPath;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Delete job files older than a day. A fresh export stays until the next sweep. */
+export async function sweepJobTempFiles(options?: {
+  dir?: string;
+  olderThanMs?: number;
+  now?: number;
+}): Promise<number> {
+  const dir = options?.dir ?? path.resolve(env.UPLOAD_DIR, 'temporary', 'jobs');
+  const olderThanMs = options?.olderThanMs ?? DAY_MS;
+  const now = options?.now ?? Date.now();
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch (err) {
+    const code = err && typeof err === 'object' && 'code' in err ? err.code : undefined;
+    if (code === 'ENOENT') return 0;
+    throw err;
+  }
+
+  let removed = 0;
+  for (const name of names) {
+    const full = path.join(dir, name);
+    try {
+      const info = await stat(full);
+      if (!info.isFile()) continue;
+      if (now - info.mtimeMs < olderThanMs) continue;
+      await unlink(full);
+      removed += 1;
+    } catch (err) {
+      const code = err && typeof err === 'object' && 'code' in err ? err.code : undefined;
+      if (code === 'ENOENT') continue;
+      const message = err instanceof Error ? err.message : String(err);
+      console.warn('[worker] temp sweep', message);
+    }
+  }
+  return removed;
 }

@@ -34,6 +34,7 @@ module.exports = {
       merge_logs: true,
       env_production: {
         NODE_ENV: 'production',
+        DATABASE_POOL_MAX: '8',
       },
     },
     {
@@ -56,6 +57,7 @@ module.exports = {
       merge_logs: true,
       env_production: {
         NODE_ENV: 'production',
+        DATABASE_POOL_MAX: '4',
       },
     },
   ],

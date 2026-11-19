@@ -75,7 +75,7 @@ install_packages() {
   fi
   systemctl enable --now docker
 
-  apt-get install -y nginx certbot python3-certbot-nginx
+  apt-get install -y nginx certbot python3-certbot-nginx logrotate
   npm install -g pm2
 
   node -v
@@ -194,6 +194,11 @@ wait_for_data_plane() {
   die "Timed out waiting for Postgres/Redis health"
 }
 
+install_logrotate() {
+  log "Install logrotate policy for api/logs"
+  cp "$REPO_ROOT/docs/ops/logrotate/brainpulses-api" /etc/logrotate.d/brainpulses-api
+}
+
 build_and_start_api() {
   log "Install, migrate, build API"
   npm ci --prefix api
@@ -298,6 +303,7 @@ main() {
   install_packages
   configure_firewall
   mkdir -p api/logs api/uploads "$ADMIN_WWW" "$PARTICIPANT_WWW"
+  install_logrotate
   bootstrap_env
   wait_for_data_plane
   build_and_start_api

@@ -27,3 +27,7 @@ Local disk under `UPLOAD_DIR` (`api/uploads`) stores initiated and finalized fil
 5. Keep **one logical worker pool** with controlled `QUEUE_CONCURRENCY` so duplicate side effects stay bounded by BullMQ job ids / idempotency keys.
 
 Until then, horizontal scale for heavy work is the **worker queue**, not additional API listeners.
+
+## Process budget on the shared VPS
+
+One API fork and one worker. The API pool default is 8 connections and the worker pool is 4. Exports and imports are queued, so a large workbook does not hold an API connection for the whole job. Redis `--maxmemory 256mb --maxmemory-policy noeviction` is the next planned container change; it is not applied by an app deploy.
