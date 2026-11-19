@@ -58,8 +58,6 @@ export const defaultRoundSettings: RoundSettings = {
 };
 
 /** Question types that withhold results until an admin publishes. */
-export const MANUAL_RESULT_TYPES = new Set(['numeric', 'short_text', 'long_text']);
-
 function parseMaxAttempts(value: unknown): number | null {
   if (value === null) return null;
   if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 100) {
@@ -200,11 +198,4 @@ export function meetsPassRule(settings: RoundSettings, score: number, percent: n
   const needed = settings.passingPercent;
   if (needed == null) return true;
   return percent >= needed;
-}
-
-export function roundNeedsManualPublish(questionTypes: Iterable<string>): boolean {
-  for (const type of questionTypes) {
-    if (MANUAL_RESULT_TYPES.has(type)) return true;
-  }
-  return false;
 }

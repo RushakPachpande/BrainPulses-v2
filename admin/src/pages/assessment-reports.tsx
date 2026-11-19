@@ -406,10 +406,11 @@ export function AssessmentReportsPage() {
   const noRegistrations = Boolean(data && data.options.assessments.length === 0);
   const holdsScores =
     selectedRound?.scoreRelease === 'after_publish' && !selectedRound.resultsPublishedAt;
-  const blocksNext =
+  /** Legacy after_submit rows may still be withheld from the old manual-text hold. */
+  const legacyHeld =
     (selectedRound?.withheldCount ?? 0) > 0 && selectedRound?.scoreRelease === 'after_submit';
   const showPublish = Boolean(
-    selectedRound && (selectedRound.scoreRelease === 'after_publish' || blocksNext),
+    selectedRound && (selectedRound.scoreRelease === 'after_publish' || legacyHeld),
   );
 
   const unpublishedPool =
@@ -555,7 +556,7 @@ export function AssessmentReportsPage() {
           {showPublish && selectedRound ? (
             <Alert
               className={
-                selectedRound.resultsPublishedAt && !blocksNext && !holdsScores
+                selectedRound.resultsPublishedAt && !legacyHeld && !holdsScores
                   ? 'border-success/40 bg-success/10'
                   : 'border-warning/40 bg-warning/10'
               }
@@ -567,7 +568,7 @@ export function AssessmentReportsPage() {
                     ? 'Results not yet visible to students.'
                     : 'Some results are held. Publishing them lets students continue to the next round.'}
               </AlertTitle>
-              {(!selectedRound.resultsPublishedAt || blocksNext || holdsScores) && canPublish ? (
+              {(!selectedRound.resultsPublishedAt || legacyHeld || holdsScores) && canPublish ? (
                 <AlertDescription>
                   <Button
                     type="button"

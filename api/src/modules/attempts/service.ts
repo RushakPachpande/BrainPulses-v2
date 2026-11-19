@@ -15,7 +15,7 @@ import {
   parseRoundRow,
   roundGateSatisfied,
   roundIsCleared,
-  roundNeedsManualPublish,
+  roundNeedsPublish,
 } from '../../lib/round-unlock.js';
 import { meetsPassRule } from '../../lib/round-settings.js';
 import { assertActivityPageEnabled } from '../../lib/participant-pages.js';
@@ -651,11 +651,12 @@ export async function startAttempt(
       include: { result: true },
     });
 
-    // Objective rounds auto-publish on submit; withheld results never unlock the next round.
-    const requirePublished = true;
+    // After-publish rounds stay locked until results are released; after-submit scores are final on submit.
     for (const prev of activity.rounds.filter((r) => r.sortOrder < round.sortOrder)) {
       const prevSettings = parseRoundRow(prev);
-      if (!roundGateSatisfied(allAttempts, prev.id, prevSettings, requirePublished)) {
+      if (
+        !roundGateSatisfied(allAttempts, prev.id, prevSettings, roundNeedsPublish(prevSettings))
+      ) {
         throw forbidden(
           prevSettings.passRequired
             ? `Pass "${prev.name}" before starting this round.`
@@ -664,10 +665,10 @@ export async function startAttempt(
       }
     }
 
-    if (roundIsCleared(allAttempts, round.id, roundSettings, requirePublished)) {
+    if (roundIsCleared(allAttempts, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
       throw conflict('This round has already been passed.');
     }
-    if (!canRetryRound(allAttempts, round.id, roundSettings, requirePublished)) {
+    if (!canRetryRound(allAttempts, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
       throw conflict('No attempts remaining for this round.');
     }
 
@@ -681,7 +682,7 @@ export async function startAttempt(
         where: { organizationId, activityId, participantId },
         include: { result: true },
       });
-      if (!canRetryRound(afterClose, round.id, roundSettings, requirePublished)) {
+      if (!canRetryRound(afterClose, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
         throw conflict('No attempts remaining for this round.');
       }
     }
@@ -1354,11 +1355,9 @@ async function submitAttemptInternal(
 
   let score = 0;
   let maxScore = 0;
-  const questionTypes: string[] = [];
   for (const response of attempt.responses) {
     const version = byId.get(response.questionVersionId);
     if (!version) continue;
-    questionTypes.push(version.type);
     const pts = toNumber(version.points);
     const earned = scoreObjective(version.type, version.answerKey, response.answer, pts);
     if (earned === null) continue;
@@ -1387,10 +1386,11 @@ async function submitAttemptInternal(
     attempt.activity.kind === 'quiz' && attempt.activity.resultsPublishedAt != null;
   const roundPublished =
     attempt.activity.kind === 'assessment' && attempt.round?.resultsPublishedAt != null;
+  // Text/numeric items are auto-scored against the reference answer; only after_publish holds.
   const holdUntilPublish =
     attempt.activity.kind === 'assessment' &&
     !roundPublished &&
-    (roundSettings?.scoreRelease === 'after_publish' || roundNeedsManualPublish(questionTypes));
+    Boolean(roundSettings && roundNeedsPublish(roundSettings));
   const releaseStatus =
     quizPublished || roundPublished || (attempt.activity.kind === 'assessment' && !holdUntilPublish)
       ? ('published' as const)

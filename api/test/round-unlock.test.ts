@@ -10,15 +10,19 @@ import {
   resultClearsRound,
   roundGateSatisfied,
   roundIsCleared,
-  roundNeedsManualPublish,
+  roundNeedsPublish,
 } from '../src/lib/round-unlock.js';
 
 describe('round unlock helpers', () => {
-  it('detects numerical and text types as needing publish', () => {
-    assert.equal(roundNeedsManualPublish(['single_mcq']), false);
-    assert.equal(roundNeedsManualPublish(['numeric']), true);
-    assert.equal(roundNeedsManualPublish(['short_text', 'single_mcq']), true);
-    assert.equal(roundNeedsManualPublish(['long_text']), true);
+  it('holds scores until publish only for after_publish rounds', () => {
+    assert.equal(
+      roundNeedsPublish({ ...defaultRoundSettings, scoreRelease: 'after_submit' }),
+      false,
+    );
+    assert.equal(
+      roundNeedsPublish({ ...defaultRoundSettings, scoreRelease: 'after_publish' }),
+      true,
+    );
   });
 
   it('evaluates percent and score pass rules', () => {

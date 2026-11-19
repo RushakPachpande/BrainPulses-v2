@@ -11,6 +11,7 @@ import {
   resultClearsRound,
   roundGateSatisfied,
   roundIsCleared,
+  roundNeedsPublish,
 } from '../../lib/round-unlock.js';
 import { closeSupersededOpenAttempts } from '../attempts/service.js';
 import { correctAnswerLabels, scoreObjective, toNumber } from '../attempts/scoring.js';
@@ -210,19 +211,18 @@ export async function listMyActivities(
             const latestDone = submitted[0] ?? null;
             const latestResult = latestDone?.result ?? null;
             const roundSettings = parseRoundRow(round);
-            // Objective rounds auto-publish on submit; manual rounds stay withheld until
-            // an admin publishes. Unlock always requires a published passing result.
-            const requirePublished = true;
-            const cleared = roundIsCleared(attempts, round.id, roundSettings, requirePublished);
+            const needsPublish = roundNeedsPublish(roundSettings);
+            const cleared = roundIsCleared(attempts, round.id, roundSettings, needsPublish);
 
             let previousCleared = true;
             if (index > 0) {
               const prev = activity.rounds[index - 1]!;
+              const prevSettings = parseRoundRow(prev);
               previousCleared = roundGateSatisfied(
                 attempts,
                 prev.id,
-                parseRoundRow(prev),
-                requirePublished,
+                prevSettings,
+                roundNeedsPublish(prevSettings),
               );
             }
 
@@ -233,7 +233,7 @@ export async function listMyActivities(
               state = 'in_progress';
             } else if (!canAttempt || !previousCleared) {
               state = 'locked';
-            } else if (canRetryRound(attempts, round.id, roundSettings, requirePublished)) {
+            } else if (canRetryRound(attempts, round.id, roundSettings, needsPublish)) {
               state = 'available';
             } else {
               state = 'locked';
@@ -243,6 +243,7 @@ export async function listMyActivities(
               round.localBank?.questions ?? [],
               roundSettings.questionLimit,
             );
+            const published = latestResult?.releaseStatus === 'published';
             return {
               id: round.id,
               name: round.name,
@@ -259,7 +260,7 @@ export async function listMyActivities(
               passRequired: roundSettings.passRequired,
               passed: latestResult ? resultClearsRound(latestResult, roundSettings, false) : null,
               resultPendingPublish: Boolean(
-                latestResult && latestResult.releaseStatus !== 'published',
+                latestResult && !isQuizScoreVisible(roundSettings, Boolean(published)),
               ),
             };
           })
@@ -346,7 +347,21 @@ export async function listMyResults(
             submittedAt: true,
             status: true,
             roundId: true,
-            round: { select: { id: true, name: true, sortOrder: true } },
+            round: {
+              select: {
+                id: true,
+                name: true,
+                sortOrder: true,
+                settings: true,
+                durationMinutes: true,
+                durationMode: true,
+                perQuestionSeconds: true,
+                presentation: true,
+                passMode: true,
+                passingPercent: true,
+                passingScore: true,
+              },
+            },
           },
         },
       },
@@ -360,7 +375,9 @@ export async function listMyResults(
       const published = r.releaseStatus === 'published';
       const quizSettings =
         r.activity.kind === 'quiz' ? parseQuizSettings(r.activity.settings) : null;
-      const scoreOk = isQuizScoreVisible(quizSettings, published);
+      const roundSettings =
+        r.activity.kind === 'assessment' && r.attempt.round ? parseRoundRow(r.attempt.round) : null;
+      const scoreOk = isQuizScoreVisible(quizSettings ?? roundSettings, published);
       return {
         id: r.id,
         activityId: r.activity.id,
@@ -406,6 +423,23 @@ export async function getMyResult(organizationId: string, participantId: string,
   });
   if (!result) throw notFound('Result not found.');
 
+  const roundRow =
+    result.activity.kind === 'assessment' && result.attempt.roundId
+      ? await prisma.activityRound.findFirst({
+          where: { organizationId, id: result.attempt.roundId },
+          select: {
+            settings: true,
+            durationMinutes: true,
+            durationMode: true,
+            perQuestionSeconds: true,
+            presentation: true,
+            passMode: true,
+            passingPercent: true,
+            passingScore: true,
+          },
+        })
+      : null;
+
   const versionIds = result.attempt.responses.map((r) => r.questionVersionId);
   const versions = await prisma.questionVersion.findMany({
     where: { organizationId, id: { in: versionIds } },
@@ -428,9 +462,13 @@ export async function getMyResult(organizationId: string, participantId: string,
 
   const quizSettings =
     result.activity.kind === 'quiz' ? parseQuizSettings(result.activity.settings) : null;
+  const roundSettings = roundRow ? parseRoundRow(roundRow) : null;
+  const releaseSettings = quizSettings ?? roundSettings;
   const published = result.releaseStatus === 'published';
-  const scoreOk = isQuizScoreVisible(quizSettings, published);
-  const includeKeys = published && (quizSettings?.answersVisibleToParticipant ?? published);
+  const scoreOk = isQuizScoreVisible(releaseSettings, published);
+  const includeKeys = Boolean(
+    scoreOk && (releaseSettings?.answersVisibleToParticipant ?? published),
+  );
 
   const review = result.attempt.responses.map((response) => {
     const version = byId.get(response.questionVersionId);
@@ -506,22 +544,6 @@ export async function getMyResult(organizationId: string, participantId: string,
           }),
         ])
       : null;
-  const roundRow =
-    result.activity.kind === 'assessment' && result.attempt.roundId
-      ? await prisma.activityRound.findFirst({
-          where: { organizationId, id: result.attempt.roundId },
-          select: {
-            settings: true,
-            durationMinutes: true,
-            durationMode: true,
-            perQuestionSeconds: true,
-            presentation: true,
-            passMode: true,
-            passingPercent: true,
-            passingScore: true,
-          },
-        })
-      : null;
   const roundAttemptsUsed = roundRow
     ? await prisma.attempt.count({
         where: {
@@ -546,11 +568,11 @@ export async function getMyResult(organizationId: string, participantId: string,
           maxAttempts: quizSettings?.maxAttempts ?? 1,
           extraAttempts: attemptAllowance[1],
         }
-      : roundRow
+      : roundSettings
         ? {
             roundId: result.attempt.roundId,
             attemptsUsed: roundAttemptsUsed ?? 0,
-            maxAttempts: parseRoundRow(roundRow).maxAttempts,
+            maxAttempts: roundSettings.maxAttempts,
           }
         : {}),
     score: scoreOk ? toNumber(result.score) : null,

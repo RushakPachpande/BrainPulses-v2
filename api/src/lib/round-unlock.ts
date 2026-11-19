@@ -1,10 +1,6 @@
 import type { Prisma } from '#prisma';
-import {
-  meetsPassRule,
-  parseRoundSettings,
-  roundNeedsManualPublish,
-  type RoundSettings,
-} from './round-settings.js';
+import { holdsScoreUntilPublish } from './quiz-settings.js';
+import { meetsPassRule, parseRoundSettings, type RoundSettings } from './round-settings.js';
 
 function toNumber(d: Prisma.Decimal | number): number {
   return typeof d === 'number' ? d : Number(d);
@@ -110,4 +106,9 @@ export function parseRoundRow(round: {
   return parseRoundSettings(round);
 }
 
-export { roundNeedsManualPublish, meetsPassRule };
+/** Gate unlock on publish only when the round is configured to hold scores. */
+export function roundNeedsPublish(settings: RoundSettings): boolean {
+  return holdsScoreUntilPublish(settings);
+}
+
+export { meetsPassRule };

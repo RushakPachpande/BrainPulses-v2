@@ -75,7 +75,8 @@ function scoreLabelSet(
 
 /**
  * Returns earned points, or `null` when the item should be excluded from maxScore
- * (unscored text with no reference answer).
+ * (text with no reference answer — nothing is held for manual review).
+ * Short/long text and numeric compare against the reference / correct value.
  */
 export function scoreObjective(
   type: string,

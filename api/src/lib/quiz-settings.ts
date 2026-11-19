@@ -105,7 +105,11 @@ export function parseQuizSettings(settings: Prisma.JsonValue | null | undefined)
   };
 }
 
-/** Assessments pass null and still require a published result. */
+/**
+ * Whether the score is shown to the participant.
+ * `after_submit` shows immediately (text/numeric are auto-scored against the reference answer).
+ * `after_publish` waits until the result is published.
+ */
 export function isQuizScoreVisible(
   settings: { scoreRelease: ScoreRelease } | null,
   published: boolean,
@@ -113,6 +117,11 @@ export function isQuizScoreVisible(
   if (!settings) return published;
   if (settings.scoreRelease === 'after_submit') return true;
   return published;
+}
+
+/** True when unlock / visibility must wait for an admin publish. */
+export function holdsScoreUntilPublish(settings: { scoreRelease: ScoreRelease }): boolean {
+  return settings.scoreRelease === 'after_publish';
 }
 
 export function shuffleInPlace<T>(items: T[]): T[] {
