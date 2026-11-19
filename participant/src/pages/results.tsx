@@ -18,11 +18,8 @@ import type { ParticipantResultDetail } from '../services/types';
 
 const RESULT_FILTERS = ['Quiz', 'Assessment'] as const;
 
-function shownAnswer(question: ParticipantResultDetail['review'][number]) {
-  const raw = answerLabel(question.yourAnswer);
-  if (!raw) return 'Not answered';
-  return raw
-    .split(',')
+function optionText(question: ParticipantResultDetail['review'][number], labels: string[]) {
+  return labels
     .map((part) => part.trim())
     .filter(Boolean)
     .map((part) => {
@@ -31,6 +28,20 @@ function shownAnswer(question: ParticipantResultDetail['review'][number]) {
       return `${option.label}. ${option.body}`;
     })
     .join(', ');
+}
+
+function shownAnswer(question: ParticipantResultDetail['review'][number]) {
+  const raw = answerLabel(question.yourAnswer);
+  if (!raw) return 'Not answered';
+  return optionText(question, raw.split(',')) || 'Not answered';
+}
+
+function correctAnswerText(question: ParticipantResultDetail['review'][number]) {
+  const labels =
+    question.correctLabels.length > 0
+      ? question.correctLabels
+      : question.options.filter((option) => option.isCorrect).map((option) => option.label);
+  return optionText(question, labels);
 }
 
 export function ResultsPage() {
@@ -277,6 +288,19 @@ export function ResultDetailPage() {
   const banner = fileId ? `/api/files/${fileId}` : null;
   const retry = useMemo(() => {
     if (!attempt) return null;
+    const round =
+      attempt.kind === 'assessment'
+        ? match?.rounds?.find((row) => row.id === attempt.roundId)
+        : undefined;
+    if (attempt.kind === 'assessment') {
+      const used = round?.attemptsUsed ?? attempt.attemptsUsed ?? 0;
+      const max = round?.maxAttempts ?? attempt.maxAttempts ?? null;
+      const left = max == null ? null : Math.max(0, max - used);
+      const canRetry = round
+        ? round.state === 'available' && (max == null || used < max)
+        : max == null || used < max;
+      return { used, max, left, canRetry };
+    }
     if (!match) {
       const used = Math.max(1, attempt.attemptsUsed ?? 1);
       const max = attempt.maxAttempts ?? null;
@@ -415,19 +439,46 @@ export function ResultDetailPage() {
       {attempt.answersVisible !== false && attempt.review.length > 0 ? (
         <section className="dcard review-list">
           <h2>Answer review</h2>
-          {attempt.review.map((question, index) => (
-            <div className="review-q" key={question.questionVersionId}>
-              <span>
-                Question {index + 1}
-                {question.correct === true ? ' · Correct' : ' · Review'}
-              </span>
-              <b>{question.question}</b>
-              {question.questionImageUrl ? (
-                <StoredImage src={question.questionImageUrl} alt="" />
-              ) : null}
-              <p>{shownAnswer(question)}</p>
-            </div>
-          ))}
+          {attempt.review.map((question, index) => {
+            const yours = shownAnswer(question);
+            const correctText = correctAnswerText(question);
+            const status =
+              question.correct === true
+                ? 'Correct'
+                : question.correct === false
+                  ? yours === 'Not answered'
+                    ? 'Not answered'
+                    : 'Incorrect'
+                  : 'Review';
+            return (
+              <div
+                className={`review-q${question.correct === true ? ' is-correct' : ''}${question.correct === false ? ' is-wrong' : ''}`}
+                key={question.questionVersionId}
+              >
+                <span>
+                  Question {index + 1} · {status}
+                </span>
+                <b>{question.question}</b>
+                {question.questionImageUrl ? (
+                  <StoredImage src={question.questionImageUrl} alt="" />
+                ) : null}
+                {question.correct === true ? (
+                  <p className="review-answer review-answer--ok">{yours}</p>
+                ) : question.correct === false ? (
+                  <>
+                    <p className="review-answer review-answer--bad">Your answer: {yours}</p>
+                    {correctText ? (
+                      <p className="review-answer review-answer--ok">
+                        Correct answer: {correctText}
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <p>{yours}</p>
+                )}
+              </div>
+            );
+          })}
         </section>
       ) : null}
     </>

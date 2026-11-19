@@ -319,6 +319,7 @@ export type ActivityRoundWrite = {
   id?: string;
   name: string;
   sortOrder: number;
+  instructions?: string | null;
   durationMinutes?: number | null;
   durationMode?: 'overall' | 'per_question';
   perQuestionSeconds?: number | null;
@@ -489,6 +490,7 @@ export async function getActivity(id: string, signal?: AbortSignal): Promise<Act
             negativeMarkPoints: 0,
             maxAttempts: 1,
             questionLimit: null,
+            passRequired: true,
           },
           imageFileId: null,
           bankIds: [],
@@ -1078,9 +1080,31 @@ export async function setBankQuestionsActive(
 
 export type BankImportIssue = { row: number; message: string };
 
+export type QuestionImportUpdate = {
+  questionId: string;
+  bankId: string;
+  sheetRow: number;
+  question: string;
+  roundName?: string;
+  changes: { field: string; before: string; after: string }[];
+  payload: {
+    type: string;
+    question: string;
+    points: number;
+    options?: {
+      label: string;
+      body: string;
+      isCorrect: boolean;
+      imageUrl?: string | null;
+    }[];
+    answerKey?: Record<string, unknown>;
+  };
+};
+
 export type BankImportResult = {
   created: number;
   issues: BankImportIssue[];
+  updates?: QuestionImportUpdate[];
 };
 
 export async function importBankQuestions(bankId: string, file: File): Promise<BankImportResult> {
@@ -1102,6 +1126,14 @@ export async function importBankQuestions(bankId: string, file: File): Promise<B
   return result;
 }
 
+export async function applyQuestionImportUpdates(updates: QuestionImportUpdate[]): Promise<number> {
+  for (const update of updates) {
+    await updateBankQuestion(update.bankId, update.questionId, update.payload);
+  }
+  invalidateAdmin(['banks', 'activities']);
+  return updates.length;
+}
+
 export async function downloadBankQuestionsSample(bankId: string): Promise<void> {
   if (useFixtures) throw new Error('Sample download is unavailable in fixture mode.');
   await apiDownloadBlob(
@@ -1116,6 +1148,7 @@ export type AssessmentImportPreview = {
   fields: { key: string; label: string }[];
   issues: BankImportIssue[];
   validCount: number;
+  updateCount?: number;
   totalRows: number;
 };
 
@@ -1123,6 +1156,7 @@ export type AssessmentImportResult = {
   imported: number;
   skipped: number;
   issues: BankImportIssue[];
+  updates?: QuestionImportUpdate[];
 };
 
 export async function downloadAssessmentQuestionsSample(activityId: string): Promise<void> {

@@ -8,6 +8,7 @@ import {
   ArrowUpIcon,
   Building2Icon,
   CalendarRangeIcon,
+  ChevronDownIcon,
   Clock3Icon,
   LayoutListIcon,
   LibraryIcon,
@@ -99,12 +100,14 @@ const defaultRoundBehaviour = (): RoundBehaviourSettings => ({
   negativeMarkPoints: 0.25,
   maxAttempts: 1,
   questionLimit: null,
+  passRequired: true,
 });
 
 type RoundDraft = {
   key: string;
   id?: string;
   name: string;
+  instructions: string;
   imageFileId: string;
   imageFileName: string | null;
   localBankId: string | null;
@@ -124,6 +127,7 @@ type RoundDraft = {
 const emptyRound = (index: number): RoundDraft => ({
   key: `round_${Math.random().toString(36).slice(2, 9)}`,
   name: `Round ${index + 1}`,
+  instructions: '',
   imageFileId: '',
   imageFileName: null,
   localBankId: null,
@@ -143,6 +147,7 @@ const emptyRound = (index: number): RoundDraft => ({
 function roundDraftFromActivity(r: {
   id: string;
   name: string;
+  instructions?: string | null;
   imageFileId?: string | null;
   localBankId?: string | null;
   localQuestionCount?: number;
@@ -162,6 +167,7 @@ function roundDraftFromActivity(r: {
     key: r.id,
     id: r.id,
     name: r.name,
+    instructions: r.instructions ?? '',
     imageFileId: r.imageFileId ?? '',
     imageFileName: null,
     localBankId: r.localBankId ?? null,
@@ -196,6 +202,20 @@ const PRESENTATION_LABELS: Record<'one_at_a_time' | 'all_on_page', string> = {
   one_at_a_time: 'One question at a time',
   all_on_page: 'All on one page',
 };
+
+function roundSummary(round: RoundDraft): string {
+  const questions = `${round.questionCount} question${round.questionCount === 1 ? '' : 's'}`;
+  const duration =
+    round.durationMode === 'per_question'
+      ? `${round.perQuestionSeconds || '—'} sec each`
+      : `${round.durationMinutes || '—'} min`;
+  const pass = round.settings.passRequired
+    ? round.passMode === 'score'
+      ? `Pass ${round.passingScore || '—'} pts`
+      : `Pass ${round.passingPercent || '—'}%`
+    : 'Attempt to continue';
+  return `${questions} · ${duration} · ${pass}`;
+}
 
 function statusLabel(statusKey: string) {
   if (!statusKey) return 'Draft';
@@ -305,7 +325,10 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   );
 
   const [bankIds, setBankIds] = useState<string[]>([]);
-  const [rounds, setRounds] = useState<RoundDraft[]>(() => [emptyRound(0)]);
+  const initialRoundsRef = useRef<RoundDraft[] | null>(null);
+  if (initialRoundsRef.current === null) initialRoundsRef.current = [emptyRound(0)];
+  const [rounds, setRounds] = useState(initialRoundsRef.current);
+  const [openRoundKeys, setOpenRoundKeys] = useState<ReadonlySet<string>>(() => new Set());
   const roundImageFiles = useRef(new Map<string, File>());
   /** Keep legacy registration/assignment settings on save without editing them here. */
   const preservedSettingsRef = useRef<Pick<
@@ -347,6 +370,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         rounds: rounds.map((r) => ({
           id: r.id,
           name: r.name,
+          instructions: r.instructions,
           bankIds: r.bankIds,
           localQuestions: r.localQuestions,
           durationMode: r.durationMode,
@@ -448,15 +472,22 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
         }
       }
       if (cancelled) return;
+      const sameActivity = appliedActivity.current?.id === activity.id;
       if (activity.rounds && activity.rounds.length > 0) {
-        setRounds(activity.rounds.map((r) => roundDraftFromActivity(r)));
+        const loaded = activity.rounds.map((r) => roundDraftFromActivity(r));
+        setRounds(loaded);
+        setOpenRoundKeys((current) =>
+          sameActivity
+            ? new Set(loaded.filter((r) => current.has(r.key)).map((r) => r.key))
+            : new Set(),
+        );
       } else if (activity.kind === 'assessment') {
-        setRounds([
-          {
-            ...emptyRound(0),
-            bankIds: activity.bankIds,
-          },
-        ]);
+        const draft = {
+          ...emptyRound(0),
+          bankIds: activity.bankIds,
+        };
+        setRounds([draft]);
+        setOpenRoundKeys(new Set());
       }
       setDurationMinutes(
         activity.kind === 'quiz' && activity.durationMode === 'per_question'
@@ -534,7 +565,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     const activity = await loadActivity(id);
     if (activity.rounds && activity.rounds.length > 0) {
       const next = activity.rounds.map((r) => roundDraftFromActivity(r));
+      const openIndexes = rounds.flatMap((r, i) => (openRoundKeys.has(r.key) ? [i] : []));
       setRounds(next);
+      setOpenRoundKeys(new Set(openIndexes.flatMap((i) => (next[i] ? [next[i].key] : []))));
       return next;
     }
     return [];
@@ -554,6 +587,8 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     }
     if (!isQuiz && rounds.some((r) => !r.name.trim())) {
       toast.error('Each round needs a name.');
+      const missing = rounds.find((r) => !r.name.trim());
+      if (missing) setOpenRoundKeys((current) => new Set(current).add(missing.key));
       setStep(2);
       return null;
     }
@@ -620,6 +655,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     ...(r.id ? { id: r.id } : {}),
                     name: r.name.trim(),
                     sortOrder: i,
+                    instructions: isInstructionsEmpty(r.instructions)
+                      ? null
+                      : sanitizeInstructionsHtml(r.instructions),
                     imageFileId,
                     bankIds: [],
                     durationMode: r.durationMode,
@@ -826,25 +864,25 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                 />
                 <FieldDescription>Participants see this on the start screen.</FieldDescription>
               </Field>
+              <CatalogImageField
+                id={isQuiz ? 'quiz-image' : 'assessment-image'}
+                label={isQuiz ? 'Quiz image' : 'Assessment image'}
+                fileId={imageFileId}
+                alt={name.trim() || (isQuiz ? 'Quiz cover' : 'Assessment cover')}
+                disabled={readOnly}
+                required={false}
+                onFile={setImageFile}
+                onPickExisting={(id) => {
+                  setImageFileId(id);
+                  setImageFile(null);
+                }}
+                onClear={() => {
+                  setImageFileId('');
+                  setImageFile(null);
+                }}
+              />
               {isQuiz ? (
                 <>
-                  <CatalogImageField
-                    id="quiz-image"
-                    label="Quiz image"
-                    fileId={imageFileId}
-                    alt={name.trim() || 'Quiz cover'}
-                    disabled={readOnly}
-                    required={false}
-                    onFile={setImageFile}
-                    onPickExisting={(id) => {
-                      setImageFileId(id);
-                      setImageFile(null);
-                    }}
-                    onClear={() => {
-                      setImageFileId('');
-                      setImageFile(null);
-                    }}
-                  />
                   <Field>
                     <FieldLabel htmlFor="activity-instructions">Instructions</FieldLabel>
                     <RichTextEditor
@@ -875,32 +913,14 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     </FieldDescription>
                   </Field>
                 </>
-              ) : (
-                <CatalogImageField
-                  id="assessment-image"
-                  label="Assessment image"
-                  fileId={imageFileId}
-                  alt={name.trim() || 'Assessment cover'}
-                  disabled={readOnly}
-                  required={false}
-                  onFile={setImageFile}
-                  onPickExisting={(id) => {
-                    setImageFileId(id);
-                    setImageFile(null);
-                  }}
-                  onClear={() => {
-                    setImageFileId('');
-                    setImageFile(null);
-                  }}
-                />
-              )}
+              ) : null}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <Field>
                   <FieldLabel htmlFor="activity-sponsor">
                     Sponsor <span className="text-destructive">*</span>
                   </FieldLabel>
                   <Select
-                    value={sponsorId || undefined}
+                    value={sponsorId}
                     disabled={readOnly}
                     onValueChange={(value) => {
                       setSponsorId(value);
@@ -930,7 +950,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                     Contest <span className="text-destructive">*</span>
                   </FieldLabel>
                   <Select
-                    value={contestId || undefined}
+                    value={contestId}
                     disabled={readOnly || !sponsorId}
                     onValueChange={setContestId}
                   >
@@ -1000,670 +1020,526 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
           {stepName === 'Define Rounds' ? (
             <div className="flex flex-col gap-4">
               <p className="text-sm text-muted-foreground">
-                Add rounds in the order participants take them. Each round keeps its own questions
-                and behaviour.
+                Add rounds in the order participants take them. Open a round to edit it.
               </p>
-              {rounds.map((round, index) => (
-                <Card key={round.key} className="border-border shadow-none">
-                  <CardHeader className="gap-3 @max-[24rem]/has-data-[slot=card-action]:grid-cols-1">
-                    <div className="min-w-0 w-full space-y-2">
-                      <FieldLabel htmlFor={`round-name-${round.key}`}>
-                        Round {index + 1} name
-                      </FieldLabel>
-                      <Input
-                        id={`round-name-${round.key}`}
-                        className="w-full min-w-0"
-                        value={round.name}
-                        disabled={readOnly}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setRounds((prev) =>
-                            prev.map((r) => (r.key === round.key ? { ...r, name: value } : r)),
-                          );
-                        }}
-                      />
-                    </div>
-                    {!readOnly ? (
-                      <CardAction className="flex flex-wrap gap-2 self-end @max-sm:col-start-1 @max-sm:row-start-auto @max-sm:justify-self-start">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={index === 0}
-                          aria-label="Move round up"
-                          onClick={() => {
-                            setRounds((prev) => {
-                              if (index === 0) return prev;
-                              const next = [...prev];
-                              const tmp = next[index - 1]!;
-                              next[index - 1] = next[index]!;
-                              next[index] = tmp;
-                              return next;
-                            });
-                          }}
-                        >
-                          <ArrowUpIcon />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={index === rounds.length - 1}
-                          aria-label="Move round down"
-                          onClick={() => {
-                            setRounds((prev) => {
-                              if (index >= prev.length - 1) return prev;
-                              const next = [...prev];
-                              const tmp = next[index + 1]!;
-                              next[index + 1] = next[index]!;
-                              next[index] = tmp;
-                              return next;
-                            });
-                          }}
-                        >
-                          <ArrowDownIcon />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          disabled={rounds.length <= 1}
-                          aria-label="Remove round"
-                          onClick={() => {
-                            if (rounds.length <= 1) {
-                              toast.error('Every assessment needs at least one round.');
-                              return;
-                            }
-                            void (async () => {
-                              const ok = await confirm({
-                                title: 'Remove this round?',
-                                description: round.id
-                                  ? 'Rounds that already have participant attempts cannot be removed.'
-                                  : 'Questions linked only to this round draft will be discarded on save.',
-                                confirmLabel: 'Remove round',
-                                destructive: true,
+              {rounds.map((round, index) => {
+                const open = openRoundKeys.has(round.key);
+                const panelId = `round-panel-${round.key}`;
+                return (
+                  <Card
+                    key={round.key}
+                    id={`round-card-${round.key}`}
+                    className="border-border shadow-none"
+                  >
+                    <CardHeader className="items-center gap-3 @max-[24rem]/has-data-[slot=card-action]:grid-cols-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full min-w-0 justify-start gap-3 px-2 text-left whitespace-nowrap"
+                        aria-expanded={open}
+                        aria-controls={open ? panelId : undefined}
+                        onClick={() =>
+                          setOpenRoundKeys((current) => {
+                            const next = new Set(current);
+                            if (next.has(round.key)) next.delete(round.key);
+                            else next.add(round.key);
+                            return next;
+                          })
+                        }
+                      >
+                        <ChevronDownIcon
+                          aria-hidden
+                          className={cn(
+                            'size-4 shrink-0 transition-transform',
+                            open && 'rotate-180',
+                          )}
+                        />
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="font-medium text-foreground">
+                            {`Round ${index + 1}${round.name.trim() ? `: ${round.name.trim()}` : ''}`}
+                          </span>
+                          <span className="font-normal text-muted-foreground">{` · ${roundSummary(round)}`}</span>
+                        </span>
+                      </Button>
+                      {!readOnly ? (
+                        <CardAction className="row-span-1 flex flex-nowrap items-center gap-2 self-center @max-sm:col-start-1 @max-sm:row-start-auto @max-sm:justify-self-start">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={index === 0}
+                            aria-label="Move round up"
+                            onClick={() => {
+                              setRounds((prev) => {
+                                if (index === 0) return prev;
+                                const next = [...prev];
+                                const tmp = next[index - 1]!;
+                                next[index - 1] = next[index]!;
+                                next[index] = tmp;
+                                return next;
                               });
-                              if (!ok) return;
-                              setRounds((prev) => prev.filter((r) => r.key !== round.key));
-                            })();
-                          }}
-                        >
-                          <TrashIcon />
-                        </Button>
-                      </CardAction>
-                    ) : null}
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-4">
-                    <CatalogImageField
-                      id={`round-image-${round.key}`}
-                      label="Round image"
-                      fileId={round.imageFileId}
-                      alt={round.name.trim() || 'Round cover'}
-                      disabled={readOnly}
-                      required={false}
-                      onFile={(file) => {
-                        if (file) roundImageFiles.current.set(round.key, file);
-                        else roundImageFiles.current.delete(round.key);
-                        setRounds((prev) =>
-                          prev.map((r) =>
-                            r.key === round.key
-                              ? { ...r, imageFileName: file ? file.name : null }
-                              : r,
-                          ),
-                        );
-                      }}
-                      onPickExisting={(fileId) => {
-                        roundImageFiles.current.delete(round.key);
-                        setRounds((prev) =>
-                          prev.map((r) =>
-                            r.key === round.key
-                              ? { ...r, imageFileId: fileId, imageFileName: null }
-                              : r,
-                          ),
-                        );
-                      }}
-                      onClear={() => {
-                        roundImageFiles.current.delete(round.key);
-                        setRounds((prev) =>
-                          prev.map((r) =>
-                            r.key === round.key
-                              ? { ...r, imageFileId: '', imageFileName: null }
-                              : r,
-                          ),
-                        );
-                      }}
-                    />
-                    <QuizQuestionsPanel
-                      bankId={round.localBankId}
-                      kind="assessment"
-                      readOnly={readOnly}
-                      onCount={(count) =>
-                        setRounds((prev) => {
-                          const current = prev.find((r) => r.key === round.key);
-                          if (!current || current.questionCount === count) return prev;
-                          return prev.map((r) =>
-                            r.key === round.key ? { ...r, questionCount: count } : r,
-                          );
-                        })
-                      }
-                      onEnsureBank={async () => {
-                        const savedId = (await persist({ stay: true })) ?? activityId;
-                        if (!savedId) return null;
-                        const synced = await syncRoundsFromServer(savedId);
-                        return synced[index]?.localBankId ?? null;
-                      }}
-                    />
-
-                    <div className="flex flex-col gap-3 border-t border-border pt-4">
-                      <p className="text-sm font-medium">Round behaviour</p>
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            }}
+                          >
+                            <ArrowUpIcon />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={index === rounds.length - 1}
+                            aria-label="Move round down"
+                            onClick={() => {
+                              setRounds((prev) => {
+                                if (index >= prev.length - 1) return prev;
+                                const next = [...prev];
+                                const tmp = next[index + 1]!;
+                                next[index + 1] = next[index]!;
+                                next[index] = tmp;
+                                return next;
+                              });
+                            }}
+                          >
+                            <ArrowDownIcon />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            disabled={rounds.length <= 1}
+                            aria-label="Remove round"
+                            onClick={() => {
+                              if (rounds.length <= 1) {
+                                toast.error('Every assessment needs at least one round.');
+                                return;
+                              }
+                              void (async () => {
+                                const ok = await confirm({
+                                  title: 'Remove this round?',
+                                  description: round.id
+                                    ? 'Rounds that already have participant attempts cannot be removed.'
+                                    : 'Questions linked only to this round draft will be discarded on save.',
+                                  confirmLabel: 'Remove round',
+                                  destructive: true,
+                                });
+                                if (!ok) return;
+                                setRounds((prev) => prev.filter((r) => r.key !== round.key));
+                                setOpenRoundKeys((current) => {
+                                  const next = new Set(current);
+                                  next.delete(round.key);
+                                  return next;
+                                });
+                              })();
+                            }}
+                          >
+                            <TrashIcon />
+                          </Button>
+                        </CardAction>
+                      ) : null}
+                    </CardHeader>
+                    {open ? (
+                      <CardContent id={panelId} className="flex flex-col gap-4">
                         <Field>
-                          <FieldLabel htmlFor={`round-duration-mode-${round.key}`}>
-                            Time duration
+                          <FieldLabel htmlFor={`round-name-${round.key}`}>
+                            Round {index + 1} name
                           </FieldLabel>
-                          <Select
-                            value={round.durationMode}
+                          <Input
+                            id={`round-name-${round.key}`}
+                            className="w-full min-w-0"
+                            value={round.name}
                             disabled={readOnly}
-                            onValueChange={(value) => {
-                              const next = value as 'overall' | 'per_question';
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setRounds((prev) =>
+                                prev.map((r) => (r.key === round.key ? { ...r, name: value } : r)),
+                              );
+                            }}
+                          />
+                        </Field>
+                        <CatalogImageField
+                          id={`round-image-${round.key}`}
+                          label="Round image"
+                          fileId={round.imageFileId}
+                          alt={round.name.trim() || 'Round cover'}
+                          disabled={readOnly}
+                          required={false}
+                          onFile={(file) => {
+                            if (file) roundImageFiles.current.set(round.key, file);
+                            else roundImageFiles.current.delete(round.key);
+                            setRounds((prev) =>
+                              prev.map((r) =>
+                                r.key === round.key
+                                  ? { ...r, imageFileName: file ? file.name : null }
+                                  : r,
+                              ),
+                            );
+                          }}
+                          onPickExisting={(fileId) => {
+                            roundImageFiles.current.delete(round.key);
+                            setRounds((prev) =>
+                              prev.map((r) =>
+                                r.key === round.key
+                                  ? { ...r, imageFileId: fileId, imageFileName: null }
+                                  : r,
+                              ),
+                            );
+                          }}
+                          onClear={() => {
+                            roundImageFiles.current.delete(round.key);
+                            setRounds((prev) =>
+                              prev.map((r) =>
+                                r.key === round.key
+                                  ? { ...r, imageFileId: '', imageFileName: null }
+                                  : r,
+                              ),
+                            );
+                          }}
+                        />
+                        <Field>
+                          <FieldLabel htmlFor={`round-instructions-${round.key}`}>
+                            Instructions
+                          </FieldLabel>
+                          <RichTextEditor
+                            id={`round-instructions-${round.key}`}
+                            value={round.instructions}
+                            disabled={readOnly}
+                            onChange={(value) => {
                               setRounds((prev) =>
                                 prev.map((r) =>
-                                  r.key === round.key
-                                    ? {
-                                        ...r,
-                                        durationMode: next,
-                                        presentation:
-                                          next === 'per_question'
-                                            ? 'one_at_a_time'
-                                            : r.presentation,
-                                        settings: {
-                                          ...r.settings,
-                                          allowPrevious:
-                                            next === 'per_question'
-                                              ? false
-                                              : r.settings.allowPrevious,
-                                          showQuestionPanel:
-                                            next === 'per_question'
-                                              ? false
-                                              : r.settings.showQuestionPanel,
-                                        },
-                                      }
-                                    : r,
+                                  r.key === round.key ? { ...r, instructions: value } : r,
                                 ),
                               );
                             }}
-                          >
-                            <SelectTrigger
-                              id={`round-duration-mode-${round.key}`}
-                              className="w-full"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value="overall">Overall round</SelectItem>
-                                <SelectItem value="per_question">Per question</SelectItem>
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
+                            aria-label={`Round ${index + 1} instructions`}
+                          />
+                          <FieldDescription>
+                            Shown with the confirmation checkbox before a participant starts this
+                            round. If left empty, the standard instructions are used. Supports bold,
+                            italic, and lists.
+                          </FieldDescription>
                         </Field>
-                        {round.durationMode === 'per_question' ? (
-                          <Field>
-                            <FieldLabel htmlFor={`round-per-q-${round.key}`}>
-                              Seconds per question
-                            </FieldLabel>
-                            <Input
-                              id={`round-per-q-${round.key}`}
-                              type="number"
-                              min={1}
-                              value={round.perQuestionSeconds}
-                              disabled={readOnly}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key ? { ...r, perQuestionSeconds: value } : r,
-                                  ),
-                                );
-                              }}
-                            />
-                          </Field>
-                        ) : (
-                          <Field>
-                            <FieldLabel htmlFor={`round-duration-${round.key}`}>
-                              Duration (minutes)
-                            </FieldLabel>
-                            <Input
-                              id={`round-duration-${round.key}`}
-                              type="number"
-                              min={1}
-                              value={round.durationMinutes}
-                              disabled={readOnly}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key ? { ...r, durationMinutes: value } : r,
-                                  ),
-                                );
-                              }}
-                            />
-                          </Field>
-                        )}
-                        <Field>
-                          <FieldLabel htmlFor={`round-presentation-${round.key}`}>
-                            Presentation
-                          </FieldLabel>
-                          <Select
-                            value={
-                              round.durationMode === 'per_question'
-                                ? 'one_at_a_time'
-                                : round.presentation
-                            }
-                            disabled={readOnly || round.durationMode === 'per_question'}
-                            onValueChange={(v) =>
-                              setRounds((prev) =>
-                                prev.map((r) =>
-                                  r.key === round.key
-                                    ? {
-                                        ...r,
-                                        presentation: v as 'one_at_a_time' | 'all_on_page',
-                                      }
-                                    : r,
-                                ),
-                              )
-                            }
-                          >
-                            <SelectTrigger
-                              id={`round-presentation-${round.key}`}
-                              className="w-full"
-                            >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value="one_at_a_time">
-                                  One question at a time
-                                </SelectItem>
-                                <SelectItem
-                                  value="all_on_page"
-                                  disabled={round.durationMode === 'per_question'}
-                                >
-                                  All on one page
-                                </SelectItem>
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        <Field>
-                          <FieldLabel htmlFor={`round-pass-mode-${round.key}`}>
-                            Pass condition
-                          </FieldLabel>
-                          <Select
-                            value={round.passMode}
-                            disabled={readOnly}
-                            onValueChange={(v) =>
-                              setRounds((prev) =>
-                                prev.map((r) =>
-                                  r.key === round.key
-                                    ? { ...r, passMode: v as 'percent' | 'score' }
-                                    : r,
-                                ),
-                              )
-                            }
-                          >
-                            <SelectTrigger id={`round-pass-mode-${round.key}`} className="w-full">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectGroup>
-                                <SelectItem value="percent">Percentage</SelectItem>
-                                <SelectItem value="score">Score (marks)</SelectItem>
-                              </SelectGroup>
-                            </SelectContent>
-                          </Select>
-                        </Field>
-                        {round.passMode === 'score' ? (
-                          <Field>
-                            <FieldLabel htmlFor={`round-pass-score-${round.key}`}>
-                              Passing score
-                            </FieldLabel>
-                            <Input
-                              id={`round-pass-score-${round.key}`}
-                              type="number"
-                              min={0}
-                              value={round.passingScore}
-                              disabled={readOnly}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key ? { ...r, passingScore: value } : r,
-                                  ),
-                                );
-                              }}
-                            />
-                          </Field>
-                        ) : (
-                          <Field>
-                            <FieldLabel htmlFor={`round-pass-pct-${round.key}`}>
-                              Passing percent
-                            </FieldLabel>
-                            <Input
-                              id={`round-pass-pct-${round.key}`}
-                              type="number"
-                              min={0}
-                              max={100}
-                              value={round.passingPercent}
-                              disabled={readOnly}
-                              onChange={(e) => {
-                                const value = e.target.value;
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key ? { ...r, passingPercent: value } : r,
-                                  ),
-                                );
-                              }}
-                            />
-                          </Field>
-                        )}
-                      </div>
+                        <QuizQuestionsPanel
+                          bankId={round.localBankId}
+                          kind="assessment"
+                          readOnly={readOnly}
+                          onCount={(count) =>
+                            setRounds((prev) => {
+                              const current = prev.find((r) => r.key === round.key);
+                              if (!current || current.questionCount === count) return prev;
+                              return prev.map((r) =>
+                                r.key === round.key ? { ...r, questionCount: count } : r,
+                              );
+                            })
+                          }
+                          onEnsureBank={async () => {
+                            const savedId = (await persist({ stay: true })) ?? activityId;
+                            if (!savedId) return null;
+                            const synced = await syncRoundsFromServer(savedId);
+                            return synced[index]?.localBankId ?? null;
+                          }}
+                        />
 
-                      <div className="overflow-hidden rounded-xl border border-border">
-                        <div className="flex flex-col divide-y divide-border">
-                          <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
-                            <div className="min-w-0">
-                              <FieldLabel htmlFor={`round-allow-prev-${round.key}`}>
-                                Allow Previous
+                        <div className="flex flex-col gap-3 border-t border-border pt-4">
+                          <p className="text-sm font-medium">Round behaviour</p>
+                          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <Field>
+                              <FieldLabel htmlFor={`round-duration-mode-${round.key}`}>
+                                Time duration
                               </FieldLabel>
-                              <FieldDescription>
-                                {round.durationMode === 'per_question'
-                                  ? 'Per-question timer always blocks going back.'
-                                  : 'When off, participants cannot return to earlier questions.'}
-                              </FieldDescription>
-                            </div>
-                            <Switch
-                              id={`round-allow-prev-${round.key}`}
-                              checked={
-                                round.durationMode === 'per_question'
-                                  ? false
-                                  : round.settings.allowPrevious
-                              }
-                              disabled={readOnly || round.durationMode === 'per_question'}
-                              onCheckedChange={(checked) =>
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key
-                                      ? {
-                                          ...r,
-                                          settings: { ...r.settings, allowPrevious: checked },
-                                        }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                          </div>
-                          <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
-                            <div className="min-w-0">
-                              <FieldLabel htmlFor={`round-compulsory-${round.key}`}>
-                                Questions are compulsory
-                              </FieldLabel>
-                            </div>
-                            <Switch
-                              id={`round-compulsory-${round.key}`}
-                              checked={
-                                round.settings.negativeMarkingEnabled
-                                  ? false
-                                  : round.settings.questionsCompulsory
-                              }
-                              disabled={readOnly || round.settings.negativeMarkingEnabled}
-                              onCheckedChange={(checked) =>
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key
-                                      ? {
-                                          ...r,
-                                          settings: {
-                                            ...r.settings,
-                                            questionsCompulsory: checked,
-                                          },
-                                        }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                          </div>
-                          <div className="flex flex-col gap-3 p-3.5">
-                            <div className="flex min-h-(--control-h) items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <FieldLabel htmlFor={`round-neg-${round.key}`}>
-                                  Negative marking
-                                </FieldLabel>
-                              </div>
-                              <Switch
-                                id={`round-neg-${round.key}`}
-                                checked={round.settings.negativeMarkingEnabled}
+                              <Select
+                                value={round.durationMode}
                                 disabled={readOnly}
-                                onCheckedChange={(checked) =>
+                                onValueChange={(value) => {
+                                  const next = value as 'overall' | 'per_question';
                                   setRounds((prev) =>
                                     prev.map((r) =>
                                       r.key === round.key
                                         ? {
                                             ...r,
+                                            durationMode: next,
+                                            presentation:
+                                              next === 'per_question'
+                                                ? 'one_at_a_time'
+                                                : r.presentation,
                                             settings: {
                                               ...r.settings,
-                                              negativeMarkingEnabled: checked,
-                                              questionsCompulsory: checked
-                                                ? false
-                                                : r.settings.questionsCompulsory,
-                                              negativeMarkPoints:
-                                                checked && r.settings.negativeMarkPoints <= 0
-                                                  ? 0.25
-                                                  : r.settings.negativeMarkPoints,
+                                              allowPrevious:
+                                                next === 'per_question'
+                                                  ? false
+                                                  : r.settings.allowPrevious,
+                                              showQuestionPanel:
+                                                next === 'per_question'
+                                                  ? false
+                                                  : r.settings.showQuestionPanel,
                                             },
+                                          }
+                                        : r,
+                                    ),
+                                  );
+                                }}
+                              >
+                                <SelectTrigger
+                                  id={`round-duration-mode-${round.key}`}
+                                  className="w-full"
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem value="overall">Overall round</SelectItem>
+                                    <SelectItem value="per_question">Per question</SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            {round.durationMode === 'per_question' ? (
+                              <Field>
+                                <FieldLabel htmlFor={`round-per-q-${round.key}`}>
+                                  Seconds per question
+                                </FieldLabel>
+                                <Input
+                                  id={`round-per-q-${round.key}`}
+                                  type="number"
+                                  min={1}
+                                  value={round.perQuestionSeconds}
+                                  disabled={readOnly}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key
+                                          ? { ...r, perQuestionSeconds: value }
+                                          : r,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </Field>
+                            ) : (
+                              <Field>
+                                <FieldLabel htmlFor={`round-duration-${round.key}`}>
+                                  Duration (minutes)
+                                </FieldLabel>
+                                <Input
+                                  id={`round-duration-${round.key}`}
+                                  type="number"
+                                  min={1}
+                                  value={round.durationMinutes}
+                                  disabled={readOnly}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key ? { ...r, durationMinutes: value } : r,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </Field>
+                            )}
+                            <Field>
+                              <FieldLabel htmlFor={`round-presentation-${round.key}`}>
+                                Presentation
+                              </FieldLabel>
+                              <Select
+                                value={
+                                  round.durationMode === 'per_question'
+                                    ? 'one_at_a_time'
+                                    : round.presentation
+                                }
+                                disabled={readOnly || round.durationMode === 'per_question'}
+                                onValueChange={(v) =>
+                                  setRounds((prev) =>
+                                    prev.map((r) =>
+                                      r.key === round.key
+                                        ? {
+                                            ...r,
+                                            presentation: v as 'one_at_a_time' | 'all_on_page',
                                           }
                                         : r,
                                     ),
                                   )
                                 }
-                              />
-                            </div>
-                            {round.settings.negativeMarkingEnabled ? (
-                              <Field>
-                                <FieldLabel htmlFor={`round-neg-pts-${round.key}`}>
-                                  Marks deducted per wrong answer
-                                </FieldLabel>
-                                <Input
-                                  id={`round-neg-pts-${round.key}`}
-                                  type="number"
-                                  min={0.01}
-                                  step={0.01}
-                                  value={round.settings.negativeMarkPoints}
+                              >
+                                <SelectTrigger
+                                  id={`round-presentation-${round.key}`}
+                                  className="w-full"
+                                >
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectGroup>
+                                    <SelectItem value="one_at_a_time">
+                                      One question at a time
+                                    </SelectItem>
+                                    <SelectItem
+                                      value="all_on_page"
+                                      disabled={round.durationMode === 'per_question'}
+                                    >
+                                      All on one page
+                                    </SelectItem>
+                                  </SelectGroup>
+                                </SelectContent>
+                              </Select>
+                            </Field>
+                            <Field className="md:col-span-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <FieldLabel htmlFor={`round-pass-required-${round.key}`}>
+                                    Passing percent
+                                  </FieldLabel>
+                                  <FieldDescription>
+                                    When on, the next round opens only after this mark is met. When
+                                    off, submitting this round opens the next one.
+                                  </FieldDescription>
+                                </div>
+                                <Switch
+                                  id={`round-pass-required-${round.key}`}
+                                  checked={round.settings.passRequired}
                                   disabled={readOnly}
-                                  onChange={(e) =>
+                                  aria-label={`Round ${index + 1} passing percent`}
+                                  onCheckedChange={(checked) =>
                                     setRounds((prev) =>
                                       prev.map((r) =>
                                         r.key === round.key
                                           ? {
                                               ...r,
-                                              settings: {
-                                                ...r.settings,
-                                                negativeMarkPoints: Number(e.target.value) || 0,
-                                              },
+                                              settings: { ...r.settings, passRequired: checked },
                                             }
                                           : r,
                                       ),
                                     )
                                   }
+                                />
+                              </div>
+                            </Field>
+                            {round.settings.passRequired ? (
+                              <Field>
+                                <FieldLabel htmlFor={`round-pass-mode-${round.key}`}>
+                                  Pass condition
+                                </FieldLabel>
+                                <Select
+                                  value={round.passMode}
+                                  disabled={readOnly}
+                                  onValueChange={(v) =>
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key
+                                          ? { ...r, passMode: v as 'percent' | 'score' }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger
+                                    id={`round-pass-mode-${round.key}`}
+                                    className="w-full"
+                                  >
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectGroup>
+                                      <SelectItem value="percent">Percentage</SelectItem>
+                                      <SelectItem value="score">Score (marks)</SelectItem>
+                                    </SelectGroup>
+                                  </SelectContent>
+                                </Select>
+                              </Field>
+                            ) : null}
+                            {round.settings.passRequired && round.passMode === 'score' ? (
+                              <Field>
+                                <FieldLabel htmlFor={`round-pass-score-${round.key}`}>
+                                  Passing score
+                                </FieldLabel>
+                                <Input
+                                  id={`round-pass-score-${round.key}`}
+                                  type="number"
+                                  min={0}
+                                  value={round.passingScore}
+                                  disabled={readOnly}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key ? { ...r, passingScore: value } : r,
+                                      ),
+                                    );
+                                  }}
+                                />
+                              </Field>
+                            ) : round.settings.passRequired ? (
+                              <Field>
+                                <FieldLabel htmlFor={`round-pass-pct-${round.key}`}>
+                                  Passing percent
+                                </FieldLabel>
+                                <Input
+                                  id={`round-pass-pct-${round.key}`}
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  value={round.passingPercent}
+                                  disabled={readOnly}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key ? { ...r, passingPercent: value } : r,
+                                      ),
+                                    );
+                                  }}
                                 />
                               </Field>
                             ) : null}
                           </div>
-                          <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
-                            <div className="min-w-0">
-                              <FieldLabel htmlFor={`round-panel-${round.key}`}>
-                                Question overview panel
-                              </FieldLabel>
-                            </div>
-                            <Switch
-                              id={`round-panel-${round.key}`}
-                              checked={
-                                round.durationMode === 'per_question'
-                                  ? false
-                                  : round.settings.showQuestionPanel
-                              }
-                              disabled={readOnly || round.durationMode === 'per_question'}
-                              onCheckedChange={(checked) =>
-                                setRounds((prev) =>
-                                  prev.map((r) =>
-                                    r.key === round.key
-                                      ? {
-                                          ...r,
-                                          settings: {
-                                            ...r.settings,
-                                            showQuestionPanel: checked,
-                                          },
-                                        }
-                                      : r,
-                                  ),
-                                )
-                              }
-                            />
-                          </div>
-                          {(
-                            [
-                              ['shuffleQuestions', 'Shuffle questions'],
-                              ['shuffleOptions', 'Shuffle options'],
-                              [
-                                'answersVisibleToParticipant',
-                                'Show answers to participants (when published)',
-                              ],
-                            ] as const
-                          ).map(([key, label]) => (
-                            <div
-                              key={key}
-                              className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5"
-                            >
-                              <FieldLabel htmlFor={`round-${key}-${round.key}`}>{label}</FieldLabel>
-                              <Switch
-                                id={`round-${key}-${round.key}`}
-                                checked={round.settings[key]}
-                                disabled={readOnly}
-                                onCheckedChange={(checked) =>
-                                  setRounds((prev) =>
-                                    prev.map((r) =>
-                                      r.key === round.key
-                                        ? { ...r, settings: { ...r.settings, [key]: checked } }
-                                        : r,
-                                    ),
-                                  )
-                                }
-                              />
-                            </div>
-                          ))}
-                          <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <FieldLabel id={`round-score-label-${round.key}`}>Score</FieldLabel>
-                              <FieldDescription>
-                                {round.settings.scoreRelease === 'after_publish'
-                                  ? 'Participants see the score after an admin publishes the result.'
-                                  : 'Participants see the score as soon as they submit.'}
-                              </FieldDescription>
-                            </div>
-                            <div className="flex shrink-0 flex-wrap items-center gap-3">
-                              <span
-                                className={cn(
-                                  'text-sm',
-                                  round.settings.scoreRelease === 'after_submit'
-                                    ? 'font-medium text-foreground'
-                                    : 'text-muted-foreground',
-                                )}
-                              >
-                                After submit
-                              </span>
-                              <Switch
-                                id={`round-score-${round.key}`}
-                                checked={round.settings.scoreRelease === 'after_publish'}
-                                disabled={readOnly}
-                                aria-labelledby={`round-score-label-${round.key}`}
-                                onCheckedChange={(checked) =>
-                                  setRounds((prev) =>
-                                    prev.map((r) =>
-                                      r.key === round.key
-                                        ? {
-                                            ...r,
-                                            settings: {
-                                              ...r.settings,
-                                              scoreRelease: checked
-                                                ? 'after_publish'
-                                                : 'after_submit',
-                                            },
-                                          }
-                                        : r,
-                                    ),
-                                  )
-                                }
-                              />
-                              <span
-                                className={cn(
-                                  'text-sm',
-                                  round.settings.scoreRelease === 'after_publish'
-                                    ? 'font-medium text-foreground'
-                                    : 'text-muted-foreground',
-                                )}
-                              >
-                                After publish
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <FieldLabel htmlFor={`round-attempts-${round.key}`}>
-                                Number of attempts
-                              </FieldLabel>
-                            </div>
-                            <div className="flex shrink-0 flex-wrap items-center gap-3">
-                              <Input
-                                id={`round-attempts-${round.key}`}
-                                type="number"
-                                min={1}
-                                max={100}
-                                className="w-24"
-                                value={round.settings.maxAttempts ?? ''}
-                                disabled={readOnly || round.settings.maxAttempts === null}
-                                onChange={(e) => {
-                                  const next = Number(e.target.value);
-                                  setRounds((prev) =>
-                                    prev.map((r) =>
-                                      r.key === round.key
-                                        ? {
-                                            ...r,
-                                            settings: {
-                                              ...r.settings,
-                                              maxAttempts:
-                                                Number.isInteger(next) && next >= 1
-                                                  ? Math.min(100, next)
-                                                  : 1,
-                                            },
-                                          }
-                                        : r,
-                                    ),
-                                  );
-                                }}
-                              />
-                              <div className="flex items-center gap-2">
-                                <FieldLabel
-                                  htmlFor={`round-unlimited-${round.key}`}
-                                  className="text-sm font-normal text-muted-foreground"
-                                >
-                                  Unlimited
-                                </FieldLabel>
+
+                          <div className="overflow-hidden rounded-xl border border-border">
+                            <div className="flex flex-col divide-y divide-border">
+                              <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
+                                <div className="min-w-0">
+                                  <FieldLabel htmlFor={`round-allow-prev-${round.key}`}>
+                                    Allow Previous
+                                  </FieldLabel>
+                                  <FieldDescription>
+                                    {round.durationMode === 'per_question'
+                                      ? 'Per-question timer always blocks going back.'
+                                      : 'When off, participants cannot return to earlier questions.'}
+                                  </FieldDescription>
+                                </div>
                                 <Switch
-                                  id={`round-unlimited-${round.key}`}
-                                  checked={round.settings.maxAttempts === null}
-                                  disabled={readOnly}
+                                  id={`round-allow-prev-${round.key}`}
+                                  checked={
+                                    round.durationMode === 'per_question'
+                                      ? false
+                                      : round.settings.allowPrevious
+                                  }
+                                  disabled={readOnly || round.durationMode === 'per_question'}
+                                  onCheckedChange={(checked) =>
+                                    setRounds((prev) =>
+                                      prev.map((r) =>
+                                        r.key === round.key
+                                          ? {
+                                              ...r,
+                                              settings: { ...r.settings, allowPrevious: checked },
+                                            }
+                                          : r,
+                                      ),
+                                    )
+                                  }
+                                />
+                              </div>
+                              <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
+                                <div className="min-w-0">
+                                  <FieldLabel htmlFor={`round-compulsory-${round.key}`}>
+                                    Questions are compulsory
+                                  </FieldLabel>
+                                </div>
+                                <Switch
+                                  id={`round-compulsory-${round.key}`}
+                                  checked={
+                                    round.settings.negativeMarkingEnabled
+                                      ? false
+                                      : round.settings.questionsCompulsory
+                                  }
+                                  disabled={readOnly || round.settings.negativeMarkingEnabled}
                                   onCheckedChange={(checked) =>
                                     setRounds((prev) =>
                                       prev.map((r) =>
@@ -1672,9 +1548,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                                               ...r,
                                               settings: {
                                                 ...r.settings,
-                                                maxAttempts: checked
-                                                  ? null
-                                                  : (r.settings.maxAttempts ?? 1),
+                                                questionsCompulsory: checked,
                                               },
                                             }
                                           : r,
@@ -1683,58 +1557,86 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                                   }
                                 />
                               </div>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
-                            <div className="min-w-0">
-                              <FieldLabel htmlFor={`round-question-limit-${round.key}`}>
-                                Number of questions
-                              </FieldLabel>
-                              <FieldDescription>
-                                How many questions a participant sees. A passage stays together.
-                                Turn on All to use every question.
-                              </FieldDescription>
-                            </div>
-                            <div className="flex shrink-0 flex-wrap items-center gap-3">
-                              <Input
-                                id={`round-question-limit-${round.key}`}
-                                type="number"
-                                min={1}
-                                max={500}
-                                className="w-24"
-                                value={round.settings.questionLimit ?? ''}
-                                disabled={readOnly || round.settings.questionLimit === null}
-                                onChange={(e) => {
-                                  const next = Number(e.target.value);
-                                  setRounds((prev) =>
-                                    prev.map((r) =>
-                                      r.key === round.key
-                                        ? {
-                                            ...r,
-                                            settings: {
-                                              ...r.settings,
-                                              questionLimit:
-                                                Number.isInteger(next) && next >= 1
-                                                  ? Math.min(500, next)
-                                                  : 1,
-                                            },
-                                          }
-                                        : r,
-                                    ),
-                                  );
-                                }}
-                              />
-                              <div className="flex items-center gap-2">
-                                <FieldLabel
-                                  htmlFor={`round-all-questions-${round.key}`}
-                                  className="text-sm font-normal text-muted-foreground"
-                                >
-                                  All
-                                </FieldLabel>
+                              <div className="flex flex-col gap-3 p-3.5">
+                                <div className="flex min-h-(--control-h) items-center justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <FieldLabel htmlFor={`round-neg-${round.key}`}>
+                                      Negative marking
+                                    </FieldLabel>
+                                  </div>
+                                  <Switch
+                                    id={`round-neg-${round.key}`}
+                                    checked={round.settings.negativeMarkingEnabled}
+                                    disabled={readOnly}
+                                    onCheckedChange={(checked) =>
+                                      setRounds((prev) =>
+                                        prev.map((r) =>
+                                          r.key === round.key
+                                            ? {
+                                                ...r,
+                                                settings: {
+                                                  ...r.settings,
+                                                  negativeMarkingEnabled: checked,
+                                                  questionsCompulsory: checked
+                                                    ? false
+                                                    : r.settings.questionsCompulsory,
+                                                  negativeMarkPoints:
+                                                    checked && r.settings.negativeMarkPoints <= 0
+                                                      ? 0.25
+                                                      : r.settings.negativeMarkPoints,
+                                                },
+                                              }
+                                            : r,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </div>
+                                {round.settings.negativeMarkingEnabled ? (
+                                  <Field>
+                                    <FieldLabel htmlFor={`round-neg-pts-${round.key}`}>
+                                      Marks deducted per wrong answer
+                                    </FieldLabel>
+                                    <Input
+                                      id={`round-neg-pts-${round.key}`}
+                                      type="number"
+                                      min={0.01}
+                                      step={0.01}
+                                      value={round.settings.negativeMarkPoints}
+                                      disabled={readOnly}
+                                      onChange={(e) =>
+                                        setRounds((prev) =>
+                                          prev.map((r) =>
+                                            r.key === round.key
+                                              ? {
+                                                  ...r,
+                                                  settings: {
+                                                    ...r.settings,
+                                                    negativeMarkPoints: Number(e.target.value) || 0,
+                                                  },
+                                                }
+                                              : r,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </Field>
+                                ) : null}
+                              </div>
+                              <div className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5">
+                                <div className="min-w-0">
+                                  <FieldLabel htmlFor={`round-panel-${round.key}`}>
+                                    Question overview panel
+                                  </FieldLabel>
+                                </div>
                                 <Switch
-                                  id={`round-all-questions-${round.key}`}
-                                  checked={round.settings.questionLimit === null}
-                                  disabled={readOnly}
+                                  id={`round-panel-${round.key}`}
+                                  checked={
+                                    round.durationMode === 'per_question'
+                                      ? false
+                                      : round.settings.showQuestionPanel
+                                  }
+                                  disabled={readOnly || round.durationMode === 'per_question'}
                                   onCheckedChange={(checked) =>
                                     setRounds((prev) =>
                                       prev.map((r) =>
@@ -1743,9 +1645,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                                               ...r,
                                               settings: {
                                                 ...r.settings,
-                                                questionLimit: checked
-                                                  ? null
-                                                  : (r.settings.questionLimit ?? 10),
+                                                showQuestionPanel: checked,
                                               },
                                             }
                                           : r,
@@ -1753,21 +1653,253 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                                     )
                                   }
                                 />
+                              </div>
+                              {(
+                                [
+                                  ['shuffleQuestions', 'Shuffle questions'],
+                                  ['shuffleOptions', 'Shuffle options'],
+                                  [
+                                    'answersVisibleToParticipant',
+                                    'Show answers to participants (when published)',
+                                  ],
+                                ] as const
+                              ).map(([key, label]) => (
+                                <div
+                                  key={key}
+                                  className="flex min-h-(--control-h) items-center justify-between gap-3 p-3.5"
+                                >
+                                  <FieldLabel htmlFor={`round-${key}-${round.key}`}>
+                                    {label}
+                                  </FieldLabel>
+                                  <Switch
+                                    id={`round-${key}-${round.key}`}
+                                    checked={round.settings[key]}
+                                    disabled={readOnly}
+                                    onCheckedChange={(checked) =>
+                                      setRounds((prev) =>
+                                        prev.map((r) =>
+                                          r.key === round.key
+                                            ? { ...r, settings: { ...r.settings, [key]: checked } }
+                                            : r,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                </div>
+                              ))}
+                              <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <FieldLabel id={`round-score-label-${round.key}`}>
+                                    Score
+                                  </FieldLabel>
+                                  <FieldDescription>
+                                    {round.settings.scoreRelease === 'after_publish'
+                                      ? 'Participants see the score after an admin publishes the result.'
+                                      : 'Participants see the score as soon as they submit.'}
+                                  </FieldDescription>
+                                </div>
+                                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                                  <span
+                                    className={cn(
+                                      'text-sm',
+                                      round.settings.scoreRelease === 'after_submit'
+                                        ? 'font-medium text-foreground'
+                                        : 'text-muted-foreground',
+                                    )}
+                                  >
+                                    After submit
+                                  </span>
+                                  <Switch
+                                    id={`round-score-${round.key}`}
+                                    checked={round.settings.scoreRelease === 'after_publish'}
+                                    disabled={readOnly}
+                                    aria-labelledby={`round-score-label-${round.key}`}
+                                    onCheckedChange={(checked) =>
+                                      setRounds((prev) =>
+                                        prev.map((r) =>
+                                          r.key === round.key
+                                            ? {
+                                                ...r,
+                                                settings: {
+                                                  ...r.settings,
+                                                  scoreRelease: checked
+                                                    ? 'after_publish'
+                                                    : 'after_submit',
+                                                },
+                                              }
+                                            : r,
+                                        ),
+                                      )
+                                    }
+                                  />
+                                  <span
+                                    className={cn(
+                                      'text-sm',
+                                      round.settings.scoreRelease === 'after_publish'
+                                        ? 'font-medium text-foreground'
+                                        : 'text-muted-foreground',
+                                    )}
+                                  >
+                                    After publish
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <FieldLabel htmlFor={`round-attempts-${round.key}`}>
+                                    Number of attempts
+                                  </FieldLabel>
+                                </div>
+                                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                                  <Input
+                                    id={`round-attempts-${round.key}`}
+                                    type="number"
+                                    min={1}
+                                    max={100}
+                                    className="w-24"
+                                    value={round.settings.maxAttempts ?? ''}
+                                    disabled={readOnly || round.settings.maxAttempts === null}
+                                    onChange={(e) => {
+                                      const next = Number(e.target.value);
+                                      setRounds((prev) =>
+                                        prev.map((r) =>
+                                          r.key === round.key
+                                            ? {
+                                                ...r,
+                                                settings: {
+                                                  ...r.settings,
+                                                  maxAttempts:
+                                                    Number.isInteger(next) && next >= 1
+                                                      ? Math.min(100, next)
+                                                      : 1,
+                                                },
+                                              }
+                                            : r,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <FieldLabel
+                                      htmlFor={`round-unlimited-${round.key}`}
+                                      className="text-sm font-normal text-muted-foreground"
+                                    >
+                                      Unlimited
+                                    </FieldLabel>
+                                    <Switch
+                                      id={`round-unlimited-${round.key}`}
+                                      checked={round.settings.maxAttempts === null}
+                                      disabled={readOnly}
+                                      onCheckedChange={(checked) =>
+                                        setRounds((prev) =>
+                                          prev.map((r) =>
+                                            r.key === round.key
+                                              ? {
+                                                  ...r,
+                                                  settings: {
+                                                    ...r.settings,
+                                                    maxAttempts: checked
+                                                      ? null
+                                                      : (r.settings.maxAttempts ?? 1),
+                                                  },
+                                                }
+                                              : r,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="flex flex-col gap-3 p-3.5 sm:min-h-(--control-h) sm:flex-row sm:items-center sm:justify-between">
+                                <div className="min-w-0">
+                                  <FieldLabel htmlFor={`round-question-limit-${round.key}`}>
+                                    Number of questions
+                                  </FieldLabel>
+                                  <FieldDescription>
+                                    How many questions a participant sees. A passage stays together.
+                                    Turn on All to use every question.
+                                  </FieldDescription>
+                                </div>
+                                <div className="flex shrink-0 flex-wrap items-center gap-3">
+                                  <Input
+                                    id={`round-question-limit-${round.key}`}
+                                    type="number"
+                                    min={1}
+                                    max={500}
+                                    className="w-24"
+                                    value={round.settings.questionLimit ?? ''}
+                                    disabled={readOnly || round.settings.questionLimit === null}
+                                    onChange={(e) => {
+                                      const next = Number(e.target.value);
+                                      setRounds((prev) =>
+                                        prev.map((r) =>
+                                          r.key === round.key
+                                            ? {
+                                                ...r,
+                                                settings: {
+                                                  ...r.settings,
+                                                  questionLimit:
+                                                    Number.isInteger(next) && next >= 1
+                                                      ? Math.min(500, next)
+                                                      : 1,
+                                                },
+                                              }
+                                            : r,
+                                        ),
+                                      );
+                                    }}
+                                  />
+                                  <div className="flex items-center gap-2">
+                                    <FieldLabel
+                                      htmlFor={`round-all-questions-${round.key}`}
+                                      className="text-sm font-normal text-muted-foreground"
+                                    >
+                                      All
+                                    </FieldLabel>
+                                    <Switch
+                                      id={`round-all-questions-${round.key}`}
+                                      checked={round.settings.questionLimit === null}
+                                      disabled={readOnly}
+                                      onCheckedChange={(checked) =>
+                                        setRounds((prev) =>
+                                          prev.map((r) =>
+                                            r.key === round.key
+                                              ? {
+                                                  ...r,
+                                                  settings: {
+                                                    ...r.settings,
+                                                    questionLimit: checked
+                                                      ? null
+                                                      : (r.settings.questionLimit ?? 10),
+                                                  },
+                                                }
+                                              : r,
+                                          ),
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </CardContent>
+                    ) : null}
+                  </Card>
+                );
+              })}
 
               {!readOnly ? (
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setRounds((prev) => [...prev, emptyRound(prev.length)])}
+                  onClick={() => {
+                    const next = emptyRound(rounds.length);
+                    setRounds((prev) => [...prev, next]);
+                    setOpenRoundKeys((current) => new Set(current).add(next.key));
+                  }}
                 >
                   <PlusIcon data-icon="inline-start" />
                   Add round
@@ -2340,10 +2472,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       const duration = perQ
                         ? `${r.perQuestionSeconds || '—'} sec each`
                         : `${r.durationMinutes || '—'} min`;
-                      const pass =
-                        r.passMode === 'score'
+                      const pass = r.settings.passRequired
+                        ? r.passMode === 'score'
                           ? `${r.passingScore || '—'} points`
-                          : `${r.passingPercent || '—'}%`;
+                          : `${r.passingPercent || '—'}%`
+                        : 'attempt to continue';
                       const attempts =
                         r.settings.maxAttempts == null
                           ? 'Unlimited'
@@ -2377,7 +2510,9 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                               {questions}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {duration} · Pass {pass} · {attempts} attempt
+                              {duration} ·{' '}
+                              {r.settings.passRequired ? `Pass ${pass}` : 'Attempt to continue'} ·{' '}
+                              {attempts} attempt
                               {r.settings.maxAttempts === 1 ? '' : 's'}
                             </p>
                             <p className="text-sm text-muted-foreground">

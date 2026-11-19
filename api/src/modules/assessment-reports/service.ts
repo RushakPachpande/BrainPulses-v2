@@ -2,6 +2,8 @@ import type { AccessLevel, MembershipRole } from '#prisma';
 import { writeAudit } from '../../lib/audit.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
+import { loadAttemptQuestions, loadParticipantProfiles } from '../../lib/report-export-data.js';
+import type { AssessmentExportContext, AssessmentRoundExport } from './export.js';
 import { meetsPassRule, parseRoundRow } from '../../lib/round-unlock.js';
 import { assertActivityAccess } from '../activities/service.js';
 import { settleOpenAssessmentAttempts } from '../attempts/service.js';
@@ -366,18 +368,73 @@ export async function exportAssessmentRows(
   const rows = query.includeAbsent
     ? filtered
     : filtered.filter((row) => row.attemptStatus === 'completed');
+  const names = [...new Set(rows.map((row) => row.assessmentName))];
   const assessment =
     query.activityId.length === 1
       ? loaded.options.assessments.find((item) => item.id === query.activityId[0])
       : undefined;
+  const assessmentName = assessment?.name ?? (names.length === 1 ? names[0]! : null);
   const round =
     query.roundId.length === 1
       ? loaded.options.rounds.find((item) => item.id === query.roundId[0])
       : undefined;
   return {
     rows,
-    assessmentName: assessment?.name ?? null,
+    assessmentName,
     roundName: round && (!assessment || round.activityId === assessment.id) ? round.name : null,
+    context: await loadAssessmentExportContext(organizationId, rows),
+  };
+}
+
+async function loadAssessmentExportContext(
+  organizationId: string,
+  rows: AssessmentReportRow[],
+): Promise<AssessmentExportContext> {
+  const registrationIds = [...new Set(rows.map((row) => row.registrationId))];
+  const attemptIds = [
+    ...new Set(rows.flatMap((row) => (row.bestAttemptId ? [row.bestAttemptId] : []))),
+  ];
+  const roundIds = [...new Set(rows.map((row) => row.roundId))];
+  const [profiles, loaded, rounds] = await Promise.all([
+    loadParticipantProfiles(organizationId, registrationIds),
+    loadAttemptQuestions(organizationId, attemptIds),
+    roundIds.length === 0
+      ? Promise.resolve([])
+      : prisma.activityRound.findMany({
+          where: { organizationId, id: { in: roundIds } },
+          select: {
+            id: true,
+            durationMinutes: true,
+            durationMode: true,
+            perQuestionSeconds: true,
+            presentation: true,
+            passMode: true,
+            passingPercent: true,
+            passingScore: true,
+            settings: true,
+          },
+        }),
+  ]);
+  const byRound = new Map<string, AssessmentRoundExport>();
+  for (const round of rounds) {
+    const settings = parseRoundRow(round);
+    byRound.set(round.id, {
+      timing: {
+        durationMode: settings.durationMode,
+        durationMinutes: settings.durationMinutes,
+        perQuestionSeconds: settings.perQuestionSeconds,
+      },
+      negative: {
+        enabled: settings.negativeMarkingEnabled,
+        penalty: settings.negativeMarkPoints,
+      },
+    });
+  }
+  return {
+    profiles,
+    attempts: loaded.attempts,
+    questions: loaded.questions,
+    rounds: byRound,
   };
 }
 

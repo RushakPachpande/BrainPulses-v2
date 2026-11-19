@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   applyNegativeMarking,
   clampScore,
+  correctAnswerLabels,
   hasSubmittedAnswer,
   scoreObjective,
 } from '../src/modules/attempts/scoring.js';
@@ -53,6 +54,23 @@ describe('scoreObjective', () => {
   it('returns null for text without reference so maxScore can skip', () => {
     assert.equal(scoreObjective('short_text', {}, { text: 'anything' }, 1), null);
     assert.equal(scoreObjective('long_text', { value: '' }, { text: 'x' }, 1), null);
+  });
+});
+
+describe('correctAnswerLabels', () => {
+  it('prefers option flags for choice questions', () => {
+    assert.deepEqual(
+      correctAnswerLabels('single_mcq', { correctLabels: ['A'] }, [
+        { label: 'A', isCorrect: false },
+        { label: 'B', isCorrect: true },
+      ]),
+      ['B'],
+    );
+  });
+
+  it('returns reference text for short answers', () => {
+    assert.deepEqual(correctAnswerLabels('short_text', { value: 'stingy' }, []), ['stingy']);
+    assert.deepEqual(correctAnswerLabels('numeric', { value: 42 }, []), ['42']);
   });
 });
 

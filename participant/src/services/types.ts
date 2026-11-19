@@ -6,6 +6,8 @@ export type ParticipantActivityRound = {
   id: string;
   name: string;
   sortOrder: number;
+  instructions?: string | null;
+  imageFileId?: string | null;
   durationMinutes: number | null;
   questionCount: number;
   state: ParticipantRoundState;
@@ -13,6 +15,8 @@ export type ParticipantActivityRound = {
   latestResultId: string | null;
   attemptsUsed?: number;
   maxAttempts?: number | null;
+  /** When false, submitting this round opens the next one without a pass mark. */
+  passRequired?: boolean;
   passed?: boolean | null;
   resultPendingPublish?: boolean;
 };
@@ -82,6 +86,7 @@ export type ParticipantResultDetail = {
   answersVisible?: boolean;
   submittedAt: string;
   questionCount?: number;
+  roundId?: string | null;
   attemptsUsed?: number;
   maxAttempts?: number | null;
   extraAttempts?: number;

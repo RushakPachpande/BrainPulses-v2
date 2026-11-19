@@ -9,14 +9,24 @@ import { formatImportIssue } from '../../lib/spreadsheet-import.js';
 import {
   buildExportWorkbook,
   buildSampleWorkbook,
+  claimQuestionRow,
+  contentFromPayload,
+  decideImportedQuestion,
+  duplicateQuestionIssue,
+  findQuestionDuplicate,
   formatQuestionImportError,
   newImportQuestionCode,
   parseBankQuestionsFile,
+  questionImageFromAnswerKey,
   sampleWorkbookFilename,
+  seedSavedQuestion,
+  snapshotFromQuestion,
   rowToCreatePayload,
   type BankImportRow,
   type ExportableQuestion,
   type ImportIssue,
+  type QuestionDuplicateHit,
+  type QuestionImportUpdate,
 } from './import-export.js';
 import { placeQuestionImages } from '../files/place.js';
 import { saveSharedPassage, stripPassageText } from './passages.js';
@@ -715,6 +725,43 @@ function importRowMessage(row: BankImportRow, kind: BankKind, err: unknown): str
   return formatQuestionImportError(row, kind, err);
 }
 
+async function loadSavedQuestionKeys(
+  organizationId: string,
+  bankId: string,
+): Promise<Map<string, QuestionDuplicateHit>> {
+  const questions = await prisma.question.findMany({
+    where: { organizationId, bankId },
+    select: {
+      id: true,
+      type: true,
+      question: true,
+      points: true,
+      passage: { select: { body: true } },
+      versions: {
+        orderBy: { version: 'desc' },
+        take: 1,
+        select: {
+          answerKey: true,
+          options: {
+            orderBy: { sortOrder: 'asc' },
+            select: { label: true, body: true, isCorrect: true, imageUrl: true },
+          },
+        },
+      },
+    },
+  });
+  const seen = new Map<string, QuestionDuplicateHit>();
+  for (const question of questions) {
+    const saved = snapshotFromQuestion(question);
+    seedSavedQuestion(seen, {
+      question: question.question,
+      stemImageUrl: questionImageFromAnswerKey(question.versions[0]?.answerKey),
+      where: { source: 'bank', saved },
+    });
+  }
+  return seen;
+}
+
 async function importFromRows(
   organizationId: string,
   actorUserId: string,
@@ -738,7 +785,13 @@ async function importFromRows(
     });
     if (existing?.metadata && typeof existing.metadata === 'object') {
       const meta = existing.metadata as { result?: unknown };
-      if (meta.result) return meta.result as { created: number; issues: ImportIssue[] };
+      if (meta.result) {
+        return meta.result as {
+          created: number;
+          issues: ImportIssue[];
+          updates: QuestionImportUpdate[];
+        };
+      }
     }
   }
 
@@ -747,13 +800,56 @@ async function importFromRows(
   }
 
   const issues: ImportIssue[] = [];
+  const updates: QuestionImportUpdate[] = [];
   let created = 0;
   const passageCache = new Map<string, string>();
   const bankRef = { id: bank.id, kind: bank.kind as ActivityKind };
+  const seen = await loadSavedQuestionKeys(organizationId, bankId);
 
   for (const row of rows) {
+    let payload;
     try {
-      const payload = rowToCreatePayload(row, bank.kind);
+      payload = rowToCreatePayload(row, bank.kind);
+    } catch (err) {
+      issues.push({
+        row: row.sheetRow,
+        message: importRowMessage(row, bank.kind, err),
+      });
+      continue;
+    }
+    const duplicate = findQuestionDuplicate(seen, {
+      question: row.question,
+      stemImageUrl: row.stemImageUrl,
+    });
+    const decision = decideImportedQuestion(duplicate, contentFromPayload(payload));
+    if (decision.action === 'skip-sheet' || decision.action === 'skip-unchanged') {
+      issues.push(
+        duplicateQuestionIssue(
+          row.sheetRow,
+          row.question,
+          row.stemImageUrl,
+          duplicate ?? { source: 'bank' },
+        ),
+      );
+      continue;
+    }
+    if (decision.action === 'update') {
+      updates.push({
+        questionId: decision.questionId,
+        bankId,
+        sheetRow: row.sheetRow,
+        question: payload.question.trim() || row.stemImageUrl.trim(),
+        changes: decision.changes,
+        payload,
+      });
+      claimQuestionRow(seen, {
+        sheetRow: row.sheetRow,
+        question: row.question,
+        stemImageUrl: row.stemImageUrl,
+      });
+      continue;
+    }
+    try {
       await createQuestion(
         organizationId,
         actorUserId,
@@ -766,6 +862,11 @@ async function importFromRows(
         passageCache,
         { bank: bankRef, skipAudit: true },
       );
+      claimQuestionRow(seen, {
+        sheetRow: row.sheetRow,
+        question: row.question,
+        stemImageUrl: row.stemImageUrl,
+      });
       created += 1;
     } catch (err) {
       issues.push({
@@ -775,7 +876,7 @@ async function importFromRows(
     }
   }
 
-  const result = { created, issues };
+  const result = { created, issues, updates };
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -783,7 +884,10 @@ async function importFromRows(
     action: 'bank.import',
     targetType: 'question_bank',
     targetId: bankId,
-    metadata: { idempotencyKey, result },
+    metadata: {
+      idempotencyKey,
+      result: JSON.parse(JSON.stringify(result)),
+    } as Prisma.InputJsonValue,
   });
   return result;
 }

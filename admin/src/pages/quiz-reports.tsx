@@ -362,10 +362,25 @@ export function QuizReportsPage() {
             Publish results
           </Button>
         ) : null}
-        <Button type="button" disabled={!data || isError} onClick={() => setDownloadOpen(true)}>
-          <DownloadIcon data-icon="inline-start" />
-          Download report
-        </Button>
+        <div className="flex w-full flex-col items-stretch gap-1 sm:items-end">
+          {data && activityIds.length !== 1 ? (
+            <p
+              id="quiz-download-hint"
+              className="text-xs text-muted-foreground sm:max-w-xs sm:text-right"
+            >
+              Choose one quiz in the Quiz filter to download its report.
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            disabled={!data || isError || activityIds.length !== 1}
+            aria-describedby={data && activityIds.length !== 1 ? 'quiz-download-hint' : undefined}
+            onClick={() => setDownloadOpen(true)}
+          >
+            <DownloadIcon data-icon="inline-start" />
+            Download report
+          </Button>
+        </div>
       </PageHeaderActions>
 
       {isPending && !data ? <ListPageSkeleton kpiCount={5} columns={6} /> : null}
@@ -609,7 +624,6 @@ export function QuizReportsPage() {
           .join(',')}`}
         completed={summary?.completed ?? 0}
         registered={summary?.registered ?? 0}
-        columnCount={columns.length}
       />
     </div>
   );

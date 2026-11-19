@@ -5,16 +5,16 @@ import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/e
 import { prisma } from '../../lib/prisma.js';
 import { isQuizScoreVisible, parseQuizSettings, shuffleInPlace } from '../../lib/quiz-settings.js';
 import {
-  applyQuestionLimit,
-  blocksFromItems,
-  orderBlocks,
+  buildDisplayOrder,
+  selectAttemptItems,
   type QuestionOrderItem,
 } from '../../lib/question-order.js';
 import {
   canRetryRound,
   parseRoundRow,
+  roundGateSatisfied,
   roundIsCleared,
-  roundNeedsManualPublish,
+  roundNeedsPublish,
 } from '../../lib/round-unlock.js';
 import { meetsPassRule } from '../../lib/round-settings.js';
 import { assertActivityPageEnabled } from '../../lib/participant-pages.js';
@@ -395,11 +395,81 @@ async function presentQuestions(
     });
 }
 
-async function presentOpenQuizAttempt(attemptId: string, organizationId: string) {
+function isUniqueViolation(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002';
+}
+
+/**
+ * A participant may have one in-progress attempt per activity. A second Start
+ * (double click, Strict Mode) or a submit that left a twin behind must not
+ * keep a deadline running or block the next round.
+ */
+export async function closeSupersededOpenAttempts(
+  organizationId: string,
+  participantId: string,
+  activityId?: string,
+) {
+  const open = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      participantId,
+      status: 'in_progress',
+      ...(activityId ? { activityId } : {}),
+    },
+    select: { id: true, activityId: true, roundId: true, startedAt: true },
+    orderBy: [{ startedAt: 'asc' }, { id: 'asc' }],
+  });
+  if (open.length === 0) return;
+
+  const finished = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      participantId,
+      status: { in: ['submitted', 'auto_submitted'] },
+      ...(activityId ? { activityId } : {}),
+    },
+    select: { activityId: true, roundId: true, startedAt: true },
+  });
+  const drop = new Set<string>();
+  // Only a twin of a double Start: same quiz/round, started within a few seconds, then one was submitted.
+  // A later retry stays open.
+  for (const row of open) {
+    const twin = finished.some(
+      (done) =>
+        done.activityId === row.activityId &&
+        (done.roundId ?? '') === (row.roundId ?? '') &&
+        Math.abs(done.startedAt.getTime() - row.startedAt.getTime()) < 5_000,
+    );
+    if (twin) drop.add(row.id);
+  }
+
+  const kept = open.filter((row) => !drop.has(row.id));
+  const seenRound = new Set<string>();
+  for (const row of kept) {
+    const key = `${row.activityId}:${row.roundId ?? ''}`;
+    if (seenRound.has(key)) drop.add(row.id);
+    else seenRound.add(key);
+  }
+
+  const still = kept.filter((row) => !drop.has(row.id));
+  const seenActivity = new Set<string>();
+  for (const row of still) {
+    if (seenActivity.has(row.activityId)) drop.add(row.id);
+    else seenActivity.add(row.activityId);
+  }
+
+  if (drop.size === 0) return;
+  await prisma.attempt.deleteMany({
+    where: { organizationId, id: { in: [...drop] }, status: 'in_progress' },
+  });
+}
+
+async function presentOpenAttempt(attemptId: string, organizationId: string) {
   const live = await prisma.attempt.findFirst({
     where: { id: attemptId },
     include: {
       responses: true,
+      round: true,
       activity: {
         select: {
           kind: true,
@@ -418,21 +488,20 @@ async function presentOpenQuizAttempt(attemptId: string, organizationId: string)
       : live.responses.map((r) => r.questionVersionId);
   const optionOrders = (live.optionOrders as OptionOrders | null) ?? null;
   const questions = await presentQuestions(organizationId, order, optionOrders);
+  const extras = live.round ? extrasFromRound(live.round) : extrasFromActivity(live.activity);
   return {
-    attempt: mapAttempt(live, extrasFromActivity(live.activity)),
+    attempt: mapAttempt(live, extras),
     questions,
   };
 }
 
 function buildAttemptOrders(
-  items: QuestionOrderItem[],
-  questionLimit: number | null,
+  selected: QuestionOrderItem[],
   optionsByVersion: Map<string, OptionRow[]>,
   shuffleQuestions: boolean,
   shuffleOptions: boolean,
 ): { questionOrder: string[]; optionOrders: OptionOrders } {
-  const blocks = applyQuestionLimit(blocksFromItems(items), questionLimit);
-  const questionOrder = orderBlocks(blocks, shuffleQuestions);
+  const questionOrder = buildDisplayOrder(selected, shuffleQuestions);
   const optionOrders: OptionOrders = {};
   if (shuffleOptions) {
     for (const id of questionOrder) {
@@ -555,6 +624,8 @@ export async function startAttempt(
   });
   if (!registration) throw forbidden('Participant is not registered for this activity.');
 
+  await closeSupersededOpenAttempts(organizationId, participantId, activityId);
+
   let resolvedRoundId: string | null = null;
   let durationMinutes = activity.durationMinutes ?? 60;
   let orderItems: QuestionOrderItem[];
@@ -577,18 +648,24 @@ export async function startAttempt(
       include: { result: true },
     });
 
-    // Objective rounds auto-publish on submit; withheld results never unlock the next round.
-    const requirePublished = true;
+    // After-publish rounds stay locked until results are released; after-submit scores are final on submit.
     for (const prev of activity.rounds.filter((r) => r.sortOrder < round.sortOrder)) {
-      if (!roundIsCleared(allAttempts, prev.id, parseRoundRow(prev), requirePublished)) {
-        throw forbidden(`Pass "${prev.name}" before starting this round.`);
+      const prevSettings = parseRoundRow(prev);
+      if (
+        !roundGateSatisfied(allAttempts, prev.id, prevSettings, roundNeedsPublish(prevSettings))
+      ) {
+        throw forbidden(
+          prevSettings.passRequired
+            ? `Pass "${prev.name}" before starting this round.`
+            : `Finish "${prev.name}" before starting this round.`,
+        );
       }
     }
 
-    if (roundIsCleared(allAttempts, round.id, roundSettings, requirePublished)) {
+    if (roundIsCleared(allAttempts, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
       throw conflict('This round has already been passed.');
     }
-    if (!canRetryRound(allAttempts, round.id, roundSettings, requirePublished)) {
+    if (!canRetryRound(allAttempts, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
       throw conflict('No attempts remaining for this round.');
     }
 
@@ -598,9 +675,28 @@ export async function startAttempt(
       if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
         throw conflict('An open attempt already exists for this round. Resume it instead.');
       }
+      const afterClose = await prisma.attempt.findMany({
+        where: { organizationId, activityId, participantId },
+        include: { result: true },
+      });
+      if (!canRetryRound(afterClose, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
+        throw conflict('No attempts remaining for this round.');
+      }
     }
 
-    const anyOpen = allAttempts.find((a) => a.status === 'in_progress' && a.roundId !== round.id);
+    const others = allAttempts.filter((a) => a.status === 'in_progress' && a.roundId !== round.id);
+    for (const other of others) {
+      await autoSubmitIfExpired(other);
+    }
+    const anyOpen = await prisma.attempt.findFirst({
+      where: {
+        organizationId,
+        activityId,
+        participantId,
+        status: 'in_progress',
+        NOT: { roundId: round.id },
+      },
+    });
     if (anyOpen) {
       throw conflict('Finish or resume your open round attempt first.');
     }
@@ -656,12 +752,12 @@ export async function startAttempt(
             where: { id: grantContinue.id },
             data: { consumedAt: new Date() },
           });
-          return presentOpenQuizAttempt(open.id, organizationId);
+          return presentOpenAttempt(open.id, organizationId);
         }
       }
       const refreshed = await autoSubmitIfExpired(open);
       if (refreshed && 'status' in refreshed && refreshed.status === 'in_progress') {
-        return presentOpenQuizAttempt(open.id, organizationId);
+        return presentOpenAttempt(open.id, organizationId);
       }
     }
 
@@ -744,9 +840,9 @@ export async function startAttempt(
         }
       : assessmentShuffle;
 
-  const candidateIds = applyQuestionLimit(blocksFromItems(orderItems), questionLimit).flatMap(
-    (block) => block.map((item) => item.id),
-  );
+  const shuffleQuestions = shuffle?.shuffleQuestions ?? false;
+  const selected = selectAttemptItems(orderItems, questionLimit, shuffleQuestions);
+  const candidateIds = selected.map((item) => item.id);
   if (candidateIds.length === 0) {
     throw badRequest('No questions available for this attempt.');
   }
@@ -761,10 +857,9 @@ export async function startAttempt(
   });
   const optionsByVersion = new Map(versionsForOpts.map((v) => [v.id, v.options]));
   const built = buildAttemptOrders(
-    orderItems,
-    questionLimit,
+    selected,
     optionsByVersion,
-    shuffle?.shuffleQuestions ?? false,
+    shuffleQuestions,
     shuffle?.shuffleOptions ?? false,
   );
   const questionOrder = built.questionOrder;
@@ -783,33 +878,47 @@ export async function startAttempt(
       orderBy: { startedAt: 'desc' },
     });
     if (stillOpen) {
-      return presentOpenQuizAttempt(stillOpen.id, organizationId);
+      return presentOpenAttempt(stillOpen.id, organizationId);
     }
   }
 
-  const attempt = await prisma.attempt.create({
-    data: {
-      organizationId,
-      activityId,
-      roundId: resolvedRoundId,
-      participantId,
-      status: 'in_progress',
-      revision: 0,
-      startedAt: now,
-      deadlineAt,
-      questionOrder,
-      optionOrders: Object.keys(optionOrders).length > 0 ? optionOrders : undefined,
-      responses: {
-        create: questionOrder.map((questionVersionId) => ({
-          organizationId,
-          questionVersionId,
-          answer: {},
-          revision: 0,
-        })),
+  let attempt;
+  try {
+    attempt = await prisma.attempt.create({
+      data: {
+        organizationId,
+        activityId,
+        roundId: resolvedRoundId,
+        participantId,
+        status: 'in_progress',
+        revision: 0,
+        startedAt: now,
+        deadlineAt,
+        questionOrder,
+        optionOrders: Object.keys(optionOrders).length > 0 ? optionOrders : undefined,
+        responses: {
+          create: questionOrder.map((questionVersionId) => ({
+            organizationId,
+            questionVersionId,
+            answer: {},
+            revision: 0,
+          })),
+        },
       },
-    },
-    include: { responses: true },
-  });
+      include: { responses: true },
+    });
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    const existing = await prisma.attempt.findFirst({
+      where: { organizationId, activityId, participantId, status: 'in_progress' },
+      orderBy: { startedAt: 'asc' },
+    });
+    if (!existing) throw err;
+    if (resolvedRoundId && existing.roundId !== resolvedRoundId) {
+      throw conflict('Finish or resume your open round attempt first.');
+    }
+    return presentOpenAttempt(existing.id, organizationId);
+  }
 
   await invalidateDashboard(organizationId);
 
@@ -848,6 +957,39 @@ export async function resumeAttempt(
   });
   if (!attempt) throw notFound('Attempt not found.');
   await assertActivityPageEnabled(organizationId, attempt.activity.kind);
+
+  if (attempt.status !== 'in_progress') {
+    const finished = await prisma.attempt.findFirst({
+      where: { organizationId, id: attemptId, participantId },
+      include: { result: true },
+    });
+    if (finished?.result) {
+      const published = finished.result.releaseStatus === 'published';
+      const quizSettings =
+        attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
+      const roundSettings =
+        attempt.activity.kind === 'assessment' && attempt.round
+          ? parseRoundRow(attempt.round)
+          : null;
+      return {
+        attempt: mapAttempt(
+          { ...finished, responses: attempt.responses },
+          attempt.activity.kind === 'assessment' && attempt.round
+            ? extrasFromRound(attempt.round)
+            : extrasFromActivity(attempt.activity),
+        ),
+        questions: [],
+        submitted: true,
+        result: mapParticipantResult(finished.result, {
+          scoreVisible: isQuizScoreVisible(quizSettings ?? roundSettings, published),
+          answersVisible:
+            quizSettings?.answersVisibleToParticipant ??
+            roundSettings?.answersVisibleToParticipant ??
+            false,
+        }),
+      };
+    }
+  }
 
   const quizSettings =
     attempt.activity.kind === 'quiz' ? parseQuizSettings(attempt.activity.settings) : null;
@@ -1209,11 +1351,9 @@ async function submitAttemptInternal(
 
   let score = 0;
   let maxScore = 0;
-  const questionTypes: string[] = [];
   for (const response of attempt.responses) {
     const version = byId.get(response.questionVersionId);
     if (!version) continue;
-    questionTypes.push(version.type);
     const pts = toNumber(version.points);
     const earned = scoreObjective(version.type, version.answerKey, response.answer, pts);
     if (earned === null) continue;
@@ -1242,10 +1382,11 @@ async function submitAttemptInternal(
     attempt.activity.kind === 'quiz' && attempt.activity.resultsPublishedAt != null;
   const roundPublished =
     attempt.activity.kind === 'assessment' && attempt.round?.resultsPublishedAt != null;
+  // Text/numeric items are auto-scored against the reference answer; only after_publish holds.
   const holdUntilPublish =
     attempt.activity.kind === 'assessment' &&
     !roundPublished &&
-    (roundSettings?.scoreRelease === 'after_publish' || roundNeedsManualPublish(questionTypes));
+    Boolean(roundSettings && roundNeedsPublish(roundSettings));
   const releaseStatus =
     quizPublished || roundPublished || (attempt.activity.kind === 'assessment' && !holdUntilPublish)
       ? ('published' as const)
@@ -1271,6 +1412,22 @@ async function submitAttemptInternal(
     if (locked.count !== 1) {
       throw conflict('Attempt already submitted.');
     }
+
+    // A double Start can leave a twin in progress. Submitting ends that copy's timer.
+    // A later retry is not in progress at the same time, so it is not deleted.
+    await tx.attempt.deleteMany({
+      where: {
+        organizationId,
+        activityId: attempt.activityId,
+        participantId,
+        status: 'in_progress',
+        id: { not: attemptId },
+        startedAt: {
+          gte: new Date(attempt.startedAt.getTime() - 5_000),
+          lte: new Date(attempt.startedAt.getTime() + 5_000),
+        },
+      },
+    });
 
     const upd = await tx.attempt.findFirst({
       where: { organizationId, id: attemptId },

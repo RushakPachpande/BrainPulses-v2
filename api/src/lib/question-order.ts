@@ -6,6 +6,12 @@ export type QuestionOrderItem = {
   sortOrder: number;
 };
 
+export type ShuffleFn = <T>(items: T[]) => T[];
+
+function stableSort(items: QuestionOrderItem[]): QuestionOrderItem[] {
+  return [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+}
+
 /** Passage questions stay in one block. Other questions are blocks of one. */
 export function blocksFromItems(items: QuestionOrderItem[]): QuestionOrderItem[][] {
   const groups = new Map<string, QuestionOrderItem[]>();
@@ -37,42 +43,51 @@ export function blocksFromItems(items: QuestionOrderItem[]): QuestionOrderItem[]
 }
 
 /**
- * Take whole blocks until the next block would pass the limit.
- * A passage larger than the limit is served whole when it is the first block taken.
+ * Pick up to `limit` questions independently from the pool.
+ * Shuffle samples from the full set; without shuffle, takes a stable bank-order prefix.
  */
-export function applyQuestionLimit(
-  blocks: QuestionOrderItem[][],
+export function selectAttemptItems(
+  items: QuestionOrderItem[],
   limit: number | null,
-): QuestionOrderItem[][] {
-  if (limit == null) return blocks;
-  const chosen: QuestionOrderItem[][] = [];
-  let count = 0;
-  for (const block of blocks) {
-    if (chosen.length === 0 && block.length > limit) {
-      chosen.push(block);
-      break;
-    }
-    if (count + block.length > limit) break;
-    chosen.push(block);
-    count += block.length;
-  }
-  return chosen;
+  shuffleQuestions: boolean,
+  shuffle: ShuffleFn = shuffleInPlace,
+): QuestionOrderItem[] {
+  const pool = stableSort(items);
+  const ordered = shuffleQuestions ? shuffle(pool) : pool;
+  if (limit == null) return ordered;
+  return ordered.slice(0, Math.min(limit, ordered.length));
 }
 
-export function servedQuestionCount(items: QuestionOrderItem[], limit: number | null): number {
-  return applyQuestionLimit(blocksFromItems(items), limit).reduce(
-    (sum, block) => sum + block.length,
-    0,
-  );
+/**
+ * Present selected items so chosen passage siblings run contiguously once,
+ * then shuffle block order (and within-passage order) when enabled.
+ */
+export function buildDisplayOrder(
+  selected: QuestionOrderItem[],
+  shuffleQuestions: boolean,
+  shuffle: ShuffleFn = shuffleInPlace,
+): string[] {
+  return orderBlocks(blocksFromItems(selected), shuffleQuestions, shuffle);
 }
 
-/** Shuffle block order, then shuffle only inside a passage block. */
-export function orderBlocks(blocks: QuestionOrderItem[][], shuffleQuestions: boolean): string[] {
-  const arranged = shuffleQuestions ? shuffleInPlace(blocks) : blocks;
+/** How many questions an attempt with this limit will serve. */
+export function servedQuestionCount(items: { length: number }, limit: number | null): number {
+  const total = items.length;
+  if (limit == null) return total;
+  return Math.min(limit, total);
+}
+
+/** Shuffle block order, then shuffle only inside a multi-item passage block. */
+export function orderBlocks(
+  blocks: QuestionOrderItem[][],
+  shuffleQuestions: boolean,
+  shuffle: ShuffleFn = shuffleInPlace,
+): string[] {
+  const arranged = shuffleQuestions ? shuffle(blocks) : blocks;
   const ids: string[] = [];
   for (const block of arranged) {
     const passage = Boolean(block[0]?.passageId) && block.length > 1;
-    const items = shuffleQuestions && passage ? shuffleInPlace(block) : block;
+    const items = shuffleQuestions && passage ? shuffle(block) : block;
     for (const item of items) ids.push(item.id);
   }
   return ids;

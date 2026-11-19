@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DownloadIcon, FileSpreadsheetIcon, PlusIcon, UploadIcon } from 'lucide-react';
 import { ImportResultDialog } from '@/components/import-result-dialog';
+import { QuestionImportUpdatesDialog } from '@/components/question-import-updates-dialog';
 import {
   importResultFromCounts,
   importResultFromError,
@@ -44,6 +45,7 @@ import {
   setBankQuestionsActive,
   updateBankQuestion,
   type BankQuestionItem,
+  type QuestionImportUpdate,
 } from '@/services';
 import {
   draftFromItem,
@@ -98,6 +100,11 @@ export function QuizQuestionsPanel({
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(() => emptyDraft('single_mcq'));
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
+  const [pendingUpdates, setPendingUpdates] = useState<{
+    created: number;
+    updates: QuestionImportUpdate[];
+    issues: string[];
+  } | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
   const onCountRef = useRef(onCount);
@@ -288,13 +295,21 @@ export function QuizQuestionsPanel({
       const id = await resolveBankId();
       if (!id) return;
       const result = await importBankQuestions(id, file);
-      setImportResult(
-        importResultFromCounts(
-          result.created,
-          result.issues.map((issue) => issue.message),
-          'question',
-        ),
-      );
+      if (result.updates && result.updates.length > 0) {
+        setPendingUpdates({
+          created: result.created,
+          updates: result.updates,
+          issues: result.issues.map((issue) => issue.message),
+        });
+      } else {
+        setImportResult(
+          importResultFromCounts(
+            result.created,
+            result.issues.map((issue) => issue.message),
+            'question',
+          ),
+        );
+      }
       if (result.created > 0) await reload(id);
     } catch (err) {
       setImportResult(importResultFromError(err));
@@ -610,6 +625,21 @@ export function QuizQuestionsPanel({
         result={importResult}
         onOpenChange={(open) => {
           if (!open) setImportResult(null);
+        }}
+      />
+      <QuestionImportUpdatesDialog
+        created={pendingUpdates?.created ?? 0}
+        updates={pendingUpdates?.updates ?? null}
+        onUpdated={async () => {
+          if (bankId) await reload(bankId);
+        }}
+        onOpenChange={(open) => {
+          if (open) return;
+          const pending = pendingUpdates;
+          setPendingUpdates(null);
+          if (pending && pending.issues.length > 0) {
+            setImportResult(importResultFromCounts(pending.created, pending.issues, 'question'));
+          }
         }}
       />
     </>

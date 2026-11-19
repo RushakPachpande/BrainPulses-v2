@@ -94,6 +94,7 @@ function mapRound(r: Prisma.ActivityRoundGetPayload<{ include: typeof roundInclu
     id: r.id,
     name: r.name,
     sortOrder: r.sortOrder,
+    instructions: r.instructions ?? null,
     durationMinutes: settings.durationMinutes,
     durationMode: settings.durationMode,
     perQuestionSeconds: settings.perQuestionSeconds,
@@ -113,6 +114,7 @@ function mapRound(r: Prisma.ActivityRoundGetPayload<{ include: typeof roundInclu
       scoreRelease: settings.scoreRelease,
       answersVisibleToParticipant: settings.answersVisibleToParticipant,
       questionLimit: settings.questionLimit,
+      passRequired: settings.passRequired,
     },
     imageFileId: r.imageFileId,
     bankIds: r.banks.map((b) => b.bankId),
@@ -299,6 +301,7 @@ function roundPersistData(round: RoundInput) {
   return {
     name: round.name,
     sortOrder: round.sortOrder,
+    instructions: round.instructions?.trim() || null,
     durationMinutes:
       mode === 'overall' ? (round.durationMinutes ?? defaultRoundSettings.durationMinutes) : null,
     durationMode: mode,

@@ -169,6 +169,385 @@ export const QUESTION_HEADER_LABELS: Record<BankImportHeader, string> = {
   passageText: 'Passage',
 };
 
+export type QuestionContentOption = {
+  label: string;
+  body: string;
+  isCorrect: boolean;
+  imageUrl: string;
+};
+
+export type QuestionContent = {
+  type: string;
+  question: string;
+  points: number;
+  stemImageUrl: string;
+  passageText: string;
+  options: QuestionContentOption[];
+  numericValue: string;
+  numericTolerance: string;
+  referenceAnswer: string;
+};
+
+export type QuestionSnapshot = QuestionContent & { questionId: string };
+
+export type QuestionFieldChange = { field: string; before: string; after: string };
+
+export type QuestionDuplicateHit =
+  | { source: 'sheet'; sheetRow: number }
+  | { source: 'bank'; saved?: QuestionSnapshot }
+  | { source: 'round'; roundName: string; saved?: QuestionSnapshot };
+
+export type QuestionImportUpdate = {
+  questionId: string;
+  bankId: string;
+  sheetRow: number;
+  question: string;
+  roundName?: string;
+  changes: QuestionFieldChange[];
+  payload: BankCreatePayload;
+};
+
+/** Text identity for a question. Image-only rows use the image link. */
+export function questionContentKey(question: string, imageUrl: string): string | null {
+  const text = readImportedText(question).replace(/\s+/g, ' ').toLowerCase();
+  if (text) return `t:${text}`;
+  const image = readImportedText(imageUrl).toLowerCase();
+  if (image) return `i:${image}`;
+  return null;
+}
+
+export function questionImageFromAnswerKey(answerKey: unknown): string {
+  if (!answerKey || typeof answerKey !== 'object') return '';
+  const key = answerKey as Record<string, unknown>;
+  const fromQuestion = typeof key.questionImageUrl === 'string' ? key.questionImageUrl : '';
+  const fromStem = typeof key.stemImageUrl === 'string' ? key.stemImageUrl : '';
+  return readImportedText(fromQuestion || fromStem);
+}
+
+function questionScopeKey(contentKey: string, roundName?: string): string {
+  if (roundName === undefined) return contentKey;
+  const round = readImportedText(roundName).replace(/\s+/g, ' ').toLowerCase();
+  return `${round}\u0000${contentKey}`;
+}
+
+export function seedSavedQuestion(
+  seen: Map<string, QuestionDuplicateHit>,
+  input: {
+    question: string;
+    stemImageUrl: string;
+    where: QuestionDuplicateHit;
+    roundName?: string;
+  },
+): void {
+  const content = questionContentKey(input.question, input.stemImageUrl);
+  if (!content) return;
+  const scope = questionScopeKey(content, input.roundName);
+  if (!seen.has(scope)) seen.set(scope, input.where);
+}
+
+export function findQuestionDuplicate(
+  seen: Map<string, QuestionDuplicateHit>,
+  input: { question: string; stemImageUrl: string; roundName?: string },
+): QuestionDuplicateHit | null {
+  const content = questionContentKey(input.question, input.stemImageUrl);
+  if (!content) return null;
+  return seen.get(questionScopeKey(content, input.roundName)) ?? null;
+}
+
+/** Remember a row that will be saved, so a later row with the same text is a duplicate. */
+export function claimQuestionRow(
+  seen: Map<string, QuestionDuplicateHit>,
+  input: { sheetRow: number; question: string; stemImageUrl: string; roundName?: string },
+): void {
+  const content = questionContentKey(input.question, input.stemImageUrl);
+  if (!content) return;
+  const scope = questionScopeKey(content, input.roundName);
+  if (seen.get(scope)?.source === 'sheet') return;
+  seen.set(scope, { source: 'sheet', sheetRow: input.sheetRow });
+}
+
+export function duplicateQuestionIssue(
+  sheetRow: number,
+  question: string,
+  stemImageUrl: string,
+  where: QuestionDuplicateHit,
+): ImportIssue {
+  const text = readImportedText(question).replace(/\s+/g, ' ');
+  const image = readImportedText(stemImageUrl);
+  const imageOnly = text.length === 0;
+  const column = imageOnly ? QUESTION_HEADER_LABELS.stemImageUrl : QUESTION_HEADER_LABELS.question;
+  const value = imageOnly ? image : text;
+
+  let problem: string;
+  let expected: string;
+  if (imageOnly) {
+    if (where.source === 'sheet') {
+      problem = `this image is already the question (no text) on sheet row ${where.sheetRow}`;
+      expected = `delete this row, or use a different image link if it is a different question. Row ${where.sheetRow} is the one that will be imported`;
+    } else if (where.source === 'round') {
+      problem = `this image is already the question (no text) in round “${where.roundName}”`;
+      expected =
+        'delete this row, or put it in a different round if it belongs there. The same image in another round is allowed';
+    } else {
+      problem = 'this image is already the question (no text) in this question bank';
+      expected = 'delete this row. Change the image link only when it is a different question';
+    }
+  } else if (where.source === 'sheet') {
+    problem = `the same question text is already on sheet row ${where.sheetRow}`;
+    expected = `delete this row, or change the question text if it is a different question. Row ${where.sheetRow} is the one that will be imported`;
+  } else if (where.source === 'round') {
+    problem = `this question is already in round “${where.roundName}” and this row matches what is saved`;
+    expected =
+      'delete this row. It was skipped. The same text in another round is allowed, and new questions in this file are still added';
+  } else {
+    problem = 'this question is already in this question bank and this row matches what is saved';
+    expected = 'delete this row. It was skipped. New questions in this file are still added';
+  }
+
+  return {
+    row: sheetRow,
+    message: formatImportIssue({ sheetRow, column, value, problem, expected }),
+  };
+}
+
+export function skipDuplicateQuestionRows<
+  T extends { sheetRow: number; question: string; stemImageUrl: string; roundName?: string },
+>(rows: T[], seen: Map<string, QuestionDuplicateHit>): { keep: T[]; issues: ImportIssue[] } {
+  const keep: T[] = [];
+  const issues: ImportIssue[] = [];
+  for (const row of rows) {
+    const hit = findQuestionDuplicate(seen, row);
+    if (hit) {
+      issues.push(duplicateQuestionIssue(row.sheetRow, row.question, row.stemImageUrl, hit));
+      continue;
+    }
+    claimQuestionRow(seen, row);
+    keep.push(row);
+  }
+  return { keep, issues };
+}
+
+const QUESTION_TYPE_LABELS: Record<string, string> = {
+  single_mcq: 'Single choice',
+  multiple_mcq: 'Multiple choice',
+  true_false: 'True / False',
+  numeric: 'Numeric',
+  short_text: 'Short text',
+  long_text: 'Long text',
+  comprehension_mcq: 'Comprehension',
+  image_mcq: 'Image choice',
+  image_selection: 'Image selection',
+};
+
+function looseText(value: string): string {
+  return readImportedText(value).replace(/\s+/g, ' ').toLowerCase();
+}
+
+function pointsLabel(points: number): string {
+  if (!Number.isFinite(points)) return String(points);
+  return String(Number(points.toFixed(2)));
+}
+
+function optionLines(options: QuestionContentOption[]): string {
+  if (options.length === 0) return '(none)';
+  return [...options]
+    .sort((a, b) => a.label.localeCompare(b.label))
+    .map((option) => {
+      const bits = [`${option.label}. ${option.body.trim() || '(no text)'}`];
+      if (option.isCorrect) bits.push('correct');
+      if (option.imageUrl.trim()) bits.push(`image ${option.imageUrl.trim()}`);
+      return bits.join(', ');
+    })
+    .join('\n');
+}
+
+function optionsMatch(left: QuestionContentOption[], right: QuestionContentOption[]): boolean {
+  const normalize = (options: QuestionContentOption[]) =>
+    [...options]
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map((option) =>
+        [
+          option.label.trim().toUpperCase(),
+          looseText(option.body),
+          option.isCorrect ? '1' : '0',
+          looseText(option.imageUrl),
+        ].join('\u0000'),
+      );
+  const a = normalize(left);
+  const b = normalize(right);
+  return a.length === b.length && a.every((line, index) => line === b[index]);
+}
+
+function textOf(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return '';
+}
+
+export function contentFromPayload(payload: {
+  type: string;
+  question: string;
+  points: number;
+  options?: Array<{ label: string; body: string; isCorrect: boolean; imageUrl?: string | null }>;
+  answerKey?: Record<string, unknown>;
+}): QuestionContent {
+  const key = payload.answerKey ?? {};
+  const textAnswer = payload.type === 'short_text' || payload.type === 'long_text';
+  return {
+    type: payload.type,
+    question: payload.question,
+    points: payload.points,
+    stemImageUrl: textOf(key.questionImageUrl) || textOf(key.stemImageUrl),
+    passageText: textOf(key.passageText),
+    options: (payload.options ?? []).map((option) => ({
+      label: option.label,
+      body: option.body,
+      isCorrect: option.isCorrect,
+      imageUrl: option.imageUrl?.trim() ?? '',
+    })),
+    numericValue: payload.type === 'numeric' ? textOf(key.value) : '',
+    numericTolerance: textOf(key.numericTolerance),
+    referenceAnswer: textAnswer ? textOf(key.value) : '',
+  };
+}
+
+export function snapshotFromQuestion(question: {
+  id: string;
+  type: string;
+  question: string;
+  points: number | { toString(): string };
+  passage?: { body: string } | null;
+  versions: Array<{
+    answerKey: unknown;
+    options: Array<{ label: string; body: string; isCorrect: boolean; imageUrl?: string | null }>;
+  }>;
+}): QuestionSnapshot {
+  const latest = question.versions[0];
+  const fromPayload = contentFromPayload({
+    type: question.type,
+    question: question.question,
+    points: Number(question.points),
+    options: latest?.options ?? [],
+    answerKey:
+      latest?.answerKey && typeof latest.answerKey === 'object'
+        ? (latest.answerKey as Record<string, unknown>)
+        : {},
+  });
+  const passage = question.passage?.body?.trim() ?? '';
+  return {
+    questionId: question.id,
+    ...fromPayload,
+    passageText: passage || fromPayload.passageText,
+  };
+}
+
+export function questionFieldChanges(
+  saved: QuestionContent,
+  incoming: QuestionContent,
+): QuestionFieldChange[] {
+  const changes: QuestionFieldChange[] = [];
+  const consider = (field: string, before: string, after: string, same: boolean) => {
+    if (!same) changes.push({ field, before, after });
+  };
+  consider(
+    'Type',
+    QUESTION_TYPE_LABELS[saved.type] ?? saved.type,
+    QUESTION_TYPE_LABELS[incoming.type] ?? incoming.type,
+    saved.type === incoming.type,
+  );
+  consider(
+    'Points',
+    pointsLabel(saved.points),
+    pointsLabel(incoming.points),
+    pointsLabel(saved.points) === pointsLabel(incoming.points),
+  );
+  consider(
+    'Question image',
+    saved.stemImageUrl.trim() || '(none)',
+    incoming.stemImageUrl.trim() || '(none)',
+    looseText(saved.stemImageUrl) === looseText(incoming.stemImageUrl),
+  );
+  consider(
+    'Passage',
+    saved.passageText.trim() || '(none)',
+    incoming.passageText.trim() || '(none)',
+    looseText(saved.passageText) === looseText(incoming.passageText),
+  );
+  consider(
+    'Options',
+    optionLines(saved.options),
+    optionLines(incoming.options),
+    optionsMatch(saved.options, incoming.options),
+  );
+  consider(
+    'Numeric answer',
+    saved.numericValue.trim() || '(none)',
+    incoming.numericValue.trim() || '(none)',
+    looseText(saved.numericValue) === looseText(incoming.numericValue),
+  );
+  consider(
+    'Allowed margin',
+    saved.numericTolerance.trim() || '(none)',
+    incoming.numericTolerance.trim() || '(none)',
+    looseText(saved.numericTolerance) === looseText(incoming.numericTolerance),
+  );
+  consider(
+    'Sample answer',
+    saved.referenceAnswer.trim() || '(none)',
+    incoming.referenceAnswer.trim() || '(none)',
+    looseText(saved.referenceAnswer) === looseText(incoming.referenceAnswer),
+  );
+  return changes;
+}
+
+export type QuestionImportDecision =
+  | { action: 'create' }
+  | { action: 'skip-sheet' }
+  | { action: 'skip-unchanged' }
+  | { action: 'update'; questionId: string; roundName?: string; changes: QuestionFieldChange[] };
+
+export function decideImportedQuestion(
+  hit: QuestionDuplicateHit | null,
+  incoming: QuestionContent,
+): QuestionImportDecision {
+  if (!hit) return { action: 'create' };
+  if (hit.source === 'sheet') return { action: 'skip-sheet' };
+  if (!hit.saved) return { action: 'skip-unchanged' };
+  const changes = questionFieldChanges(hit.saved, incoming);
+  if (changes.length === 0) return { action: 'skip-unchanged' };
+  return {
+    action: 'update',
+    questionId: hit.saved.questionId,
+    roundName: hit.source === 'round' ? hit.roundName : undefined,
+    changes,
+  };
+}
+
+export function questionUpdatePreviewIssue(
+  sheetRow: number,
+  question: string,
+  stemImageUrl: string,
+  where: QuestionDuplicateHit,
+  changes: QuestionFieldChange[],
+): ImportIssue {
+  const text = readImportedText(question).replace(/\s+/g, ' ');
+  const image = readImportedText(stemImageUrl);
+  const imageOnly = text.length === 0;
+  const fields = changes.map((change) => change.field).join(', ');
+  const place = where.source === 'round' ? `round “${where.roundName}”` : 'this question bank';
+  return {
+    row: sheetRow,
+    message: formatImportIssue({
+      sheetRow,
+      column: imageOnly ? QUESTION_HEADER_LABELS.stemImageUrl : QUESTION_HEADER_LABELS.question,
+      value: imageOnly ? image : text,
+      problem: `this question is already in ${place}, and the file changes ${fields}`,
+      expected:
+        'leave this row. New questions are added automatically, then you confirm whether to update this saved question',
+    }),
+  };
+}
+
 export async function parseBankQuestionsFile(
   buffer: Buffer,
   filename: string,
@@ -810,7 +1189,7 @@ export async function buildSampleWorkbook(kind: BankKind = 'assessment'): Promis
     '2. Delete the example rows before you import, or those example questions will be created.',
   ]);
   instructions.addRow([
-    '3. Import adds questions. It does not update or replace questions already in the bank.',
+    '3. Import adds new questions. A row is skipped when that question text is already in this bank and the row matches the saved question. If the options, answer, points, or type differ, import asks you to confirm the update. For a quiz image with no text, the image link is compared instead.',
   ]);
   instructions.addRow([
     '4. Save as Excel (.xlsx) only. CSV and legacy .xls are not supported. Up to 1000 rows, 10 MB.',

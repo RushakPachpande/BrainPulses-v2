@@ -4,6 +4,8 @@ import { writeAudit } from '../../lib/audit.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { parseQuizSettings } from '../../lib/quiz-settings.js';
+import { loadAttemptQuestions, loadParticipantProfiles } from '../../lib/report-export-data.js';
+import type { QuizActivityExport, QuizExportContext } from './export.js';
 import { assertActivityAccess } from '../activities/service.js';
 import { settleOpenQuizAttempts } from '../attempts/service.js';
 import { hasSubmittedAnswer, scoreObjective, toNumber } from '../attempts/scoring.js';
@@ -341,11 +343,64 @@ export async function exportQuizReportRows(
   const rows = query.includeAbsent
     ? filtered
     : filtered.filter((row) => row.attemptStatus === 'completed');
+  const names = [...new Set(rows.map((row) => row.quizName))];
   const quiz =
     query.activityId.length === 1
       ? loaded.options.quizzes.find((item) => item.id === query.activityId[0])
       : undefined;
-  return { rows, quizName: quiz?.name ?? null };
+  return {
+    rows,
+    quizName: quiz?.name ?? (names.length === 1 ? names[0]! : null),
+    context: await loadQuizExportContext(organizationId, rows),
+  };
+}
+
+async function loadQuizExportContext(
+  organizationId: string,
+  rows: ReportRow[],
+): Promise<QuizExportContext> {
+  const registrationIds = [...new Set(rows.map((row) => row.registrationId))];
+  const attemptIds = [
+    ...new Set(rows.flatMap((row) => (row.bestAttemptId ? [row.bestAttemptId] : []))),
+  ];
+  const activityIds = [...new Set(rows.map((row) => row.activityId))];
+  const [profiles, loaded, activities] = await Promise.all([
+    loadParticipantProfiles(organizationId, registrationIds),
+    loadAttemptQuestions(organizationId, attemptIds),
+    activityIds.length === 0
+      ? Promise.resolve([])
+      : prisma.activity.findMany({
+          where: { organizationId, id: { in: activityIds }, kind: 'quiz' },
+          select: {
+            id: true,
+            durationMinutes: true,
+            durationMode: true,
+            perQuestionSeconds: true,
+            settings: true,
+          },
+        }),
+  ]);
+  const byActivity = new Map<string, QuizActivityExport>();
+  for (const activity of activities) {
+    const settings = parseQuizSettings(activity.settings);
+    byActivity.set(activity.id, {
+      timing: {
+        durationMode: activity.durationMode === 'per_question' ? 'per_question' : 'overall',
+        durationMinutes: activity.durationMinutes,
+        perQuestionSeconds: activity.perQuestionSeconds,
+      },
+      negative: {
+        enabled: settings.negativeMarkingEnabled,
+        penalty: settings.negativeMarkPoints,
+      },
+    });
+  }
+  return {
+    profiles,
+    attempts: loaded.attempts,
+    questions: loaded.questions,
+    activities: byActivity,
+  };
 }
 
 export async function getQuizReportDetail(

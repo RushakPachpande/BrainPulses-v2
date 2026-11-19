@@ -81,7 +81,6 @@ type ColumnKey = (typeof COLUMNS)[number]['key'];
 const HIDDEN = new Set<ColumnKey>([
   'email',
   'phone',
-  'round',
   'attemptsUsed',
   'maxScore',
   'correct',
@@ -110,7 +109,7 @@ function defaultColumns(): ColumnKey[] {
 }
 
 function assessmentColumnKey(userId: string) {
-  return columnStorageKey(`assessment:v2:${userId}`);
+  return columnStorageKey(`assessment:v3:${userId}`);
 }
 
 function readColumns(userId: string): ColumnKey[] {
@@ -372,8 +371,14 @@ export function AssessmentReportsPage() {
   ).map((column) => ({
     key: column.key,
     label: column.label,
-    placement: column.key === 'name' ? 'title' : column.key === 'code' ? 'identity' : 'details',
-    identityPrefix: column.key === 'code' ? 'Registration ID: ' : undefined,
+    placement:
+      column.key === 'name'
+        ? 'title'
+        : column.key === 'code' || column.key === 'round'
+          ? 'identity'
+          : 'details',
+    identityPrefix:
+      column.key === 'code' ? 'Registration ID: ' : column.key === 'round' ? 'Round: ' : undefined,
     tableClassName: NUMERIC.has(column.key) ? 'text-right tabular-nums' : undefined,
     headClassName: NUMERIC.has(column.key) ? 'text-right' : undefined,
     render: (row) => renderCell(column.key, row),
@@ -401,10 +406,11 @@ export function AssessmentReportsPage() {
   const noRegistrations = Boolean(data && data.options.assessments.length === 0);
   const holdsScores =
     selectedRound?.scoreRelease === 'after_publish' && !selectedRound.resultsPublishedAt;
-  const blocksNext =
+  /** Legacy after_submit rows may still be withheld from the old manual-text hold. */
+  const legacyHeld =
     (selectedRound?.withheldCount ?? 0) > 0 && selectedRound?.scoreRelease === 'after_submit';
   const showPublish = Boolean(
-    selectedRound && (selectedRound.scoreRelease === 'after_publish' || blocksNext),
+    selectedRound && (selectedRound.scoreRelease === 'after_publish' || legacyHeld),
   );
 
   const unpublishedPool =
@@ -447,6 +453,7 @@ export function AssessmentReportsPage() {
   const visible = COLUMNS.filter((column) => columns.includes(column.key)).map(
     (column) => column.key,
   );
+  const canDownload = Boolean(data) && !isError && activityIds.length === 1;
 
   return (
     <div ref={ref} className="flex flex-col gap-4">
@@ -463,10 +470,27 @@ export function AssessmentReportsPage() {
             Publish results
           </Button>
         ) : null}
-        <Button type="button" disabled={!data || isError} onClick={() => setDownloadOpen(true)}>
-          <DownloadIcon data-icon="inline-start" />
-          Download report
-        </Button>
+        <div className="flex w-full flex-col items-stretch gap-1 sm:items-end">
+          {data && activityIds.length !== 1 ? (
+            <p
+              id="assessment-download-hint"
+              className="text-xs text-muted-foreground sm:max-w-xs sm:text-right"
+            >
+              Choose one assessment in the Assessment filter to download its report.
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            disabled={!canDownload}
+            aria-describedby={
+              data && activityIds.length !== 1 ? 'assessment-download-hint' : undefined
+            }
+            onClick={() => setDownloadOpen(true)}
+          >
+            <DownloadIcon data-icon="inline-start" />
+            Download report
+          </Button>
+        </div>
       </PageHeaderActions>
 
       {isPending && !data ? <ListPageSkeleton kpiCount={5} columns={6} /> : null}
@@ -532,7 +556,7 @@ export function AssessmentReportsPage() {
           {showPublish && selectedRound ? (
             <Alert
               className={
-                selectedRound.resultsPublishedAt && !blocksNext && !holdsScores
+                selectedRound.resultsPublishedAt && !legacyHeld && !holdsScores
                   ? 'border-success/40 bg-success/10'
                   : 'border-warning/40 bg-warning/10'
               }
@@ -544,7 +568,7 @@ export function AssessmentReportsPage() {
                     ? 'Results not yet visible to students.'
                     : 'Some results are held. Publishing them lets students continue to the next round.'}
               </AlertTitle>
-              {(!selectedRound.resultsPublishedAt || blocksNext || holdsScores) && canPublish ? (
+              {(!selectedRound.resultsPublishedAt || legacyHeld || holdsScores) && canPublish ? (
                 <AlertDescription>
                   <Button
                     type="button"
@@ -712,7 +736,6 @@ export function AssessmentReportsPage() {
         query={`${query}${query ? '&' : ''}columns=${visible.join(',')}`}
         completed={summary?.completed ?? 0}
         registered={summary?.registered ?? 0}
-        columnCount={visible.length}
         onDownloadReport={downloadAssessmentReport}
         absentHint="Adds registered students with no submitted attempt on that round (Not started, and In progress while the assessment is active). Their score columns are left blank."
       />

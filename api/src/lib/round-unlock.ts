@@ -1,10 +1,6 @@
 import type { Prisma } from '#prisma';
-import {
-  meetsPassRule,
-  parseRoundSettings,
-  roundNeedsManualPublish,
-  type RoundSettings,
-} from './round-settings.js';
+import { holdsScoreUntilPublish } from './quiz-settings.js';
+import { meetsPassRule, parseRoundSettings, type RoundSettings } from './round-settings.js';
 
 function toNumber(d: Prisma.Decimal | number): number {
   return typeof d === 'number' ? d : Number(d);
@@ -63,6 +59,24 @@ export function bestOrLatestResult(attempts: AttemptLike[], roundId: string): Re
   return null;
 }
 
+/**
+ * Whether this round unlocks the next one.
+ * A required pass uses the published passing result. Otherwise one submitted attempt is enough.
+ */
+export function roundGateSatisfied(
+  attempts: AttemptLike[],
+  roundId: string,
+  settings: RoundSettings,
+  needsPublish: boolean,
+): boolean {
+  if (settings.passRequired) return roundIsCleared(attempts, roundId, settings, needsPublish);
+  return attempts.some(
+    (attempt) =>
+      attempt.roundId === roundId &&
+      (attempt.status === 'submitted' || attempt.status === 'auto_submitted'),
+  );
+}
+
 export function roundAttemptCount(attempts: AttemptLike[], roundId: string): number {
   return authoritativeRoundAttempts(attempts, roundId).length;
 }
@@ -92,4 +106,9 @@ export function parseRoundRow(round: {
   return parseRoundSettings(round);
 }
 
-export { roundNeedsManualPublish, meetsPassRule };
+/** Gate unlock on publish only when the round is configured to hold scores. */
+export function roundNeedsPublish(settings: RoundSettings): boolean {
+  return holdsScoreUntilPublish(settings);
+}
+
+export { meetsPassRule };

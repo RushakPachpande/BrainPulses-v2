@@ -17,6 +17,8 @@ export type RoundBehaviourSettings = {
   maxAttempts: number | null;
   /** Null means every active question. */
   questionLimit: number | null;
+  /** When false, submitting this round opens the next one without a pass mark. */
+  passRequired: boolean;
 };
 
 export type RoundSettings = RoundBehaviourSettings & {
@@ -41,6 +43,7 @@ export const defaultRoundBehaviour: RoundBehaviourSettings = {
   negativeMarkPoints: 0,
   maxAttempts: 1,
   questionLimit: null,
+  passRequired: true,
 };
 
 export const defaultRoundSettings: RoundSettings = {
@@ -55,8 +58,6 @@ export const defaultRoundSettings: RoundSettings = {
 };
 
 /** Question types that withhold results until an admin publishes. */
-export const MANUAL_RESULT_TYPES = new Set(['numeric', 'short_text', 'long_text']);
-
 function parseMaxAttempts(value: unknown): number | null {
   if (value === null) return null;
   if (typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 100) {
@@ -121,6 +122,7 @@ function parseBehaviour(raw: Record<string, unknown> | null | undefined): RoundB
         : defaultRoundBehaviour.negativeMarkPoints,
     maxAttempts: parseMaxAttempts(q.maxAttempts),
     questionLimit: parseQuestionLimit(q.questionLimit),
+    passRequired: typeof q.passRequired === 'boolean' ? q.passRequired : true,
   };
 }
 
@@ -183,6 +185,7 @@ export function behaviourToJson(settings: RoundBehaviourSettings): Prisma.InputJ
     negativeMarkPoints: settings.negativeMarkPoints,
     maxAttempts: settings.maxAttempts,
     questionLimit: settings.questionLimit,
+    passRequired: settings.passRequired,
   };
 }
 
@@ -195,11 +198,4 @@ export function meetsPassRule(settings: RoundSettings, score: number, percent: n
   const needed = settings.passingPercent;
   if (needed == null) return true;
   return percent >= needed;
-}
-
-export function roundNeedsManualPublish(questionTypes: Iterable<string>): boolean {
-  for (const type of questionTypes) {
-    if (MANUAL_RESULT_TYPES.has(type)) return true;
-  }
-  return false;
 }

@@ -336,7 +336,11 @@ function Intro({ form, slug }: { form: PublicFormBody; slug: string }) {
           <span className="n">2</span>
           <div>
             <b>Get your Registration ID</b>
-            <span>Shown straight away and sent to your email.</span>
+            {/* <span>Shown straight away after successful registration.(Old Id will be assigned if registration already exists.)</span> */}
+            <span>
+              Displayed immediately after successful registration. <br /> If the user is already
+              registered, existing ID will be assigned.
+            </span>
           </div>
         </li>
         <li>

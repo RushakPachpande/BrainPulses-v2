@@ -1,6 +1,11 @@
 import type { Prisma } from '#prisma';
 import { blocksFromItems } from '../../lib/question-order.js';
-import { hasSubmittedAnswer, scoreObjective, toNumber } from '../attempts/scoring.js';
+import {
+  correctAnswerLabels,
+  hasSubmittedAnswer,
+  scoreObjective,
+  toNumber,
+} from '../attempts/scoring.js';
 import type { ScoreBreakdown } from './rows.js';
 
 export type ReviewOption = {
@@ -118,9 +123,11 @@ export function buildAttemptReview(
         negativeMarks += negative.penalty;
       }
     }
-    const correctLabels = version.options
-      .filter((option) => option.isCorrect)
-      .map((option) => option.label);
+    const correctLabels = correctAnswerLabels(version.type, version.answerKey, version.options);
+    const correctText =
+      isCorrect === false && correctLabels.length > 0
+        ? choiceText(correctLabels, version.options) || correctLabels.join(', ')
+        : null;
     questions.push({
       questionVersionId: version.id,
       number: index + 1,
@@ -129,10 +136,7 @@ export function buildAttemptReview(
       answered,
       answerText,
       correct: isCorrect,
-      correctText:
-        isCorrect === false && correctLabels.length > 0
-          ? choiceText(correctLabels, version.options)
-          : null,
+      correctText,
     });
   });
 

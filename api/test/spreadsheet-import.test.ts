@@ -6,6 +6,7 @@ import { formatImportIssue, parseXlsxWorkbook } from '../src/lib/spreadsheet-imp
 import {
   parseParticipantsFile,
   PARTICIPANT_IMPORT_HEADERS,
+  savedParticipantConflict,
 } from '../src/modules/participants/import-export.js';
 async function sheetBuffer(
   sheetName: string,
@@ -75,5 +76,49 @@ describe('spreadsheet import helpers', () => {
         }),
       /\.xlsx/,
     );
+  });
+
+  it('names the person when an email or phone is already saved', () => {
+    const existing = [
+      {
+        name: 'Asha Verma',
+        email: 'asha@college.edu',
+        code: 'BP-00012',
+        phone: '+919876543210',
+      },
+    ];
+    const byEmail = savedParticipantConflict(
+      8,
+      { email: 'Asha@College.edu', code: '', phone: '' },
+      existing,
+    );
+    assert.match(byEmail!.message, /Sheet row 8/);
+    assert.match(byEmail!.message, /column “Email”/);
+    assert.match(byEmail!.message, /asha@college.edu/);
+    assert.match(byEmail!.message, /already used by Asha Verma \(Unique ID BP-00012\)/);
+    assert.match(byEmail!.message, /delete this row, or use a different email/);
+
+    const byPhone = savedParticipantConflict(
+      9,
+      { email: 'other@college.edu', code: '', phone: '+919876543210' },
+      existing,
+    );
+    assert.match(byPhone!.message, /column “Phone”/);
+    assert.match(byPhone!.message, /already used by Asha Verma/);
+
+    const byCode = savedParticipantConflict(
+      10,
+      { email: 'asha@college.edu', code: 'bp-00012', phone: '+919876543210' },
+      existing,
+    );
+    assert.match(byCode!.message, /column “Unique ID”/);
+    assert.match(byCode!.message, /bp-00012/);
+
+    const fresh = savedParticipantConflict(
+      11,
+      { email: 'new@college.edu', code: 'BP-00099', phone: '+919800000000' },
+      existing,
+    );
+    assert.equal(fresh, null);
   });
 });

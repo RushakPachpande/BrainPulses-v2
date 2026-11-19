@@ -6,6 +6,34 @@ type AnswerKey = {
   numericTolerance?: number;
 };
 
+/** Labels or reference text shown when revealing the answer key after submit. */
+export function correctAnswerLabels(
+  type: string,
+  answerKey: unknown,
+  options: { label: string; isCorrect: boolean }[],
+): string[] {
+  const fromOptions = options.filter((option) => option.isCorrect).map((option) => option.label);
+  if (fromOptions.length > 0) return fromOptions;
+
+  const key = (answerKey ?? {}) as AnswerKey;
+  if (Array.isArray(key.correctLabels)) {
+    const labels = key.correctLabels
+      .map(String)
+      .map((label) => label.trim())
+      .filter(Boolean);
+    if (labels.length > 0) return labels;
+  }
+
+  if (type === 'short_text' || type === 'long_text' || type === 'numeric') {
+    if (key.value !== undefined && key.value !== null) {
+      const text = String(key.value).trim();
+      if (text) return [text];
+    }
+  }
+
+  return [];
+}
+
 function selectedLabels(answer: unknown): string[] {
   if (Array.isArray(answer)) {
     return answer.map(String);
@@ -47,7 +75,8 @@ function scoreLabelSet(
 
 /**
  * Returns earned points, or `null` when the item should be excluded from maxScore
- * (unscored text with no reference answer).
+ * (text with no reference answer — nothing is held for manual review).
+ * Short/long text and numeric compare against the reference / correct value.
  */
 export function scoreObjective(
   type: string,

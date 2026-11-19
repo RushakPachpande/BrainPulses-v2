@@ -443,6 +443,7 @@ model ActivityRound {
   activityId         String           @map("activity_id") @db.Uuid
   name               String
   sortOrder          Int              @map("sort_order")
+  instructions       String?          @db.Text
   durationMinutes    Int?             @map("duration_minutes")
   durationMode       DurationMode     @default(overall) @map("duration_mode")
   perQuestionSeconds Int?             @map("per_question_seconds")
@@ -506,6 +507,8 @@ model Registration {
   @@map("registrations")
 }
 
+/// At most one row per participant and activity may have status in_progress.
+/// Enforced by attempts_one_open_per_participant_activity (partial unique index).
 model Attempt {
   id                   String        @id @default(uuid()) @db.Uuid
   organizationId       String        @map("organization_id") @db.Uuid

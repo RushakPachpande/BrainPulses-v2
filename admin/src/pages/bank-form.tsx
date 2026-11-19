@@ -10,6 +10,7 @@ import {
   UploadIcon,
 } from 'lucide-react';
 import { ImportResultDialog } from '@/components/import-result-dialog';
+import { QuestionImportUpdatesDialog } from '@/components/question-import-updates-dialog';
 import {
   importResultFromCounts,
   importResultFromError,
@@ -51,6 +52,7 @@ import {
   type ActivityKind,
   type BankImportResult,
   type BankQuestionItem,
+  type QuestionImportUpdate,
 } from '@/services';
 import {
   draftFromItem,
@@ -110,6 +112,11 @@ export function BankFormPage({
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
+  const [pendingUpdates, setPendingUpdates] = useState<{
+    created: number;
+    updates: QuestionImportUpdate[];
+    issues: string[];
+  } | null>(null);
   const appliedBank = useRef<string | null>(null);
   const bankQuery = useQuery({
     queryKey: adminQueryKeys.bank(orgId, bankId),
@@ -357,10 +364,18 @@ export function BankFormPage({
   }
 
   function showImportResult(result: BankImportResult) {
+    if (result.updates && result.updates.length > 0) {
+      setPendingUpdates({
+        created: result.created,
+        updates: result.updates,
+        issues: result.issues.map((issue) => issue.message),
+      });
+      return;
+    }
     setImportResult(
       importResultFromCounts(
         result.created,
-        result.issues.map((i) => i.message),
+        result.issues.map((issue) => issue.message),
         'question',
       ),
     );
@@ -757,6 +772,21 @@ export function BankFormPage({
         result={importResult}
         onOpenChange={(open) => {
           if (!open) setImportResult(null);
+        }}
+      />
+      <QuestionImportUpdatesDialog
+        created={pendingUpdates?.created ?? 0}
+        updates={pendingUpdates?.updates ?? null}
+        onUpdated={async () => {
+          if (bankId) await reloadBank(bankId);
+        }}
+        onOpenChange={(open) => {
+          if (open) return;
+          const pending = pendingUpdates;
+          setPendingUpdates(null);
+          if (pending && pending.issues.length > 0) {
+            setImportResult(importResultFromCounts(pending.created, pending.issues, 'question'));
+          }
         }}
       />
     </div>

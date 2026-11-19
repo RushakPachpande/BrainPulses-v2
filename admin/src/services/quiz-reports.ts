@@ -144,7 +144,7 @@ export async function getQuizReportDetail(
 
 export async function downloadQuizReport(query: string): Promise<void> {
   const { downloadQueuedExport } = await import('@/lib/jobs');
-  await downloadQueuedExport(`/api/quiz-reports/export?${query}`, 'BrainPulses-results.xlsx');
+  await downloadQueuedExport(`/api/quiz-reports/export?${query}`, 'quiz-report.xlsx');
 }
 
 export async function publishQuizResults(activityId: string) {
