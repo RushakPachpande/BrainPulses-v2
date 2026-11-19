@@ -1,16 +1,15 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { PageLoader } from '../components/loading-overlay';
 import { PortalHeader } from '../components/portal-header';
 import { IconArrow, IconBack, IconCheck } from '../components/portal-icons';
+import { useAuth } from '../contexts/auth-context';
 import { formatDuration } from '../lib/format';
+import { clientQueryKeys } from '../lib/query-keys';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '../lib/sanitize-html';
 import { listActivities } from '../services/api';
-import type {
-  ActivityKind,
-  ParticipantActivity,
-  ParticipantActivityRound,
-} from '../services/types';
+import type { ActivityKind, ParticipantActivityRound } from '../services/types';
 
 const OVERALL = [
   'The timer starts when you press Start and keeps running if you leave.',
@@ -22,39 +21,30 @@ const OVERALL = [
 export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
   const { activityId = '' } = useParams();
   const navigate = useNavigate();
-  const [item, setItem] = useState<ParticipantActivity | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const { participant } = useAuth();
+  const participantId = participant?.id ?? '';
   const [ack, setAck] = useState(false);
+  const [attemptError, setAttemptError] = useState('');
   const libraryPath = kind === 'quiz' ? '/quizzes' : '/assessments';
   const backLabel = kind === 'quiz' ? 'quizzes' : 'assessments';
+  const activitiesQuery = useQuery({
+    queryKey: clientQueryKeys.activities(participantId, kind),
+    queryFn: ({ signal }) => listActivities(kind, signal),
+    enabled: Boolean(participantId),
+  });
+  const item = activitiesQuery.data?.find((row) => row.activityId === activityId) ?? null;
+  const loading = activitiesQuery.isPending && !activitiesQuery.data;
+  const loadError = activitiesQuery.isError
+    ? 'Unable to load activity.'
+    : activitiesQuery.isSuccess && !item
+      ? 'Activity not found or not assigned to you.'
+      : '';
+  const error = attemptError || loadError;
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError('');
     setAck(false);
-    (async () => {
-      try {
-        const rows = await listActivities(kind);
-        const found = rows.find((row) => row.activityId === activityId) ?? null;
-        if (!cancelled) {
-          if (!found) setError('Activity not found or not assigned to you.');
-          setItem(found);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Unable to load activity.');
-          setItem(null);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activityId, kind]);
+    setAttemptError('');
+  }, [activityId]);
 
   const instructionsHtml = item?.instructions?.trim() ?? '';
   const hasInstructions = !isInstructionsEmpty(instructionsHtml);
@@ -82,7 +72,7 @@ export function ActivityDetailPage({ kind }: { kind: ActivityKind }) {
       return;
     }
     if (item.canAttempt === false) {
-      setError(item.attemptBlockedReason ?? 'This activity is not open for attempts.');
+      setAttemptError(item.attemptBlockedReason ?? 'This activity is not open for attempts.');
       return;
     }
     navigate(`/attempt/start/${item.activityId}`);

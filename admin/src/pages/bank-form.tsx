@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
@@ -60,6 +61,8 @@ import {
 } from './bank-question-draft';
 import { BankQuestionDialog } from './bank-question-form';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { bankQuestionTypeLabel, isQuizAllowedType } from './bank-question-types';
 
 type DialogMode =
@@ -81,6 +84,8 @@ export function BankFormPage({
 }) {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const orgId = useOrgId();
+  const queryClient = useQueryClient();
   const { bankId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const isQuiz = kind === 'quiz';
@@ -105,9 +110,19 @@ export function BankFormPage({
   const [dialog, setDialog] = useState<DialogMode>(null);
   const [draft, setDraft] = useState<QuestionDraft>(emptyDraft());
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
+  const appliedBank = useRef<string | null>(null);
+  const bankQuery = useQuery({
+    queryKey: adminQueryKeys.bank(orgId, bankId),
+    queryFn: ({ signal }) => getQuestionBank(bankId, signal),
+    enabled: mode !== 'create' && Boolean(orgId && bankId),
+  });
 
   async function reloadBank(id: string) {
-    const bank = await getQuestionBank(id);
+    const bank = await queryClient.fetchQuery({
+      queryKey: adminQueryKeys.bank(orgId, id),
+      queryFn: ({ signal }) => getQuestionBank(id, signal),
+    });
+    appliedBank.current = `${id}:${bank.items.length}:${bank.name}`;
     setName(bank.name);
     setDescription(bank.description);
     setQuestions(bank.items);
@@ -117,22 +132,25 @@ export function BankFormPage({
 
   useEffect(() => {
     if (mode === 'create') return;
-    let cancelled = false;
-    (async () => {
-      try {
-        await reloadBank(bankId);
-        if (cancelled) return;
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load question bank.');
-        void navigate(base);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [bankId, base, mode, navigate]);
+    const bank = bankQuery.data;
+    if (!bank) return;
+    const stamp = `${bank.id}:${bank.items.length}:${bank.name}`;
+    if (appliedBank.current === stamp) return;
+    if (dirty && appliedBank.current) return;
+    appliedBank.current = stamp;
+    setName(bank.name);
+    setDescription(bank.description);
+    setQuestions(bank.items);
+    setLoading(false);
+  }, [bankQuery.data, dirty, mode]);
+
+  useEffect(() => {
+    if (mode === 'create' || !bankQuery.isError) return;
+    setLoading(false);
+    const err = bankQuery.error;
+    toast.error(err instanceof ApiError ? err.message : 'Could not load question bank.');
+    void navigate(base);
+  }, [bankQuery.error, bankQuery.isError, base, mode, navigate]);
 
   useEffect(() => {
     if (readOnly || mode !== 'edit' || loading || !bankId) return;

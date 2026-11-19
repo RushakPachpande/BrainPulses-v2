@@ -76,7 +76,7 @@ export function AddRegistrationDialog({
   const activityLabel = isQuiz ? 'Quiz' : 'Assessment';
   const { data: activities, isPending: activitiesPending } = useQuery({
     queryKey: adminQueryKeys.activities(orgId, kind),
-    queryFn: () => getActivities(kind),
+    queryFn: ({ signal }) => getActivities(kind, signal),
     enabled: Boolean(orgId),
   });
   const {
@@ -85,7 +85,7 @@ export function AddRegistrationDialog({
     isError: formsError,
   } = useQuery({
     queryKey: ['admin', 'contest-forms', orgId],
-    queryFn: () => getContestFormOverview(),
+    queryFn: ({ signal }) => getContestFormOverview(signal),
     enabled: Boolean(orgId),
   });
   const options = (activities ?? []).filter((activity) => {

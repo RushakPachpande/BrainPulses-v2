@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { UsersIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -16,8 +17,11 @@ import {
 } from '@/components/ui/select';
 import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { useAuth } from '@/contexts/auth-context';
+import { useApplyServerRecord } from '@/hooks/use-apply-server-record';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
+import { adminQueryKeys } from '@/lib/query-keys';
 import {
   deactivateMembership,
   deleteUserCompletely,
@@ -49,6 +53,7 @@ export function UserEditorDialog({
 }) {
   const formId = useId();
   const confirm = useConfirm();
+  const orgId = useOrgId();
   const auth = useAuth();
   const actorIsSuperAdmin =
     auth.status === 'authenticated' && auth.membership.role === 'super_admin';
@@ -62,36 +67,40 @@ export function UserEditorDialog({
   const [assessmentAccess, setAssessmentAccess] = useState<AccessLevel>('full');
   const [quizAccess, setQuizAccess] = useState<AccessLevel>('full');
   const [status, setStatus] = useState('Active');
-  const [loading, setLoading] = useState(mode === 'edit');
+  const [hydratedId, setHydratedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const allowLeave = useLeaveGuard(dirty);
+  const userQuery = useQuery({
+    queryKey: adminQueryKeys.user(orgId, userId ?? ''),
+    queryFn: ({ signal }) => getUser(userId ?? '', signal),
+    enabled: mode === 'edit' && Boolean(orgId && userId),
+  });
+  const loading = mode === 'edit' && hydratedId !== (userId ?? '');
+
+  useApplyServerRecord(
+    mode === 'edit' ? userQuery.data : undefined,
+    userId ?? '',
+    dirty,
+    (user) => {
+      setName(user.name);
+      setEmail(user.email);
+      setRoleLabel(user.role);
+      setAssessmentAccess(parseAccess(user.assessmentAccess));
+      setQuizAccess(parseAccess(user.quizAccess));
+      setStatus(user.status);
+      setHydratedId(userId ?? '');
+      setDirty(false);
+    },
+  );
 
   useEffect(() => {
-    if (mode !== 'edit' || !userId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const user = await getUser(userId);
-        if (cancelled) return;
-        setName(user.name);
-        setEmail(user.email);
-        setRoleLabel(user.role);
-        setAssessmentAccess(parseAccess(user.assessmentAccess));
-        setQuizAccess(parseAccess(user.quizAccess));
-        setStatus(user.status);
-        setDirty(false);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load user.');
-        closeRef.current(false);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, userId]);
+    if (mode !== 'edit' || !userQuery.isError) return;
+    toast.error(
+      userQuery.error instanceof ApiError ? userQuery.error.message : 'Could not load user.',
+    );
+    closeRef.current(false);
+  }, [mode, userQuery.error, userQuery.isError]);
 
   async function requestClose() {
     if (saving) return;

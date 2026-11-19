@@ -122,30 +122,38 @@ export function getMe() {
   return apiGetData<ParticipantProfile>('/api/participant/me');
 }
 
-export function getParticipantPages() {
-  return apiGetData<ParticipantPages>('/api/participant/pages');
+export function getParticipantPages(signal?: AbortSignal) {
+  return apiGetData<ParticipantPages>('/api/participant/pages', { signal });
 }
 
 export function patchMe(name: string) {
   return apiPatchData<ParticipantProfile>('/api/participant/me', { name });
 }
 
-export function listActivities(kind?: 'assessment' | 'quiz' | 'all') {
-  return apiGetList<ParticipantActivity>('/api/participant/activities', {
-    limit: 100,
-    kind: kind ?? 'all',
-  });
+export function listActivities(kind?: 'assessment' | 'quiz' | 'all', signal?: AbortSignal) {
+  return apiGetList<ParticipantActivity>(
+    '/api/participant/activities',
+    {
+      limit: 100,
+      kind: kind ?? 'all',
+    },
+    { signal },
+  );
 }
 
-export function listResults(kind?: 'assessment' | 'quiz' | 'all') {
-  return apiGetList<ParticipantResultSummary>('/api/participant/results', {
-    limit: 100,
-    kind: kind ?? 'all',
-  });
+export function listResults(kind?: 'assessment' | 'quiz' | 'all', signal?: AbortSignal) {
+  return apiGetList<ParticipantResultSummary>(
+    '/api/participant/results',
+    {
+      limit: 100,
+      kind: kind ?? 'all',
+    },
+    { signal },
+  );
 }
 
-export function getResult(id: string) {
-  return apiGetData<ParticipantResultDetail>(`/api/participant/results/${id}`);
+export function getResult(id: string, signal?: AbortSignal) {
+  return apiGetData<ParticipantResultDetail>(`/api/participant/results/${id}`, { signal });
 }
 
 export async function startAttempt(activityId: string, roundId?: string) {

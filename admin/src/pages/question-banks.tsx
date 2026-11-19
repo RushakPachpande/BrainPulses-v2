@@ -171,7 +171,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   const orgId = useOrgId();
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.banks(orgId, kind),
-    queryFn: () => getQuestionBanks(kind),
+    queryFn: ({ signal }) => getQuestionBanks(kind, signal),
     enabled: Boolean(orgId),
   });
   const banks = data ?? EMPTY_BANKS;

@@ -107,7 +107,7 @@ export function UsersPage() {
   const [resetting, setResetting] = useState(false);
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.users(orgId),
-    queryFn: () => getUsers(),
+    queryFn: ({ signal }) => getUsers(signal),
     enabled: Boolean(orgId),
   });
   const users = useMemo(

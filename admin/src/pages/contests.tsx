@@ -77,7 +77,7 @@ export function ContestsPage() {
   const [viewId, setViewId] = useState<string | null>(null);
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.contests(orgId),
-    queryFn: () => getContests(),
+    queryFn: ({ signal }) => getContests(undefined, signal),
     enabled: Boolean(orgId),
   });
   const contests = data ?? EMPTY;

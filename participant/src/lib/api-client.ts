@@ -179,8 +179,10 @@ export async function apiGetBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
-export async function apiGetData<T>(path: string): Promise<T> {
-  const res = await request(path);
+export type GetInit = { signal?: AbortSignal };
+
+export async function apiGetData<T>(path: string, init?: GetInit): Promise<T> {
+  const res = await request(path, init?.signal ? { signal: init.signal } : undefined);
   if (!res.ok) throw await parseApiError(res);
   const body = (await res.json()) as { data: T };
   return body.data;
@@ -189,6 +191,7 @@ export async function apiGetData<T>(path: string): Promise<T> {
 export async function apiGetList<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
+  init?: GetInit,
 ): Promise<T[]> {
   const url = new URL(path, 'http://local.invalid');
   if (params) {
@@ -196,7 +199,10 @@ export async function apiGetList<T>(
       if (v !== undefined) url.searchParams.set(k, String(v));
     }
   }
-  const res = await request(`${url.pathname}${url.search}`);
+  const res = await request(
+    `${url.pathname}${url.search}`,
+    init?.signal ? { signal: init.signal } : undefined,
+  );
   if (!res.ok) throw await parseApiError(res);
   const body = (await res.json()) as { data: T[] };
   return body.data;

@@ -36,12 +36,12 @@ export function ReportsPage({ kind }: { kind: ActivityKind }) {
 
   const { data: resultsData, isPending: resultsLoading } = useQuery({
     queryKey: adminQueryKeys.results(orgId, kind),
-    queryFn: () => getResults(kind),
+    queryFn: ({ signal }) => getResults(kind, signal),
     enabled: Boolean(orgId),
   });
   const { data: summaryData, isPending: summaryLoading } = useQuery({
     queryKey: adminQueryKeys.resultsSummary(orgId, kind),
-    queryFn: () => getReportSummary(kind),
+    queryFn: ({ signal }) => getReportSummary(kind, signal),
     enabled: Boolean(orgId),
   });
   const allResults = resultsData ?? EMPTY_RESULTS;

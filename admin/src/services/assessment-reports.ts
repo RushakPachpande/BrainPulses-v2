@@ -77,20 +77,27 @@ const EMPTY: AssessmentReportPage = {
   options: { assessments: [], rounds: [] },
 };
 
-export async function getAssessmentReport(query: string): Promise<AssessmentReportPage> {
+export async function getAssessmentReport(
+  query: string,
+  signal?: AbortSignal,
+): Promise<AssessmentReportPage> {
   if (import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true') return EMPTY;
-  return apiGetData<AssessmentReportPage>(`/api/assessment-reports${query ? `?${query}` : ''}`);
+  return apiGetData<AssessmentReportPage>(`/api/assessment-reports${query ? `?${query}` : ''}`, {
+    signal,
+  });
 }
 
 export async function getAssessmentReportDetail(
   registrationId: string,
   roundId: string,
   attemptId: string | null,
+  signal?: AbortSignal,
 ): Promise<QuizReportDetail> {
   const params = new URLSearchParams({ roundId });
   if (attemptId) params.set('attemptId', attemptId);
   return apiGetData<QuizReportDetail>(
     `/api/assessment-reports/registrations/${registrationId}?${params.toString()}`,
+    { signal },
   );
 }
 

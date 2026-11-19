@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { GraduationCapIcon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,8 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/use-confirm';
+import { useApplyServerRecord } from '@/hooks/use-apply-server-record';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { createParticipant, getParticipant, updateParticipant } from '@/services';
 
 function blank(value: string) {
@@ -28,6 +32,7 @@ export function ParticipantEditorDialog({
 }) {
   const formId = useId();
   const confirm = useConfirm();
+  const orgId = useOrgId();
   const closeRef = useRef(onOpenChange);
   closeRef.current = onOpenChange;
   const [name, setName] = useState('');
@@ -37,37 +42,43 @@ export function ParticipantEditorDialog({
   const [city, setCity] = useState('');
   const [cohort, setCohort] = useState('');
   const [code, setCode] = useState('');
-  const [loading, setLoading] = useState(mode === 'edit');
+  const [hydratedId, setHydratedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const allowLeave = useLeaveGuard(dirty);
+  const participantQuery = useQuery({
+    queryKey: adminQueryKeys.participant(orgId, participantId ?? ''),
+    queryFn: ({ signal }) => getParticipant(participantId ?? '', signal),
+    enabled: mode === 'edit' && Boolean(orgId && participantId),
+  });
+  const loading = mode === 'edit' && hydratedId !== (participantId ?? '');
+
+  useApplyServerRecord(
+    mode === 'edit' ? participantQuery.data : undefined,
+    participantId ?? '',
+    dirty,
+    (participant) => {
+      setName(participant.name);
+      setEmail(participant.email);
+      setPhone(blank(participant.phone));
+      setCourse(blank(participant.course));
+      setCity(blank(participant.city));
+      setCohort(blank(participant.cohort));
+      setCode(participant.code);
+      setHydratedId(participantId ?? '');
+      setDirty(false);
+    },
+  );
 
   useEffect(() => {
-    if (mode !== 'edit' || !participantId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const participant = await getParticipant(participantId);
-        if (cancelled) return;
-        setName(participant.name);
-        setEmail(participant.email);
-        setPhone(blank(participant.phone));
-        setCourse(blank(participant.course));
-        setCity(blank(participant.city));
-        setCohort(blank(participant.cohort));
-        setCode(participant.code);
-        setDirty(false);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load participant.');
-        closeRef.current(false);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, participantId]);
+    if (mode !== 'edit' || !participantQuery.isError) return;
+    toast.error(
+      participantQuery.error instanceof ApiError
+        ? participantQuery.error.message
+        : 'Could not load participant.',
+    );
+    closeRef.current(false);
+  }, [mode, participantQuery.error, participantQuery.isError]);
 
   async function requestClose() {
     if (saving) return;

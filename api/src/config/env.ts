@@ -97,7 +97,11 @@ const envSchema = z
       });
     }
     if (data.TWILIO_ENABLED) {
-      for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
+      for (const key of [
+        'TWILIO_ACCOUNT_SID',
+        'TWILIO_AUTH_TOKEN',
+        'TWILIO_FROM_NUMBER',
+      ] as const) {
         if (!data[key]) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,

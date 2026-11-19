@@ -18,7 +18,7 @@ export function DashboardPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.dashboard(orgId),
-    queryFn: () => getDashboard(),
+    queryFn: ({ signal }) => getDashboard(signal),
     enabled: Boolean(orgId),
   });
 

@@ -199,7 +199,7 @@ export function AssessmentReportsPage() {
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: adminQueryKeys.assessmentReports(orgId, query),
-    queryFn: () => getAssessmentReport(query),
+    queryFn: ({ signal }) => getAssessmentReport(query, signal),
     enabled: Boolean(orgId),
   });
 

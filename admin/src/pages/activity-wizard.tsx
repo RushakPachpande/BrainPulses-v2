@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import {
@@ -48,7 +49,9 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/auth-context';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { canEditKind, canFullKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import { QuizQuestionsPanel } from '@/pages/quiz-questions-panel';
@@ -227,6 +230,8 @@ function ReviewFact({
 export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: WizardMode }) {
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const orgId = useOrgId();
+  const queryClient = useQueryClient();
   const params = useParams();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
@@ -261,8 +266,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const [code, setCode] = useState('');
   const [sponsorId, setSponsorId] = useState('');
   const [contestId, setContestId] = useState('');
-  const [sponsors, setSponsors] = useState<{ id: string; name: string }[]>([]);
-  const [contests, setContests] = useState<{ id: string; sponsorId: string; name: string }[]>([]);
   const [durationMode, setDurationMode] = useState<'overall' | 'per_question'>('overall');
   const [perQuestionSeconds, setPerQuestionSeconds] = useState('30');
   const [startDate, setStartDate] = useState(() => new Date());
@@ -272,6 +275,34 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     return d;
   });
   const [statusKey, setStatusKey] = useState('draft');
+  const sponsorsQuery = useQuery({
+    queryKey: adminQueryKeys.sponsors(orgId),
+    queryFn: ({ signal }) => getSponsors(signal),
+    enabled: Boolean(orgId),
+  });
+  const contestsQuery = useQuery({
+    queryKey: adminQueryKeys.contests(orgId),
+    queryFn: ({ signal }) => getContests(undefined, signal),
+    enabled: Boolean(orgId),
+  });
+  const activityQuery = useQuery({
+    queryKey: adminQueryKeys.activityDetail(orgId, activityIdParam),
+    queryFn: ({ signal }) => getActivity(activityIdParam, signal),
+    enabled: mode !== 'create' && Boolean(orgId && activityIdParam),
+  });
+  const sponsors = useMemo(
+    () => (sponsorsQuery.data ?? []).map((row) => ({ id: row.id, name: row.name })),
+    [sponsorsQuery.data],
+  );
+  const contests = useMemo(
+    () =>
+      (contestsQuery.data ?? []).map((row) => ({
+        id: row.id,
+        sponsorId: row.sponsorId,
+        name: row.name,
+      })),
+    [contestsQuery.data],
+  );
 
   const [bankIds, setBankIds] = useState<string[]>([]);
   const [rounds, setRounds] = useState<RoundDraft[]>(() => [emptyRound(0)]);
@@ -362,119 +393,110 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
 
   const dirty = !readOnly && baselineFp !== null && draftFingerprint !== baselineFp;
   const allowLeave = useLeaveGuard(dirty);
+  const appliedActivity = useRef<{
+    id: string;
+    record: NonNullable<typeof activityQuery.data>;
+  } | null>(null);
+  const reportedActivityError = useRef<string | null>(null);
 
   useEffect(() => {
+    if (mode === 'create' || !activityQuery.isError) return;
+    if (reportedActivityError.current === activityIdParam) return;
+    reportedActivityError.current = activityIdParam;
+    const err = activityQuery.error;
+    toast.error(err instanceof ApiError ? err.message : `Could not load ${noun.toLowerCase()}.`);
+    setLoading(false);
+    void navigate(listPath);
+  }, [activityIdParam, activityQuery.error, activityQuery.isError, listPath, mode, navigate, noun]);
+
+  useEffect(() => {
+    const activity = activityQuery.data;
+    if (mode === 'create' || !activity) return;
+    if (dirty && appliedActivity.current?.id === activity.id) return;
+    if (appliedActivity.current?.record === activity) return;
     let cancelled = false;
     void (async () => {
-      try {
-        const [sponsorRows, contestRows] = await Promise.all([getSponsors(), getContests()]);
-        if (cancelled) return;
-        setSponsors(sponsorRows.map((row) => ({ id: row.id, name: row.name })));
-        setContests(
-          contestRows.map((row) => ({ id: row.id, sponsorId: row.sponsorId, name: row.name })),
-        );
-      } catch {
-        if (!cancelled) {
-          setSponsors([]);
-          setContests([]);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (mode === 'create') return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const activity = await getActivity(activityIdParam);
-        if (cancelled) return;
-        setActivityId(activity.id);
-        setName(activity.name);
-        setDescription(activity.subtitle);
-        if (activity.kind !== 'quiz') setCode(activity.code);
-        setSponsorId(activity.sponsorId ?? '');
-        setContestId(activity.contestId ?? '');
-        setDurationMode(activity.durationMode ?? 'overall');
-        setPerQuestionSeconds(
-          activity.perQuestionSeconds != null ? String(activity.perQuestionSeconds) : '30',
-        );
-        setStatusKey(activity.statusKey);
-        if (activity.startsAt) setStartDate(new Date(activity.startsAt));
-        if (activity.endsAt) setEndDate(new Date(activity.endsAt));
-        setBankIds(activity.bankIds);
-        if (activity.kind === 'quiz') {
-          const nextBankId = activity.bankIds[0] ?? null;
-          setQuizBankId(nextBankId);
-          if (nextBankId) {
-            try {
-              const bank = await getQuestionBank(nextBankId);
-              if (!cancelled) {
-                setQuizQuestionCount(bank.items.filter((item) => item.isActive !== false).length);
-              }
-            } catch {
-              if (!cancelled) setQuizQuestionCount(0);
+      setActivityId(activity.id);
+      setName(activity.name);
+      setDescription(activity.subtitle);
+      if (activity.kind !== 'quiz') setCode(activity.code);
+      setSponsorId(activity.sponsorId ?? '');
+      setContestId(activity.contestId ?? '');
+      setDurationMode(activity.durationMode ?? 'overall');
+      setPerQuestionSeconds(
+        activity.perQuestionSeconds != null ? String(activity.perQuestionSeconds) : '30',
+      );
+      setStatusKey(activity.statusKey);
+      if (activity.startsAt) setStartDate(new Date(activity.startsAt));
+      if (activity.endsAt) setEndDate(new Date(activity.endsAt));
+      setBankIds(activity.bankIds);
+      if (activity.kind === 'quiz') {
+        const nextBankId = activity.bankIds[0] ?? null;
+        setQuizBankId(nextBankId);
+        if (nextBankId) {
+          try {
+            const bank = await queryClient.fetchQuery({
+              queryKey: adminQueryKeys.bank(orgId, nextBankId),
+              queryFn: ({ signal }) => getQuestionBank(nextBankId, signal),
+            });
+            if (!cancelled) {
+              setQuizQuestionCount(bank.items.filter((item) => item.isActive !== false).length);
             }
+          } catch {
+            if (!cancelled) setQuizQuestionCount(0);
           }
         }
-        if (activity.rounds && activity.rounds.length > 0) {
-          setRounds(activity.rounds.map((r) => roundDraftFromActivity(r)));
-        } else if (activity.kind === 'assessment') {
-          setRounds([
-            {
-              ...emptyRound(0),
-              bankIds: activity.bankIds,
-            },
-          ]);
-        }
-        setDurationMinutes(
-          activity.kind === 'quiz' && activity.durationMode === 'per_question'
-            ? ''
-            : String(activity.durationMinutes ?? 60),
-        );
-        setPassingPercent(String(activity.passingPercent ?? 50));
-        const loadedPerQuestion =
-          activity.kind === 'quiz' && activity.durationMode === 'per_question';
-        setPresentation(
-          loadedPerQuestion
-            ? 'one_at_a_time'
-            : activity.presentation === 'all_on_page'
-              ? 'all_on_page'
-              : 'one_at_a_time',
-        );
-        setInstructions(activity.instructions ?? '');
-        setEndMessage(activity.endMessage ?? '');
-        setImageFileId(activity.imageFileId ?? '');
-        setImageFile(null);
-        const settings = activity.settings;
-        preservedSettingsRef.current = {
-          registrationForm: settings?.registrationForm,
-          assignmentRules: settings?.assignmentRules,
-        };
-        if (activity.kind === 'quiz') {
-          const q = { ...defaultQuizSettings(), ...settings?.quiz };
-          if (loadedPerQuestion) {
-            q.allowPrevious = false;
-            q.showQuestionPanel = false;
-          }
-          setQuizSettings(q);
-        }
-      } catch (err) {
-        toast.error(
-          err instanceof ApiError ? err.message : `Could not load ${noun.toLowerCase()}.`,
-        );
-        void navigate(listPath);
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+      if (cancelled) return;
+      if (activity.rounds && activity.rounds.length > 0) {
+        setRounds(activity.rounds.map((r) => roundDraftFromActivity(r)));
+      } else if (activity.kind === 'assessment') {
+        setRounds([
+          {
+            ...emptyRound(0),
+            bankIds: activity.bankIds,
+          },
+        ]);
+      }
+      setDurationMinutes(
+        activity.kind === 'quiz' && activity.durationMode === 'per_question'
+          ? ''
+          : String(activity.durationMinutes ?? 60),
+      );
+      setPassingPercent(String(activity.passingPercent ?? 50));
+      const loadedPerQuestion =
+        activity.kind === 'quiz' && activity.durationMode === 'per_question';
+      setPresentation(
+        loadedPerQuestion
+          ? 'one_at_a_time'
+          : activity.presentation === 'all_on_page'
+            ? 'all_on_page'
+            : 'one_at_a_time',
+      );
+      setInstructions(activity.instructions ?? '');
+      setEndMessage(activity.endMessage ?? '');
+      setImageFileId(activity.imageFileId ?? '');
+      setImageFile(null);
+      const settings = activity.settings;
+      preservedSettingsRef.current = {
+        registrationForm: settings?.registrationForm,
+        assignmentRules: settings?.assignmentRules,
+      };
+      if (activity.kind === 'quiz') {
+        const q = { ...defaultQuizSettings(), ...settings?.quiz };
+        if (loadedPerQuestion) {
+          q.allowPrevious = false;
+          q.showQuestionPanel = false;
+        }
+        setQuizSettings(q);
+      }
+      appliedActivity.current = { id: activity.id, record: activity };
+      setLoading(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [activityIdParam, listPath, mode, navigate, noun]);
+  }, [activityQuery.data, dirty, mode, orgId, queryClient]);
 
   const settingsPayload = useMemo((): ActivitySettings => {
     const preserved = preservedSettingsRef.current;
@@ -501,8 +523,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     };
   }, [durationMode, isQuiz, quizSettings]);
 
+  async function loadActivity(id: string) {
+    return queryClient.fetchQuery({
+      queryKey: adminQueryKeys.activityDetail(orgId, id),
+      queryFn: ({ signal }) => getActivity(id, signal),
+    });
+  }
+
   async function syncRoundsFromServer(id: string): Promise<RoundDraft[]> {
-    const activity = await getActivity(id);
+    const activity = await loadActivity(id);
     if (activity.rounds && activity.rounds.length > 0) {
       const next = activity.rounds.map((r) => roundDraftFromActivity(r));
       setRounds(next);
@@ -634,7 +663,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
       if (!isQuiz) {
         await syncRoundsFromServer(id);
       } else {
-        const saved = await getActivity(id);
+        const saved = await loadActivity(id);
         setBankIds(saved.bankIds);
         setQuizBankId(saved.bankIds[0] ?? null);
       }
@@ -959,7 +988,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               onEnsureBank={async () => {
                 const id = (await persist({ stay: true })) ?? activityId;
                 if (!id) return null;
-                const activity = await getActivity(id);
+                const activity = await loadActivity(id);
                 const next = activity.bankIds[0] ?? null;
                 setBankIds(activity.bankIds);
                 setQuizBankId(next);
@@ -995,7 +1024,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       />
                     </div>
                     {!readOnly ? (
-                      <CardAction className="flex flex-wrap gap-2 self-end @max-[24rem]:col-start-1 @max-[24rem]:row-start-auto @max-[24rem]:justify-self-start">
+                      <CardAction className="flex flex-wrap gap-2 self-end @max-sm:col-start-1 @max-sm:row-start-auto @max-sm:justify-self-start">
                         <Button
                           type="button"
                           variant="outline"
@@ -1109,11 +1138,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       kind="assessment"
                       readOnly={readOnly}
                       onCount={(count) =>
-                        setRounds((prev) =>
-                          prev.map((r) =>
+                        setRounds((prev) => {
+                          const current = prev.find((r) => r.key === round.key);
+                          if (!current || current.questionCount === count) return prev;
+                          return prev.map((r) =>
                             r.key === round.key ? { ...r, questionCount: count } : r,
-                          ),
-                        )
+                          );
+                        })
                       }
                       onEnsureBank={async () => {
                         const savedId = (await persist({ stay: true })) ?? activityId;
