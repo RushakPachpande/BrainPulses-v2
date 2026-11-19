@@ -49,7 +49,7 @@ export function SponsorsPage() {
   const [viewId, setViewId] = useState<string | null>(null);
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.sponsors(orgId),
-    queryFn: () => getSponsors(),
+    queryFn: ({ signal }) => getSponsors(signal),
     enabled: Boolean(orgId),
   });
   const sponsors = data ?? EMPTY;

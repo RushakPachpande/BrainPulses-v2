@@ -1,6 +1,6 @@
 import { ArrowRight, BookOpen, CheckCircle2, FileText, Trophy } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { SummaryTilesSkeleton } from '../components/skeletons';
 import { PageLoader } from '../components/loading-overlay';
@@ -45,7 +45,7 @@ export function ResultsPage() {
     isError,
   } = useQuery({
     queryKey: clientQueryKeys.results(participantId, 'all'),
-    queryFn: () => listResults('all'),
+    queryFn: ({ signal }) => listResults('all', signal),
     enabled: Boolean(participantId),
   });
   const error = isError ? 'Unable to load results.' : '';
@@ -256,73 +256,49 @@ export function ResultsPage() {
   );
 }
 
-type ResultRetryInfo = {
-  used: number;
-  max: number | null;
-  left: number | null;
-  canRetry: boolean;
-};
-
 export function ResultDetailPage() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  const [attempt, setAttempt] = useState<ParticipantResultDetail | null>(null);
-  const [banner, setBanner] = useState<string | null>(null);
-  const [retry, setRetry] = useState<ResultRetryInfo | null>(null);
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await getResult(id);
-        if (cancelled) return;
-        setAttempt(data);
-        const usedFallback = Math.max(1, data.attemptsUsed ?? 1);
-        const maxFallback = data.maxAttempts ?? null;
-        const extraFallback = data.extraAttempts ?? 0;
-        const leftFallback =
-          maxFallback == null
-            ? null
-            : Math.max(0, maxFallback + extraFallback - (data.attemptsUsed ?? 0));
-        setRetry({
-          used: usedFallback,
-          max: maxFallback,
-          left: leftFallback,
-          canRetry: leftFallback == null || leftFallback > 0,
-        });
-        try {
-          const rows = await listActivities(data.kind);
-          const match = rows.find((row) => row.activityId === data.activityId);
-          if (!match || cancelled) return;
-          const fileId = match.imageFileId || match.contestImageFileId || match.sponsorImageFileId;
-          if (fileId) setBanner(`/api/files/${fileId}`);
-          const used = Math.max(1, match.attemptsUsed ?? data.attemptsUsed ?? 1);
-          const max = match.maxAttempts ?? null;
-          const extra = match.extraAttempts ?? 0;
-          const left = max == null ? null : Math.max(0, max + extra - (match.attemptsUsed ?? 0));
-          setRetry({
-            used,
-            max,
-            left,
-            canRetry:
-              match.canStartAnother === true ||
-              (match.canAttempt === true && (left === null || left > 0)),
-          });
-        } catch {
-          /* banner / retry enrichment is optional */
-        }
-      } catch {
-        if (!cancelled) setError('Result not found.');
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
+  const { participant } = useAuth();
+  const participantId = participant?.id ?? '';
+  const resultQuery = useQuery({
+    queryKey: clientQueryKeys.resultDetail(participantId, id),
+    queryFn: ({ signal }) => getResult(id, signal),
+    enabled: Boolean(participantId && id),
+  });
+  const attempt = resultQuery.data ?? null;
+  const activitiesQuery = useQuery({
+    queryKey: clientQueryKeys.activities(participantId, attempt?.kind ?? 'quiz'),
+    queryFn: ({ signal }) => listActivities(attempt?.kind, signal),
+    enabled: Boolean(participantId && attempt?.kind),
+  });
+  const match = activitiesQuery.data?.find((row) => row.activityId === attempt?.activityId);
+  const fileId = match?.imageFileId || match?.contestImageFileId || match?.sponsorImageFileId;
+  const banner = fileId ? `/api/files/${fileId}` : null;
+  const retry = useMemo(() => {
+    if (!attempt) return null;
+    if (!match) {
+      const used = Math.max(1, attempt.attemptsUsed ?? 1);
+      const max = attempt.maxAttempts ?? null;
+      const extra = attempt.extraAttempts ?? 0;
+      const left = max == null ? null : Math.max(0, max + extra - (attempt.attemptsUsed ?? 0));
+      return { used, max, left, canRetry: left == null || left > 0 };
+    }
+    const used = Math.max(1, match.attemptsUsed ?? attempt.attemptsUsed ?? 1);
+    const max = match.maxAttempts ?? null;
+    const extra = match.extraAttempts ?? 0;
+    const left = max == null ? null : Math.max(0, max + extra - (match.attemptsUsed ?? 0));
+    return {
+      used,
+      max,
+      left,
+      canRetry:
+        match.canStartAnother === true ||
+        (match.canAttempt === true && (left === null || left > 0)),
     };
-  }, [id]);
+  }, [attempt, match]);
+  const loading = Boolean(participantId && id) && resultQuery.isPending && !attempt;
+  const error = resultQuery.isError ? 'Result not found.' : '';
 
   if (loading) return <PageLoader />;
 

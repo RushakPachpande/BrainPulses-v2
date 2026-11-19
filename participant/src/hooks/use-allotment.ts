@@ -9,12 +9,12 @@ export function useAllotment() {
   const enabled = Boolean(participantId);
   const quizzes = useQuery({
     queryKey: clientQueryKeys.activities(participantId, 'quiz'),
-    queryFn: () => listActivities('quiz'),
+    queryFn: ({ signal }) => listActivities('quiz', signal),
     enabled,
   });
   const assessments = useQuery({
     queryKey: clientQueryKeys.activities(participantId, 'assessment'),
-    queryFn: () => listActivities('assessment'),
+    queryFn: ({ signal }) => listActivities('assessment', signal),
     enabled,
   });
 

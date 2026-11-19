@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import {
   ArrowRight,
@@ -20,6 +21,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { ApiError, apiGetData, apiPostData, apiUrl } from '../lib/api-client';
+import { clientQueryKeys } from '../lib/query-keys';
 import '../styles/register.css';
 
 type PublicField = {
@@ -66,8 +68,19 @@ const CLOSE_SOON_MS = 3 * 24 * 60 * 60 * 1000;
 
 export function RegisterPage() {
   const { slug = '' } = useParams();
-  const [page, setPage] = useState<PublicForm | null>(null);
-  const [error, setError] = useState('');
+  const formQuery = useQuery({
+    queryKey: clientQueryKeys.publicForm(slug),
+    queryFn: ({ signal }) =>
+      apiGetData<PublicForm>(`/api/public/contest-forms/${encodeURIComponent(slug)}`, { signal }),
+    enabled: Boolean(slug),
+  });
+  const page = formQuery.data ?? null;
+  const loadError = formQuery.isError
+    ? formQuery.error instanceof ApiError
+      ? formQuery.error.message
+      : 'This link is not available.'
+    : '';
+  const [submitError, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [answers, setAnswers] = useState<Answers>({});
   const [result, setResult] = useState<{ code: string; message: string } | null>(null);
@@ -75,22 +88,7 @@ export function RegisterPage() {
   const [toast, setToast] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
   const doneRef = useRef<HTMLHeadingElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    void apiGetData<PublicForm>(`/api/public/contest-forms/${encodeURIComponent(slug)}`)
-      .then((data) => {
-        if (!cancelled) setPage(data);
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) {
-          setError(err instanceof ApiError ? err.message : 'This link is not available.');
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
+  const error = submitError || loadError;
 
   useEffect(() => {
     const name = page?.form?.contestName;

@@ -65,7 +65,7 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
     isError,
   } = useQuery({
     queryKey: clientQueryKeys.activities(participantId, kind),
-    queryFn: () => listActivities(kind),
+    queryFn: ({ signal }) => listActivities(kind, signal),
     enabled: Boolean(participantId),
   });
 

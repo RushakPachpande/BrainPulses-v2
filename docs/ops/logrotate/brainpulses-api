@@ -1,0 +1,10 @@
+/root/apps/BrainPulses_v2.0/api/logs/*.log {
+  daily
+  rotate 7
+  maxsize 20M
+  compress
+  delaycompress
+  missingok
+  notifempty
+  copytruncate
+}

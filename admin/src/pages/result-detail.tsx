@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
@@ -7,8 +8,11 @@ import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { StatusBadge } from '@/components/status-badge';
 import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
+import { useApplyServerRecord } from '@/hooks/use-apply-server-record';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canFullKind } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -23,18 +27,23 @@ import {
   requalifyAttempt,
   type ActivityKind,
 } from '@/services';
-import type { ResultDetail } from '@/services/types';
 
 export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   const { resultId = '' } = useParams();
   const navigate = useNavigate();
+  const orgId = useOrgId();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canFull = canFullKind(membership, kind);
   const isQuiz = kind === 'quiz';
   const base = isQuiz ? '/quizzes/reports' : '/assessments/reports';
-  const [row, setRow] = useState<ResultDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const resultQuery = useQuery({
+    queryKey: adminQueryKeys.resultDetail(orgId, resultId),
+    queryFn: ({ signal }) => getResult(resultId, signal),
+    enabled: Boolean(orgId && resultId),
+  });
+  const row = resultQuery.data ?? null;
+  const loading = Boolean(orgId && resultId) && resultQuery.isPending && !row;
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [regradeScore, setRegradeScore] = useState('');
@@ -42,27 +51,16 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
   const [dqNote, setDqNote] = useState('');
   const confirm = useConfirm();
   useLeaveGuard(dirty);
+  useApplyServerRecord(resultQuery.data, resultId, dirty, (data) => {
+    setRegradeScore(String(data.score));
+  });
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const data = await getResult(resultId);
-        if (!cancelled) {
-          setRow(data);
-          setRegradeScore(String(data.score));
-        }
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load result.');
-        void navigate(base);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [base, navigate, resultId]);
+    if (!resultQuery.isError) return;
+    const err = resultQuery.error;
+    toast.error(err instanceof ApiError ? err.message : 'Could not load result.');
+    void navigate(base);
+  }, [base, navigate, resultQuery.error, resultQuery.isError]);
 
   async function onPublish() {
     const ok = await confirm({
@@ -75,8 +73,6 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
     try {
       await publishResult(resultId);
       toast.success('Result published.');
-      const data = await getResult(resultId);
-      setRow(data);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not publish result.');
     } finally {
@@ -105,8 +101,6 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
       await regradeResult(resultId, score, regradeReason.trim());
       toast.success('Result regraded.');
       setDirty(false);
-      const data = await getResult(resultId);
-      setRow(data);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not regrade result.');
     } finally {
@@ -128,8 +122,6 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
       await disqualifyAttempt(row.attemptId, dqNote.trim() || undefined);
       toast.success('Attempt disqualified.');
       setDirty(false);
-      const data = await getResult(resultId);
-      setRow(data);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not disqualify.');
     } finally {
@@ -150,8 +142,6 @@ export function ResultDetailPage({ kind }: { kind: ActivityKind }) {
       await requalifyAttempt(row.attemptId);
       toast.success('Attempt re-qualified.');
       setDirty(false);
-      const data = await getResult(resultId);
-      setRow(data);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not re-qualify.');
     } finally {

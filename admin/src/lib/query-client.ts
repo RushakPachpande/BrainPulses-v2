@@ -84,6 +84,7 @@ export function invalidateAdmin(domains: Array<keyof typeof adminQueryKeys | 'al
       void qc.invalidateQueries({ queryKey: ['admin', 'users'] });
     } else if (domain === 'activities') {
       void qc.invalidateQueries({ queryKey: ['admin', 'activities'] });
+      invalidateAdminReports(qc);
     } else if (domain === 'banks') {
       void qc.invalidateQueries({ queryKey: ['admin', 'banks'] });
     } else if (domain === 'registrations') {
@@ -91,8 +92,19 @@ export function invalidateAdmin(domains: Array<keyof typeof adminQueryKeys | 'al
     } else if (domain === 'results' || domain === 'resultsSummary') {
       void qc.invalidateQueries({ queryKey: ['admin', 'results'] });
       void qc.invalidateQueries({ queryKey: ['admin', 'results-summary'] });
+      invalidateAdminReports(qc);
     } else if (domain === 'imageLibrary') {
       void qc.invalidateQueries({ queryKey: ['admin', 'image-library'] });
+    } else if (domain === 'settings') {
+      void qc.invalidateQueries({ queryKey: ['admin', 'settings'] });
     }
   }
+}
+
+/** Report lists sit outside the results/activities prefixes, so writes must mark them stale too. */
+function invalidateAdminReports(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: ['admin', 'quiz-reports'] });
+  void qc.invalidateQueries({ queryKey: ['admin', 'quiz-report-detail'] });
+  void qc.invalidateQueries({ queryKey: ['admin', 'assessment-reports'] });
+  void qc.invalidateQueries({ queryKey: ['admin', 'assessment-report-detail'] });
 }

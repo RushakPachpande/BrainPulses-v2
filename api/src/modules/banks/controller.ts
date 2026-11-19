@@ -114,6 +114,7 @@ export async function importQuestions(req: Request, res: Response, next: NextFun
     const { randomUUID } = await import('node:crypto');
     const { enqueueJob } = await import('../../lib/queue/queues.js');
     const { writeImportTempFile } = await import('../../lib/queue/processors.js');
+    const { bankQuestionImportEnqueueOptions } = await import('./import-job.js');
     const jobKey = randomUUID();
     const tempPath = await writeImportTempFile(jobKey, file.originalname, file.buffer);
     const enqueued = await enqueueJob(
@@ -134,7 +135,7 @@ export async function importQuestions(req: Request, res: Response, next: NextFun
         mimetype: file.mimetype,
         requestId: req.requestId,
       },
-      idempotencyKey ? { jobId: `bank-import:${bankId}:${idempotencyKey}` } : undefined,
+      bankQuestionImportEnqueueOptions(bankId, idempotencyKey),
     );
     if (enqueued.status === 'completed' && enqueued.result?.kind === 'import') {
       res.json({ data: enqueued.result.data });

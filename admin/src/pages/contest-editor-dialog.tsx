@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useConfirm } from '@/components/use-confirm';
+import { useApplyServerRecord } from '@/hooks/use-apply-server-record';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
@@ -52,42 +53,48 @@ export function ContestEditorDialog({
   const [imageFileId, setImageFileId] = useState('');
   const [initialImageFileId, setInitialImageFileId] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(mode === 'edit');
+  const [hydratedId, setHydratedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const allowLeave = useLeaveGuard(dirty);
 
   const sponsorsQuery = useQuery({
     queryKey: adminQueryKeys.sponsors(orgId),
-    queryFn: () => getSponsors(),
+    queryFn: ({ signal }) => getSponsors(signal),
     enabled: Boolean(orgId),
   });
   const sponsors = sponsorsQuery.data ?? [];
+  const contestQuery = useQuery({
+    queryKey: adminQueryKeys.contest(orgId, contestId ?? ''),
+    queryFn: ({ signal }) => getContest(contestId ?? '', signal),
+    enabled: mode === 'edit' && Boolean(orgId && contestId),
+  });
+  const loading = mode === 'edit' && hydratedId !== (contestId ?? '');
+
+  useApplyServerRecord(
+    mode === 'edit' ? contestQuery.data : undefined,
+    contestId ?? '',
+    dirty,
+    (contest) => {
+      setSponsorId(contest.sponsorId);
+      setName(contest.name);
+      setDescription(contest.description ?? '');
+      setImageFileId(contest.imageFileId);
+      setInitialImageFileId(contest.imageFileId);
+      setHydratedId(contestId ?? '');
+      setDirty(false);
+    },
+  );
 
   useEffect(() => {
-    if (mode !== 'edit' || !contestId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const contest = await getContest(contestId);
-        if (cancelled) return;
-        setSponsorId(contest.sponsorId);
-        setName(contest.name);
-        setDescription(contest.description ?? '');
-        setImageFileId(contest.imageFileId);
-        setInitialImageFileId(contest.imageFileId);
-        setDirty(false);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load contest.');
-        closeRef.current(false);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [contestId, mode]);
+    if (mode !== 'edit' || !contestQuery.isError) return;
+    toast.error(
+      contestQuery.error instanceof ApiError
+        ? contestQuery.error.message
+        : 'Could not load contest.',
+    );
+    closeRef.current(false);
+  }, [contestQuery.error, contestQuery.isError, mode]);
 
   async function requestClose() {
     if (saving) return;

@@ -49,7 +49,7 @@ export function ContestFormViewPage() {
   const [giveOpen, setGiveOpen] = useState(false);
   const { data, isPending } = useQuery({
     queryKey: ['admin', 'contest-form', formId],
-    queryFn: () => getContestForm(formId),
+    queryFn: ({ signal }) => getContestForm(formId, signal),
     enabled: Boolean(formId),
   });
 
@@ -339,7 +339,7 @@ function Fact({
       <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0">
         <p className="text-sm text-muted-foreground">{label}</p>
-        <p className="font-medium break-words">{value}</p>
+        <p className="font-medium wrap-break-word">{value}</p>
       </div>
     </div>
   );

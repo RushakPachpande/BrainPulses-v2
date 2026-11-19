@@ -1,5 +1,5 @@
 /** In-memory freshness window — API remains source of truth; invalidate after mutations. */
-export const STALE_MS = 45_000;
+export const STALE_MS = 30_000;
 /** Keep unused query results in memory briefly for back-navigation. */
 export const GC_MS = 5 * 60_000;
 
@@ -11,6 +11,9 @@ export const clientQueryKeys = {
     ['client', 'results', participantId, kind] as const,
   dashboard: (participantId: string) => ['client', 'dashboard', participantId] as const,
   pages: (participantId: string) => ['client', 'pages', participantId] as const,
+  resultDetail: (participantId: string, id: string) =>
+    ['client', 'results', participantId, 'detail', id] as const,
+  publicForm: (slug: string) => ['public', 'contest-form', slug] as const,
 };
 
 /** Legacy sessionStorage key prefix from PersistQueryClient (no longer written). */

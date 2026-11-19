@@ -8,7 +8,7 @@ export function useParticipantPages() {
   const participantId = participant?.id ?? '';
   return useQuery({
     queryKey: clientQueryKeys.pages(participantId),
-    queryFn: getParticipantPages,
+    queryFn: ({ signal }) => getParticipantPages(signal),
     enabled: Boolean(participantId),
   });
 }

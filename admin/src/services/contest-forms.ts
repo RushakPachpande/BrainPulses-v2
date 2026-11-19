@@ -23,17 +23,18 @@ export type SaveContestFormPayload = {
   quizIds?: string[];
 };
 
-export function getContestFormOverview() {
-  return apiGetData<ContestFormOverview>('/api/contest-forms');
+export function getContestFormOverview(signal?: AbortSignal) {
+  return apiGetData<ContestFormOverview>('/api/contest-forms', { signal });
 }
 
-export function getContestForm(id: string) {
-  return apiGetData<ContestFormRecord>(`/api/contest-forms/${id}`);
+export function getContestForm(id: string, signal?: AbortSignal) {
+  return apiGetData<ContestFormRecord>(`/api/contest-forms/${id}`, { signal });
 }
 
-export function getContestQuizzes(contestId: string) {
+export function getContestQuizzes(contestId: string, signal?: AbortSignal) {
   return apiGetData<ContestFormQuiz[]>(
     `/api/contest-forms/quizzes?contestId=${encodeURIComponent(contestId)}`,
+    { signal },
   );
 }
 

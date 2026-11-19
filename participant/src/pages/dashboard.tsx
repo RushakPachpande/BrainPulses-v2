@@ -38,7 +38,7 @@ export function DashboardPage() {
     isError: actsError,
   } = useQuery({
     queryKey: clientQueryKeys.activities(participantId, 'all'),
-    queryFn: () => listActivities('all'),
+    queryFn: ({ signal }) => listActivities('all', signal),
     enabled: Boolean(participantId),
   });
   const {
@@ -47,7 +47,7 @@ export function DashboardPage() {
     isError: resultsError,
   } = useQuery({
     queryKey: clientQueryKeys.results(participantId, 'all'),
-    queryFn: () => listResults('all'),
+    queryFn: ({ signal }) => listResults('all', signal),
     enabled: Boolean(participantId) && resultsOn,
   });
 

@@ -126,17 +126,20 @@ const EMPTY_REPORT: QuizReportPage = {
   options: { contests: [], quizzes: [] },
 };
 
-export async function getQuizReport(query: string): Promise<QuizReportPage> {
+export async function getQuizReport(query: string, signal?: AbortSignal): Promise<QuizReportPage> {
   if (import.meta.env.DEV && import.meta.env.VITE_USE_FIXTURES === 'true') return EMPTY_REPORT;
-  return apiGetData<QuizReportPage>(`/api/quiz-reports${query ? `?${query}` : ''}`);
+  return apiGetData<QuizReportPage>(`/api/quiz-reports${query ? `?${query}` : ''}`, { signal });
 }
 
 export async function getQuizReportDetail(
   registrationId: string,
   attemptId: string | null,
+  signal?: AbortSignal,
 ): Promise<QuizReportDetail> {
   const query = attemptId ? `?attemptId=${encodeURIComponent(attemptId)}` : '';
-  return apiGetData<QuizReportDetail>(`/api/quiz-reports/registrations/${registrationId}${query}`);
+  return apiGetData<QuizReportDetail>(`/api/quiz-reports/registrations/${registrationId}${query}`, {
+    signal,
+  });
 }
 
 export async function downloadQuizReport(query: string): Promise<void> {

@@ -116,7 +116,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const orgId = useOrgId();
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.activities(orgId, kind),
-    queryFn: () => getActivities(kind),
+    queryFn: ({ signal }) => getActivities(kind, signal),
     enabled: Boolean(orgId),
   });
   const activities = data ?? EMPTY_ACTIVITIES;

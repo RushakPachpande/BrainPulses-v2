@@ -63,20 +63,16 @@ export async function download(req: Request, res: Response, next: NextFunction) 
     if (columns.length === 0) throw badRequest('Choose at least one column.');
     const { enqueueJob } = await import('../../lib/queue/queues.js');
     const { respondExportOrAck } = await import('../../lib/queue/respond-export.js');
-    const enqueued = await enqueueJob(
-      'report.quiz-export',
-      {
-        type: 'report.quiz-export',
-        organizationId: actor.organizationId,
-        actor: actorOf(req),
-        query: query as unknown as Record<string, unknown>,
-        columns,
-        format: 'xlsx',
-        includeAbsent: query.includeAbsent === 'true',
-        requestId: req.requestId,
-      },
-      { forceInline: true },
-    );
+    const enqueued = await enqueueJob('report.quiz-export', {
+      type: 'report.quiz-export',
+      organizationId: actor.organizationId,
+      actor: actorOf(req),
+      query: query as unknown as Record<string, unknown>,
+      columns,
+      format: 'xlsx',
+      includeAbsent: query.includeAbsent === 'true',
+      requestId: req.requestId,
+    });
     await respondExportOrAck(res, enqueued);
   } catch (err) {
     next(err);

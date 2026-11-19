@@ -65,24 +65,24 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
 
   const sponsors = useQuery({
     queryKey: adminQueryKeys.sponsors(orgId),
-    queryFn: () => getSponsors(),
+    queryFn: ({ signal }) => getSponsors(signal),
     enabled: Boolean(orgId),
     staleTime: STALE_MS,
   });
   const contests = useQuery({
     queryKey: adminQueryKeys.contests(orgId),
-    queryFn: () => getContests(),
+    queryFn: ({ signal }) => getContests(undefined, signal),
     enabled: Boolean(orgId),
     staleTime: STALE_MS,
   });
   const overview = useQuery({
     queryKey: ['admin', 'contest-forms', orgId],
-    queryFn: () => getContestFormOverview(),
+    queryFn: ({ signal }) => getContestFormOverview(signal),
     enabled: Boolean(orgId),
   });
   const existing = useQuery({
     queryKey: ['admin', 'contest-form', formId],
-    queryFn: () => getContestForm(formId),
+    queryFn: ({ signal }) => getContestForm(formId, signal),
     enabled: mode === 'edit' && Boolean(formId),
   });
 
@@ -109,7 +109,7 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
 
   const quizzes = useQuery({
     queryKey: ['admin', 'contest-quizzes', draft.contestId],
-    queryFn: () => getContestQuizzes(draft.contestId!),
+    queryFn: ({ signal }) => getContestQuizzes(draft.contestId!, signal),
     enabled: Boolean(draft.contestId) && step === 2,
   });
 

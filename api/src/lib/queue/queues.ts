@@ -26,6 +26,34 @@ const inlineJobs = new Map<
   }
 >();
 
+export const INLINE_JOB_CAP = 200;
+
+/** Keep the newest inline results and drop the oldest once the cap is passed. */
+export function rememberBounded<K, V>(map: Map<K, V>, key: K, value: V, cap: number): void {
+  map.set(key, value);
+  while (map.size > cap) {
+    const oldest = map.keys().next().value;
+    if (oldest === undefined || oldest === key) break;
+    map.delete(oldest);
+  }
+}
+
+/** OTP sends once. A retry would deliver the same code again after Twilio already accepted it. */
+export function attemptsForJob(name: JobName, configured = env.QUEUE_JOB_ATTEMPTS): number {
+  return name === 'sms.otp' ? 1 : configured;
+}
+
+/** Reject new work when the queue is already at its bound. Does not drop the queued jobs. */
+export function assertQueueCapacity(depth: number, maxWaiting = env.QUEUE_MAX_WAITING): void {
+  if (depth >= maxWaiting) {
+    throw new AppError(
+      503,
+      'SERVICE_UNAVAILABLE',
+      'The job queue is at capacity. Try again shortly.',
+    );
+  }
+}
+
 export function getJobQueue(): Queue<JobPayload, JobResult, JobName> {
   if (!queue) {
     queue = new Queue<JobPayload, JobResult, JobName>(QUEUE_NAME, {
@@ -47,11 +75,15 @@ export async function closeJobQueue(): Promise<void> {
   queue = null;
 }
 
-function defaultJobOptions(jobId?: string): JobsOptions {
+function defaultJobOptions(
+  name: JobName,
+  opts?: { jobId?: string; priority?: number },
+): JobsOptions {
   return {
-    jobId,
-    attempts: env.QUEUE_JOB_ATTEMPTS,
+    jobId: opts?.jobId,
+    attempts: attemptsForJob(name),
     backoff: { type: 'exponential', delay: env.QUEUE_BACKOFF_MS },
+    priority: opts?.priority,
   };
 }
 
@@ -63,13 +95,7 @@ export function useInlineQueue(): boolean {
 async function assertCapacity(q: Queue<JobPayload, JobResult, JobName>) {
   const counts = await q.getJobCounts('waiting', 'delayed', 'active');
   const depth = (counts.waiting ?? 0) + (counts.delayed ?? 0) + (counts.active ?? 0);
-  if (depth >= env.QUEUE_MAX_WAITING) {
-    throw new AppError(
-      503,
-      'SERVICE_UNAVAILABLE',
-      'The job queue is at capacity. Try again shortly.',
-    );
-  }
+  assertQueueCapacity(depth);
 }
 
 export type EnqueuedJob = {
@@ -103,25 +129,35 @@ async function runInlineJob(
   try {
     const { processJobPayload } = await import('./processors.js');
     const result = await processJobPayload(payload, jobId);
-    inlineJobs.set(jobId, {
-      name,
-      status: 'completed',
-      result,
-      error: null,
-      organizationId,
-      userId,
-    });
+    rememberBounded(
+      inlineJobs,
+      jobId,
+      {
+        name,
+        status: 'completed',
+        result,
+        error: null,
+        organizationId,
+        userId,
+      },
+      INLINE_JOB_CAP,
+    );
     return { jobId, status: 'completed', result };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Job failed.';
-    inlineJobs.set(jobId, {
-      name,
-      status: 'failed',
-      result: null,
-      error: message,
-      organizationId,
-      userId,
-    });
+    rememberBounded(
+      inlineJobs,
+      jobId,
+      {
+        name,
+        status: 'failed',
+        result: null,
+        error: message,
+        organizationId,
+        userId,
+      },
+      INLINE_JOB_CAP,
+    );
     throw err;
   }
 }
@@ -145,10 +181,7 @@ export async function enqueueJob(
   await assertCapacity(q);
 
   try {
-    const job = await q.add(name, payload, {
-      ...defaultJobOptions(opts?.jobId),
-      priority: opts?.priority,
-    });
+    const job = await q.add(name, payload, defaultJobOptions(name, opts));
     if (!job.id) {
       throw new AppError(500, 'INTERNAL_ERROR', 'Failed to create background job.');
     }

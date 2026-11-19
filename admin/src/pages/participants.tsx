@@ -135,7 +135,7 @@ export function ParticipantsPage() {
   const [pageSize, setPageSize] = useState('10');
   const { data, isPending } = useQuery({
     queryKey: ['admin', 'contest-forms', orgId],
-    queryFn: () => getContestFormOverview(),
+    queryFn: ({ signal }) => getContestFormOverview(signal),
     enabled: Boolean(orgId),
   });
 

@@ -1,4 +1,5 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
 import { Building2Icon, CheckCircle2Icon, ImageIcon, SaveIcon, XIcon } from 'lucide-react';
@@ -8,7 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/auth-context';
+import { useApplyServerRecord } from '@/hooks/use-apply-server-record';
+import { useOrgId } from '@/hooks/use-org-id';
 import { canManageUsersOrSettings } from '@/lib/access';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { getSettingsGroup, patchSettingsGroup, uploadCatalogImage } from '@/services';
 
 const initialSettings = {
@@ -36,6 +40,7 @@ function SettingField({
 
 export function GeneralSettingsPage() {
   const auth = useAuth();
+  const orgId = useOrgId();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canManage = canManageUsersOrSettings(membership);
   const [settings, setSettings] = useState(initialSettings);
@@ -44,28 +49,29 @@ export function GeneralSettingsPage() {
   const [loginImageEpoch, setLoginImageEpoch] = useState(0);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [touched, setTouched] = useState(false);
+  const settingsQuery = useQuery({
+    queryKey: adminQueryKeys.settings(orgId),
+    queryFn: ({ signal }) => getSettingsGroup('general', signal),
+    enabled: Boolean(orgId),
+  });
 
-  useEffect(() => {
-    void getSettingsGroup('general')
-      .then(({ values }) => {
-        setSettings((current) => ({
-          ...current,
-          platformName: String(values.orgDisplayName ?? current.platformName),
-          organization: String(values.organizationName ?? current.organization),
-        }));
-        setLoginImageFileId(
-          typeof values.participantLoginImageFileId === 'string'
-            ? values.participantLoginImageFileId
-            : '',
-        );
-      })
-      .catch(() => {
-        /* keep defaults */
-      });
-  }, []);
+  useApplyServerRecord(settingsQuery.data, orgId, touched, ({ values }) => {
+    setSettings((current) => ({
+      ...current,
+      platformName: String(values.orgDisplayName ?? current.platformName),
+      organization: String(values.organizationName ?? current.organization),
+    }));
+    setLoginImageFileId(
+      typeof values.participantLoginImageFileId === 'string'
+        ? values.participantLoginImageFileId
+        : '',
+    );
+  });
 
   function update(key: keyof typeof initialSettings, value: string) {
     setSettings((current) => ({ ...current, [key]: value }));
+    setTouched(true);
     setSaved(false);
   }
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -87,6 +93,7 @@ export function GeneralSettingsPage() {
       setLoginImageFileId(participantLoginImageFileId ?? '');
       setLoginImageFile(null);
       setLoginImageEpoch((epoch) => epoch + 1);
+      setTouched(false);
       setSaved(true);
       toast.success('General settings saved.');
     } catch (err) {
@@ -100,6 +107,7 @@ export function GeneralSettingsPage() {
     setLoginImageFileId('');
     setLoginImageFile(null);
     setLoginImageEpoch((epoch) => epoch + 1);
+    setTouched(true);
     setSaved(false);
   }
 

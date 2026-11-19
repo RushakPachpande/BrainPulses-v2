@@ -44,8 +44,8 @@ function LibraryBody({
 
   const query = useInfiniteQuery({
     queryKey: adminQueryKeys.imageLibrary(orgId, purpose, q),
-    queryFn: ({ pageParam }) =>
-      getImageLibraryPage({ purpose, q, cursor: pageParam, limit: PAGE_SIZE }),
+    queryFn: ({ pageParam, signal }) =>
+      getImageLibraryPage({ purpose, q, cursor: pageParam, limit: PAGE_SIZE }, signal),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.page.nextCursor ?? undefined,
     staleTime: 30_000,

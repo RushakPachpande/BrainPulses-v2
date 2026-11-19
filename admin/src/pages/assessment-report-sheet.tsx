@@ -37,7 +37,8 @@ export function AssessmentReportSheet({
       roundId ?? '',
       attemptId ?? '',
     ),
-    queryFn: () => getAssessmentReportDetail(registrationId ?? '', roundId ?? '', attemptId),
+    queryFn: ({ signal }) =>
+      getAssessmentReportDetail(registrationId ?? '', roundId ?? '', attemptId, signal),
     enabled: Boolean(orgId && registrationId && roundId),
   });
 

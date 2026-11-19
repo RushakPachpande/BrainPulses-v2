@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Building2Icon } from 'lucide-react';
 import { toast } from 'sonner';
@@ -8,8 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { useConfirm } from '@/components/use-confirm';
+import { useApplyServerRecord } from '@/hooks/use-apply-server-record';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { createSponsor, getSponsor, updateSponsor, uploadCatalogImage } from '@/services';
 
 export function SponsorEditorDialog({
@@ -25,39 +29,46 @@ export function SponsorEditorDialog({
 }) {
   const formId = useId();
   const confirm = useConfirm();
+  const orgId = useOrgId();
   const closeRef = useRef(onOpenChange);
   closeRef.current = onOpenChange;
   const [name, setName] = useState('');
   const [imageFileId, setImageFileId] = useState('');
   const [initialImageFileId, setInitialImageFileId] = useState('');
   const [file, setFile] = useState<File | null>(null);
-  const [loading, setLoading] = useState(mode === 'edit');
+  const [hydratedId, setHydratedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const allowLeave = useLeaveGuard(dirty);
+  const sponsorQuery = useQuery({
+    queryKey: adminQueryKeys.sponsor(orgId, sponsorId ?? ''),
+    queryFn: ({ signal }) => getSponsor(sponsorId ?? '', signal),
+    enabled: mode === 'edit' && Boolean(orgId && sponsorId),
+  });
+  const loading = mode === 'edit' && hydratedId !== (sponsorId ?? '');
+
+  useApplyServerRecord(
+    mode === 'edit' ? sponsorQuery.data : undefined,
+    sponsorId ?? '',
+    dirty,
+    (sponsor) => {
+      setName(sponsor.name);
+      setImageFileId(sponsor.imageFileId);
+      setInitialImageFileId(sponsor.imageFileId);
+      setHydratedId(sponsorId ?? '');
+      setDirty(false);
+    },
+  );
 
   useEffect(() => {
-    if (mode !== 'edit' || !sponsorId) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const sponsor = await getSponsor(sponsorId);
-        if (cancelled) return;
-        setName(sponsor.name);
-        setImageFileId(sponsor.imageFileId);
-        setInitialImageFileId(sponsor.imageFileId);
-        setDirty(false);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load sponsor.');
-        closeRef.current(false);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [mode, sponsorId]);
+    if (mode !== 'edit' || !sponsorQuery.isError) return;
+    toast.error(
+      sponsorQuery.error instanceof ApiError
+        ? sponsorQuery.error.message
+        : 'Could not load sponsor.',
+    );
+    closeRef.current(false);
+  }, [mode, sponsorQuery.error, sponsorQuery.isError]);
 
   async function requestClose() {
     if (saving) return;

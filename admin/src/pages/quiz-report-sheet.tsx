@@ -291,7 +291,7 @@ export function QuizReportSheet({
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: adminQueryKeys.quizReportDetail(orgId, registrationId ?? '', attemptId ?? ''),
-    queryFn: () => getQuizReportDetail(registrationId ?? '', attemptId),
+    queryFn: ({ signal }) => getQuizReportDetail(registrationId ?? '', attemptId, signal),
     enabled: Boolean(orgId && registrationId),
   });
 

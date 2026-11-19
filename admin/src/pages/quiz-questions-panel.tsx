@@ -1,3 +1,4 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DownloadIcon, FileSpreadsheetIcon, PlusIcon, UploadIcon } from 'lucide-react';
@@ -12,7 +13,9 @@ import { AccountStatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { selectionMatches } from '@/lib/multi-select';
 import { useConfirm } from '@/components/use-confirm';
+import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -76,9 +79,16 @@ export function QuizQuestionsPanel({
   onCount?: (count: number) => void;
 }) {
   const confirm = useConfirm();
+  const orgId = useOrgId();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [questions, setQuestions] = useState<BankQuestionItem[]>([]);
-  const [loading, setLoading] = useState(Boolean(bankId));
+  const bankQuery = useQuery({
+    queryKey: adminQueryKeys.bank(orgId, bankId ?? ''),
+    queryFn: ({ signal }) => getQuestionBank(bankId ?? '', signal),
+    enabled: Boolean(orgId && bankId),
+  });
+  const questions = useMemo(() => bankQuery.data?.items ?? [], [bankQuery.data]);
+  const loading = Boolean(bankId) && bankQuery.isPending && !bankQuery.data;
   const [saving, setSaving] = useState(false);
   const [importing, setImporting] = useState(false);
   const [bulkAction, setBulkAction] = useState<'activate' | 'deactivate' | null>(null);
@@ -90,44 +100,27 @@ export function QuizQuestionsPanel({
   const [importResult, setImportResult] = useState<ImportResultView | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
-
-  function reportCount(items: BankQuestionItem[]) {
-    onCount?.(items.filter((item) => isQuestionActive(item)).length);
-  }
+  const onCountRef = useRef(onCount);
+  onCountRef.current = onCount;
 
   useEffect(() => {
     if (!bankId) {
-      setQuestions([]);
       setSelected(new Set());
-      setLoading(false);
-      onCount?.(0);
+      onCountRef.current?.(0);
       return;
     }
-    let cancelled = false;
-    setLoading(true);
-    void (async () => {
-      try {
-        const bank = await getQuestionBank(bankId);
-        if (cancelled) return;
-        setQuestions(bank.items);
-        onCount?.(bank.items.filter((item) => isQuestionActive(item)).length);
-      } catch (err) {
-        if (!cancelled) {
-          toast.error(err instanceof ApiError ? err.message : 'Could not load questions.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [bankId, onCount]);
+    if (!bankQuery.data) return;
+    onCountRef.current?.(bankQuery.data.items.filter((item) => isQuestionActive(item)).length);
+  }, [bankId, bankQuery.data]);
+
+  useEffect(() => {
+    if (!bankId || !bankQuery.isError) return;
+    const err = bankQuery.error;
+    toast.error(err instanceof ApiError ? err.message : 'Could not load questions.');
+  }, [bankId, bankQuery.error, bankQuery.isError]);
 
   async function reload(id: string) {
-    const bank = await getQuestionBank(id);
-    setQuestions(bank.items);
-    reportCount(bank.items);
+    await queryClient.invalidateQueries({ queryKey: adminQueryKeys.bank(orgId, id) });
     setSelected(new Set());
   }
 

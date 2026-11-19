@@ -109,12 +109,44 @@ function assertResultOrg(model: string, result: unknown) {
   return result;
 }
 
+/** Query budget just under the HTTP timeout so a slow statement returns its connection. */
+export function sessionTimeoutMs(requestTimeoutMs: number): number {
+  return Math.max(1_000, requestTimeoutMs - 2_000);
+}
+
+/** Apply session limits on the connection string so they are set before the first query. */
+export function databaseUrlWithTimeouts(connectionString: string, timeoutMs: number): string {
+  const url = new URL(connectionString);
+  const extra = `-c statement_timeout=${timeoutMs} -c idle_in_transaction_session_timeout=${timeoutMs}`;
+  const existing = url.searchParams.get('options');
+  url.searchParams.set('options', existing ? `${existing} ${extra}` : extra);
+  return url.toString();
+}
+
+/** Idle client errors must not become an uncaught 'error' event. */
+export function onPoolError(err: Error): void {
+  console.error('[db] idle client error', err.message);
+}
+
 const pool = new Pool({
-  connectionString: env.DATABASE_URL,
-  max: 20,
+  connectionString: databaseUrlWithTimeouts(
+    env.DATABASE_URL,
+    sessionTimeoutMs(env.REQUEST_TIMEOUT_MS),
+  ),
+  max: env.DATABASE_POOL_MAX,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 10_000,
 });
+
+pool.on('error', onPoolError);
+
+export function getPoolStats(): { total: number; idle: number; waiting: number } {
+  return {
+    total: pool.totalCount,
+    idle: pool.idleCount,
+    waiting: pool.waitingCount,
+  };
+}
 
 const adapter = new PrismaPg(pool);
 

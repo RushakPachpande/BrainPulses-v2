@@ -1,6 +1,7 @@
 import 'temporal-polyfill/full/global';
 import { createApp } from './app.js';
 import { env } from './config/env.js';
+import { installProcessGuards, shutdownDrainMs } from './lib/process-guards.js';
 import { closeRedis, initRedis, isRedisReady } from './lib/redis.js';
 
 async function main() {
@@ -26,7 +27,7 @@ async function main() {
     shuttingDown = true;
     console.log(`[api] ${signal} received, shutting down`);
     // Nodemon waits until this process exits. Cleanup must not be able to hold the port.
-    const forceExit = setTimeout(() => process.exit(0), 1_000);
+    const forceExit = setTimeout(() => process.exit(0), shutdownDrainMs(env.NODE_ENV, 'api'));
     server.close(() => {
       void (async () => {
         try {
@@ -45,6 +46,7 @@ async function main() {
 
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
+  installProcessGuards('api', shutdown);
 }
 
 main().catch((err) => {

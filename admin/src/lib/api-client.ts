@@ -253,8 +253,13 @@ export async function apiGetBlob(path: string): Promise<Blob> {
   return res.blob();
 }
 
-export async function apiGetData<T>(path: string): Promise<T> {
-  const body = await apiRequest<{ data: T }>(path);
+export type GetInit = { signal?: AbortSignal };
+
+export async function apiGetData<T>(path: string, init?: GetInit): Promise<T> {
+  const body = await apiRequest<{ data: T }>(
+    path,
+    init?.signal ? { signal: init.signal } : undefined,
+  );
   return body.data;
 }
 
@@ -305,6 +310,7 @@ export type ListEnvelope<T> = {
 export async function apiGetList<T>(
   path: string,
   params?: Record<string, string | number | undefined>,
+  init?: GetInit,
 ): Promise<T[]> {
   const qs = new URLSearchParams();
   if (params) {
@@ -313,7 +319,10 @@ export async function apiGetList<T>(
     }
   }
   const query = qs.toString();
-  const body = await apiRequest<ListEnvelope<T>>(`${path}${query ? `?${query}` : ''}`);
+  const body = await apiRequest<ListEnvelope<T>>(
+    `${path}${query ? `?${query}` : ''}`,
+    init?.signal ? { signal: init.signal } : undefined,
+  );
   return body.data;
 }
 

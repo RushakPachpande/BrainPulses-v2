@@ -52,8 +52,17 @@ const envSchema = z
     /** Max size for question and answer images. Unset uses 5MB. */
     QA_UPLOAD_IMAGE_SIZE_CAPPING: optionalByteSize(5 * 1024 * 1024),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60_000),
+    /**
+     * Kept so older env files still parse. The limiter uses the actor and IP caps.
+     */
     RATE_LIMIT_MAX: z.coerce.number().default(120),
+    /** Authenticated requests per window, keyed by login token. */
+    RATE_LIMIT_MAX_ACTOR: z.coerce.number().int().min(1).default(240),
+    /** Anonymous requests per window, keyed by client IP. */
+    RATE_LIMIT_MAX_IP: z.coerce.number().int().min(1).default(600),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().default(20),
+    /** Connections this process may open. API default 8; the worker PM2 app sets 4. */
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).default(8),
     /** Max time for an API handler to finish before the server responds 504. */
     REQUEST_TIMEOUT_MS: z.coerce.number().int().min(1_000).default(30_000),
     /** Trusted proxy hop count. 0 = direct connections (default). */
@@ -96,20 +105,19 @@ const envSchema = z
         message: 'COOKIE_SECURE must be true in production.',
       });
     }
-    if (!data.TWILIO_ENABLED) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['TWILIO_ENABLED'],
-        message: 'TWILIO_ENABLED must be true in production.',
-      });
-    }
-    for (const key of ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'TWILIO_FROM_NUMBER'] as const) {
-      if (!data[key]) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [key],
-          message: `${key} is required in production.`,
-        });
+    if (data.TWILIO_ENABLED) {
+      for (const key of [
+        'TWILIO_ACCOUNT_SID',
+        'TWILIO_AUTH_TOKEN',
+        'TWILIO_FROM_NUMBER',
+      ] as const) {
+        if (!data[key]) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [key],
+            message: `${key} is required in production when TWILIO_ENABLED=true.`,
+          });
+        }
       }
     }
   });

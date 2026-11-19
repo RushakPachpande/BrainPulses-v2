@@ -1,6 +1,6 @@
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import express, { type RequestHandler, type Router } from 'express';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { RedisStore } from 'rate-limit-redis';
@@ -8,23 +8,13 @@ import { env } from './config/env.js';
 import { createCorsOriginDelegate } from './lib/cors-origin.js';
 import { getRedis, isRedisReady } from './lib/redis.js';
 
+import { eventLoopLagMs } from './lib/event-loop.js';
+import { lazyRouter } from './lib/lazy-router.js';
+import { rateLimitKey, rateLimitMax } from './lib/rate-limit-key.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { requestId } from './middleware/request-id.js';
+import { requestLog } from './middleware/request-log.js';
 import { requestTimeout } from './middleware/request-timeout.js';
-
-/** Load a router on the first request and reuse it after that. */
-function lazyRouter(load: () => Promise<Router>): RequestHandler {
-  let router: Router | undefined;
-  let loading: Promise<Router> | undefined;
-  return (req, res, next) => {
-    if (router) return router(req, res, next);
-    const pending = (loading ??= load().then((loaded) => {
-      router = loaded;
-      return loaded;
-    }));
-    return pending.then((loaded) => loaded(req, res, next));
-  };
-}
 
 export function createApp() {
   const app = express();
@@ -101,7 +91,8 @@ export function createApp() {
 
   const apiLimiter = rateLimit({
     ...limiterOptions,
-    max: env.RATE_LIMIT_MAX,
+    keyGenerator: (req) => rateLimitKey(req),
+    max: (req) => rateLimitMax(req, { actor: env.RATE_LIMIT_MAX_ACTOR, ip: env.RATE_LIMIT_MAX_IP }),
     skip: (req) => Boolean(skipInTest?.()) || req.originalUrl.startsWith('/api/auth'),
     validate: { xForwardedForHeader: true },
     ...(useRedisStore ? { store: redisStore('rl:bp:api:') } : {}),
@@ -125,21 +116,40 @@ export function createApp() {
   });
 
   app.get('/health/ready', async (_req, res) => {
+    const { getPoolStats, prisma } = await import('./lib/prisma.js');
+    const pool = getPoolStats();
+    const lagMs = eventLoopLagMs();
+    let postgres = false;
+    let redis = false;
     try {
-      const { prisma } = await import('./lib/prisma.js');
       await prisma.$queryRaw`SELECT 1`;
+      postgres = true;
       if (!isRedisReady()) {
-        res.status(503).json({ ok: false, postgres: true, redis: false });
+        res.status(503).json({
+          ok: false,
+          postgres,
+          redis: false,
+          pool,
+          eventLoopLagMs: lagMs,
+        });
         return;
       }
       await getRedis().ping();
-      res.json({ ok: true, postgres: true, redis: true });
+      redis = true;
+      res.json({ ok: true, postgres, redis, pool, eventLoopLagMs: lagMs });
     } catch {
-      res.status(503).json({ ok: false });
+      res.status(503).json({
+        ok: false,
+        postgres,
+        redis: redis && isRedisReady(),
+        pool,
+        eventLoopLagMs: lagMs,
+      });
     }
   });
 
   app.use('/api', apiLimiter);
+  app.use('/api', requestLog);
   app.use('/api', requestTimeout);
   // Prevent browsers from serving stale authenticated JSON after hard reload.
   app.use('/api', (req, res, next) => {

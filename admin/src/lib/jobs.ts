@@ -19,13 +19,17 @@ export function isQueuedAck(value: unknown): value is QueuedAck {
   );
 }
 
+/** Poll interval. 180 attempts cover the 120s worker lock plus a short margin. */
+export const JOB_POLL_INTERVAL_MS = 750;
+export const JOB_POLL_MAX_ATTEMPTS = 180;
+
 /** Poll GET /api/jobs/:id until completed or failed. Each request uses the 30s client timeout. */
 export async function pollJobUntilDone(
   jobId: string,
   opts?: { intervalMs?: number; maxAttempts?: number },
 ): Promise<JobStatusPayload> {
-  const intervalMs = opts?.intervalMs ?? 750;
-  const maxAttempts = opts?.maxAttempts ?? 120;
+  const intervalMs = opts?.intervalMs ?? JOB_POLL_INTERVAL_MS;
+  const maxAttempts = opts?.maxAttempts ?? JOB_POLL_MAX_ATTEMPTS;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     const status = await apiGetData<JobStatusPayload>(`/api/jobs/${encodeURIComponent(jobId)}`);
     if (status.status === 'completed') return status;

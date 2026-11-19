@@ -127,7 +127,7 @@ export function QuizReportsPage() {
 
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: adminQueryKeys.quizReports(orgId, query),
-    queryFn: () => getQuizReport(query),
+    queryFn: ({ signal }) => getQuizReport(query, signal),
     enabled: Boolean(orgId),
   });
 

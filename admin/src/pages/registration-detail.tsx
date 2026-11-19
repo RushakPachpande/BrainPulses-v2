@@ -1,4 +1,5 @@
-import { useEffect, useId, useState, type FormEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { ArrowLeftIcon, Loader2Icon } from 'lucide-react';
@@ -10,6 +11,8 @@ import { ApiError } from '@/lib/api-client';
 import { useAuth } from '@/contexts/auth-context';
 import { canFullKind } from '@/lib/access';
 import { useLeaveGuard } from '@/hooks/use-leave-guard';
+import { useOrgId } from '@/hooks/use-org-id';
+import { adminQueryKeys } from '@/lib/query-keys';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldLabel } from '@/components/ui/field';
@@ -17,12 +20,11 @@ import { Input } from '@/components/ui/input';
 import {
   deleteAttempt,
   deleteParticipant,
-  getRegistration,
+  getRegistrations,
   unassignRegistrations,
   updateParticipant,
   type ActivityKind,
 } from '@/services';
-import type { RegistrationRow } from '@/services/types';
 
 function blank(value: string) {
   return value === '—' ? '' : value;
@@ -39,6 +41,7 @@ export function RegistrationDetailPage({
   const { registrationId = '' } = useParams();
   const navigate = useNavigate();
   const confirm = useConfirm();
+  const queryClient = useQueryClient();
   const auth = useAuth();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canFull = canFullKind(membership, kind);
@@ -46,8 +49,14 @@ export function RegistrationDetailPage({
   const editing = mode === 'edit';
   const base = isQuiz ? '/quizzes/registrations' : '/assessments/registrations';
   const reportsBase = isQuiz ? '/quizzes/reports' : '/assessments/reports';
-  const [row, setRow] = useState<RegistrationRow | null>(null);
-  const [loading, setLoading] = useState(true);
+  const orgId = useOrgId();
+  const listQuery = useQuery({
+    queryKey: adminQueryKeys.registrations(orgId, kind),
+    queryFn: ({ signal }) => getRegistrations(kind, signal),
+    enabled: Boolean(orgId),
+  });
+  const row = listQuery.data?.find((item) => item.registrationId === registrationId) ?? null;
+  const loading = Boolean(orgId) && listQuery.isPending && !listQuery.data;
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -55,25 +64,27 @@ export function RegistrationDetailPage({
   const [course, setCourse] = useState('');
   const [city, setCity] = useState('');
   const [dirty, setDirty] = useState(false);
+  const sawRow = useRef(false);
   const allowLeave = useLeaveGuard(editing && dirty);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const found = await getRegistration(kind, registrationId);
-        if (!cancelled) setRow(found);
-      } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : 'Could not load registration.');
-        void navigate(base);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [base, kind, navigate, registrationId]);
+    if (!listQuery.isError) return;
+    const err = listQuery.error;
+    toast.error(err instanceof ApiError ? err.message : 'Could not load registration.');
+    void navigate(base);
+  }, [base, listQuery.error, listQuery.isError, navigate]);
+
+  useEffect(() => {
+    if (!listQuery.isSuccess) return;
+    const found = listQuery.data.some((item) => item.registrationId === registrationId);
+    if (found) {
+      sawRow.current = true;
+      return;
+    }
+    if (sawRow.current) return;
+    toast.error('Could not load registration.');
+    void navigate(base);
+  }, [base, listQuery.data, listQuery.isSuccess, navigate, registrationId]);
 
   useEffect(() => {
     if (!row || dirty) return;
@@ -147,9 +158,7 @@ export function RegistrationDetailPage({
     try {
       await deleteAttempt(row.attemptId, password);
       toast.success('Attempt deleted.');
-      const found = await getRegistration(kind, registrationId);
       setDirty(false);
-      setRow(found);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : 'Could not delete attempt.');
     } finally {
@@ -169,14 +178,22 @@ export function RegistrationDetailPage({
         course: course.trim() || null,
         city: city.trim() || null,
       });
-      setRow({
-        ...row,
-        name: name.trim(),
-        email: email.trim(),
-        phone: phone.trim() || '—',
-        course: course.trim() || '—',
-        city: city.trim() || '—',
-      });
+      queryClient.setQueryData<Awaited<ReturnType<typeof getRegistrations>>>(
+        adminQueryKeys.registrations(orgId, kind),
+        (current) =>
+          current?.map((item) =>
+            item.registrationId === registrationId
+              ? {
+                  ...item,
+                  name: name.trim(),
+                  email: email.trim(),
+                  phone: phone.trim() || '—',
+                  course: course.trim() || '—',
+                  city: city.trim() || '—',
+                }
+              : item,
+          ),
+      );
       setDirty(false);
       toast.success('Registration updated.');
     } catch (err) {

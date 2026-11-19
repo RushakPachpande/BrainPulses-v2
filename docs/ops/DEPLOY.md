@@ -45,7 +45,7 @@ Internet
 
 1. DNS A/AAAA for `server`, `admin`, and `participant.brainpulses.com` → this VPS (must resolve before certbot).
 2. Clone the repo to `/root/apps/BrainPulses_v2.0`.
-3. Have Twilio credentials and a Let's Encrypt contact email ready.
+3. Have a Let's Encrypt contact email ready. Twilio credentials are only needed when phone login should be on.
 
 ### Run
 
@@ -53,6 +53,7 @@ Internet
 cd /root/apps/BrainPulses_v2.0
 
 export CERTBOT_EMAIL=you@example.com
+# Optional. Omit these to leave phone login off (TWILIO_ENABLED=false).
 export TWILIO_ACCOUNT_SID=ACxxxxxxxx
 export TWILIO_AUTH_TOKEN=xxxxxxxx
 export TWILIO_FROM_NUMBER=+1xxxxxxxxxx
@@ -64,7 +65,7 @@ sudo -E bash setup.sh
 
 1. Install Node 22, Docker, nginx, certbot, rsync, pm2; open ufw for SSH / 80 / 443 (tcp+udp).
 2. Create root `.env` with generated Postgres/Redis passwords (if missing).
-3. Create `api/.env.prod` from the example; inject DB/Redis URLs and a generated `JWT_SECRET`; apply Twilio from the environment. **Exits** if Twilio placeholders remain.
+3. Create `api/.env.prod` from the example; inject DB/Redis URLs and a generated `JWT_SECRET`. Leaves `TWILIO_ENABLED=false` unless real Twilio values are exported. **Exits** only when `TWILIO_ENABLED=true` and placeholders remain.
 4. Copy SPA `.env.prod` examples when missing.
 5. `docker compose up -d` (db+redis only) and wait until healthy.
 6. `npm ci` + `prisma migrate deploy` (no seed) + API build + PM2 `startOrReload` of `api/ecosystem.config.cjs` (API **and** BullMQ worker) with `--env production` + `pm2 save` / startup.
@@ -169,7 +170,9 @@ After changing SPA env files, run `update-deploy.sh` so the static builds pick t
 
 ## Ops notes
 
-- **Logs:** `pm2 logs brainpulses-api` / `pm2 logs brainpulses-worker`; files under `api/logs/`; nginx `/var/log/nginx/`; Compose json-file rotation is already set.
+- **Logs:** `pm2 logs brainpulses-api` / `pm2 logs brainpulses-worker`; files under `api/logs/`. `setup.sh` installs [`logrotate/brainpulses-api`](logrotate/brainpulses-api) (daily, 20 MB, keep 7, compressed). A machine that was set up before that change needs the snippet copied to `/etc/logrotate.d/brainpulses-api` once. This repo change does not SSH or reload the live VPS.
+- **Pools:** the API opens at most `DATABASE_POOL_MAX` Postgres connections (default 8). The worker PM2 app sets 4. Together that is 12, on top of whatever else is already on the VPS.
+- **Redis memory (planned, not applied here):** on the next maintenance window, add `--maxmemory 256mb --maxmemory-policy noeviction` to the Redis service command and recreate that container. `noeviction` makes Redis return an error instead of deleting sessions or jobs. Do not recreate it just to pick up this documentation.
 - **Queue / PM2 detail:** [`../QUEUE_SYSTEM.md`](../QUEUE_SYSTEM.md), [`../PM2_CONFIGURATION.md`](../PM2_CONFIGURATION.md), [`../LOAD_BALANCING.md`](../LOAD_BALANCING.md).
 - **GitHub Actions:** check and deploy are both manual `workflow_dispatch` — [`../GITHUB_ACTIONS.md`](../GITHUB_ACTIONS.md).
 - **Backups:** schedule `pg_dump` (or volume snapshots) for Postgres; Redis AOF is enabled; back up `api/uploads`.

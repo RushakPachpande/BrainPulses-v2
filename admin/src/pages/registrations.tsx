@@ -130,12 +130,12 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   const orgId = useOrgId();
   const { data, isPending: loading } = useQuery({
     queryKey: adminQueryKeys.registrations(orgId, kind),
-    queryFn: () => getRegistrations(kind),
+    queryFn: ({ signal }) => getRegistrations(kind, signal),
     enabled: Boolean(orgId),
   });
   const { data: activityList } = useQuery({
     queryKey: adminQueryKeys.activities(orgId, kind),
-    queryFn: () => getActivities(kind),
+    queryFn: ({ signal }) => getActivities(kind, signal),
     enabled: Boolean(orgId),
   });
   const rows = data ?? EMPTY_ROWS;

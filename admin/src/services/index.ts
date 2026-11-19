@@ -85,26 +85,26 @@ type ApiRegistrationRow = Parameters<typeof mapRegistrationFromApi>[0];
 type ApiResultRow = Parameters<typeof mapResultFromApi>[0];
 type ApiDashboardSummary = Parameters<typeof mapDashboardFromApi>[0];
 
-export async function getParticipants(): Promise<Participant[]> {
+export async function getParticipants(signal?: AbortSignal): Promise<Participant[]> {
   if (useFixtures) return fixturesGetParticipants();
-  const rows = await apiGetList<ApiParticipantRow>('/api/participants', { limit: 100 });
+  const rows = await apiGetList<ApiParticipantRow>('/api/participants', { limit: 100 }, { signal });
   return rows.map(mapParticipantFromApi);
 }
 
-export async function getUsers(): Promise<AdminUser[]> {
+export async function getUsers(signal?: AbortSignal): Promise<AdminUser[]> {
   if (useFixtures) return fixturesGetUsers();
-  const rows = await apiGetList<ApiUserRow>('/api/users', { limit: 100 });
+  const rows = await apiGetList<ApiUserRow>('/api/users', { limit: 100 }, { signal });
   return rows.map(mapUserFromApi);
 }
 
-export async function getUser(membershipId: string): Promise<AdminUser> {
+export async function getUser(membershipId: string, signal?: AbortSignal): Promise<AdminUser> {
   if (useFixtures) {
-    const rows = await getUsers();
+    const rows = await getUsers(signal);
     const found = rows.find((u) => u.id === membershipId);
     if (!found) throw new Error('User not found');
     return found;
   }
-  const row = await apiGetData<ApiUserRow>(`/api/users/${membershipId}`);
+  const row = await apiGetData<ApiUserRow>(`/api/users/${membershipId}`, { signal });
   return mapUserFromApi(row);
 }
 
@@ -135,12 +135,15 @@ async function uploadImageFile(
   return started.id;
 }
 
-export async function getImageLibraryPage(params: {
-  purpose: ImageLibraryPurpose;
-  q?: string;
-  cursor?: string;
-  limit?: number;
-}): Promise<ListEnvelope<LibraryImage>> {
+export async function getImageLibraryPage(
+  params: {
+    purpose: ImageLibraryPurpose;
+    q?: string;
+    cursor?: string;
+    limit?: number;
+  },
+  signal?: AbortSignal,
+): Promise<ListEnvelope<LibraryImage>> {
   if (useFixtures) {
     return {
       data: [],
@@ -150,7 +153,10 @@ export async function getImageLibraryPage(params: {
   const qs = new URLSearchParams({ purpose: params.purpose, limit: String(params.limit ?? 24) });
   if (params.q) qs.set('q', params.q);
   if (params.cursor) qs.set('cursor', params.cursor);
-  return apiRequest<ListEnvelope<LibraryImage>>(`/api/files/images?${qs.toString()}`);
+  return apiRequest<ListEnvelope<LibraryImage>>(
+    `/api/files/images?${qs.toString()}`,
+    signal ? { signal } : undefined,
+  );
 }
 
 export async function uploadCatalogImage(file: File): Promise<string> {
@@ -185,17 +191,21 @@ export async function uploadQuestionImage(file: File): Promise<string> {
   });
 }
 
-export async function getSponsors(): Promise<Sponsor[]> {
-  const rows = await apiGetList<Sponsor>('/api/sponsors', {
-    limit: 100,
-    sort: 'name',
-    order: 'asc',
-  });
+export async function getSponsors(signal?: AbortSignal): Promise<Sponsor[]> {
+  const rows = await apiGetList<Sponsor>(
+    '/api/sponsors',
+    {
+      limit: 100,
+      sort: 'name',
+      order: 'asc',
+    },
+    { signal },
+  );
   return rows;
 }
 
-export async function getSponsor(id: string): Promise<Sponsor> {
-  return apiGetData<Sponsor>(`/api/sponsors/${id}`);
+export async function getSponsor(id: string, signal?: AbortSignal): Promise<Sponsor> {
+  return apiGetData<Sponsor>(`/api/sponsors/${id}`, { signal });
 }
 
 export async function createSponsor(payload: { name: string; imageFileId: string }) {
@@ -210,18 +220,22 @@ export async function updateSponsor(id: string, payload: { name?: string; imageF
   return data;
 }
 
-export async function getContests(sponsorId?: string): Promise<Contest[]> {
-  const rows = await apiGetList<Contest>('/api/contests', {
-    limit: 100,
-    sort: 'name',
-    order: 'asc',
-    sponsorId,
-  });
+export async function getContests(sponsorId?: string, signal?: AbortSignal): Promise<Contest[]> {
+  const rows = await apiGetList<Contest>(
+    '/api/contests',
+    {
+      limit: 100,
+      sort: 'name',
+      order: 'asc',
+      sponsorId,
+    },
+    { signal },
+  );
   return rows;
 }
 
-export async function getContest(id: string): Promise<Contest> {
-  return apiGetData<Contest>(`/api/contests/${id}`);
+export async function getContest(id: string, signal?: AbortSignal): Promise<Contest> {
+  return apiGetData<Contest>(`/api/contests/${id}`, { signal });
 }
 
 export async function createContest(payload: {
@@ -249,39 +263,35 @@ export async function updateContest(
   return data;
 }
 
-export async function getActivities(kind: ActivityKind) {
+export async function getActivities(kind: ActivityKind, signal?: AbortSignal) {
   if (useFixtures) return fixturesGetActivities(kind);
-  const rows = await apiGetList<ApiActivityRow>('/api/activities', {
-    kind,
-    limit: 100,
-  });
+  const rows = await apiGetList<ApiActivityRow>(
+    '/api/activities',
+    { kind, limit: 100 },
+    { signal },
+  );
   return rows.map((row, index) => mapActivityFromApi(row, index));
 }
 
-export async function getQuestionBanks(kind: ActivityKind) {
+export async function getQuestionBanks(kind: ActivityKind, signal?: AbortSignal) {
   if (useFixtures) return fixturesGetQuestionBanks(kind);
-  const rows = await apiGetList<ApiBankRow>('/api/banks', {
-    kind,
-    limit: 100,
-  });
+  const rows = await apiGetList<ApiBankRow>('/api/banks', { kind, limit: 100 }, { signal });
   return rows.map(mapBankFromApi);
 }
 
-export async function getRegistrations(kind: ActivityKind) {
+export async function getRegistrations(kind: ActivityKind, signal?: AbortSignal) {
   if (useFixtures) return fixturesGetRegistrations(kind);
-  const rows = await apiGetList<ApiRegistrationRow>('/api/registrations', {
-    kind,
-    limit: 100,
-  });
+  const rows = await apiGetList<ApiRegistrationRow>(
+    '/api/registrations',
+    { kind, limit: 100 },
+    { signal },
+  );
   return rows.map(mapRegistrationFromApi);
 }
 
-export async function getResults(kind: ActivityKind) {
+export async function getResults(kind: ActivityKind, signal?: AbortSignal) {
   if (useFixtures) return fixturesGetResults(kind);
-  const rows = await apiGetList<ApiResultRow>('/api/results', {
-    kind,
-    limit: 100,
-  });
+  const rows = await apiGetList<ApiResultRow>('/api/results', { kind, limit: 100 }, { signal });
   return rows.map(mapResultFromApi);
 }
 
@@ -290,15 +300,18 @@ export function getMonths() {
   return ['Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep'];
 }
 
-export async function getDashboard(): Promise<DashboardData> {
+export async function getDashboard(signal?: AbortSignal): Promise<DashboardData> {
   if (useFixtures) return fixturesGetDashboard();
-  const summary = await apiGetData<ApiDashboardSummary>('/api/dashboard/summary');
+  const summary = await apiGetData<ApiDashboardSummary>('/api/dashboard/summary', { signal });
   return mapDashboardFromApi(summary);
 }
 
-export async function getReportSummary(kind: ActivityKind): Promise<ReportSummaryRow[]> {
+export async function getReportSummary(
+  kind: ActivityKind,
+  signal?: AbortSignal,
+): Promise<ReportSummaryRow[]> {
   if (useFixtures) return [...fixturesGetReportSummary()];
-  const results = await getResults(kind);
+  const results = await getResults(kind, signal);
   return [...buildReportSummaryFromResults(results)];
 }
 
@@ -425,7 +438,7 @@ export async function createActivity(
   return data;
 }
 
-export async function getActivity(id: string): Promise<ActivityDetail> {
+export async function getActivity(id: string, signal?: AbortSignal): Promise<ActivityDetail> {
   if (useFixtures) {
     const rows = await getActivities('assessment');
     const quizRows = await getActivities('quiz');
@@ -487,7 +500,9 @@ export async function getActivity(id: string): Promise<ActivityDetail> {
       ],
     };
   }
-  const row = await apiGetData<Parameters<typeof mapActivityDetail>[0]>(`/api/activities/${id}`);
+  const row = await apiGetData<Parameters<typeof mapActivityDetail>[0]>(`/api/activities/${id}`, {
+    signal,
+  });
   return mapActivityDetail(row);
 }
 
@@ -561,17 +576,24 @@ export async function updateActivity(id: string, payload: ActivityWritePayload) 
   return data;
 }
 
-export async function getSettingsGroup(group: 'general') {
+export async function getSettingsGroup(group: 'general', signal?: AbortSignal) {
   if (useFixtures) return { group, values: {} as Record<string, unknown> };
-  return apiGetData<{ group: string; values: Record<string, unknown> }>(`/api/settings/${group}`);
+  return apiGetData<{ group: string; values: Record<string, unknown> }>(`/api/settings/${group}`, {
+    signal,
+  });
 }
 
 export async function patchSettingsGroup(group: 'general', values: Record<string, unknown>) {
-  if (useFixtures) return { group, values };
-  return apiPatchData<{ group: string; values: Record<string, unknown> }>(
+  if (useFixtures) {
+    invalidateAdmin(['settings']);
+    return { group, values };
+  }
+  const data = await apiPatchData<{ group: string; values: Record<string, unknown> }>(
     `/api/settings/${group}`,
     { values },
   );
+  invalidateAdmin(['settings']);
+  return data;
 }
 
 export async function updateMembershipAccess(
@@ -727,14 +749,14 @@ export async function activateParticipants(ids: string[]) {
   return data;
 }
 
-export async function getParticipant(id: string) {
+export async function getParticipant(id: string, signal?: AbortSignal) {
   if (useFixtures) {
-    const rows = await getParticipants();
+    const rows = await getParticipants(signal);
     const found = rows.find((s) => s.id === id);
     if (!found) throw new Error('Participant not found');
     return found;
   }
-  const row = await apiGetData<ApiParticipantRow>(`/api/participants/${id}`);
+  const row = await apiGetData<ApiParticipantRow>(`/api/participants/${id}`, { signal });
   return mapParticipantFromApi(row);
 }
 
@@ -962,6 +984,7 @@ export type BankQuestionItem = {
 
 export async function getQuestionBank(
   id: string,
+  signal?: AbortSignal,
 ): Promise<QuestionBank & { items: BankQuestionItem[] }> {
   if (useFixtures) {
     const rows = [...(await getQuestionBanks('assessment')), ...(await getQuestionBanks('quiz'))];
@@ -969,7 +992,9 @@ export async function getQuestionBank(
     if (!found) throw new Error('Question bank not found');
     return { ...found, items: [] };
   }
-  const row = await apiGetData<ApiBankRow & { items?: BankQuestionItem[] }>(`/api/banks/${id}`);
+  const row = await apiGetData<ApiBankRow & { items?: BankQuestionItem[] }>(`/api/banks/${id}`, {
+    signal,
+  });
   return {
     ...mapBankFromApi(row),
     items: (row.items ?? []).map((item) => ({
@@ -1265,7 +1290,7 @@ export async function deleteAttempt(attemptId: string, password: string) {
   return data.data;
 }
 
-export async function getResult(id: string): Promise<ResultDetail> {
+export async function getResult(id: string, signal?: AbortSignal): Promise<ResultDetail> {
   if (useFixtures) {
     const rows = [...(await getResults('assessment')), ...(await getResults('quiz'))];
     const found = rows.find((r) => r.id === id);
@@ -1276,12 +1301,16 @@ export async function getResult(id: string): Promise<ResultDetail> {
     Parameters<typeof mapResultFromApi>[0] & {
       revisions?: { id: string; score: number; maxScore: number; percent: number }[];
     }
-  >(`/api/results/${id}`);
+  >(`/api/results/${id}`, { signal });
   return { ...mapResultFromApi(row), revisions: row.revisions };
 }
 
-export async function getRegistration(kind: ActivityKind, registrationId: string) {
-  const rows = await getRegistrations(kind);
+export async function getRegistration(
+  kind: ActivityKind,
+  registrationId: string,
+  signal?: AbortSignal,
+) {
+  const rows = await getRegistrations(kind, signal);
   const found = rows.find((r) => r.registrationId === registrationId);
   if (!found) throw new Error('Registration not found');
   return found;

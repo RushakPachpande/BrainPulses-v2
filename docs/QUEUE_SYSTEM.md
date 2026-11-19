@@ -15,18 +15,22 @@ Local/tests: `QUEUE_INLINE=true` or `NODE_ENV=test` runs processors in-process (
 
 | Name | Trigger | Result |
 | --- | --- | --- |
-| `sms.otp` | Participant OTP issue | Side effect only (auth response unchanged) |
-| `report.quiz-export` | `GET /api/quiz-reports/export` | File under `uploads/temporary/jobs/` |
+| `sms.otp` | Participant OTP issue | One attempt. A retry would send the same code again. |
+| `report.quiz-export` | `GET /api/quiz-reports/export` | Queued file under `uploads/temporary/jobs/` |
 | `report.assessment-export` | `GET /api/assessment-reports/export` | Same |
-| `import.participants` | `POST /api/participants/import` | Import JSON (or 202 + poll) |
-| `import.bank-questions` | `POST /api/banks/:id/import` | Import JSON (or 202 + poll) |
+| `import.participants` | `POST /api/participants/import` | Queued import JSON |
+| `import.bank-questions` | `POST /api/banks/:id/import` | Queued import JSON. Idempotency key becomes the job id. |
 
 ## Client handshake
 
-1. API accepts → **202** `{ data: { jobId, status: "queued" } }` (imports may still return **200** when finished inline).
-2. Client polls `GET /api/jobs/:jobId` (each poll uses the normal 30s request timeout).
+1. API accepts → **202** `{ data: { jobId, status: "queued" } }`.
+2. Client polls `GET /api/jobs/:jobId` until completed or failed. The admin poll window covers the 120s worker lock plus a short margin. Each poll uses the normal 30s request timeout.
 3. On `completed`, export clients call `GET /api/jobs/:jobId/download`; import clients read `result.data`.
 4. Acceptance is never presented as success until status is `completed`.
+
+`QUEUE_INLINE=true` and `NODE_ENV=test` still run the processor in the API process and may return the file or import JSON on the first response. Production does not set `forceInline`.
+
+The worker deletes files in `uploads/temporary/jobs` older than 24 hours. A download does not delete the file, so a retry in that window still works.
 
 ## Backpressure
 
