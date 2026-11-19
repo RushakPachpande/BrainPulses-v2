@@ -11,7 +11,9 @@ import {
   buildParticipantSampleWorkbook,
   parseParticipantsFile,
   participantRowIssue,
+  savedParticipantConflict,
   type ParticipantImportIssue,
+  type SavedParticipantIdentity,
 } from './import-export.js';
 import type {
   createParticipantSchema,
@@ -267,6 +269,16 @@ export async function importParticipantsFile(
   const seenEmails = new Set<string>();
   const seenCodes = new Set<string>();
   const seenPhones = new Set<string>();
+  const saved = await prisma.participant.findMany({
+    where: { organizationId },
+    select: { name: true, email: true, code: true, phone: true },
+  });
+  const savedPeople: SavedParticipantIdentity[] = saved.map((person) => ({
+    name: person.name,
+    email: person.email,
+    code: person.code,
+    phone: person.phone ? normalizePhone(person.phone) : null,
+  }));
 
   for (const row of rows) {
     const name = row.name.trim();
@@ -358,6 +370,16 @@ export async function importParticipantsFile(
         continue;
       }
       phone = normalized;
+    }
+
+    const alreadySaved = savedParticipantConflict(
+      row.sheetRow,
+      { email, code: codeRaw, phone },
+      savedPeople,
+    );
+    if (alreadySaved) {
+      issues.push(alreadySaved);
+      continue;
     }
 
     try {

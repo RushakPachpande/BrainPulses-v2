@@ -193,7 +193,11 @@ export async function previewAssessmentQuestions(req: Request, res: Response, ne
       );
     }
     const mapping = parseMappingField(req.body?.mapping);
-    const data = await previewAssessmentImport(file.buffer, mapping);
+    const actor = userActor(req);
+    const data = await previewAssessmentImport(file.buffer, mapping, {
+      organizationId: actor.organizationId,
+      activityId: req.params.id as string,
+    });
     // Do not echo every row back — keep payload light for the mapping UI.
     res.json({
       data: {
@@ -202,6 +206,7 @@ export async function previewAssessmentQuestions(req: Request, res: Response, ne
         fields: data.fields,
         issues: data.issues,
         validCount: data.validCount,
+        updateCount: data.updateCount,
         totalRows: data.totalRows,
       },
     });

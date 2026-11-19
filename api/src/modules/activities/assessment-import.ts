@@ -4,11 +4,22 @@ import { prisma } from '../../lib/prisma.js';
 import {
   BANK_IMPORT_COLUMNS,
   BANK_IMPORT_HEADERS,
+  claimQuestionRow,
+  contentFromPayload,
+  decideImportedQuestion,
+  duplicateQuestionIssue,
+  findQuestionDuplicate,
   formatQuestionImportError,
   newImportQuestionCode,
+  questionImageFromAnswerKey,
+  questionUpdatePreviewIssue,
   rowToCreatePayload,
+  seedSavedQuestion,
+  snapshotFromQuestion,
   type BankImportHeader,
   type ImportIssue,
+  type QuestionDuplicateHit,
+  type QuestionImportUpdate,
 } from '../banks/import-export.js';
 import { createQuestion } from '../banks/service.js';
 import {
@@ -213,6 +224,9 @@ export async function buildAssessmentSampleWorkbook(): Promise<Buffer> {
   instructions.addRow([
     '6. comprehension_mcq needs passageText on every row. Rows with the same passage text share one passage.',
   ]);
+  instructions.addRow([
+    '7. A row is skipped when that question text is already in the same round and the row matches the saved question. If the options, answer, points, or type differ, import asks you to confirm the update. The same text in a different round is still imported.',
+  ]);
   instructions.getColumn(1).width = 100;
 
   const questions = workbook.addWorksheet('Questions');
@@ -251,6 +265,7 @@ export type AssessmentImportPreview = {
   fields: { key: AssessmentImportHeader; label: string }[];
   issues: ImportIssue[];
   validCount: number;
+  updateCount: number;
   totalRows: number;
   rows: Array<Record<AssessmentImportHeader, string> & { sheetRow: number }>;
 };
@@ -381,9 +396,87 @@ function validateMappedRows(
   return { issues, valid };
 }
 
+async function loadRoundQuestionSeen(
+  organizationId: string,
+  activityId: string,
+  roundNames: string[],
+): Promise<Map<string, QuestionDuplicateHit>> {
+  const seen = new Map<string, QuestionDuplicateHit>();
+  const wanted = new Set(
+    roundNames
+      .map((name) => name.trim().replace(/\s+/g, ' ').toLowerCase())
+      .filter((name) => name.length > 0),
+  );
+  if (wanted.size === 0) return seen;
+
+  const rounds = await prisma.activityRound.findMany({
+    where: { organizationId, activityId, localBankId: { not: null } },
+    select: { name: true, localBankId: true },
+  });
+  const matched = rounds.filter((round) =>
+    wanted.has(round.name.trim().replace(/\s+/g, ' ').toLowerCase()),
+  );
+  const bankIds = matched.flatMap((round) => (round.localBankId ? [round.localBankId] : []));
+  if (bankIds.length === 0) return seen;
+
+  const questions = await prisma.question.findMany({
+    where: { organizationId, bankId: { in: bankIds } },
+    select: {
+      id: true,
+      bankId: true,
+      type: true,
+      question: true,
+      points: true,
+      passage: { select: { body: true } },
+      versions: {
+        orderBy: { version: 'desc' },
+        take: 1,
+        select: {
+          answerKey: true,
+          options: {
+            orderBy: { sortOrder: 'asc' },
+            select: { label: true, body: true, isCorrect: true, imageUrl: true },
+          },
+        },
+      },
+    },
+  });
+  const roundNameByBank = new Map(
+    matched.flatMap((round) =>
+      round.localBankId ? [[round.localBankId, round.name] as const] : [],
+    ),
+  );
+  for (const question of questions) {
+    const roundName = roundNameByBank.get(question.bankId);
+    if (!roundName) continue;
+    seedSavedQuestion(seen, {
+      question: question.question,
+      stemImageUrl: questionImageFromAnswerKey(question.versions[0]?.answerKey),
+      roundName,
+      where: { source: 'round', roundName, saved: snapshotFromQuestion(question) },
+    });
+  }
+  return seen;
+}
+
+function assessmentBankRow(
+  row: Record<AssessmentImportHeader, string> & { sheetRow: number },
+): Record<BankImportHeader, string> & { sheetRow: number } {
+  const { round: _round, ...bankFields } = row;
+  void _round;
+  const bankRow = { ...bankFields, sheetRow: row.sheetRow } as Record<BankImportHeader, string> & {
+    sheetRow: number;
+  };
+  for (const header of BANK_IMPORT_HEADERS) {
+    if (bankRow[header] === undefined) bankRow[header] = '';
+  }
+  return bankRow;
+}
+
 export async function previewAssessmentImport(
   buffer: Buffer,
   mappingOverride?: ColumnMapping,
+  scope?: { organizationId: string; activityId: string },
 ): Promise<AssessmentImportPreview> {
   const { headers, dataRows } = await readWorkbookRows(buffer);
   const mapping = mappingOverride
@@ -391,12 +484,72 @@ export async function previewAssessmentImport(
     : autoMapping(headers);
   const rows = applyMapping(headers, dataRows, mapping);
   const { issues, valid } = validateMappedRows(rows);
+  let readyCount = 0;
+  let updateCount = 0;
+  const duplicateIssues: ImportIssue[] = [];
+  if (scope && valid.length > 0) {
+    const seen = await loadRoundQuestionSeen(
+      scope.organizationId,
+      scope.activityId,
+      valid.map((row) => row.round),
+    );
+    for (const row of valid) {
+      const bankRow = assessmentBankRow(row);
+      const payload = rowToCreatePayload(bankRow, 'assessment');
+      const hit = findQuestionDuplicate(seen, {
+        question: row.question,
+        stemImageUrl: row.stemImageUrl,
+        roundName: row.round,
+      });
+      const decision = decideImportedQuestion(hit, contentFromPayload(payload));
+      if (decision.action === 'create') {
+        readyCount += 1;
+        claimQuestionRow(seen, {
+          sheetRow: row.sheetRow,
+          question: row.question,
+          stemImageUrl: row.stemImageUrl,
+          roundName: row.round,
+        });
+        continue;
+      }
+      if (decision.action === 'update' && hit) {
+        updateCount += 1;
+        duplicateIssues.push(
+          questionUpdatePreviewIssue(
+            row.sheetRow,
+            row.question,
+            row.stemImageUrl,
+            hit,
+            decision.changes,
+          ),
+        );
+        claimQuestionRow(seen, {
+          sheetRow: row.sheetRow,
+          question: row.question,
+          stemImageUrl: row.stemImageUrl,
+          roundName: row.round,
+        });
+      } else {
+        duplicateIssues.push(
+          duplicateQuestionIssue(
+            row.sheetRow,
+            row.question,
+            row.stemImageUrl,
+            hit ?? { source: 'bank' },
+          ),
+        );
+      }
+    }
+  } else {
+    readyCount = valid.length;
+  }
   return {
     headers,
     mapping,
     fields: ASSESSMENT_IMPORT_HEADERS.map((key) => ({ key, label: FIELD_LABELS[key] })),
-    issues,
-    validCount: valid.length,
+    issues: [...issues, ...duplicateIssues],
+    validCount: readyCount,
+    updateCount,
     totalRows: rows.filter((r) => r.question.trim() || r.type.trim()).length,
     rows,
   };
@@ -488,20 +641,80 @@ export async function confirmAssessmentImport(
     throw badRequest('Questions can only be imported while the assessment is draft or active.');
   }
 
-  const preview = await previewAssessmentImport(buffer, mappingOverride);
-  if (preview.validCount === 0) {
+  const preview = await previewAssessmentImport(buffer, mappingOverride, {
+    organizationId,
+    activityId,
+  });
+  if (preview.validCount === 0 && preview.updateCount === 0) {
     throw unprocessable(
       preview.issues[0]?.message ??
         'No valid question rows to import. Fix the listed errors first.',
     );
   }
 
-  const { valid } = validateMappedRows(preview.rows);
+  const { issues: validationIssues, valid } = validateMappedRows(preview.rows);
   let imported = 0;
   let seq = 0;
   const passageCaches = new Map<string, Map<string, string>>();
   const roundCache = new Map<string, Awaited<ReturnType<typeof ensureRoundLocalBank>>>();
+  const seen = await loadRoundQuestionSeen(
+    organizationId,
+    activityId,
+    valid.map((row) => row.round),
+  );
+  const duplicateIssues: ImportIssue[] = [];
+  const updates: QuestionImportUpdate[] = [];
   for (const row of valid) {
+    const bankRow = assessmentBankRow(row);
+    const parsed = rowToCreatePayload(bankRow, 'assessment');
+    const hit = findQuestionDuplicate(seen, {
+      question: row.question,
+      stemImageUrl: row.stemImageUrl,
+      roundName: row.round,
+    });
+    const decision = decideImportedQuestion(hit, contentFromPayload(parsed));
+    if (decision.action === 'skip-sheet' || decision.action === 'skip-unchanged') {
+      duplicateIssues.push(
+        duplicateQuestionIssue(
+          row.sheetRow,
+          row.question,
+          row.stemImageUrl,
+          hit ?? { source: 'bank' },
+        ),
+      );
+      continue;
+    }
+    if (decision.action === 'update') {
+      const roundName = row.round.trim();
+      let round = roundCache.get(roundName);
+      if (!round) {
+        round = await ensureRoundLocalBank(
+          organizationId,
+          activityId,
+          roundName,
+          actor,
+          actorUserId,
+        );
+        roundCache.set(roundName, round);
+      }
+      if (!round.localBankId) throw badRequest('Could not create a local bank for the round.');
+      updates.push({
+        questionId: decision.questionId,
+        bankId: round.localBankId,
+        sheetRow: row.sheetRow,
+        question: parsed.question.trim() || row.stemImageUrl.trim(),
+        roundName: decision.roundName,
+        changes: decision.changes,
+        payload: parsed,
+      });
+      claimQuestionRow(seen, {
+        sheetRow: row.sheetRow,
+        question: row.question,
+        stemImageUrl: row.stemImageUrl,
+        roundName: row.round,
+      });
+      continue;
+    }
     const roundName = row.round.trim();
     let round = roundCache.get(roundName);
     if (!round) {
@@ -509,19 +722,6 @@ export async function confirmAssessmentImport(
       roundCache.set(roundName, round);
     }
     if (!round.localBankId) throw badRequest('Could not create a local bank for the round.');
-    const { round: _r, ...bankFields } = row;
-    void _r;
-    const bankRow = {
-      ...bankFields,
-      sheetRow: row.sheetRow,
-    } as Record<BankImportHeader, string> & { sheetRow: number };
-    for (const h of BANK_IMPORT_HEADERS) {
-      if (bankRow[h] === undefined) bankRow[h] = '';
-    }
-    const payload = {
-      ...rowToCreatePayload(bankRow, 'assessment'),
-      code: newImportQuestionCode(row.sheetRow, seq),
-    };
     seq += 1;
     const passageCache = passageCaches.get(round.localBankId) ?? new Map<string, string>();
     passageCaches.set(round.localBankId, passageCache);
@@ -530,13 +730,22 @@ export async function confirmAssessmentImport(
       actorUserId,
       actor,
       round.localBankId,
-      payload,
+      {
+        ...parsed,
+        code: newImportQuestionCode(row.sheetRow, seq),
+      },
       passageCache,
       {
         bank: { id: round.localBankId, kind: 'assessment' },
         skipAudit: true,
       },
     );
+    claimQuestionRow(seen, {
+      sheetRow: row.sheetRow,
+      question: row.question,
+      stemImageUrl: row.stemImageUrl,
+      roundName: row.round,
+    });
     imported += 1;
   }
 
@@ -549,9 +758,11 @@ export async function confirmAssessmentImport(
     targetId: activityId,
   });
 
+  const issues = [...validationIssues, ...duplicateIssues];
   return {
     imported,
-    skipped: preview.issues.length,
-    issues: preview.issues,
+    skipped: issues.length,
+    issues,
+    updates,
   };
 }

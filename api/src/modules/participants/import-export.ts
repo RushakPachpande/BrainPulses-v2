@@ -92,7 +92,7 @@ export async function buildParticipantSampleWorkbook(): Promise<Buffer> {
     '3. Required values on every data row: name and email. phone, course, city, cohort, and code may be blank.',
   ]);
   instructions.addRow([
-    '4. Leave code blank to auto-generate a Unique ID. If you set code, it must be unique in this organization.',
+    '4. Leave code blank to auto-generate a Unique ID. Email, phone, and Unique ID must each be unique in this organization. A row that matches someone already saved is skipped.',
   ]);
   instructions.addRow([
     '5. Save as Excel (.xlsx) only. CSV is not supported. Up to 1000 rows, 10 MB.',
@@ -131,4 +131,82 @@ export function participantRowIssue(
       example: opts?.example,
     }),
   };
+}
+
+export type SavedParticipantIdentity = {
+  name: string;
+  email: string;
+  code: string;
+  phone: string | null;
+};
+
+function savedPersonLabel(person: SavedParticipantIdentity): string {
+  const name = person.name.trim() || 'an existing participant';
+  const code = person.code.trim();
+  return code ? `${name} (Unique ID ${code})` : name;
+}
+
+/**
+ * First match wins: Unique ID, then email, then phone.
+ * Phone values must already be normalized the same way on both sides.
+ */
+export function savedParticipantConflict(
+  sheetRow: number,
+  row: { email: string; code: string; phone?: string },
+  existing: SavedParticipantIdentity[],
+): ParticipantImportIssue | null {
+  const email = row.email.trim().toLowerCase();
+  const code = row.code.trim();
+  const phone = row.phone?.trim() ?? '';
+
+  if (code) {
+    const match = existing.find(
+      (person) => person.code.trim().toLowerCase() === code.toLowerCase(),
+    );
+    if (match) {
+      return participantRowIssue(
+        sheetRow,
+        `this Unique ID is already used by ${savedPersonLabel(match)}`,
+        {
+          column: 'Unique ID',
+          value: code,
+          expected:
+            'delete this row, or use a different Unique ID. Leave the cell blank only when this is a new person',
+        },
+      );
+    }
+  }
+
+  if (email) {
+    const match = existing.find((person) => person.email.trim().toLowerCase() === email);
+    if (match) {
+      return participantRowIssue(
+        sheetRow,
+        `this email is already used by ${savedPersonLabel(match)}`,
+        {
+          column: 'Email',
+          value: email,
+          expected: 'delete this row, or use a different email',
+        },
+      );
+    }
+  }
+
+  if (phone) {
+    const match = existing.find((person) => (person.phone ?? '').trim() === phone);
+    if (match) {
+      return participantRowIssue(
+        sheetRow,
+        `this phone number is already used by ${savedPersonLabel(match)}`,
+        {
+          column: 'Phone',
+          value: phone,
+          expected:
+            'delete this row, or use a different phone number. Leave the cell blank if this person has no phone',
+        },
+      );
+    }
+  }
+
+  return null;
 }

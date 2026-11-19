@@ -19,7 +19,7 @@ export function importResultFromCounts(
       summary: `No ${noun} were created.`,
       created: 0,
       issues,
-      tip: 'Each line names the Excel row, the column, what is in the cell, and what to type instead. Row 1 is usually the header. Fix those cells, then import again.',
+      tip: 'Each line names the Excel row, the column, and why that row was skipped. Delete rows that already match a saved question. If a saved question differs from the file, confirm the update when asked. New questions in the file are still added.',
     };
   }
   if (issues.length > 0) {
@@ -29,7 +29,7 @@ export function importResultFromCounts(
       summary: `${created} ${noun}${created === 1 ? '' : 's'} created; some rows were skipped.`,
       created,
       issues,
-      tip: 'The rows above were skipped. Fix only those rows and import that smaller file, so the ones that already succeeded are not added again.',
+      tip: 'The rows above were skipped because they already match a saved question, or the cells need a fix. New questions in the same file are still added. If a saved question differs, confirm the update when asked.',
     };
   }
   return {

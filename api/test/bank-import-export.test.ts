@@ -11,11 +11,20 @@ import {
   buildExportCsv,
   buildSampleCsv,
   buildSampleWorkbook,
+  claimQuestionRow,
+  contentFromPayload,
+  decideImportedQuestion,
+  findQuestionDuplicate,
+  duplicateQuestionIssue,
   emptyBankImportRow,
   formatQuestionImportError,
   newImportQuestionCode,
   parseBankQuestionsFile,
+  questionContentKey,
+  questionFieldChanges,
   rowToCreatePayload,
+  seedSavedQuestion,
+  skipDuplicateQuestionRows,
   type BankImportHeader,
   type BankImportRow,
 } from '../src/modules/banks/import-export.js';
@@ -83,7 +92,7 @@ describe('question spreadsheet samples', () => {
       .getColumn(1)
       .values.filter((value): value is string => typeof value === 'string')
       .join('\n');
-    assert.match(notes, /does not update or replace/);
+    assert.match(notes, /skipped when that question text is already in this bank/);
     assert.match(notes, /\.xlsx/);
     assert.doesNotMatch(notes, /always single/i);
   });
@@ -709,5 +718,227 @@ describe('question spreadsheet files', () => {
     const codes = Array.from({ length: 30 }, (_, index) => newImportQuestionCode(index + 2, index));
     assert.equal(new Set(codes).size, 30);
     for (const code of codes) assert.ok(code.length <= 40);
+  });
+});
+
+describe('question import duplicates', () => {
+  it('treats question text as the same after case and extra spaces change', () => {
+    assert.equal(questionContentKey('What  is 2+2?', ''), questionContentKey('what is 2+2?', ''));
+    assert.notEqual(questionContentKey('What is 2+2?', ''), questionContentKey('What is 3+3?', ''));
+  });
+
+  it('skips a later row with the same text and names the earlier sheet row', () => {
+    const seen = new Map();
+    const { keep, issues } = skipDuplicateQuestionRows(
+      [
+        { sheetRow: 4, question: 'What is 2+2?', stemImageUrl: '', optionA: '4' },
+        { sheetRow: 12, question: 'what  is 2+2?', stemImageUrl: '', optionA: 'Four' },
+      ],
+      seen,
+    );
+    assert.equal(keep.length, 1);
+    assert.equal(keep[0]?.sheetRow, 4);
+    assert.equal(issues.length, 1);
+    assert.match(issues[0]!.message, /Sheet row 12/);
+    assert.match(issues[0]!.message, /column “Question”/);
+    assert.match(issues[0]!.message, /what is 2\+2\?/);
+    assert.match(issues[0]!.message, /already on sheet row 4/);
+    assert.match(issues[0]!.message, /Row 4 is the one that will be imported/);
+  });
+
+  it('skips a row whose text is already in the question bank', () => {
+    const seen = new Map();
+    seedSavedQuestion(seen, {
+      question: 'What is 2+2?',
+      stemImageUrl: '',
+      where: { source: 'bank' },
+    });
+    const issue = duplicateQuestionIssue(12, 'What is 2+2?', '', { source: 'bank' });
+    const { keep, issues } = skipDuplicateQuestionRows(
+      [{ sheetRow: 12, question: 'What is 2+2?', stemImageUrl: '' }],
+      seen,
+    );
+    assert.equal(keep.length, 0);
+    assert.equal(issues[0]?.message, issue.message);
+    assert.match(issues[0]!.message, /already in this question bank/);
+    assert.match(issues[0]!.message, /matches what is saved/);
+  });
+
+  it('keeps the same question text when it belongs to two different rounds', () => {
+    const seen = new Map();
+    const { keep, issues } = skipDuplicateQuestionRows(
+      [
+        { sheetRow: 2, question: 'What is 2+2?', stemImageUrl: '', roundName: 'Round 1' },
+        { sheetRow: 3, question: 'What is 2+2?', stemImageUrl: '', roundName: 'Round 2' },
+      ],
+      seen,
+    );
+    assert.equal(keep.length, 2);
+    assert.equal(issues.length, 0);
+  });
+
+  it('skips a question already saved in that round and says another round is allowed', () => {
+    const seen = new Map();
+    seedSavedQuestion(seen, {
+      question: 'What is 2+2?',
+      stemImageUrl: '',
+      roundName: 'Round 1',
+      where: { source: 'round', roundName: 'Round 1' },
+    });
+    const { keep, issues } = skipDuplicateQuestionRows(
+      [{ sheetRow: 12, question: 'What is 2+2?', stemImageUrl: '', roundName: 'round 1' }],
+      seen,
+    );
+    assert.equal(keep.length, 0);
+    assert.match(issues[0]!.message, /already in round “Round 1”/);
+    assert.match(issues[0]!.message, /same text in another round is allowed/);
+  });
+
+  it('matches an image-only question on the image link', () => {
+    assert.equal(
+      questionContentKey('', 'HTTPS://Example.com/A.png'),
+      questionContentKey('', 'https://example.com/a.png'),
+    );
+    const seen = new Map();
+    const { keep, issues } = skipDuplicateQuestionRows(
+      [
+        { sheetRow: 2, question: '', stemImageUrl: 'https://example.com/a.png' },
+        { sheetRow: 5, question: '   ', stemImageUrl: 'HTTPS://Example.com/A.png' },
+      ],
+      seen,
+    );
+    assert.equal(keep.length, 1);
+    assert.match(issues[0]!.message, /column “Question image link”/);
+    assert.match(issues[0]!.message, /already the question \(no text\) on sheet row 2/);
+  });
+
+  it('treats a case or spacing change as the same saved question', () => {
+    const saved = {
+      type: 'single_mcq',
+      question: 'What is 2+2?',
+      points: 1,
+      stemImageUrl: '',
+      passageText: '',
+      options: [
+        { label: 'A', body: '4', isCorrect: true, imageUrl: '' },
+        { label: 'B', body: '5', isCorrect: false, imageUrl: '' },
+      ],
+      numericValue: '',
+      numericTolerance: '',
+      referenceAnswer: '',
+    };
+    const incoming = contentFromPayload(
+      rowToCreatePayload(
+        row({
+          type: 'single_mcq',
+          question: 'what  is 2+2?',
+          points: '1',
+          optionA: '4',
+          optionB: '5',
+          correct: 'A',
+        }),
+        'quiz',
+      ),
+    );
+    assert.deepEqual(questionFieldChanges(saved, incoming), []);
+    assert.equal(
+      decideImportedQuestion({ source: 'bank', saved: { ...saved, questionId: 'q1' } }, incoming)
+        .action,
+      'skip-unchanged',
+    );
+  });
+
+  it('asks to update when the correct option changes and still adds a different question', () => {
+    const saved = {
+      questionId: 'q1',
+      type: 'single_mcq',
+      question: 'What is 2+2?',
+      points: 1,
+      stemImageUrl: '',
+      passageText: '',
+      options: [
+        { label: 'A', body: '4', isCorrect: true, imageUrl: '' },
+        { label: 'B', body: '5', isCorrect: false, imageUrl: '' },
+      ],
+      numericValue: '',
+      numericTolerance: '',
+      referenceAnswer: '',
+    };
+    const changed = contentFromPayload(
+      rowToCreatePayload(
+        row({
+          type: 'single_mcq',
+          question: 'What is 2+2?',
+          points: '2',
+          optionA: '4',
+          optionB: '5',
+          correct: 'B',
+        }),
+        'quiz',
+      ),
+    );
+    const decision = decideImportedQuestion({ source: 'bank', saved }, changed);
+    assert.equal(decision.action, 'update');
+    if (decision.action !== 'update') return;
+    assert.equal(decision.questionId, 'q1');
+    assert.deepEqual(
+      decision.changes.map((change) => change.field),
+      ['Points', 'Options'],
+    );
+    const options = decision.changes.find((change) => change.field === 'Options');
+    assert.match(options?.before ?? '', /A\. 4, correct/);
+    assert.match(options?.after ?? '', /B\. 5, correct/);
+    assert.equal(decideImportedQuestion(null, changed).action, 'create');
+  });
+
+  it('keeps the first file change and treats a later row with the same text as a sheet duplicate', () => {
+    const saved = {
+      questionId: 'q1',
+      type: 'single_mcq',
+      question: 'What is 2+2?',
+      points: 1,
+      stemImageUrl: '',
+      passageText: '',
+      options: [
+        { label: 'A', body: '4', isCorrect: true, imageUrl: '' },
+        { label: 'B', body: '5', isCorrect: false, imageUrl: '' },
+      ],
+      numericValue: '',
+      numericTolerance: '',
+      referenceAnswer: '',
+    };
+    const seen = new Map();
+    seedSavedQuestion(seen, {
+      question: 'What is 2+2?',
+      stemImageUrl: '',
+      where: { source: 'bank', saved },
+    });
+    const first = contentFromPayload(
+      rowToCreatePayload(
+        row({
+          type: 'single_mcq',
+          question: 'What is 2+2?',
+          points: '2',
+          optionA: '4',
+          optionB: '5',
+          correct: 'B',
+        }),
+        'quiz',
+      ),
+    );
+    assert.equal(
+      decideImportedQuestion(
+        findQuestionDuplicate(seen, {
+          question: 'What is 2+2?',
+          stemImageUrl: '',
+        }),
+        first,
+      ).action,
+      'update',
+    );
+    claimQuestionRow(seen, { sheetRow: 4, question: 'What is 2+2?', stemImageUrl: '' });
+    const secondHit = findQuestionDuplicate(seen, { question: 'What is 2+2?', stemImageUrl: '' });
+    assert.equal(secondHit?.source, 'sheet');
+    assert.equal(decideImportedQuestion(secondHit, first).action, 'skip-sheet');
   });
 });
