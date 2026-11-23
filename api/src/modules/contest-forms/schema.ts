@@ -1,11 +1,11 @@
 import { z } from 'zod';
-import { FIELD_TYPES } from './rules.js';
+import { FIELD_TYPES, isSafeHttpUrl } from './rules.js';
 
 export const idParamSchema = z.object({ id: z.string().uuid() });
 export const slugParamSchema = z.object({ slug: z.string().min(1).max(80) });
 
 export const imageParamSchema = slugParamSchema.extend({
-  which: z.enum(['contest', 'sponsor']),
+  which: z.enum(['contest', 'sponsor', 'thank-you']),
 });
 
 const fieldSchema = z
@@ -51,6 +51,22 @@ export const saveFormSchema = z
     keepExistingId: z.boolean().optional(),
     matchRule: z.enum(['name_and_contact', 'contact_only']).optional(),
     quizIds: z.array(z.string().uuid()).max(50).optional(),
+    thankYouEnabled: z.boolean().optional(),
+    thankYouKind: z.enum(['template', 'custom', 'image']).optional(),
+    thankYouTitle: z.string().max(120).nullable().optional(),
+    thankYouHtml: z.string().max(8000).nullable().optional(),
+    thankYouImageFileId: z.string().uuid().nullable().optional(),
+    thankYouShowNextSteps: z.boolean().optional(),
+    thankYouShowQuizzes: z.boolean().optional(),
+    thankYouButtonLabel: z.string().max(80).nullable().optional(),
+    thankYouButtonUrl: z
+      .string()
+      .max(500)
+      .nullable()
+      .optional()
+      .refine((value) => value == null || value === '' || isSafeHttpUrl(value), {
+        message: 'Use an http or https link.',
+      }),
   })
   .strict();
 

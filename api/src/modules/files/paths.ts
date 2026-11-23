@@ -57,7 +57,8 @@ export type ImageDestination =
       roundName: string;
       roundId: string;
     }
-  | { kind: 'quiz-questions'; activityName: string; activityId: string };
+  | { kind: 'quiz-questions'; activityName: string; activityId: string }
+  | { kind: 'contest-form'; contestName: string; formId: string };
 
 export function destinationSegments(dest: ImageDestination): string[] {
   switch (dest.kind) {
@@ -97,6 +98,8 @@ export function destinationSegments(dest: ImageDestination): string[] {
       ];
     case 'quiz-questions':
       return ['activities', 'quizzes', recordSlug(dest.activityName, dest.activityId), 'questions'];
+    case 'contest-form':
+      return ['registration-forms', recordSlug(dest.contestName, dest.formId)];
     default: {
       const _exhaustive: never = dest;
       return _exhaustive;

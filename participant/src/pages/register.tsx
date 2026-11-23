@@ -1,17 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
-import {
-  ArrowRight,
-  Check,
-  CircleAlert,
-  Clock,
-  Copy,
-  LoaderCircle,
-  Lock,
-  Users,
-} from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowRight, CircleAlert, Clock, LoaderCircle, Lock, Users } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { PortalBackdrop } from '../components/portal-backdrop';
+import { RegisterSuccess, type PublicThankYou } from '../components/register-success';
 import { ThemeButton } from '../components/theme-button';
 import {
   Select,
@@ -54,6 +46,7 @@ type PublicFormBody = {
   seats: number | null;
   seatsLeft: number | null;
   fields: PublicField[];
+  thankYou?: PublicThankYou;
 };
 
 type PublicForm = {
@@ -178,12 +171,13 @@ export function RegisterPage() {
             </div>
           ) : null}
           {result && form ? (
-            <Success
+            <RegisterSuccess
               headingRef={doneRef}
               contestName={form.contestName}
               firstName={answerText(form, answers, 'first_name')}
-              email={answerText(form, answers, 'email')}
               code={result.code}
+              slug={slug}
+              thankYou={form.thankYou}
               onCopy={() => void copyCode(result.code)}
             />
           ) : null}
@@ -352,49 +346,6 @@ function Intro({ form, slug }: { form: PublicFormBody; slug: string }) {
         </li>
       </ol>
     </section>
-  );
-}
-
-function Success({
-  headingRef,
-  contestName,
-  firstName,
-  code,
-  onCopy,
-}: {
-  headingRef: RefObject<HTMLHeadingElement | null>;
-  contestName: string;
-  firstName: string;
-  email: string;
-  code: string;
-  onCopy: () => void;
-}) {
-  return (
-    <div className="done">
-      <div className="ok">
-        <Check aria-hidden />
-      </div>
-      <h2 ref={headingRef} tabIndex={-1}>
-        You&apos;re registered!
-      </h2>
-      <p>
-        Welcome to {contestName}
-        {firstName ? `, ${firstName}` : ''}.
-      </p>
-      <div className="idbox">
-        <small>Your Registration ID</small>
-        <div className="idrow">
-          <b>{code}</b>
-          <button className="copy" type="button" onClick={onCopy}>
-            <Copy aria-hidden />
-            Copy
-          </button>
-        </div>
-      </div>
-      <Link className="submit next" to="/login" target="_blank" rel="noopener noreferrer">
-        Log in to BrainPulses <ArrowRight aria-hidden />
-      </Link>
-    </div>
   );
 }
 

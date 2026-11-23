@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ContestFormFields } from '@/components/contest-form-fields';
+import { ContestFormBuilder } from '@/components/contest-form-builder';
 import { DateTimePicker } from '@/components/date-time-picker';
 import { ContestFormPreview } from '@/components/contest-form-preview';
 import { useConfirm } from '@/components/use-confirm';
@@ -23,10 +23,12 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { ApiError } from '@/lib/api-client';
+import { isInstructionsEmpty, sanitizeInstructionsHtml } from '@/lib/sanitize-html';
 import {
   cleanDomain,
   domainMessagePreview,
   emptyDraft,
+  emptyThankYou,
   formatIst,
   registrationUrl,
   validateBuilder,
@@ -136,6 +138,7 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
       domainRestriction: draft.domainRestriction,
       allowedDomains: draft.allowedDomains,
       domainMessage: draft.domainMessage,
+      ...thankYouFromDraft(draft),
     });
     if (check.length) {
       setIssues(check);
@@ -144,6 +147,8 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
       return null;
     }
     setIssues([]);
+    const thankYou = thankYouFromDraft(draft);
+    const thankYouHtml = sanitizeInstructionsHtml(thankYou.thankYouHtml);
     const payload: SaveContestFormPayload = {
       mode: saveMode,
       sponsorId: draft.sponsorId,
@@ -164,6 +169,15 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
       keepExistingId: draft.keepExistingId,
       matchRule: draft.matchRule,
       quizIds: draft.quizzes.map((quiz) => quiz.id),
+      thankYouEnabled: thankYou.thankYouEnabled,
+      thankYouKind: thankYou.thankYouKind,
+      thankYouTitle: thankYou.thankYouTitle.trim() || null,
+      thankYouHtml: isInstructionsEmpty(thankYouHtml) ? null : thankYouHtml,
+      thankYouImageFileId: thankYou.thankYouImageFileId,
+      thankYouShowNextSteps: thankYou.thankYouShowNextSteps,
+      thankYouShowQuizzes: thankYou.thankYouShowQuizzes,
+      thankYouButtonLabel: thankYou.thankYouButtonLabel.trim() || null,
+      thankYouButtonUrl: thankYou.thankYouButtonUrl.trim() || null,
     };
     setBusy(true);
     try {
@@ -473,11 +487,14 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
               From the contest: {contestName || 'title'}, {sponsorName || 'sponsor'}, and its image.
               The contest name is always the heading.
             </p>
-            <ContestFormFields
+            <ContestFormBuilder
               fields={draft.fields}
+              contestName={contestName}
               registeredCount={draft.registrationCount}
               issues={issueMap}
-              onChange={(fields) => patch({ fields })}
+              thankYou={thankYouFromDraft(draft)}
+              onFields={(fields) => patch({ fields })}
+              onThankYou={(partial) => patch(partial)}
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               {editingSaved ? (
@@ -502,7 +519,7 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
                 Save as draft
               </Button>
               <Button type="button" disabled={busy} onClick={() => void onContinue()}>
-                Save & continue
+                Continue to Mapping
               </Button>
             </div>
           </CardContent>
@@ -877,6 +894,20 @@ function QuizChoice({
   );
 }
 
+function thankYouFromDraft(draft: Draft) {
+  return {
+    thankYouEnabled: draft.thankYouEnabled,
+    thankYouKind: draft.thankYouKind,
+    thankYouTitle: draft.thankYouTitle ?? '',
+    thankYouHtml: draft.thankYouHtml ?? '',
+    thankYouImageFileId: draft.thankYouImageFileId,
+    thankYouShowNextSteps: draft.thankYouShowNextSteps,
+    thankYouShowQuizzes: draft.thankYouShowQuizzes,
+    thankYouButtonLabel: draft.thankYouButtonLabel ?? '',
+    thankYouButtonUrl: draft.thankYouButtonUrl ?? '',
+  };
+}
+
 function recordToDraft(record: ContestFormRecord): Draft {
   return {
     id: record.id,
@@ -903,6 +934,16 @@ function recordToDraft(record: ContestFormRecord): Draft {
     domainMessage: record.domainMessage,
     keepExistingId: record.keepExistingId,
     matchRule: record.matchRule,
+    ...emptyThankYou(),
+    thankYouEnabled: record.thankYouEnabled ?? false,
+    thankYouKind: record.thankYouKind ?? 'template',
+    thankYouTitle: record.thankYouTitle ?? '',
+    thankYouHtml: record.thankYouHtml ?? '',
+    thankYouImageFileId: record.thankYouImageFileId ?? null,
+    thankYouShowNextSteps: record.thankYouShowNextSteps ?? false,
+    thankYouShowQuizzes: record.thankYouShowQuizzes ?? false,
+    thankYouButtonLabel: record.thankYouButtonLabel ?? '',
+    thankYouButtonUrl: record.thankYouButtonUrl ?? '',
     registrationCount: record.registrationCount,
     quizzes: record.quizzes,
   };

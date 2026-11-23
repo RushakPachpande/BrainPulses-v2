@@ -325,21 +325,20 @@ export function QuizReportsPage() {
   const pendingWithheld = (publishQuiz?.withheldCount ?? 0) > 0;
   const canPublishNow = Boolean(
     publishQuiz &&
-      canPublish &&
-      publishQuiz.scoreRelease === 'after_publish' &&
-      (!publishQuiz.resultsPublishedAt || pendingWithheld),
+    canPublish &&
+    publishQuiz.scoreRelease === 'after_publish' &&
+    (!publishQuiz.resultsPublishedAt || pendingWithheld),
   );
   const canUnpublishNow = Boolean(
     publishQuiz &&
-      canPublish &&
-      publishQuiz.scoreRelease === 'after_publish' &&
-      publishQuiz.resultsPublishedAt,
+    canPublish &&
+    publishQuiz.scoreRelease === 'after_publish' &&
+    publishQuiz.resultsPublishedAt,
   );
 
   function quizNeedsPublish(quiz: QuizReportQuiz) {
     return (
-      quiz.scoreRelease === 'after_publish' &&
-      (!quiz.resultsPublishedAt || quiz.withheldCount > 0)
+      quiz.scoreRelease === 'after_publish' && (!quiz.resultsPublishedAt || quiz.withheldCount > 0)
     );
   }
 
@@ -480,8 +479,8 @@ export function QuizReportsPage() {
                 <div className="flex flex-col gap-1">
                   <p className="text-sm font-medium">Score release</p>
                   <p className="text-xs text-muted-foreground">
-                    Publish releases held scores. Unpublish hides every published score for that quiz
-                    until you publish again.
+                    Publish releases held scores. Unpublish hides every published score for that
+                    quiz until you publish again.
                   </p>
                 </div>
                 <ul className="flex flex-col">

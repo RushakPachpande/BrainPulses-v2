@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { notFound } from '../../lib/errors.js';
 import { verifyActingUserPassword } from '../../lib/verify-acting-password.js';
 import { userActor } from '../../middleware/auth.js';
 import * as service from './service.js';
@@ -131,7 +132,10 @@ export async function publicGet(req: Request, res: Response, next: NextFunction)
 
 export async function publicImage(req: Request, res: Response, next: NextFunction) {
   try {
-    const which = req.params.which === 'sponsor' ? 'sponsor' : 'contest';
+    const which = req.params.which;
+    if (which !== 'contest' && which !== 'sponsor' && which !== 'thank-you') {
+      throw notFound('Image not found.');
+    }
     const { file, buffer } = await service.publicImage(req.params.slug as string, which);
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', 'inline');

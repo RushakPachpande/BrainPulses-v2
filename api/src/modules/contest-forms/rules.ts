@@ -34,6 +34,96 @@ export type FormField = {
 };
 
 export type MatchRule = 'name_and_contact' | 'contact_only';
+export type ThankYouKind = 'template' | 'custom' | 'image';
+
+const THANK_YOU_TAGS = new Set(['p', 'br', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li', 'h2', 'h3']);
+
+/** Keep the same tags the admin instruction sanitizer allows. Attributes are dropped. */
+export function sanitizeThankYouHtml(html: string): string {
+  const withoutDanger = html
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<(script|style|iframe|object|embed)\b[^>]*>[\s\S]*?<\/\1>/gi, '');
+  return withoutDanger
+    .replace(/<\/?([a-zA-Z0-9]+)(\s[^>]*)?\/?>/g, (match, tag: string) => {
+      const name = tag.toLowerCase();
+      if (!THANK_YOU_TAGS.has(name)) return '';
+      if (name === 'br') return '<br>';
+      return match.startsWith('</') ? `</${name}>` : `<${name}>`;
+    })
+    .trim();
+}
+
+export function thankYouHtmlText(html: string): string {
+  return sanitizeThankYouHtml(html)
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function isSafeHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export type PublicThankYouQuiz = { id: string; name: string; kind: 'quiz' | 'assessment' };
+
+export type PublicThankYou = {
+  enabled: boolean;
+  kind: ThankYouKind;
+  title: string | null;
+  html: string | null;
+  image: boolean;
+  showNextSteps: boolean;
+  showQuizzes: boolean;
+  quizzes?: PublicThankYouQuiz[];
+  buttonLabel: string | null;
+  buttonUrl: string | null;
+};
+
+export function publicThankYou(input: {
+  enabled: boolean;
+  kind: ThankYouKind;
+  title: string | null;
+  html: string | null;
+  hasImage: boolean;
+  showNextSteps: boolean;
+  showQuizzes: boolean;
+  quizzes: PublicThankYouQuiz[];
+  buttonLabel: string | null;
+  buttonUrl: string | null;
+}): PublicThankYou {
+  if (!input.enabled) {
+    return {
+      enabled: false,
+      kind: input.kind,
+      title: null,
+      html: null,
+      image: false,
+      showNextSteps: false,
+      showQuizzes: false,
+      buttonLabel: null,
+      buttonUrl: null,
+    };
+  }
+  const quizzes = input.showQuizzes ? input.quizzes : [];
+  return {
+    enabled: true,
+    kind: input.kind,
+    title: input.title,
+    html: input.kind === 'custom' ? input.html : null,
+    image: input.kind === 'image' && input.hasImage,
+    showNextSteps: input.showNextSteps,
+    showQuizzes: quizzes.length > 0,
+    ...(quizzes.length > 0 ? { quizzes } : {}),
+    buttonLabel: input.buttonLabel,
+    buttonUrl: input.buttonUrl,
+  };
+}
 
 export type FieldIssue = { field: string; message: string };
 
@@ -165,6 +255,12 @@ export function validateForm(input: {
   domainRestriction?: boolean;
   allowedDomains?: string[];
   domainMessage?: string;
+  thankYouEnabled?: boolean;
+  thankYouKind?: ThankYouKind;
+  thankYouHtml?: string | null;
+  thankYouImageFileId?: string | null;
+  thankYouButtonLabel?: string | null;
+  thankYouButtonUrl?: string | null;
 }): FieldIssue[] {
   if (input.mode === 'draft') return [];
   const issues: FieldIssue[] = [];
@@ -276,6 +372,28 @@ export function validateForm(input: {
           field: 'domainMessage',
           message: "Add the message participants see when their email domain isn't allowed.",
         });
+      }
+    }
+  }
+
+  if (input.thankYouEnabled) {
+    if (input.thankYouKind === 'custom' && !thankYouHtmlText(input.thankYouHtml ?? '')) {
+      issues.push({ field: 'thankYouHtml', message: 'Add the thank-you message.' });
+    }
+    if (input.thankYouKind === 'image' && !input.thankYouImageFileId) {
+      issues.push({
+        field: 'thankYouImageFileId',
+        message: 'Add an image for the thank-you message.',
+      });
+    }
+    const buttonLabel = input.thankYouButtonLabel?.trim() ?? '';
+    const buttonUrl = input.thankYouButtonUrl?.trim() ?? '';
+    if (buttonLabel || buttonUrl) {
+      if (!buttonLabel) {
+        issues.push({ field: 'thankYouButtonLabel', message: 'Add the button label.' });
+      }
+      if (!isSafeHttpUrl(buttonUrl)) {
+        issues.push({ field: 'thankYouButtonUrl', message: 'Use an http or https link.' });
       }
     }
   }

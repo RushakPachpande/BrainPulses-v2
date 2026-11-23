@@ -422,16 +422,16 @@ export function AssessmentReportsPage() {
   );
   const canPublishNow = Boolean(
     selectedRound &&
-      canPublish &&
-      (legacyHeld ||
-        (selectedRound.scoreRelease === 'after_publish' &&
-          (!selectedRound.resultsPublishedAt || pendingWithheld))),
+    canPublish &&
+    (legacyHeld ||
+      (selectedRound.scoreRelease === 'after_publish' &&
+        (!selectedRound.resultsPublishedAt || pendingWithheld))),
   );
   const canUnpublishNow = Boolean(
     selectedRound &&
-      canPublish &&
-      selectedRound.scoreRelease === 'after_publish' &&
-      selectedRound.resultsPublishedAt,
+    canPublish &&
+    selectedRound.scoreRelease === 'after_publish' &&
+    selectedRound.resultsPublishedAt,
   );
 
   function roundNeedsPublish(round: AssessmentRoundOption) {
@@ -451,8 +451,7 @@ export function AssessmentReportsPage() {
 
   async function onPublish(round: AssessmentRoundOption) {
     if (!canPublish) return;
-    const releasingNew =
-      Boolean(round.resultsPublishedAt) && round.withheldCount > 0;
+    const releasingNew = Boolean(round.resultsPublishedAt) && round.withheldCount > 0;
     const ok = await confirm({
       title: `Publish results for ${round.name}?`,
       description: releasingNew

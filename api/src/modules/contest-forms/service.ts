@@ -5,6 +5,7 @@ import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { nextRegistrationId } from '../../lib/registration-id.js';
+import { placeOwnedImage } from '../files/place.js';
 import { readInlineImage } from '../files/service.js';
 import type { SaveFormInput } from './schema.js';
 import {
@@ -18,7 +19,9 @@ import {
   normalizeEmail,
   normalizeMobile,
   normalizeName,
+  publicThankYou,
   quizAvailability,
+  sanitizeThankYouHtml,
   slugifyContest,
   validateAnswers,
   validateForm,
@@ -105,6 +108,15 @@ function mapForm(row: NonNullable<FormRow>, now = new Date()) {
     domainMessage: row.domainMessage,
     keepExistingId: row.keepExistingId,
     matchRule: row.matchRule,
+    thankYouEnabled: row.thankYouEnabled,
+    thankYouKind: row.thankYouKind,
+    thankYouTitle: row.thankYouTitle,
+    thankYouHtml: row.thankYouHtml,
+    thankYouImageFileId: row.thankYouImageFileId,
+    thankYouShowNextSteps: row.thankYouShowNextSteps,
+    thankYouShowQuizzes: row.thankYouShowQuizzes,
+    thankYouButtonLabel: row.thankYouButtonLabel,
+    thankYouButtonUrl: row.thankYouButtonUrl,
     registrationCount: row._count.submissions,
     quizzes,
     createdAt: row.createdAt,
@@ -247,8 +259,42 @@ function dataFromInput(input: SaveFormInput, status: 'draft' | 'saved') {
     ...(input.domainMessage !== undefined ? { domainMessage: input.domainMessage } : {}),
     ...(input.keepExistingId !== undefined ? { keepExistingId: input.keepExistingId } : {}),
     ...(input.matchRule !== undefined ? { matchRule: input.matchRule } : {}),
+    ...(input.thankYouEnabled !== undefined ? { thankYouEnabled: input.thankYouEnabled } : {}),
+    ...(input.thankYouKind !== undefined ? { thankYouKind: input.thankYouKind } : {}),
+    ...(input.thankYouTitle !== undefined
+      ? { thankYouTitle: blankToNull(input.thankYouTitle) }
+      : {}),
+    ...(input.thankYouHtml !== undefined
+      ? { thankYouHtml: storedThankYouHtml(input.thankYouHtml) }
+      : {}),
+    ...(input.thankYouImageFileId !== undefined
+      ? { thankYouImageFileId: input.thankYouImageFileId }
+      : {}),
+    ...(input.thankYouShowNextSteps !== undefined
+      ? { thankYouShowNextSteps: input.thankYouShowNextSteps }
+      : {}),
+    ...(input.thankYouShowQuizzes !== undefined
+      ? { thankYouShowQuizzes: input.thankYouShowQuizzes }
+      : {}),
+    ...(input.thankYouButtonLabel !== undefined
+      ? { thankYouButtonLabel: blankToNull(input.thankYouButtonLabel) }
+      : {}),
+    ...(input.thankYouButtonUrl !== undefined
+      ? { thankYouButtonUrl: blankToNull(input.thankYouButtonUrl) }
+      : {}),
     status,
   };
+}
+
+function blankToNull(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? '';
+  return trimmed ? trimmed : null;
+}
+
+function storedThankYouHtml(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+  const clean = sanitizeThankYouHtml(value);
+  return clean || null;
 }
 
 export async function listOverview(organizationId: string) {
@@ -324,6 +370,7 @@ export async function createForm(organizationId: string, userId: string, input: 
   const domains = normalizeDomains(input.allowedDomains);
   const payload = { ...input, allowedDomains: domains ?? input.allowedDomains };
   assertIssues(validateForm(payload));
+  await assertThankYouImage(organizationId, input.thankYouImageFileId);
   const contest = await assertSponsorContest(organizationId, input.sponsorId, input.contestId);
   const status = input.mode === 'save' ? 'saved' : 'draft';
   const slug =
@@ -340,6 +387,7 @@ export async function createForm(organizationId: string, userId: string, input: 
     include: formInclude,
   });
   await replaceQuizzes(organizationId, row.id, input.quizIds, row.contestId, new Date());
+  await placeFormThankYou(organizationId, row.id);
   if (status === 'saved') await assignSavedForm(organizationId, row.id);
   await writeAudit({
     organizationId,
@@ -369,6 +417,7 @@ export async function updateForm(
     allowedDomains: domains ?? input.allowedDomains,
     fields: input.fields ?? asFields(existing.fields),
   };
+  await assertThankYouImage(organizationId, input.thankYouImageFileId);
   assertIssues(
     validateForm({
       ...payload,
@@ -407,6 +456,7 @@ export async function updateForm(
     contestId ?? null,
     new Date(),
   );
+  await placeFormThankYou(organizationId, id);
   if (status === 'saved') await assignSavedForm(organizationId, id, removed);
   await writeAudit({
     organizationId,
@@ -602,15 +652,63 @@ export async function publicForm(slug: string) {
       domainRestriction: form.domainRestriction,
       allowedDomains: form.domainRestriction ? form.allowedDomains : [],
       domainMessage: form.domainMessage,
+      thankYou: publicThankYou({
+        enabled: form.thankYouEnabled,
+        kind: form.thankYouKind,
+        title: form.thankYouTitle,
+        html: form.thankYouHtml,
+        hasImage: Boolean(form.thankYouImageFileId),
+        showNextSteps: form.thankYouShowNextSteps,
+        showQuizzes: form.thankYouShowQuizzes,
+        quizzes: form.quizzes
+          .filter((quiz) => quiz.kind === 'quiz' || quiz.kind === 'assessment')
+          .map((quiz) => ({
+            id: quiz.id,
+            name: quiz.name,
+            kind: quiz.kind as 'quiz' | 'assessment',
+          })),
+        buttonLabel: form.thankYouButtonLabel,
+        buttonUrl: form.thankYouButtonUrl,
+      }),
     },
   };
 }
 
-export async function publicImage(slug: string, which: 'contest' | 'sponsor') {
+async function assertThankYouImage(organizationId: string, fileId: string | null | undefined) {
+  if (!fileId) return;
+  const file = await prisma.fileObject.findFirst({
+    where: { organizationId, id: fileId },
+    select: { id: true, mimeType: true },
+  });
+  if (!file || !file.mimeType.startsWith('image/')) {
+    throw badRequest('Choose an image for the thank-you message.', {
+      thankYouImageFileId: 'Choose an image for the thank-you message.',
+    });
+  }
+}
+
+async function placeFormThankYou(organizationId: string, formId: string) {
+  const row = await prisma.contestRegistrationForm.findFirst({
+    where: { organizationId, id: formId },
+    select: { thankYouImageFileId: true, contest: { select: { name: true } } },
+  });
+  if (!row?.thankYouImageFileId) return;
+  await placeOwnedImage(organizationId, row.thankYouImageFileId, {
+    kind: 'contest-form',
+    contestName: row.contest?.name || 'form',
+    formId,
+  });
+}
+
+export async function publicImage(slug: string, which: 'contest' | 'sponsor' | 'thank-you') {
   const found = await formBySlug(slug);
   if (!found.form || found.retired || !found.form.linkActive) throw notFound('Image not found.');
-  const fileId =
-    which === 'contest' ? found.form.contest?.imageFileId : found.form.sponsor?.imageFileId;
+  let fileId: string | null | undefined;
+  if (which === 'contest') fileId = found.form.contest?.imageFileId;
+  else if (which === 'sponsor') fileId = found.form.sponsor?.imageFileId;
+  else if (found.form.thankYouEnabled && found.form.thankYouKind === 'image') {
+    fileId = found.form.thankYouImageFileId;
+  }
   if (!fileId) throw notFound('Image not found.');
   return readInlineImage(found.form.organizationId, fileId);
 }

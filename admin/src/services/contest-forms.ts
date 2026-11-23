@@ -26,6 +26,15 @@ export type SaveContestFormPayload = {
   keepExistingId?: boolean;
   matchRule?: ContestFormRecord['matchRule'];
   quizIds?: string[];
+  thankYouEnabled?: boolean;
+  thankYouKind?: ContestFormRecord['thankYouKind'];
+  thankYouTitle?: string | null;
+  thankYouHtml?: string | null;
+  thankYouImageFileId?: string | null;
+  thankYouShowNextSteps?: boolean;
+  thankYouShowQuizzes?: boolean;
+  thankYouButtonLabel?: string | null;
+  thankYouButtonUrl?: string | null;
 };
 
 export function getContestFormOverview(signal?: AbortSignal) {

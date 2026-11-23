@@ -1,3 +1,5 @@
+import { isInstructionsEmpty } from '@/lib/sanitize-html';
+
 export const DEFAULT_DOMAIN_MESSAGE = 'Please use your {domains} email address to register.';
 
 export const FIELD_TYPES = [
@@ -34,7 +36,80 @@ export type FormField = {
 };
 
 export type MatchRule = 'name_and_contact' | 'contact_only';
+export type ThankYouKind = 'template' | 'custom' | 'image';
 export type FieldIssue = { field: string; message: string };
+
+export const MAX_EXTRA_FIELDS = 20;
+
+export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
+  text: 'Short answer',
+  number: 'Number',
+  email: 'Email',
+  phone: 'Phone number',
+  textarea: 'Long answer',
+  dropdown: 'Dropdown',
+  multi_select: 'Multi-select',
+  consent: 'Consent',
+};
+
+export const FIELD_PALETTE: {
+  id: string;
+  label: string;
+  items: { type: FieldType; label: string; description: string }[];
+}[] = [
+  {
+    id: 'contact',
+    label: 'Contact details',
+    items: [
+      { type: 'email', label: 'Email', description: 'Email address' },
+      { type: 'phone', label: 'Phone number', description: 'Mobile number' },
+    ],
+  },
+  {
+    id: 'basic',
+    label: 'Basic fields',
+    items: [
+      { type: 'text', label: 'Short answer', description: 'Single line' },
+      { type: 'textarea', label: 'Long answer', description: 'Paragraph' },
+      { type: 'number', label: 'Number', description: 'Numeric value' },
+    ],
+  },
+  {
+    id: 'choice',
+    label: 'Choice fields',
+    items: [
+      { type: 'dropdown', label: 'Dropdown', description: 'One option' },
+      { type: 'multi_select', label: 'Multi-select', description: 'Several options' },
+      { type: 'consent', label: 'Consent', description: 'Agreement' },
+    ],
+  },
+];
+
+export type ThankYouDraft = {
+  thankYouEnabled: boolean;
+  thankYouKind: ThankYouKind;
+  thankYouTitle: string;
+  thankYouHtml: string;
+  thankYouImageFileId: string | null;
+  thankYouShowNextSteps: boolean;
+  thankYouShowQuizzes: boolean;
+  thankYouButtonLabel: string;
+  thankYouButtonUrl: string;
+};
+
+export function emptyThankYou(): ThankYouDraft {
+  return {
+    thankYouEnabled: false,
+    thankYouKind: 'template',
+    thankYouTitle: '',
+    thankYouHtml: '',
+    thankYouImageFileId: null,
+    thankYouShowNextSteps: false,
+    thankYouShowQuizzes: false,
+    thankYouButtonLabel: '',
+    thankYouButtonUrl: '',
+  };
+}
 
 export type ContestFormQuiz = {
   id: string;
@@ -70,6 +145,15 @@ export type ContestFormRecord = {
   domainMessage: string;
   keepExistingId: boolean;
   matchRule: MatchRule;
+  thankYouEnabled: boolean;
+  thankYouKind: ThankYouKind;
+  thankYouTitle: string | null;
+  thankYouHtml: string | null;
+  thankYouImageFileId: string | null;
+  thankYouShowNextSteps: boolean;
+  thankYouShowQuizzes: boolean;
+  thankYouButtonLabel: string | null;
+  thankYouButtonUrl: string | null;
   registrationCount: number;
   quizzes: ContestFormQuiz[];
   createdAt: string;
@@ -156,6 +240,7 @@ export function emptyDraft(): Omit<ContestFormRecord, 'id' | 'createdAt' | 'upda
     domainMessage: DEFAULT_DOMAIN_MESSAGE,
     keepExistingId: true,
     matchRule: 'name_and_contact',
+    ...emptyThankYou(),
     registrationCount: 0,
     quizzes: [],
   };
@@ -241,6 +326,12 @@ export function validateBuilder(input: {
   domainRestriction: boolean;
   allowedDomains: string[];
   domainMessage: string;
+  thankYouEnabled: boolean;
+  thankYouKind: ThankYouKind;
+  thankYouHtml: string;
+  thankYouImageFileId: string | null;
+  thankYouButtonLabel: string;
+  thankYouButtonUrl: string;
 }): FieldIssue[] {
   if (input.mode === 'draft') return [];
   const issues: FieldIssue[] = [];
@@ -334,7 +425,49 @@ export function validateBuilder(input: {
       });
     }
   }
+  issues.push(...thankYouIssues(input));
   return issues;
+}
+
+function thankYouIssues(input: {
+  thankYouEnabled: boolean;
+  thankYouKind: ThankYouKind;
+  thankYouHtml: string;
+  thankYouImageFileId: string | null;
+  thankYouButtonLabel: string;
+  thankYouButtonUrl: string;
+}): FieldIssue[] {
+  if (!input.thankYouEnabled) return [];
+  const issues: FieldIssue[] = [];
+  if (input.thankYouKind === 'custom' && isInstructionsEmpty(input.thankYouHtml)) {
+    issues.push({ field: 'thankYouHtml', message: 'Add the thank-you message.' });
+  }
+  if (input.thankYouKind === 'image' && !input.thankYouImageFileId) {
+    issues.push({
+      field: 'thankYouImageFileId',
+      message: 'Add an image for the thank-you message.',
+    });
+  }
+  const buttonLabel = input.thankYouButtonLabel.trim();
+  const buttonUrl = input.thankYouButtonUrl.trim();
+  if (buttonLabel || buttonUrl) {
+    if (!buttonLabel) {
+      issues.push({ field: 'thankYouButtonLabel', message: 'Add the button label.' });
+    }
+    if (!isSafeHttpUrl(buttonUrl)) {
+      issues.push({ field: 'thankYouButtonUrl', message: 'Use an http or https link.' });
+    }
+  }
+  return issues;
+}
+
+export function isSafeHttpUrl(value: string) {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
 }
 
 export function previewIssues(
@@ -396,4 +529,123 @@ export function previewIssues(
 
 export function sampleRegistrationId() {
   return `BP${String(Math.floor(Math.random() * 100_000_000)).padStart(8, '0')}`;
+}
+
+export type FieldEdit =
+  { ok: true; fields: FormField[]; id: string } | { ok: false; message: string };
+
+function blankField(type: FieldType): FormField {
+  const id = newId();
+  const field: FormField = {
+    id,
+    key: id,
+    locked: false,
+    label: FIELD_TYPE_LABEL[type],
+    type,
+    required: false,
+  };
+  if (type === 'text') field.maxCharacters = 100;
+  if (type === 'dropdown' || type === 'multi_select') field.options = ['Option 1', 'Option 2'];
+  if (type === 'consent') {
+    field.required = true;
+    field.consentText = 'I agree to the terms and conditions.';
+  }
+  return field;
+}
+
+export function addPaletteField(fields: FormField[], type: FieldType): FieldEdit {
+  if (type === 'email' || type === 'phone') {
+    const key = type === 'email' ? 'email' : 'mobile';
+    const existing = fields.find((field) => field.key === key);
+    if (existing) {
+      return {
+        ok: true,
+        id: existing.id,
+        fields: existing.deleted
+          ? fields.map((field) => (field.id === existing.id ? { ...field, deleted: false } : field))
+          : fields,
+      };
+    }
+  }
+  const extra = fields.filter((field) => !field.locked && !field.deleted);
+  if (extra.length >= MAX_EXTRA_FIELDS) {
+    return { ok: false, message: 'You can add up to 20 extra fields.' };
+  }
+  const field = blankField(type);
+  return { ok: true, id: field.id, fields: [...fields, field] };
+}
+
+export function duplicateField(fields: FormField[], id: string): FieldEdit {
+  const field = fields.find((item) => item.id === id && !item.deleted);
+  if (!field) return { ok: false, message: 'That field is not on the form.' };
+  if (field.locked) return { ok: false, message: 'Built-in fields stay as they are.' };
+  const extra = fields.filter((item) => !item.locked && !item.deleted);
+  if (extra.length >= MAX_EXTRA_FIELDS) {
+    return { ok: false, message: 'You can add up to 20 extra fields.' };
+  }
+  const copyId = newId();
+  const copy: FormField = {
+    ...field,
+    id: copyId,
+    key: copyId,
+    locked: false,
+    label: `${field.label} copy`.slice(0, 120),
+  };
+  const index = fields.findIndex((item) => item.id === id);
+  const next = [...fields];
+  next.splice(index + 1, 0, copy);
+  return { ok: true, id: copyId, fields: next };
+}
+
+export function removeField(fields: FormField[], id: string): FormField[] {
+  const field = fields.find((item) => item.id === id);
+  if (!field || (field.locked && field.key === 'email')) return fields;
+  if (field.locked) {
+    return fields.map((item) => (item.id === id ? { ...item, deleted: true } : item));
+  }
+  return fields.filter((item) => item.id !== id);
+}
+
+export function moveCustomField(fields: FormField[], id: string, direction: -1 | 1): FormField[] {
+  const locked = fields.filter((field) => field.locked);
+  const custom = fields.filter((field) => !field.locked);
+  const index = custom.findIndex((field) => field.id === id && !field.deleted);
+  const next = index + direction;
+  if (index < 0 || next < 0 || next >= custom.length || custom[next]?.deleted) return fields;
+  const reordered = [...custom];
+  const [item] = reordered.splice(index, 1);
+  reordered.splice(next, 0, item!);
+  return [...locked, ...reordered];
+}
+
+export function reorderCustomFields(
+  fields: FormField[],
+  activeId: string,
+  overId: string,
+): FormField[] {
+  if (activeId === overId) return fields;
+  const locked = fields.filter((field) => field.locked);
+  const custom = fields.filter((field) => !field.locked);
+  const oldIndex = custom.findIndex((field) => field.id === activeId);
+  const newIndex = custom.findIndex((field) => field.id === overId);
+  if (oldIndex < 0 || newIndex < 0) return fields;
+  const reordered = [...custom];
+  const [item] = reordered.splice(oldIndex, 1);
+  reordered.splice(newIndex, 0, item!);
+  return [...locked, ...reordered];
+}
+
+export function patchField(field: FormField, patch: Partial<FormField>): FormField {
+  const next: FormField = { ...field, ...patch };
+  if (
+    (next.type === 'dropdown' || next.type === 'multi_select') &&
+    (next.options?.filter((option) => option.trim()).length ?? 0) < 2
+  ) {
+    next.options = next.options?.length ? next.options : ['Option 1', 'Option 2'];
+  }
+  if (next.type === 'consent' && !next.consentText?.trim()) {
+    next.consentText = 'I agree to the terms and conditions.';
+  }
+  if (next.locked && next.key === 'email') next.required = true;
+  return next;
 }
