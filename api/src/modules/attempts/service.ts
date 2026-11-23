@@ -13,7 +13,6 @@ import {
   canRetryRound,
   parseRoundRow,
   roundGateSatisfied,
-  roundIsCleared,
   roundNeedsPublish,
 } from '../../lib/round-unlock.js';
 import { meetsPassRule } from '../../lib/round-settings.js';
@@ -662,9 +661,7 @@ export async function startAttempt(
       }
     }
 
-    if (roundIsCleared(allAttempts, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
-      throw conflict('This round has already been passed.');
-    }
+    // Passed rounds may still be re-attempted until the attempt budget is used.
     if (!canRetryRound(allAttempts, round.id, roundSettings, roundNeedsPublish(roundSettings))) {
       throw conflict('No attempts remaining for this round.');
     }

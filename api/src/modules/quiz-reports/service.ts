@@ -43,6 +43,7 @@ type QuizOption = {
   displayStatus: ReportRow['displayStatus'];
   scoreRelease: ReportRow['scoreRelease'];
   resultsPublishedAt: string | null;
+  withheldCount: number;
   passingPercent: number | null;
 };
 
@@ -103,7 +104,7 @@ export async function loadQuizReport(
         disqualified: true,
         autoSubmitReason: true,
         questionOrder: true,
-        result: { select: { id: true, score: true, maxScore: true } },
+        result: { select: { id: true, score: true, maxScore: true, releaseStatus: true } },
       },
     }),
     prisma.reattemptGrant.findMany({
@@ -221,6 +222,16 @@ export async function loadQuizReport(
     return buildReportRow(source, bestId ? (breakdowns.get(bestId) ?? null) : null);
   });
 
+  const withheldByActivity = new Map<string, number>();
+  for (const attempt of attempts) {
+    if (attempt.result?.releaseStatus === 'withheld') {
+      withheldByActivity.set(
+        attempt.activityId,
+        (withheldByActivity.get(attempt.activityId) ?? 0) + 1,
+      );
+    }
+  }
+
   const activeQuizzes = await prisma.activity.findMany({
     where: { organizationId, kind: 'quiz', status: 'active' },
     select: {
@@ -254,6 +265,7 @@ export async function loadQuizReport(
       displayStatus,
       scoreRelease: settings.scoreRelease,
       resultsPublishedAt: activity.resultsPublishedAt?.toISOString() ?? null,
+      withheldCount: withheldByActivity.get(activity.id) ?? 0,
       passingPercent: activity.passingPercent == null ? null : toNumber(activity.passingPercent),
     };
   });
@@ -690,4 +702,43 @@ export async function publishQuizResults(
     targetId: activityId,
   });
   return { resultsPublishedAt: now.toISOString() };
+}
+
+/** Hide every published score for the quiz so students cannot see results until the next publish. */
+export async function unpublishQuizResults(
+  organizationId: string,
+  actor: QuizReportActor,
+  activityId: string,
+) {
+  assertQuiz(actor, 'full');
+  const activity = await prisma.activity.findFirst({
+    where: { organizationId, id: activityId, kind: 'quiz' },
+  });
+  if (!activity) throw notFound('Quiz not found.');
+  const settings = parseQuizSettings(activity.settings);
+  if (settings.scoreRelease !== 'after_publish') {
+    throw badRequest('This quiz shows scores as soon as a student submits.');
+  }
+  if (!activity.resultsPublishedAt) {
+    return { resultsPublishedAt: null as string | null };
+  }
+  await prisma.$transaction([
+    prisma.activity.update({
+      where: { id: activityId },
+      data: { resultsPublishedAt: null },
+    }),
+    prisma.result.updateMany({
+      where: { organizationId, activityId, releaseStatus: 'published' },
+      data: { releaseStatus: 'withheld', publishedAt: null },
+    }),
+  ]);
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'quiz.results_unpublish',
+    targetType: 'activity',
+    targetId: activityId,
+  });
+  return { resultsPublishedAt: null as string | null };
 }

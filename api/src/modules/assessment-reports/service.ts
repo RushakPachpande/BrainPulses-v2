@@ -722,3 +722,46 @@ export async function publishRoundResults(
   });
   return { resultsPublishedAt: now.toISOString() };
 }
+
+/** Hide every published score for the round so students cannot see results until the next publish. */
+export async function unpublishRoundResults(
+  organizationId: string,
+  actor: AssessmentReportActor,
+  roundId: string,
+) {
+  assertAssessment(actor, 'full');
+  const round = await prisma.activityRound.findFirst({
+    where: { organizationId, id: roundId, activity: { kind: 'assessment' } },
+  });
+  if (!round) throw notFound('Round not found.');
+  const settings = parseRoundRow(round);
+  if (settings.scoreRelease !== 'after_publish') {
+    throw badRequest('This round shows scores as soon as a student submits.');
+  }
+  if (!round.resultsPublishedAt) {
+    return { resultsPublishedAt: null as string | null };
+  }
+  await prisma.$transaction([
+    prisma.activityRound.update({
+      where: { id: roundId },
+      data: { resultsPublishedAt: null },
+    }),
+    prisma.result.updateMany({
+      where: {
+        organizationId,
+        releaseStatus: 'published',
+        attempt: { roundId, organizationId },
+      },
+      data: { releaseStatus: 'withheld', publishedAt: null },
+    }),
+  ]);
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'assessment.round_results_unpublish',
+    targetType: 'activity_round',
+    targetId: roundId,
+  });
+  return { resultsPublishedAt: null as string | null };
+}

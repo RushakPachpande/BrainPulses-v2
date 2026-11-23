@@ -81,13 +81,16 @@ export function roundAttemptCount(attempts: AttemptLike[], roundId: string): num
   return authoritativeRoundAttempts(attempts, roundId).length;
 }
 
+/**
+ * Whether the participant may start another attempt on this round.
+ * Attempt budget only — a published pass does not burn unused attempts.
+ */
 export function canRetryRound(
   attempts: AttemptLike[],
   roundId: string,
   settings: RoundSettings,
-  needsPublish: boolean,
+  _needsPublish?: boolean,
 ): boolean {
-  if (roundIsCleared(attempts, roundId, settings, needsPublish)) return false;
   const used = roundAttemptCount(attempts, roundId);
   if (settings.maxAttempts == null) return true;
   return used < settings.maxAttempts;
@@ -109,6 +112,46 @@ export function parseRoundRow(round: {
 /** Gate unlock on publish only when the round is configured to hold scores. */
 export function roundNeedsPublish(settings: RoundSettings): boolean {
   return holdsScoreUntilPublish(settings);
+}
+
+export type ParticipantRoundUiState = 'locked' | 'available' | 'in_progress' | 'completed';
+
+/**
+ * Participant-facing round state.
+ * Attempt budget wins over "cleared" so unused attempts stay startable.
+ */
+export function resolveParticipantRoundState(input: {
+  hasOpenAttempt: boolean;
+  activityOpen: boolean;
+  previousGateSatisfied: boolean;
+  canRetry: boolean;
+  cleared: boolean;
+}): ParticipantRoundUiState {
+  if (input.hasOpenAttempt) return 'in_progress';
+  if (!input.activityOpen || !input.previousGateSatisfied) return 'locked';
+  if (input.canRetry) return 'available';
+  if (input.cleared) return 'completed';
+  return 'locked';
+}
+
+/**
+ * Assessment-level progress for library cards.
+ * Stays in progress while any round can still be started or resumed.
+ */
+export function assessmentAttemptState(input: {
+  hasOpenAttempt: boolean;
+  hasAnyAttempt: boolean;
+  roundStates: ParticipantRoundUiState[];
+}): 'not_started' | 'in_progress' | 'submitted' {
+  if (input.hasOpenAttempt) return 'in_progress';
+  if (input.roundStates.some((state) => state === 'available' || state === 'in_progress')) {
+    return 'in_progress';
+  }
+  if (input.roundStates.length > 0 && input.roundStates.every((state) => state === 'completed')) {
+    return 'submitted';
+  }
+  if (input.hasAnyAttempt) return 'in_progress';
+  return 'not_started';
 }
 
 export { meetsPassRule };

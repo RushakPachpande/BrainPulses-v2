@@ -6,7 +6,9 @@ import {
   parseRoundSettings,
 } from '../src/lib/round-settings.js';
 import {
+  assessmentAttemptState,
   canRetryRound,
+  resolveParticipantRoundState,
   resultClearsRound,
   roundGateSatisfied,
   roundIsCleared,
@@ -81,6 +83,56 @@ describe('round unlock helpers', () => {
     assert.equal(canRetryRound(attempts, 'r1', settings, true), false);
   });
 
+  it('allows another attempt after a published pass while attempts remain', () => {
+    const settings = {
+      ...defaultRoundSettings,
+      passMode: 'percent' as const,
+      passingPercent: 50,
+      maxAttempts: 2,
+    };
+    const passedOnce = [
+      {
+        id: 'a1',
+        status: 'submitted',
+        roundId: 'r1',
+        result: { score: 80, percent: 80, passed: true, releaseStatus: 'published' },
+      },
+    ];
+    assert.equal(roundIsCleared(passedOnce, 'r1', settings, true), true);
+    assert.equal(canRetryRound(passedOnce, 'r1', settings, true), true);
+    assert.equal(roundGateSatisfied(passedOnce, 'r1', settings, true), true);
+
+    const passedTwice = [
+      ...passedOnce,
+      {
+        id: 'a2',
+        status: 'submitted',
+        roundId: 'r1',
+        result: { score: 90, percent: 90, passed: true, releaseStatus: 'published' },
+      },
+    ];
+    assert.equal(canRetryRound(passedTwice, 'r1', settings, true), false);
+  });
+
+  it('blocks retries when the attempt budget is exhausted even if withheld', () => {
+    const settings = {
+      ...defaultRoundSettings,
+      maxAttempts: 1,
+      passMode: 'percent' as const,
+      passingPercent: 50,
+    };
+    const withheld = [
+      {
+        id: 'a1',
+        status: 'submitted',
+        roundId: 'r1',
+        result: { score: 80, percent: 80, passed: true, releaseStatus: 'withheld' },
+      },
+    ];
+    assert.equal(canRetryRound(withheld, 'r1', settings, true), false);
+    assert.equal(roundIsCleared(withheld, 'r1', settings, true), false);
+  });
+
   it('keeps the next round locked when a required pass is missed', () => {
     const settings = { ...defaultRoundSettings, passRequired: true, passingPercent: 40 };
     const failed = [
@@ -135,5 +187,75 @@ describe('round unlock helpers', () => {
   it('treats a missing pass flag as required', () => {
     const settings = parseRoundSettings({ passingPercent: 40, settings: {} });
     assert.equal(settings.passRequired, true);
+  });
+
+  it('keeps an assessment in progress while any round is still actionable', () => {
+    assert.equal(
+      assessmentAttemptState({
+        hasOpenAttempt: false,
+        hasAnyAttempt: true,
+        roundStates: ['completed', 'available', 'locked'],
+      }),
+      'in_progress',
+    );
+    assert.equal(
+      assessmentAttemptState({
+        hasOpenAttempt: false,
+        hasAnyAttempt: true,
+        roundStates: ['completed', 'completed', 'completed'],
+      }),
+      'submitted',
+    );
+    assert.equal(
+      assessmentAttemptState({
+        hasOpenAttempt: false,
+        hasAnyAttempt: true,
+        roundStates: ['completed', 'locked', 'locked'],
+      }),
+      'in_progress',
+    );
+  });
+
+  it('keeps a cleared round available while attempts remain', () => {
+    assert.equal(
+      resolveParticipantRoundState({
+        hasOpenAttempt: false,
+        activityOpen: true,
+        previousGateSatisfied: true,
+        canRetry: true,
+        cleared: true,
+      }),
+      'available',
+    );
+    assert.equal(
+      resolveParticipantRoundState({
+        hasOpenAttempt: false,
+        activityOpen: true,
+        previousGateSatisfied: true,
+        canRetry: false,
+        cleared: true,
+      }),
+      'completed',
+    );
+    assert.equal(
+      resolveParticipantRoundState({
+        hasOpenAttempt: false,
+        activityOpen: true,
+        previousGateSatisfied: true,
+        canRetry: false,
+        cleared: false,
+      }),
+      'locked',
+    );
+    assert.equal(
+      resolveParticipantRoundState({
+        hasOpenAttempt: false,
+        activityOpen: true,
+        previousGateSatisfied: false,
+        canRetry: true,
+        cleared: false,
+      }),
+      'locked',
+    );
   });
 });

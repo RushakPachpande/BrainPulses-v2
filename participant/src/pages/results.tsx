@@ -296,9 +296,10 @@ export function ResultDetailPage() {
       const used = round?.attemptsUsed ?? attempt.attemptsUsed ?? 0;
       const max = round?.maxAttempts ?? attempt.maxAttempts ?? null;
       const left = max == null ? null : Math.max(0, max - used);
+      const underCap = max == null || used < max;
       const canRetry = round
-        ? round.state === 'available' && (max == null || used < max)
-        : max == null || used < max;
+        ? (round.state === 'available' || round.state === 'in_progress') && underCap
+        : underCap;
       return { used, max, left, canRetry };
     }
     if (!match) {
@@ -356,7 +357,9 @@ export function ResultDetailPage() {
     : Math.max(0, max + (attempt.extraAttempts ?? 0) - (attempt.attemptsUsed ?? used));
   const canRetry = retry?.canRetry ?? false;
   const library = attempt.kind === 'assessment' ? '/assessments' : '/quizzes';
-  const backLabel = attempt.kind === 'assessment' ? 'Back to assessments' : 'Back to quizzes';
+  const activityPath = `${library}/${attempt.activityId}`;
+  const backLabel = attempt.kind === 'assessment' ? 'Back to rounds' : 'Back to quizzes';
+  const backPath = attempt.kind === 'assessment' ? activityPath : library;
   const score = attempt.score ?? 0;
   const maxScore = attempt.maxScore ?? 0;
   const ring = hidden ? 0 : Math.max(0, Math.min(389.6, (percent / 100) * 389.6));
@@ -426,7 +429,7 @@ export function ResultDetailPage() {
             <button
               className={`s ${showRetry ? '' : 'solo'}`}
               type="button"
-              onClick={() => navigate(library)}
+              onClick={() => navigate(backPath)}
             >
               {backLabel}
             </button>
