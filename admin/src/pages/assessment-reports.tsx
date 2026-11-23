@@ -277,6 +277,9 @@ export function AssessmentReportsPage() {
     setActivityStatuses([]);
     setAttemptStatuses([]);
     setAutoSubmitted([]);
+    const columnsDefault = defaultColumns();
+    setColumns(columnsDefault);
+    if (userId) writeColumns(userId, columnsDefault);
     setPage(1);
     setSearchParams({}, { replace: true });
   }

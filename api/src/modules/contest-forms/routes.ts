@@ -31,6 +31,12 @@ contestFormsRouter.get(
   controller.quizzes,
 );
 contestFormsRouter.get(
+  '/:id/registrants',
+  requireOrgAccess('view'),
+  validate({ params: idParamSchema }),
+  controller.registrants,
+);
+contestFormsRouter.get(
   '/:id',
   requireOrgAccess('view'),
   validate({ params: idParamSchema }),

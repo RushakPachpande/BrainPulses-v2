@@ -53,13 +53,14 @@ import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
-import { canEditKind, canFullKind } from '@/lib/access';
+import { canEditKind, canFullKind, isSuperAdmin } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import { QuizQuestionsPanel } from '@/pages/quiz-questions-panel';
 import {
   archiveActivity,
   createActivity,
   deleteActivity,
+  deleteAssessmentRound,
   getActivity,
   getContests,
   getSponsors,
@@ -257,6 +258,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
   const canFull = canFullKind(membership, kind);
+  const superAdmin = isSuperAdmin(membership);
   const activityIdParam = params.activityId ?? '';
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'Quiz' : 'Assessment';
@@ -736,27 +738,72 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
     }
   }
 
-  async function handleDeleteQuiz() {
-    if (!isQuiz || !canFull || !activityId) return;
+  async function handleDeleteActivity() {
+    const canDelete = isQuiz ? canFull : superAdmin;
+    if (!canDelete || !activityId) return;
     const password = await confirmSensitiveDelete(confirm, {
       title: `Delete this ${noun.toLowerCase()}?`,
-      description: 'Permanently removes this quiz. This cannot be undone.',
-      details: [
-        'Registrations, attempts, and scores for this quiz are deleted.',
-        'This quiz’s private question bank is deleted. Shared question banks stay.',
-        'Links from registration forms to this quiz are removed. Those forms stay.',
-      ],
-      confirmLabel: 'Delete quiz',
+      description: `Permanently removes this ${noun.toLowerCase()}. This cannot be undone.`,
+      details: isQuiz
+        ? [
+            'Registrations, attempts, and scores for this quiz are deleted.',
+            'This quiz’s private question bank is deleted. Shared question banks stay.',
+            'Links from registration forms to this quiz are removed. Those forms stay.',
+          ]
+        : [
+            'All rounds, questions, registrations, attempts, and scores for this assessment are deleted.',
+            'Each round’s private question bank is deleted. Shared question banks stay.',
+            'Links from registration forms to this assessment are removed. Those forms stay.',
+          ],
+      confirmLabel: `Delete ${noun.toLowerCase()}`,
     });
     if (!password) return;
     setSaving(true);
     try {
       await deleteActivity(activityId, password);
-      toast.success('Quiz deleted.');
+      toast.success(`${noun} deleted.`);
       allowLeave();
       void navigate(listPath);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete quiz.');
+      toast.error(
+        err instanceof ApiError ? err.message : `Could not delete ${noun.toLowerCase()}.`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDeleteRound(round: RoundDraft, index: number) {
+    if (!superAdmin || !activityId || !round.id) return;
+    if (rounds.length <= 1) {
+      toast.error('Every assessment needs at least one round.');
+      return;
+    }
+    const label = round.name.trim() || `Round ${index + 1}`;
+    const password = await confirmSensitiveDelete(confirm, {
+      title: `Delete “${label}”?`,
+      description: 'Permanently removes this round and everything linked to it.',
+      details: [
+        'Attempts and scores for this round are deleted.',
+        'Questions in this round’s private bank are deleted.',
+        'Other rounds on this assessment stay.',
+      ],
+      confirmLabel: 'Delete round',
+    });
+    if (!password) return;
+    setSaving(true);
+    try {
+      await deleteAssessmentRound(activityId, round.id, password);
+      setRounds((prev) => prev.filter((r) => r.key !== round.key));
+      setOpenRoundKeys((current) => {
+        const next = new Set(current);
+        next.delete(round.key);
+        return next;
+      });
+      toast.success('Round deleted.');
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'activities'] });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete round.');
     } finally {
       setSaving(false);
     }
@@ -1105,11 +1152,15 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                             type="button"
                             variant="outline"
                             size="icon"
-                            disabled={rounds.length <= 1}
-                            aria-label="Remove round"
+                            disabled={rounds.length <= 1 || saving}
+                            aria-label={superAdmin && round.id ? 'Delete round' : 'Remove round'}
                             onClick={() => {
                               if (rounds.length <= 1) {
                                 toast.error('Every assessment needs at least one round.');
+                                return;
+                              }
+                              if (superAdmin && round.id) {
+                                void handleDeleteRound(round, index);
                                 return;
                               }
                               void (async () => {
@@ -2356,7 +2407,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       Archive
                     </Button>
                   ) : null}
-                  {isQuiz && canFull && activityId ? (
+                  {((isQuiz && canFull) || (!isQuiz && superAdmin)) && activityId ? (
                     <Button
                       type="button"
                       variant="ghost"
@@ -2364,7 +2415,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                       disabled={saving}
                       aria-busy={saving}
-                      onClick={() => void handleDeleteQuiz()}
+                      onClick={() => void handleDeleteActivity()}
                     >
                       <TrashIcon data-icon="inline-start" />
                       Delete
@@ -2409,44 +2460,33 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                           : 'After submit'
                       }
                     />
+                    <ReviewFact
+                      icon={Clock3Icon}
+                      label="Duration"
+                      value={
+                        durationMode === 'per_question'
+                          ? `${perQuestionSeconds || '—'} sec per question`
+                          : `${durationMinutes || '—'} min overall`
+                      }
+                    />
+                    <ReviewFact
+                      icon={PercentIcon}
+                      label="Passing score"
+                      value={`${passingPercent || '—'}%`}
+                    />
+                    <ReviewFact
+                      icon={LayoutListIcon}
+                      label="Presentation"
+                      value={PRESENTATION_LABELS[presentation]}
+                    />
                   </>
                 ) : (
                   <ReviewFact
                     icon={LibraryIcon}
                     label="Rounds"
-                    value={
-                      rounds.length === 0
-                        ? 'None'
-                        : rounds
-                            .map(
-                              (r, i) =>
-                                `${r.name || `Round ${i + 1}`} (${r.questionCount} question${
-                                  r.questionCount === 1 ? '' : 's'
-                                })`,
-                            )
-                            .join(' · ')
-                    }
+                    value={rounds.length === 0 ? '0' : String(rounds.length)}
                   />
                 )}
-                <ReviewFact
-                  icon={Clock3Icon}
-                  label="Duration"
-                  value={
-                    isQuiz && durationMode === 'per_question'
-                      ? `${perQuestionSeconds || '—'} sec per question`
-                      : `${durationMinutes || '—'} min overall`
-                  }
-                />
-                <ReviewFact
-                  icon={PercentIcon}
-                  label="Passing score"
-                  value={`${passingPercent || '—'}%`}
-                />
-                <ReviewFact
-                  icon={LayoutListIcon}
-                  label="Presentation"
-                  value={PRESENTATION_LABELS[presentation]}
-                />
                 {(startDate || endDate) && (
                   <ReviewFact
                     icon={CalendarRangeIcon}
@@ -2464,7 +2504,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
               {!isQuiz && rounds.length > 0 ? (
                 <div className="flex flex-col gap-3">
                   <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    Round detail
+                    Round summary
                   </p>
                   <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     {rounds.map((r, i) => {
@@ -2472,11 +2512,11 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       const duration = perQ
                         ? `${r.perQuestionSeconds || '—'} sec each`
                         : `${r.durationMinutes || '—'} min`;
-                      const pass = r.settings.passRequired
+                      const passLabel = r.settings.passRequired
                         ? r.passMode === 'score'
-                          ? `${r.passingScore || '—'} points`
-                          : `${r.passingPercent || '—'}%`
-                        : 'attempt to continue';
+                          ? `Pass ${r.passingScore || '—'} points`
+                          : `Pass ${r.passingPercent || '—'}%`
+                        : 'Attempt to continue';
                       const attempts =
                         r.settings.maxAttempts == null
                           ? 'Unlimited'
@@ -2510,9 +2550,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                               {questions}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              {duration} ·{' '}
-                              {r.settings.passRequired ? `Pass ${pass}` : 'Attempt to continue'} ·{' '}
-                              {attempts} attempt
+                              {duration} · {passLabel} · {attempts} attempt
                               {r.settings.maxAttempts === 1 ? '' : 's'}
                             </p>
                             <p className="text-sm text-muted-foreground">

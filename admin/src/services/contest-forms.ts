@@ -1,5 +1,10 @@
 import { apiGetData, apiPatchData, apiPostData, apiRequest } from '@/lib/api-client';
-import type { ContestFormOverview, ContestFormQuiz, ContestFormRecord } from '@/lib/contest-form';
+import type {
+  ContestFormOverview,
+  ContestFormQuiz,
+  ContestFormRecord,
+  ContestFormRegistrant,
+} from '@/lib/contest-form';
 
 export type SaveContestFormPayload = {
   mode: 'draft' | 'step1' | 'save';
@@ -29,6 +34,10 @@ export function getContestFormOverview(signal?: AbortSignal) {
 
 export function getContestForm(id: string, signal?: AbortSignal) {
   return apiGetData<ContestFormRecord>(`/api/contest-forms/${id}`, { signal });
+}
+
+export function getContestFormRegistrants(id: string, signal?: AbortSignal) {
+  return apiGetData<ContestFormRegistrant[]>(`/api/contest-forms/${id}/registrants`, { signal });
 }
 
 export function getContestQuizzes(contestId: string, signal?: AbortSignal) {

@@ -867,7 +867,9 @@ export function AttemptPage({ mode }: { mode: 'resume' | 'start' }) {
             })}
           </div>
         ) : null}
-        <div className={`tmr ${low ? 'low' : ''}`}>
+        <div
+          className={`tmr ${low ? 'low' : ''} ${showQuestionPanel && !forwardOnly ? '' : 'tmr-end'}`.trim()}
+        >
           <i>
             <svg
               width="16"

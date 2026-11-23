@@ -54,6 +54,19 @@ describe('question order', () => {
     );
   });
 
+  it('keeps equal sortOrder in bank load order when question shuffle is off', () => {
+    const pool = [
+      item('later-uuid', null, 0),
+      item('earlier-uuid', null, 0),
+      item('mid-uuid', null, 0),
+    ];
+    const selected = selectAttemptItems(pool, null, false);
+    assert.deepEqual(
+      selected.map((row) => row.id),
+      ['later-uuid', 'earlier-uuid', 'mid-uuid'],
+    );
+  });
+
   it('samples from the full pool when shuffle is on, not a fixed prefix', () => {
     const pool = [
       item('a', null, 0),
@@ -84,11 +97,11 @@ describe('question order', () => {
       item('p5', 'pass', 4),
       item('n2', null, 1),
     ];
-    // Without shuffle, independent prefix can include only part of a passage.
+    // Without shuffle, the prefix follows bank load order (equal sortOrder stays stable).
     const selected = selectAttemptItems(pool, 3, false);
     assert.deepEqual(
       selected.map((row) => row.id),
-      ['n1', 'p1', 'n2'],
+      ['n1', 'p1', 'p2'],
     );
 
     // Explicit subset: two of five passage items plus one standalone.

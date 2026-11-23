@@ -37,6 +37,16 @@ export async function get(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function registrants(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.listFormRegistrants(actor.organizationId, req.params.id as string);
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);

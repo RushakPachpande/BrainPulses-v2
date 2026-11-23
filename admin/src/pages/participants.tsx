@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CopyIcon,
-  PencilIcon,
-  PlusIcon,
-  RotateCcwIcon,
-  Trash2Icon,
-} from 'lucide-react';
+import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { GiveQuizDialog } from '@/components/give-quiz-dialog';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
+import { RowActions } from '@/components/row-actions';
 import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { Button } from '@/components/ui/button';
@@ -27,79 +20,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useOrgId } from '@/hooks/use-org-id';
 import { canMutateOrg } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
-import { formatIst, registrationUrl, type ContestFormRecord } from '@/lib/contest-form';
+import { registrationUrl, type ContestFormRecord } from '@/lib/contest-form';
 import { selectionMatches } from '@/lib/multi-select';
 import { deleteContestForm, getContestFormOverview } from '@/services/contest-forms';
 
-type ContestPerson = {
-  id: string;
-  code: string;
-  name: string;
-  email: string;
-  sponsorName: string;
-  contestName: string;
-  quizzesGiven: number;
-  registeredAt: string;
+type FormSortKey =
+  | 'contestName'
+  | 'sponsorName'
+  | 'status'
+  | 'quizCount'
+  | 'assessmentCount'
+  | 'registrationCount'
+  | 'link';
+
+type FormRow = ContestFormRecord & {
+  quizCount: number;
+  assessmentCount: number;
+  link: string;
 };
 
-type SortKey = keyof Pick<
-  ContestPerson,
-  'code' | 'name' | 'email' | 'sponsorName' | 'contestName' | 'quizzesGiven' | 'registeredAt'
->;
-
-const personColumns: RecordColumn<ContestPerson>[] = [
-  {
-    key: 'code',
-    label: 'Registration ID',
-    placement: 'identity',
-    identityPrefix: 'ID: ',
-    tableClassName: 'tabular-nums',
-    render: (person) => <span className="tabular-nums">{person.code}</span>,
-  },
-  {
-    key: 'name',
-    label: 'Name',
-    placement: 'title',
-    render: (person) => <span className="font-medium">{person.name}</span>,
-  },
-  {
-    key: 'email',
-    label: 'Email',
-    placement: 'primary',
-    render: (person) => person.email,
-  },
-  {
-    key: 'sponsorName',
-    label: 'Sponsor',
-    placement: 'details',
-    render: (person) => person.sponsorName,
-  },
-  {
-    key: 'contestName',
-    label: 'Contest',
-    placement: 'details',
-    render: (person) => person.contestName,
-  },
-  {
-    key: 'quizzesGiven',
-    label: 'Quizzes given',
-    placement: 'details',
-    tableClassName: 'tabular-nums',
-    render: (person) => <span className="tabular-nums">{person.quizzesGiven}</span>,
-  },
-  {
-    key: 'registeredAt',
-    label: 'Registered',
-    placement: 'details',
-    render: (person) => formatIst(person.registeredAt),
-  },
-];
+function toFormRow(form: ContestFormRecord): FormRow {
+  const quizzes = form.quizzes.filter((item) => item.kind !== 'assessment');
+  const assessments = form.quizzes.filter((item) => item.kind === 'assessment');
+  return {
+    ...form,
+    quizCount: quizzes.length,
+    assessmentCount: assessments.length,
+    link: form.slug ? registrationUrl(form.slug) : '',
+  };
+}
 
 function namedFilterOptions(names: string[]) {
   return [...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0))].sort(
@@ -107,7 +63,7 @@ function namedFilterOptions(names: string[]) {
   );
 }
 
-function comparePeople(a: ContestPerson, b: ContestPerson, key: SortKey) {
+function compareForms(a: FormRow, b: FormRow, key: FormSortKey) {
   const left = a[key];
   const right = b[key];
   if (typeof left === 'number' && typeof right === 'number') return left - right;
@@ -129,7 +85,7 @@ export function ParticipantsPage() {
   const [search, setSearch] = useState('');
   const [sponsor, setSponsor] = useState<string[]>([]);
   const [contest, setContest] = useState<string[]>([]);
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortKey, setSortKey] = useState<FormSortKey | null>(null);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
@@ -148,17 +104,78 @@ export function ParticipantsPage() {
     return () => window.clearTimeout(timer);
   }, [data]);
 
-  const forms = useMemo(() => data?.forms ?? [], [data]);
-  const people = useMemo(() => data?.people ?? [], [data]);
+  const forms = useMemo(() => (data?.forms ?? []).map(toFormRow), [data]);
   const kpis = data?.kpis;
 
   const sponsorOptions = useMemo(
-    () => namedFilterOptions(people.map((person) => person.sponsorName)),
-    [people],
+    () => namedFilterOptions(forms.map((form) => form.sponsorName)),
+    [forms],
   );
   const contestOptions = useMemo(
-    () => namedFilterOptions(people.map((person) => person.contestName)),
-    [people],
+    () => namedFilterOptions(forms.map((form) => form.contestName)),
+    [forms],
+  );
+
+  const formColumns: RecordColumn<FormRow>[] = useMemo(
+    () => [
+      {
+        key: 'contestName',
+        label: 'Contest',
+        placement: 'title',
+        render: (form) => (
+          <span className={`font-medium ${highlight === form.id ? 'text-primary' : ''}`}>
+            {form.contestName || 'Draft form'}
+          </span>
+        ),
+      },
+      {
+        key: 'sponsorName',
+        label: 'Sponsor',
+        placement: 'primary',
+        render: (form) => form.sponsorName || '—',
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        placement: 'status',
+        render: (form) => (form.status === 'saved' ? 'Saved' : 'Draft'),
+      },
+      {
+        key: 'quizCount',
+        label: 'Quizzes',
+        placement: 'details',
+        tableClassName: 'tabular-nums',
+        render: (form) => <span className="tabular-nums">{form.quizCount}</span>,
+      },
+      {
+        key: 'assessmentCount',
+        label: 'Assessments',
+        placement: 'details',
+        tableClassName: 'tabular-nums',
+        render: (form) => <span className="tabular-nums">{form.assessmentCount}</span>,
+      },
+      {
+        key: 'registrationCount',
+        label: 'Registered',
+        placement: 'details',
+        tableClassName: 'tabular-nums',
+        render: (form) => <span className="tabular-nums">{form.registrationCount}</span>,
+      },
+      {
+        key: 'link',
+        label: 'Link',
+        placement: 'details',
+        render: (form) =>
+          form.link ? (
+            <span className="truncate text-primary" title={form.link}>
+              {form.link}
+            </span>
+          ) : (
+            <span className="text-muted-foreground">Not live yet</span>
+          ),
+      },
+    ],
+    [highlight],
   );
 
   const filters: ToolbarFilter[] = [
@@ -184,24 +201,24 @@ export function ParticipantsPage() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    let rows = people.filter((person) => {
-      if (!selectionMatches(sponsor, person.sponsorName)) return false;
-      if (!selectionMatches(contest, person.contestName)) return false;
+    let rows = forms.filter((form) => {
+      if (!selectionMatches(sponsor, form.sponsorName)) return false;
+      if (!selectionMatches(contest, form.contestName)) return false;
       if (!query) return true;
       return (
-        person.name.toLowerCase().includes(query) ||
-        person.email.toLowerCase().includes(query) ||
-        person.code.toLowerCase().includes(query)
+        form.contestName.toLowerCase().includes(query) ||
+        form.sponsorName.toLowerCase().includes(query) ||
+        form.link.toLowerCase().includes(query)
       );
     });
     if (sortKey) {
       rows = [...rows].sort((a, b) => {
-        const result = comparePeople(a, b, sortKey);
+        const result = compareForms(a, b, sortKey);
         return sortDir === 'asc' ? result : -result;
       });
     }
     return rows;
-  }, [people, search, sponsor, contest, sortKey, sortDir]);
+  }, [forms, search, sponsor, contest, sortKey, sortDir]);
 
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filtered.length / size));
@@ -217,7 +234,7 @@ export function ParticipantsPage() {
     setPage(1);
   }
 
-  function toggleSort(key: SortKey) {
+  function toggleSort(key: FormSortKey) {
     if (sortKey !== key) {
       setSortKey(key);
       setSortDir('asc');
@@ -276,125 +293,12 @@ export function ParticipantsPage() {
         <Kpi label="Registration forms" value={kpis?.forms ?? 0} />
         <Kpi label="Live links" value={kpis?.liveLinks ?? 0} />
         <Kpi label="Participants" value={kpis?.participants ?? 0} />
-        <Kpi label="Forms with no quiz yet" value={kpis?.formsWithoutQuiz ?? 0} />
+        <Kpi label="Forms with no activity yet" value={kpis?.formsWithoutActivity ?? 0} />
       </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Registration forms</CardTitle>
-          <CardDescription>
-            One form per contest. Copy the live link, or edit the form.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {forms.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No registration forms yet.</p>
-          ) : (
-            forms.map((form) => {
-              const link = form.slug ? registrationUrl(form.slug) : '';
-              const quizNames = form.quizzes.map((quiz) => quiz.name).join(', ');
-              return (
-                <article
-                  key={form.id}
-                  className={`flex flex-col gap-3 rounded-lg border border-border p-3 sm:p-4 ${highlight === form.id ? 'bg-accent' : ''}`}
-                >
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">Contest</p>
-                      <p className="truncate font-medium">{form.contestName || 'Draft form'}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">Sponsor</p>
-                      <p className="truncate">{form.sponsorName || '—'}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-muted-foreground">Status</p>
-                      <p>{form.status === 'saved' ? 'Saved' : 'Draft'}</p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs text-muted-foreground">Quizzes</p>
-                      {form.quizzes.length === 0 ? (
-                        <p className="text-warning">No quiz yet</p>
-                      ) : (
-                        <p className="truncate" title={quizNames}>
-                          {form.quizzes.length} {form.quizzes.length === 1 ? 'quiz' : 'quizzes'}
-                          <span className="text-muted-foreground"> · {quizNames}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  {link ? (
-                    <p className="truncate text-sm text-primary" title={link}>
-                      {link}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">Not live yet</p>
-                  )}
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                    {link ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        onClick={() => {
-                          void navigator.clipboard.writeText(link);
-                          toast.success('Link copied');
-                        }}
-                      >
-                        <CopyIcon data-icon="inline-start" aria-hidden="true" />
-                        Copy link
-                      </Button>
-                    ) : null}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full sm:w-auto"
-                      onClick={() => navigate(`/participants/forms/${form.id}`)}
-                    >
-                      Open
-                    </Button>
-                    {canMutate ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        onClick={() => navigate(`/participants/forms/${form.id}/edit`)}
-                      >
-                        <PencilIcon data-icon="inline-start" aria-hidden="true" />
-                        Edit
-                      </Button>
-                    ) : null}
-                    {canMutate && form.quizzes.length === 0 && form.status === 'saved' ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full sm:w-auto"
-                        onClick={() => setGiveForm(form)}
-                      >
-                        Assign activity
-                      </Button>
-                    ) : null}
-                    {isSuperAdmin ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        className="w-full sm:w-auto"
-                        onClick={() => void onDeleteForm(form)}
-                      >
-                        <Trash2Icon data-icon="inline-start" aria-hidden="true" />
-                        Delete
-                      </Button>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
       <div ref={ref} className="flex flex-col gap-4">
         <Toolbar
           filters={filters}
-          searchPlaceholder="Search by name, email, or registration ID..."
+          searchPlaceholder="Search by contest, sponsor, or link..."
           searchValue={search}
           onSearchChange={(value) => {
             setSearch(value);
@@ -404,10 +308,10 @@ export function ParticipantsPage() {
             <>
               {narrow ? (
                 <RecordSortSelect
-                  columns={personColumns}
+                  columns={formColumns}
                   activeKey={sortKey}
                   direction={sortDir}
-                  onSort={(key) => toggleSort(key as SortKey)}
+                  onSort={(key) => toggleSort(key as FormSortKey)}
                 />
               ) : null}
               <Button
@@ -425,28 +329,91 @@ export function ParticipantsPage() {
         <Card>
           <CardHeader>
             <CardTitle>
-              {filtered.length} {filtered.length === 1 ? 'participant' : 'participants'}
+              {filtered.length} {filtered.length === 1 ? 'registration form' : 'registration forms'}
             </CardTitle>
-            <CardDescription>Registered participants</CardDescription>
+            <CardDescription>
+              One form per contest. Copy the live link, or open the form to see who registered.
+            </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             <ResponsiveRecords
-              caption="Registered participants"
+              caption="Registration forms"
               rows={pageRows}
-              getRowId={(person) => person.id}
-              columns={personColumns}
+              getRowId={(form) => form.id}
+              columns={formColumns}
               narrow={narrow}
-              empty="No one has registered through a form yet."
+              empty="No registration forms match the current filters."
               sort={{
                 key: sortKey,
                 direction: sortDir,
-                onSort: (key) => toggleSort(key as SortKey),
+                onSort: (key) => toggleSort(key as FormSortKey),
               }}
+              renderActions={(form) => (
+                <div className="flex flex-wrap items-center gap-2">
+                  {form.link ? (
+                    narrow ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(form.link);
+                          toast.success('Link copied');
+                        }}
+                      >
+                        <CopyIcon data-icon="inline-start" aria-hidden="true" />
+                        Copy link
+                      </Button>
+                    ) : (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            aria-label="Copy link"
+                            onClick={() => {
+                              void navigator.clipboard.writeText(form.link);
+                              toast.success('Link copied');
+                            }}
+                          >
+                            <CopyIcon aria-hidden="true" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Copy link</TooltipContent>
+                      </Tooltip>
+                    )
+                  ) : null}
+                  <RowActions
+                    view={{ to: `/participants/forms/${form.id}` }}
+                    edit={canMutate ? { to: `/participants/forms/${form.id}/edit` } : undefined}
+                    remove={
+                      isSuperAdmin
+                        ? { label: 'Delete', onClick: () => void onDeleteForm(form) }
+                        : undefined
+                    }
+                    iconsOnly={!narrow}
+                  />
+                  {canMutate &&
+                  form.quizCount + form.assessmentCount === 0 &&
+                  form.status === 'saved' ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size={narrow ? 'default' : 'icon'}
+                      aria-label="Assign activity"
+                      onClick={() => setGiveForm(form)}
+                    >
+                      <PlusIcon data-icon={narrow ? 'inline-start' : undefined} />
+                      {narrow ? 'Assign activity' : null}
+                    </Button>
+                  ) : null}
+                </div>
+              )}
+              onRowOpen={(form) => navigate(`/participants/forms/${form.id}`)}
             />
             <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
-                Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length}{' '}
-                participants
+                Showing {filtered.length === 0 ? 0 : start + 1} to {end} of {filtered.length} forms
               </p>
               <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
                 <div className="flex min-w-0 items-center gap-2">

@@ -175,8 +175,8 @@ async function replaceQuizzes(
   quizIds: string[] | undefined,
   contestId: string | null,
   now: Date,
-) {
-  if (!quizIds) return;
+): Promise<string[]> {
+  if (!quizIds) return [];
   const existing = await prisma.contestFormQuiz.findMany({
     where: { organizationId, formId },
     select: { activityId: true },
@@ -217,6 +217,7 @@ async function replaceQuizzes(
       data: add.map((activityId) => ({ organizationId, formId, activityId })),
     });
   }
+  return remove;
 }
 
 function dataFromInput(input: SaveFormInput, status: 'draft' | 'saved') {
@@ -280,24 +281,33 @@ export async function listOverview(organizationId: string) {
       forms: saved.length,
       liveLinks: saved.filter((form) => form.linkActive).length,
       participants: submissions.length,
-      formsWithoutQuiz: saved.filter((form) => form.quizzes.length === 0).length,
+      formsWithoutActivity: saved.filter((form) => form.quizzes.length === 0).length,
     },
     forms: mapped,
-    people: submissions.map((row) => ({
-      id: row.id,
-      code: row.participant.code,
-      name: row.participant.name,
-      email: row.participant.email,
-      sponsorName: row.form.sponsor?.name ?? '',
-      contestName: row.form.contest?.name ?? '',
-      quizzesGiven: row.form.quizzes.length,
-      registeredAt: row.createdAt,
-    })),
   };
 }
 
 export async function getForm(organizationId: string, id: string) {
   return mapForm(await loadForm(organizationId, id));
+}
+
+export async function listFormRegistrants(organizationId: string, formId: string) {
+  await loadForm(organizationId, formId);
+  const submissions = await prisma.contestFormSubmission.findMany({
+    where: { organizationId, formId },
+    include: {
+      participant: { select: { id: true, code: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+  return submissions.map((row) => ({
+    id: row.id,
+    formId,
+    code: row.participant.code,
+    name: row.participant.name,
+    email: row.participant.email,
+    registeredAt: row.createdAt.toISOString(),
+  }));
 }
 
 export async function listContestQuizzes(organizationId: string, contestId: string) {
@@ -390,8 +400,14 @@ export async function updateForm(
       updatedByUserId: userId,
     },
   });
-  await replaceQuizzes(organizationId, id, input.quizIds, contestId ?? null, new Date());
-  if (status === 'saved') await assignSavedForm(organizationId, id);
+  const removed = await replaceQuizzes(
+    organizationId,
+    id,
+    input.quizIds,
+    contestId ?? null,
+    new Date(),
+  );
+  if (status === 'saved') await assignSavedForm(organizationId, id, removed);
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -449,7 +465,11 @@ export async function regenerateLink(organizationId: string, userId: string, id:
   return mapForm(await loadForm(organizationId, id));
 }
 
-async function assignSavedForm(organizationId: string, formId: string) {
+async function assignSavedForm(
+  organizationId: string,
+  formId: string,
+  removedActivityIds: string[] = [],
+) {
   const [links, submissions] = await Promise.all([
     prisma.contestFormQuiz.findMany({
       where: { organizationId, formId },
@@ -461,8 +481,20 @@ async function assignSavedForm(organizationId: string, formId: string) {
     }),
   ]);
   const activityIds = links.map((link) => link.activityId);
+  const participantIds = submissions.map((submission) => submission.participantId);
   for (const submission of submissions) {
     await assignQuizzes(organizationId, submission.participantId, activityIds);
+  }
+  if (removedActivityIds.length > 0 && participantIds.length > 0) {
+    await prisma.registration.updateMany({
+      where: {
+        organizationId,
+        activityId: { in: removedActivityIds },
+        participantId: { in: participantIds },
+        status: 'assigned',
+      },
+      data: { status: 'unassigned', assignedAt: null },
+    });
   }
 }
 

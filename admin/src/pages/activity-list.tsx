@@ -43,7 +43,7 @@ import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
-import { canEditKind, canFullKind } from '@/lib/access';
+import { canEditKind, canFullKind, isSuperAdmin } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { deleteActivity, getActivities, type ActivityKind } from '@/services';
@@ -96,9 +96,11 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
   const canFull = canFullKind(membership, kind);
+  const superAdmin = isSuperAdmin(membership);
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'quizzes' : 'assessments';
   const nounSingular = isQuiz ? 'quiz' : 'assessment';
+  const canDelete = isQuiz ? canFull : superAdmin;
   const nameLabel = isQuiz ? 'Quiz Name' : 'Assessment Name';
   const listPath = isQuiz ? '/quizzes' : '/assessments';
   const createHref = isQuiz ? '/quizzes/new' : '/assessments/new';
@@ -121,28 +123,34 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   });
   const activities = data ?? EMPTY_ACTIVITIES;
 
-  async function onDeleteQuiz(item: Activity) {
-    if (!isQuiz || !canFull) return;
+  async function onDeleteActivity(item: Activity) {
+    if (!canDelete) return;
     const password = await confirmSensitiveDelete(confirm, {
       title: `Delete “${item.name}”?`,
-      description: 'Permanently removes this quiz. This cannot be undone.',
-      details: [
-        'Registrations, attempts, and scores for this quiz are deleted.',
-        'This quiz’s private question bank is deleted. Shared question banks stay.',
-        'Links from registration forms to this quiz are removed. Those forms stay.',
-      ],
-      confirmLabel: 'Delete quiz',
+      description: `Permanently removes this ${nounSingular}. This cannot be undone.`,
+      details: isQuiz
+        ? [
+            'Registrations, attempts, and scores for this quiz are deleted.',
+            'This quiz’s private question bank is deleted. Shared question banks stay.',
+            'Links from registration forms to this quiz are removed. Those forms stay.',
+          ]
+        : [
+            'All rounds, questions, registrations, attempts, and scores for this assessment are deleted.',
+            'Each round’s private question bank is deleted. Shared question banks stay.',
+            'Links from registration forms to this assessment are removed. Those forms stay.',
+          ],
+      confirmLabel: `Delete ${nounSingular}`,
     });
     if (!password) return;
     try {
       await deleteActivity(item.id, password);
-      toast.success('Quiz deleted.');
+      toast.success(`${nounSingular.charAt(0).toUpperCase()}${nounSingular.slice(1)} deleted.`);
       await queryClient.invalidateQueries({ queryKey: ['admin', 'activities'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'registrations'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'results'] });
       await queryClient.invalidateQueries({ queryKey: ['admin', 'dashboard'] });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : 'Could not delete quiz.');
+      toast.error(err instanceof ApiError ? err.message : `Could not delete ${nounSingular}.`);
     }
   }
 
@@ -469,8 +477,8 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                 edit={canEdit ? { to: `${listPath}/${item.id}/edit` } : undefined}
                 report={{ to: `${listPath}/reports?activityId=${item.id}` }}
                 remove={
-                  isQuiz && canFull
-                    ? { label: 'Delete', onClick: () => void onDeleteQuiz(item) }
+                  canDelete
+                    ? { label: 'Delete', onClick: () => void onDeleteActivity(item) }
                     : undefined
                 }
                 iconsOnly={!narrow}

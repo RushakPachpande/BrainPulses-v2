@@ -1378,19 +1378,14 @@ async function submitAttemptInternal(
     passed = passing === null ? null : percent >= passing;
   }
 
-  const quizPublished =
-    attempt.activity.kind === 'quiz' && attempt.activity.resultsPublishedAt != null;
-  const roundPublished =
-    attempt.activity.kind === 'assessment' && attempt.round?.resultsPublishedAt != null;
-  // Text/numeric items are auto-scored against the reference answer; only after_publish holds.
-  const holdUntilPublish =
-    attempt.activity.kind === 'assessment' &&
-    !roundPublished &&
-    Boolean(roundSettings && roundNeedsPublish(roundSettings));
+  // Publish is a snapshot of results that exist then. Later attempts stay withheld until
+  // the next publish. after_submit releases this result immediately.
+  const scoreRelease =
+    attempt.activity.kind === 'quiz'
+      ? parseQuizSettings(attempt.activity.settings).scoreRelease
+      : (roundSettings?.scoreRelease ?? 'after_submit');
   const releaseStatus =
-    quizPublished || roundPublished || (attempt.activity.kind === 'assessment' && !holdUntilPublish)
-      ? ('published' as const)
-      : ('withheld' as const);
+    scoreRelease === 'after_publish' ? ('withheld' as const) : ('published' as const);
   const publishedAt = releaseStatus === 'published' ? new Date() : null;
 
   const submittedAt = new Date();

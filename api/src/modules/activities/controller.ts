@@ -103,6 +103,23 @@ export async function remove(req: Request, res: Response, next: NextFunction) {
   }
 }
 
+export async function deleteRound(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    await verifyActingUserPassword(actor.userId, req.body.password as string);
+    const data = await service.deleteRound(
+      actor.organizationId,
+      actor.userId,
+      actor,
+      req.params.id as string,
+      req.params.roundId as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function listRoundQuestions(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);

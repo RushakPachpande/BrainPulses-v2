@@ -10,7 +10,7 @@ export const pageMeta: Record<string, PageMeta> = {
     crumb: 'BrainPulses / Participants',
     title: 'Participants',
     description:
-      'One row per participant per contest. Participants join a contest through its registration form.',
+      'Registration forms for each contest. Open a form to see who registered and which activities they receive.',
   },
   '/participants/forms/new': {
     crumb: 'BrainPulses / Participants / Create registration form',

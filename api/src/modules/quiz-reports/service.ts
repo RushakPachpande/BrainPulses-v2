@@ -13,6 +13,7 @@ import { buildAttemptReview, type ReviewVersion } from './review.js';
 import {
   buildReportRow,
   filterReportRows,
+  reportQuizStatus,
   sortReportRows,
   summarizeReportRows,
   wholePercent,
@@ -220,24 +221,42 @@ export async function loadQuizReport(
     return buildReportRow(source, bestId ? (breakdowns.get(bestId) ?? null) : null);
   });
 
+  const activeQuizzes = await prisma.activity.findMany({
+    where: { organizationId, kind: 'quiz', status: 'active' },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      passingPercent: true,
+      settings: true,
+      resultsPublishedAt: true,
+      contest: { select: { id: true, name: true } },
+    },
+    orderBy: { name: 'asc' },
+  });
   const contests = new Map<string, string>();
-  const quizzes = new Map<string, QuizOption>();
-  for (const row of rows) {
-    if (row.contestId && row.contestName) contests.set(row.contestId, row.contestName);
-    if (!quizzes.has(row.activityId)) {
-      quizzes.set(row.activityId, {
-        id: row.activityId,
-        name: row.quizName,
-        contestId: row.contestId,
-        contestName: row.contestName,
-        quizStatus: row.quizStatus,
-        displayStatus: row.displayStatus,
-        scoreRelease: row.scoreRelease,
-        resultsPublishedAt: row.resultsPublishedAt,
-        passingPercent: row.passingPercent,
-      });
-    }
-  }
+  const quizzes: QuizOption[] = activeQuizzes.map((activity) => {
+    const settings = parseQuizSettings(activity.settings);
+    const displayStatus = activityStatusDisplay(
+      activity.status,
+      activity.startsAt,
+      activity.endsAt,
+    );
+    if (activity.contest) contests.set(activity.contest.id, activity.contest.name);
+    return {
+      id: activity.id,
+      name: activity.name,
+      contestId: activity.contest?.id ?? null,
+      contestName: activity.contest?.name ?? null,
+      quizStatus: reportQuizStatus(displayStatus),
+      displayStatus,
+      scoreRelease: settings.scoreRelease,
+      resultsPublishedAt: activity.resultsPublishedAt?.toISOString() ?? null,
+      passingPercent: activity.passingPercent == null ? null : toNumber(activity.passingPercent),
+    };
+  });
 
   return {
     rows,
@@ -245,7 +264,7 @@ export async function loadQuizReport(
       contests: [...contests.entries()]
         .map(([id, name]) => ({ id, name }))
         .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })),
-      quizzes: [...quizzes.values()].sort((a, b) =>
+      quizzes: quizzes.sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
       ),
     },
@@ -645,7 +664,10 @@ export async function publishQuizResults(
   if (settings.scoreRelease !== 'after_publish') {
     throw badRequest('This quiz shows scores as soon as a student submits.');
   }
-  if (activity.resultsPublishedAt) {
+  const withheld = await prisma.result.count({
+    where: { organizationId, activityId, releaseStatus: 'withheld' },
+  });
+  if (activity.resultsPublishedAt && withheld === 0) {
     return { resultsPublishedAt: activity.resultsPublishedAt.toISOString() };
   }
   const now = new Date();

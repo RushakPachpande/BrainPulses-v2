@@ -77,18 +77,22 @@ export type ContestFormRecord = {
 };
 
 export type ContestFormOverview = {
-  kpis: { forms: number; liveLinks: number; participants: number; formsWithoutQuiz: number };
+  kpis: {
+    forms: number;
+    liveLinks: number;
+    participants: number;
+    formsWithoutActivity: number;
+  };
   forms: ContestFormRecord[];
-  people: {
-    id: string;
-    code: string;
-    name: string;
-    email: string;
-    sponsorName: string;
-    contestName: string;
-    quizzesGiven: number;
-    registeredAt: string;
-  }[];
+};
+
+export type ContestFormRegistrant = {
+  id: string;
+  formId: string;
+  code: string;
+  name: string;
+  email: string;
+  registeredAt: string;
 };
 
 export function newId() {

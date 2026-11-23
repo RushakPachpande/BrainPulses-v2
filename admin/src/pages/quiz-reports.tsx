@@ -184,6 +184,9 @@ export function QuizReportsPage() {
     setQuizStatuses([]);
     setAttemptStatuses([]);
     setAutoSubmitted([]);
+    const columnsDefault = defaultColumns();
+    setColumns(columnsDefault);
+    if (userId) writeStoredColumns(userId, columnsDefault);
     setPage(1);
     setSearchParams({}, { replace: true });
   }

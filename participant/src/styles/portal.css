@@ -1475,6 +1475,9 @@ body.dk2 .rp-side__round {
   color: #fff;
   font-variant-numeric: tabular-nums;
 }
+.tmr.tmr-end {
+  margin-left: auto;
+}
 .tmr .tl {
   display: flex;
   flex-direction: column;

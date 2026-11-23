@@ -30,7 +30,7 @@ vi.mock('@/contexts/auth-context', () => ({
 
 vi.mock('@/services/contest-forms', () => ({
   getContestFormOverview: vi.fn(async () => ({
-    kpis: { forms: 1, liveLinks: 1, participants: 1, formsWithoutQuiz: 0 },
+    kpis: { forms: 1, liveLinks: 1, participants: 1, formsWithoutActivity: 0 },
     forms: [
       {
         id: 'form-1',
@@ -59,29 +59,24 @@ vi.mock('@/services/contest-forms', () => ({
         matchRule: 'name_and_contact',
         registrationCount: 1,
         quizzes: [
-          { id: 'q1', name: 'Round 1', startsAt: null, endsAt: null, availability: 'Active' },
+          {
+            id: 'q1',
+            name: 'Round 1',
+            kind: 'quiz',
+            startsAt: null,
+            endsAt: null,
+            availability: 'Active',
+          },
         ],
         createdAt: '2026-11-01T00:00:00.000Z',
         updatedAt: '2026-11-01T00:00:00.000Z',
-      },
-    ],
-    people: [
-      {
-        id: 'sub-1',
-        code: 'BP48210937',
-        name: 'Ada Lovelace',
-        email: 'ada@example.com',
-        sponsorName: 'Acme',
-        contestName: 'Code Quest',
-        quizzesGiven: 1,
-        registeredAt: '2026-11-02T04:30:00.000Z',
       },
     ],
   })),
 }));
 
 describe('ParticipantsPage', () => {
-  it('shows saved forms and people who registered through them', async () => {
+  it('shows saved registration forms in a table', async () => {
     renderWithAdminQuery(
       <MemoryRouter>
         <PageHeaderProvider>
@@ -93,7 +88,7 @@ describe('ParticipantsPage', () => {
     await waitFor(() => {
       expect(screen.getAllByText('Code Quest').length).toBeGreaterThan(0);
     });
-    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
-    expect(screen.getByText(/Showing 1 to 1 of 1 participants/i)).toBeInTheDocument();
+    expect(screen.getByText('Acme')).toBeInTheDocument();
+    expect(screen.getByText(/Showing 1 to 1 of 1 forms/i)).toBeInTheDocument();
   });
 });
