@@ -11,12 +11,15 @@ import { confirmPasswordSchema } from '../../lib/verify-acting-password.js';
 import * as controller from './controller.js';
 import {
   contestQuizzesQuerySchema,
+  fieldImageParamSchema,
   giveQuizzesSchema,
   idParamSchema,
   imageParamSchema,
   registerSchema,
+  registrantParamSchema,
   saveFormSchema,
   slugParamSchema,
+  updateRegistrantSchema,
 } from './schema.js';
 
 export const contestFormsRouter = Router();
@@ -24,6 +27,13 @@ export const contestFormsRouter = Router();
 contestFormsRouter.use(requireAuth, requireUser, withTenantContext);
 
 contestFormsRouter.get('/', requireOrgAccess('view'), controller.overview);
+/** Asks for the admin's own password before editing a saved form or unlocking contact fields. */
+contestFormsRouter.post(
+  '/confirm-password',
+  requireOrgAccess('edit'),
+  validate({ body: confirmPasswordSchema }),
+  controller.confirmPassword,
+);
 contestFormsRouter.get(
   '/quizzes',
   requireOrgAccess('view'),
@@ -35,6 +45,18 @@ contestFormsRouter.get(
   requireOrgAccess('view'),
   validate({ params: idParamSchema }),
   controller.registrants,
+);
+contestFormsRouter.get(
+  '/:id/registrants/:submissionId',
+  requireOrgAccess('view'),
+  validate({ params: registrantParamSchema }),
+  controller.registrant,
+);
+contestFormsRouter.patch(
+  '/:id/registrants/:submissionId',
+  requireOrgAccess('edit'),
+  validate({ params: registrantParamSchema, body: updateRegistrantSchema }),
+  controller.updateRegistrant,
 );
 contestFormsRouter.get(
   '/:id',
@@ -79,6 +101,11 @@ publicContestFormsRouter.get(
   '/:slug/image/:which',
   validate({ params: imageParamSchema }),
   controller.publicImage,
+);
+publicContestFormsRouter.get(
+  '/:slug/fields/:fieldId/image',
+  validate({ params: fieldImageParamSchema }),
+  controller.publicFieldImage,
 );
 publicContestFormsRouter.post(
   '/:slug/register',

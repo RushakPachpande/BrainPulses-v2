@@ -4,34 +4,50 @@ import {
   BarChart3Icon,
   CheckCircle2Icon,
   EyeIcon,
+  FileXIcon,
   KeyRoundIcon,
   PencilIcon,
   TrashIcon,
+  UserXIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 
 type RowActionTarget = {
   to?: string;
   onClick?: () => void;
 };
 
+type ActionTone = 'default' | 'destructive' | 'destructiveOutline';
+
 function ActionButton({
   label,
   icon: Icon,
   target,
-  destructive,
+  tone = 'default',
   iconsOnly,
 }: {
   label: string;
   icon: typeof EyeIcon;
   target: RowActionTarget;
-  destructive?: boolean;
+  tone?: ActionTone;
   iconsOnly?: boolean;
 }) {
-  const variant = destructive ? 'destructive' : 'outline';
+  const variant = tone === 'destructive' ? 'destructive' : 'outline';
+  const toneClass =
+    tone === 'destructiveOutline'
+      ? 'border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive dark:border-destructive/50 dark:hover:bg-destructive/20'
+      : undefined;
+  const widthClass = iconsOnly ? undefined : 'w-full sm:w-auto';
   const button = target.to ? (
-    <Button asChild variant={variant} size={iconsOnly ? 'icon' : 'default'} aria-label={label}>
+    <Button
+      asChild
+      variant={variant}
+      size={iconsOnly ? 'icon' : 'default'}
+      className={cn(widthClass, toneClass)}
+      aria-label={label}
+    >
       <Link to={target.to} onClick={target.onClick}>
         <Icon data-icon={iconsOnly ? undefined : 'inline-start'} aria-hidden="true" />
         {iconsOnly ? null : label}
@@ -42,6 +58,7 @@ function ActionButton({
       type="button"
       variant={variant}
       size={iconsOnly ? 'icon' : 'default'}
+      className={cn(widthClass, toneClass)}
       aria-label={iconsOnly ? label : undefined}
       onClick={target.onClick}
     >
@@ -52,7 +69,9 @@ function ActionButton({
   if (!iconsOnly) return button;
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">{button}</span>
+      </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
@@ -77,11 +96,22 @@ export function RowActions({
   deactivate?: { onClick: () => void };
   removeRegistration?: { onClick: () => void };
   remove?: { label?: string; onClick: () => void };
-  /** Desktop tables: icon and tooltip. Mobile cards keep the text label. */
+  /** Narrow panels: icon + tooltip. Wide tables keep the text label. */
   iconsOnly?: boolean;
 }) {
+  const removeLabel = remove?.label ?? 'Delete';
+  const removeIsAttempt = removeLabel === 'Delete attempt';
+
   return (
-    <div className="flex w-max shrink-0 flex-nowrap items-center gap-2">
+    <div
+      data-icons-only={iconsOnly ? '' : undefined}
+      className={cn(
+        'flex items-center gap-2',
+        iconsOnly
+          ? 'w-full min-w-0 flex-wrap'
+          : 'w-full min-w-0 flex-col sm:w-auto sm:flex-row sm:flex-wrap',
+      )}
+    >
       {view ? (
         <ActionButton label="View" icon={EyeIcon} target={view} iconsOnly={iconsOnly} />
       ) : null}
@@ -117,25 +147,25 @@ export function RowActions({
           label="Deactivate"
           icon={BanIcon}
           target={deactivate}
-          destructive
+          tone="destructive"
           iconsOnly={iconsOnly}
         />
       ) : null}
       {removeRegistration ? (
         <ActionButton
           label="Delete registration"
-          icon={TrashIcon}
+          icon={UserXIcon}
           target={removeRegistration}
-          destructive
+          tone="destructive"
           iconsOnly={iconsOnly}
         />
       ) : null}
       {remove ? (
         <ActionButton
-          label={remove.label ?? 'Delete'}
-          icon={TrashIcon}
+          label={removeLabel}
+          icon={removeIsAttempt ? FileXIcon : TrashIcon}
           target={remove}
-          destructive
+          tone={removeIsAttempt ? 'destructiveOutline' : 'destructive'}
           iconsOnly={iconsOnly}
         />
       ) : null}

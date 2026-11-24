@@ -43,7 +43,7 @@ import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
-import { canEditKind, canFullKind, isSuperAdmin } from '@/lib/access';
+import { canEditKind, canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { cn } from '@/lib/utils';
 import { deleteActivity, getActivities, type ActivityKind } from '@/services';
@@ -96,11 +96,10 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
   const canFull = canFullKind(membership, kind);
-  const superAdmin = isSuperAdmin(membership);
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'quizzes' : 'assessments';
   const nounSingular = isQuiz ? 'quiz' : 'assessment';
-  const canDelete = isQuiz ? canFull : superAdmin;
+  const canDelete = canFull;
   const nameLabel = isQuiz ? 'Quiz Name' : 'Assessment Name';
   const listPath = isQuiz ? '/quizzes' : '/assessments';
   const createHref = isQuiz ? '/quizzes/new' : '/assessments/new';
@@ -318,8 +317,8 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
       case 'name':
         return (
           <div className="min-w-0">
-            <div className="truncate font-medium">{item.name}</div>
-            <div className="truncate text-xs font-normal text-muted-foreground">
+            <div className="min-w-0 font-medium wrap-break-word">{item.name}</div>
+            <div className="min-w-0 text-xs font-normal text-muted-foreground wrap-break-word">
               {item.subtitle}
             </div>
           </div>
@@ -481,7 +480,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                     ? { label: 'Delete', onClick: () => void onDeleteActivity(item) }
                     : undefined
                 }
-                iconsOnly={!narrow}
+                iconsOnly={narrow}
               />
             )}
             onRowOpen={(item) => navigate(`${listPath}/${item.id}`)}

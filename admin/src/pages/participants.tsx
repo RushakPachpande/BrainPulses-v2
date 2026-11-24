@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { GiveQuizDialog } from '@/components/give-quiz-dialog';
+import { ContestFormCreateDialog } from '@/components/contest-form-create-dialog';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
@@ -80,7 +80,7 @@ export function ParticipantsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const isSuperAdmin = membership?.role === 'super_admin';
-  const [giveForm, setGiveForm] = useState<ContestFormRecord | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [highlight, setHighlight] = useState('');
   const [search, setSearch] = useState('');
   const [sponsor, setSponsor] = useState<string[]>([]);
@@ -138,7 +138,7 @@ export function ParticipantsPage() {
         key: 'status',
         label: 'Status',
         placement: 'status',
-        render: (form) => (form.status === 'saved' ? 'Saved' : 'Draft'),
+        render: (form) => (form.status === 'saved' ? 'Published' : 'Draft'),
       },
       {
         key: 'quizCount',
@@ -167,9 +167,7 @@ export function ParticipantsPage() {
         placement: 'details',
         render: (form) =>
           form.link ? (
-            <span className="truncate text-primary" title={form.link}>
-              {form.link}
-            </span>
+            <span className="min-w-0 text-primary wrap-break-word">{form.link}</span>
           ) : (
             <span className="text-muted-foreground">Not live yet</span>
           ),
@@ -283,7 +281,7 @@ export function ParticipantsPage() {
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
         {canMutate ? (
-          <Button type="button" onClick={() => navigate('/participants/forms/new')}>
+          <Button type="button" onClick={() => setCreateOpen(true)}>
             <PlusIcon data-icon="inline-start" />
             Create registration form
           </Button>
@@ -349,9 +347,36 @@ export function ParticipantsPage() {
                 onSort: (key) => toggleSort(key as FormSortKey),
               }}
               renderActions={(form) => (
-                <div className="flex flex-wrap items-center gap-2">
+                <div
+                  data-icons-only={narrow ? '' : undefined}
+                  className={
+                    narrow
+                      ? 'flex w-full min-w-0 flex-wrap items-center gap-2'
+                      : 'flex flex-wrap items-center gap-2'
+                  }
+                >
                   {form.link ? (
                     narrow ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              aria-label="Copy link"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(form.link);
+                                toast.success('Link copied');
+                              }}
+                            >
+                              <CopyIcon aria-hidden="true" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Copy link</TooltipContent>
+                      </Tooltip>
+                    ) : (
                       <Button
                         type="button"
                         variant="outline"
@@ -363,24 +388,6 @@ export function ParticipantsPage() {
                         <CopyIcon data-icon="inline-start" aria-hidden="true" />
                         Copy link
                       </Button>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="Copy link"
-                            onClick={() => {
-                              void navigator.clipboard.writeText(form.link);
-                              toast.success('Link copied');
-                            }}
-                          >
-                            <CopyIcon aria-hidden="true" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Copy link</TooltipContent>
-                      </Tooltip>
                     )
                   ) : null}
                   <RowActions
@@ -391,21 +398,38 @@ export function ParticipantsPage() {
                         ? { label: 'Delete', onClick: () => void onDeleteForm(form) }
                         : undefined
                     }
-                    iconsOnly={!narrow}
+                    iconsOnly={narrow}
                   />
                   {canMutate &&
                   form.quizCount + form.assessmentCount === 0 &&
                   form.status === 'saved' ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size={narrow ? 'default' : 'icon'}
-                      aria-label="Assign activity"
-                      onClick={() => setGiveForm(form)}
-                    >
-                      <PlusIcon data-icon={narrow ? 'inline-start' : undefined} />
-                      {narrow ? 'Assign activity' : null}
-                    </Button>
+                    narrow ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              aria-label="Assign activity"
+                              onClick={() => navigate(`/participants/forms/${form.id}/edit?step=2`)}
+                            >
+                              <PlusIcon aria-hidden="true" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Assign activity</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate(`/participants/forms/${form.id}/edit?step=2`)}
+                      >
+                        <PlusIcon data-icon="inline-start" aria-hidden="true" />
+                        Assign activity
+                      </Button>
+                    )
                   ) : null}
                 </div>
               )}
@@ -471,16 +495,7 @@ export function ParticipantsPage() {
           </CardContent>
         </Card>
       </div>
-      <GiveQuizDialog
-        form={giveForm}
-        open={Boolean(giveForm)}
-        onOpenChange={(open) => {
-          if (!open) setGiveForm(null);
-        }}
-        onGiven={() => {
-          void queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
-        }}
-      />
+      <ContestFormCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

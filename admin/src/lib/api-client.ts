@@ -1,12 +1,15 @@
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
+  /** Per-field messages from a validation error, keyed by field. */
+  readonly fields?: Record<string, string>;
 
-  constructor(status: number, code: string, message: string) {
+  constructor(status: number, code: string, message: string, fields?: Record<string, string>) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+    this.fields = fields;
   }
 }
 
@@ -167,6 +170,7 @@ async function parseApiError(res: Response): Promise<ApiError> {
         res.status,
         err.code ?? 'UNKNOWN',
         `${err.message ?? (res.statusText || 'Request failed.')}${fieldHint}`.trim(),
+        err.fields,
       );
     }
   } catch {

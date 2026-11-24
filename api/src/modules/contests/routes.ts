@@ -3,6 +3,7 @@ import {
   requireAuth,
   requireUser,
   requireOrgAccess,
+  requireRole,
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -45,7 +46,7 @@ contestsRouter.patch(
 );
 contestsRouter.delete(
   '/:id',
-  requireOrgAccess('full'),
+  requireRole('super_admin'),
   validate({ params: idParamSchema, body: confirmPasswordSchema }),
   controller.remove,
 );

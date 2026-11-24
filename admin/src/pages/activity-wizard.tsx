@@ -53,7 +53,7 @@ import { useLeaveGuard } from '@/hooks/use-leave-guard';
 import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
-import { canEditKind, canFullKind, isSuperAdmin } from '@/lib/access';
+import { canEditKind, canFullKind } from '@/lib/access';
 import { cn } from '@/lib/utils';
 import { QuizQuestionsPanel } from '@/pages/quiz-questions-panel';
 import {
@@ -258,7 +258,6 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canEdit = canEditKind(membership, kind);
   const canFull = canFullKind(membership, kind);
-  const superAdmin = isSuperAdmin(membership);
   const activityIdParam = params.activityId ?? '';
   const isQuiz = kind === 'quiz';
   const noun = isQuiz ? 'Quiz' : 'Assessment';
@@ -739,8 +738,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   }
 
   async function handleDeleteActivity() {
-    const canDelete = isQuiz ? canFull : superAdmin;
-    if (!canDelete || !activityId) return;
+    if (!canFull || !activityId) return;
     const password = await confirmSensitiveDelete(confirm, {
       title: `Delete this ${noun.toLowerCase()}?`,
       description: `Permanently removes this ${noun.toLowerCase()}. This cannot be undone.`,
@@ -774,7 +772,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
   }
 
   async function handleDeleteRound(round: RoundDraft, index: number) {
-    if (!superAdmin || !activityId || !round.id) return;
+    if (!canFull || !activityId || !round.id) return;
     if (rounds.length <= 1) {
       toast.error('Every assessment needs at least one round.');
       return;
@@ -1153,13 +1151,13 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                             variant="outline"
                             size="icon"
                             disabled={rounds.length <= 1 || saving}
-                            aria-label={superAdmin && round.id ? 'Delete round' : 'Remove round'}
+                            aria-label={canFull && round.id ? 'Delete round' : 'Remove round'}
                             onClick={() => {
                               if (rounds.length <= 1) {
                                 toast.error('Every assessment needs at least one round.');
                                 return;
                               }
-                              if (superAdmin && round.id) {
+                              if (canFull && round.id) {
                                 void handleDeleteRound(round, index);
                                 return;
                               }
@@ -2407,7 +2405,7 @@ export function ActivityWizardPage({ kind, mode }: { kind: ActivityKind; mode: W
                       Archive
                     </Button>
                   ) : null}
-                  {((isQuiz && canFull) || (!isQuiz && superAdmin)) && activityId ? (
+                  {canFull && activityId ? (
                     <Button
                       type="button"
                       variant="ghost"

@@ -11,6 +11,9 @@ import { assertActivityAccess } from '../activities/service.js';
 import {
   normalizeEmail,
   normalizeMobile,
+  activitiesFor,
+  normalizeFields,
+  normalizeRules,
   validateAnswers,
   type AnswerValue,
   type FormField,
@@ -284,12 +287,7 @@ export async function assign(
 const MOBILE_RE = /^[6-9]\d{9}$/;
 
 function formFields(value: unknown): FormField[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is FormField => {
-    if (!item || typeof item !== 'object') return false;
-    const row = item as Partial<FormField>;
-    return typeof row.id === 'string' && typeof row.key === 'string';
-  });
+  return normalizeFields(value);
 }
 
 function answerText(
@@ -350,7 +348,14 @@ export async function createManual(
   if ('formId' in input) {
     const form = await prisma.contestRegistrationForm.findFirst({
       where: { organizationId, id: input.formId, status: 'saved' },
-      select: { id: true, fields: true, quizzes: { select: { activityId: true } } },
+      select: {
+        id: true,
+        fields: true,
+        assignmentMode: true,
+        rules: true,
+        fallbackActivityIds: true,
+        quizzes: { select: { activityId: true } },
+      },
     });
     if (!form) throw notFound('Registration form not found.');
     if (!form.quizzes.some((quiz) => quiz.activityId === activity.id)) {
@@ -368,7 +373,16 @@ export async function createManual(
     if (phone && !MOBILE_RE.test(phone)) {
       throw badRequest('Enter a 10-digit mobile number.');
     }
-    for (const quiz of form.quizzes) activityIds.add(quiz.activityId);
+    // Same activities the person would get by registering through the link.
+    const given = activitiesFor({
+      mode: form.assignmentMode,
+      defaultActivityIds: form.quizzes.map((quiz) => quiz.activityId),
+      rules: normalizeRules(form.rules),
+      fallbackActivityIds: form.fallbackActivityIds,
+      fields,
+      answers: input.answers,
+    });
+    for (const id of given) activityIds.add(id);
     formId = form.id;
     answers = storedAnswers(fields, input.answers);
   } else {

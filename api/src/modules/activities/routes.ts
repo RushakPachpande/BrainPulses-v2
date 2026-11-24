@@ -4,7 +4,6 @@ import {
   requireUser,
   requireKindAccess,
   requireOrgAccess,
-  requireRole,
   withTenantContext,
 } from '../../middleware/auth.js';
 import { validate } from '../../middleware/validate.js';
@@ -116,7 +115,7 @@ activitiesRouter.delete(
 );
 activitiesRouter.delete(
   '/:id/rounds/:roundId',
-  requireRole('super_admin'),
+  requireOrgAccess('full'),
   validate({ params: roundIdParamSchema, body: confirmPasswordSchema }),
   controller.deleteRound,
 );

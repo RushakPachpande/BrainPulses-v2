@@ -114,6 +114,17 @@ enum ContestMatchRule {
   contact_only
 }
 
+enum ContestAssignmentMode {
+  all
+  rules
+}
+
+enum ContestThankYouKind {
+  template
+  custom
+  image
+}
+
 model Organization {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
@@ -686,9 +697,24 @@ model ContestRegistrationForm {
   domainRestriction      Boolean           @default(false) @map("domain_restriction")
   allowedDomains         String[]          @default([]) @map("allowed_domains")
   domainMessage          String            @default("Please use your {domains} email address to register.") @map("domain_message") @db.VarChar(160)
-  keepExistingId         Boolean           @default(true) @map("keep_existing_id")
-  matchRule              ContestMatchRule  @default(name_and_contact) @map("match_rule")
-  createdByUserId        String?           @map("created_by_user_id") @db.Uuid
+  keepExistingId         Boolean             @default(true) @map("keep_existing_id")
+  matchRule              ContestMatchRule    @default(name_and_contact) @map("match_rule")
+  /// all = everyone gets the ticked activities (contest_form_quizzes). rules = by answers.
+  assignmentMode         ContestAssignmentMode @default(all) @map("assignment_mode")
+  /// AssignmentRule[]: conditions on choice-field option IDs, plus the activities to give.
+  rules                  Json                @default("[]")
+  /// Rules mode: given to people who match no rule.
+  fallbackActivityIds    String[]            @default([]) @map("fallback_activity_ids")
+  thankYouEnabled        Boolean             @default(false) @map("thank_you_enabled")
+  thankYouKind           ContestThankYouKind @default(template) @map("thank_you_kind")
+  thankYouTitle          String?             @map("thank_you_title") @db.VarChar(120)
+  thankYouHtml           String?             @map("thank_you_html") @db.Text
+  thankYouImageFileId    String?             @map("thank_you_image_file_id") @db.Uuid
+  thankYouShowNextSteps  Boolean             @default(false) @map("thank_you_show_next_steps")
+  thankYouShowQuizzes    Boolean             @default(false) @map("thank_you_show_quizzes")
+  thankYouButtonLabel    String?             @map("thank_you_button_label") @db.VarChar(80)
+  thankYouButtonUrl      String?             @map("thank_you_button_url") @db.VarChar(500)
+  createdByUserId        String?             @map("created_by_user_id") @db.Uuid
   updatedByUserId        String?           @map("updated_by_user_id") @db.Uuid
   createdAt              DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
@@ -696,12 +722,14 @@ model ContestRegistrationForm {
   organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sponsor      Sponsor?                @relation(fields: [sponsorId], references: [id], onDelete: Restrict)
   contest      Contest?                @relation(fields: [contestId], references: [id], onDelete: Restrict)
-  createdBy    User?                   @relation("ContestFormCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  updatedBy    User?                   @relation("ContestFormUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
-  quizzes      ContestFormQuiz[]
-  submissions  ContestFormSubmission[]
+  createdBy     User?                   @relation("ContestFormCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy     User?                   @relation("ContestFormUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  thankYouImage FileObject?             @relation("ContestFormThankYouImage", fields: [thankYouImageFileId], references: [id], onDelete: SetNull)
+  quizzes       ContestFormQuiz[]
+  submissions   ContestFormSubmission[]
 
   @@index([organizationId, createdAt])
+  @@index([organizationId, thankYouImageFileId])
   @@map("contest_registration_forms")
 }
 
@@ -774,8 +802,9 @@ model FileObject {
   uploadedBy     User?        @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   sponsorImages  Sponsor[]    @relation("SponsorImage")
   contestImages  Contest[]    @relation("ContestImage")
-  activityImages Activity[]      @relation("ActivityImage")
-  roundImages    ActivityRound[] @relation("RoundImage")
+  activityImages            Activity[]                @relation("ActivityImage")
+  roundImages               ActivityRound[]           @relation("RoundImage")
+  contestFormThankYouImages ContestRegistrationForm[] @relation("ContestFormThankYouImage")
 
   @@index([organizationId, createdAt])
   @@map("file_objects")

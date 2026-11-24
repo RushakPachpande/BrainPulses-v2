@@ -1,19 +1,31 @@
 # Dependencies & build
-node_modules
-dist
-coverage
+node_modules/
+dist/
+coverage/
 *.tsbuildinfo
+.cache/
+.eslintcache
 
-# Lockfile (npm owns this)
+# Lockfiles (package managers own these)
 package-lock.json
+pnpm-lock.yaml
+yarn.lock
 
-# Env
+# Env & secrets
 .env
 .env.*
 !.env.example
+!.env.*.example
 
-# Runtime / generated
-uploads
-src/generated
-prisma/migrations
-graphify-out
+# Generated / runtime (do not reformat)
+graphify-out/
+uploads/
+src/generated/
+**/generated/
+prisma/migrations/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.log
+logs/

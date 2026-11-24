@@ -734,6 +734,79 @@ body.dk2 .register-screen .submit {
   margin-top: 20px;
 }
 
+.register-screen .done-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.register-screen .done-actions .next {
+  margin-top: 0;
+}
+
+.register-screen .thanks-image {
+  display: block;
+  width: min(100%, 28rem);
+  height: auto;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+}
+
+.register-screen .thanks-copy {
+  margin: 8px auto 0;
+  max-width: 40rem;
+  text-align: left;
+}
+
+.register-screen .thanks-copy :is(ul, ol) {
+  padding-left: 1.25rem;
+}
+
+.register-screen .thanks-steps {
+  margin: 16px auto 0;
+  max-width: 40rem;
+  padding: 0;
+  text-align: left;
+  list-style: none;
+}
+
+.register-screen .thanks-steps li + li {
+  margin-top: 10px;
+}
+
+.register-screen .thanks-steps span {
+  display: block;
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.register-screen .thanks-quizzes {
+  margin: 16px auto 0;
+  max-width: 40rem;
+  text-align: left;
+}
+
+.register-screen .thanks-quizzes ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.register-screen .thanks-quizzes li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--card-line);
+}
+
+.register-screen .thanks-quizzes span {
+  color: var(--muted);
+}
+
 .register-screen .state-ic {
   width: 60px;
   height: 60px;
@@ -887,4 +960,31 @@ body.dk2 .register-select .select-item[data-highlighted] {
     transform: none;
     animation: none;
   }
+}
+
+/* Content blocks on the registration form: heading, text, image, divider. */
+.register-screen .form-heading {
+  margin: 20px 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.register-screen .form-text {
+  margin: 4px 0 12px;
+  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.register-screen .form-divider {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.register-screen .form-image {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  margin: 8px 0 16px;
+  border-radius: 12px;
+  object-fit: contain;
 }

@@ -4,6 +4,7 @@ import type {
   ContestFormQuiz,
   ContestFormRecord,
   ContestFormRegistrant,
+  ContestFormRegistrantDetail,
 } from '@/lib/contest-form';
 
 export type SaveContestFormPayload = {
@@ -25,7 +26,20 @@ export type SaveContestFormPayload = {
   domainMessage?: string;
   keepExistingId?: boolean;
   matchRule?: ContestFormRecord['matchRule'];
+  /** Default Assignment: the activities everyone gets. */
   quizIds?: string[];
+  assignmentMode?: ContestFormRecord['assignmentMode'];
+  rules?: ContestFormRecord['rules'];
+  fallbackActivityIds?: string[];
+  thankYouEnabled?: boolean;
+  thankYouKind?: ContestFormRecord['thankYouKind'];
+  thankYouTitle?: string | null;
+  thankYouHtml?: string | null;
+  thankYouImageFileId?: string | null;
+  thankYouShowNextSteps?: boolean;
+  thankYouShowQuizzes?: boolean;
+  thankYouButtonLabel?: string | null;
+  thankYouButtonUrl?: string | null;
 };
 
 export function getContestFormOverview(signal?: AbortSignal) {
@@ -38,6 +52,28 @@ export function getContestForm(id: string, signal?: AbortSignal) {
 
 export function getContestFormRegistrants(id: string, signal?: AbortSignal) {
   return apiGetData<ContestFormRegistrant[]>(`/api/contest-forms/${id}/registrants`, { signal });
+}
+
+export function getContestFormRegistrant(
+  formId: string,
+  submissionId: string,
+  signal?: AbortSignal,
+) {
+  return apiGetData<ContestFormRegistrantDetail>(
+    `/api/contest-forms/${formId}/registrants/${submissionId}`,
+    { signal },
+  );
+}
+
+export function updateContestFormRegistrant(
+  formId: string,
+  submissionId: string,
+  answers: Record<string, string | string[] | boolean>,
+) {
+  return apiPatchData<ContestFormRegistrantDetail>(
+    `/api/contest-forms/${formId}/registrants/${submissionId}`,
+    { answers },
+  );
 }
 
 export function getContestQuizzes(contestId: string, signal?: AbortSignal) {
@@ -72,4 +108,9 @@ export function giveContestFormQuizzes(id: string, activityIds: string[]) {
     `/api/contest-forms/${id}/quizzes`,
     { activityIds },
   );
+}
+
+/** Checks the signed-in admin's password before editing a saved form or unlocking contact fields. */
+export function confirmContestFormPassword(password: string) {
+  return apiPostData<{ confirmed: true }>('/api/contest-forms/confirm-password', { password });
 }

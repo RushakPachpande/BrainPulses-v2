@@ -86,7 +86,7 @@ export function DashboardPage() {
                   <Button asChild variant="outline">
                     <Link to="/participants">
                       <UploadIcon data-icon="inline-start" />
-                      Upload Participants
+                      Registration Forms
                     </Link>
                   </Button>
                 ) : null}

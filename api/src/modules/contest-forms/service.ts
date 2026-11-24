@@ -5,20 +5,29 @@ import { invalidateDashboard } from '../../lib/cache.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { prisma } from '../../lib/prisma.js';
 import { nextRegistrationId } from '../../lib/registration-id.js';
+import { placeOwnedImage } from '../files/place.js';
 import { readInlineImage } from '../files/service.js';
 import type { SaveFormInput } from './schema.js';
 import {
   type AnswerValue,
+  type AssignmentMode,
   type FormField,
+  activitiesFor,
   cleanDomain,
   defaultFields,
   domainMessagePreview,
   emailDomain,
   findReturningParticipant,
+  formActivityIds,
+  normalizeFields,
+  normalizeRules,
+  ruleReferenceIssues,
   normalizeEmail,
   normalizeMobile,
   normalizeName,
+  publicThankYou,
   quizAvailability,
+  sanitizeThankYouHtml,
   slugifyContest,
   validateAnswers,
   validateForm,
@@ -49,7 +58,26 @@ async function loadForm(organizationId: string, id: string) {
 }
 
 function asFields(value: unknown): FormField[] {
-  return Array.isArray(value) ? (value as FormField[]) : [];
+  return normalizeFields(value);
+}
+
+/** The assignment settings stored on a form row. */
+function assignmentOf(row: {
+  assignmentMode: AssignmentMode;
+  rules: unknown;
+  fallbackActivityIds: string[];
+  quizzes: { activityId: string }[];
+}) {
+  const mode = row.assignmentMode;
+  const rules = normalizeRules(row.rules);
+  const all = row.quizzes.map((quiz) => quiz.activityId);
+  return {
+    mode,
+    rules,
+    fallbackActivityIds: row.fallbackActivityIds,
+    // In "all" mode the form's activity list is the ticked list.
+    defaultActivityIds: mode === 'all' ? all : [],
+  };
 }
 
 function mapQuiz(
@@ -105,6 +133,18 @@ function mapForm(row: NonNullable<FormRow>, now = new Date()) {
     domainMessage: row.domainMessage,
     keepExistingId: row.keepExistingId,
     matchRule: row.matchRule,
+    assignmentMode: row.assignmentMode,
+    rules: normalizeRules(row.rules),
+    fallbackActivityIds: row.fallbackActivityIds,
+    thankYouEnabled: row.thankYouEnabled,
+    thankYouKind: row.thankYouKind,
+    thankYouTitle: row.thankYouTitle,
+    thankYouHtml: row.thankYouHtml,
+    thankYouImageFileId: row.thankYouImageFileId,
+    thankYouShowNextSteps: row.thankYouShowNextSteps,
+    thankYouShowQuizzes: row.thankYouShowQuizzes,
+    thankYouButtonLabel: row.thankYouButtonLabel,
+    thankYouButtonUrl: row.thankYouButtonUrl,
     registrationCount: row._count.submissions,
     quizzes,
     createdAt: row.createdAt,
@@ -247,8 +287,47 @@ function dataFromInput(input: SaveFormInput, status: 'draft' | 'saved') {
     ...(input.domainMessage !== undefined ? { domainMessage: input.domainMessage } : {}),
     ...(input.keepExistingId !== undefined ? { keepExistingId: input.keepExistingId } : {}),
     ...(input.matchRule !== undefined ? { matchRule: input.matchRule } : {}),
+    ...(input.assignmentMode !== undefined ? { assignmentMode: input.assignmentMode } : {}),
+    ...(input.rules !== undefined ? { rules: normalizeRules(input.rules) } : {}),
+    ...(input.fallbackActivityIds !== undefined
+      ? { fallbackActivityIds: [...new Set(input.fallbackActivityIds)] }
+      : {}),
+    ...(input.thankYouEnabled !== undefined ? { thankYouEnabled: input.thankYouEnabled } : {}),
+    ...(input.thankYouKind !== undefined ? { thankYouKind: input.thankYouKind } : {}),
+    ...(input.thankYouTitle !== undefined
+      ? { thankYouTitle: blankToNull(input.thankYouTitle) }
+      : {}),
+    ...(input.thankYouHtml !== undefined
+      ? { thankYouHtml: storedThankYouHtml(input.thankYouHtml) }
+      : {}),
+    ...(input.thankYouImageFileId !== undefined
+      ? { thankYouImageFileId: input.thankYouImageFileId }
+      : {}),
+    ...(input.thankYouShowNextSteps !== undefined
+      ? { thankYouShowNextSteps: input.thankYouShowNextSteps }
+      : {}),
+    ...(input.thankYouShowQuizzes !== undefined
+      ? { thankYouShowQuizzes: input.thankYouShowQuizzes }
+      : {}),
+    ...(input.thankYouButtonLabel !== undefined
+      ? { thankYouButtonLabel: blankToNull(input.thankYouButtonLabel) }
+      : {}),
+    ...(input.thankYouButtonUrl !== undefined
+      ? { thankYouButtonUrl: blankToNull(input.thankYouButtonUrl) }
+      : {}),
     status,
   };
+}
+
+function blankToNull(value: string | null | undefined) {
+  const trimmed = value?.trim() ?? '';
+  return trimmed ? trimmed : null;
+}
+
+function storedThankYouHtml(value: string | null | undefined) {
+  if (!value?.trim()) return null;
+  const clean = sanitizeThankYouHtml(value);
+  return clean || null;
 }
 
 export async function listOverview(organizationId: string) {
@@ -303,11 +382,145 @@ export async function listFormRegistrants(organizationId: string, formId: string
   return submissions.map((row) => ({
     id: row.id,
     formId,
+    participantId: row.participantId,
     code: row.participant.code,
     name: row.participant.name,
     email: row.participant.email,
     registeredAt: row.createdAt.toISOString(),
   }));
+}
+
+const MOBILE_RE = /^[6-9]\d{9}$/;
+
+function answerText(
+  fields: FormField[],
+  answers: Record<string, AnswerValue>,
+  key: string,
+): string {
+  const field = fields.find((item) => !item.deleted && item.key === key);
+  if (!field) return '';
+  const value = answers[field.id];
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function storedAnswers(fields: FormField[], answers: Record<string, AnswerValue>) {
+  const stored: Record<string, string | string[] | boolean> = {};
+  for (const field of fields) {
+    if (field.deleted) continue;
+    const value = answers[field.id];
+    if (typeof value === 'string' || typeof value === 'boolean' || Array.isArray(value)) {
+      stored[field.id] = value;
+    }
+  }
+  return stored;
+}
+
+function rejectAnswerIssues(issues: { field: string; message: string }[]) {
+  if (issues.length === 0) return;
+  const fields: Record<string, string> = {};
+  for (const issue of issues) {
+    if (!fields[issue.field]) fields[issue.field] = issue.message;
+  }
+  throw badRequest('Check the registration form and try again.', fields);
+}
+
+export async function getFormRegistrant(
+  organizationId: string,
+  formId: string,
+  submissionId: string,
+) {
+  const form = await loadForm(organizationId, formId);
+  const submission = await prisma.contestFormSubmission.findFirst({
+    where: { organizationId, formId, id: submissionId },
+    include: {
+      participant: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          phone: true,
+        },
+      },
+    },
+  });
+  if (!submission) throw notFound('Registration not found.');
+  const fields = asFields(form.fields);
+  return {
+    id: submission.id,
+    formId,
+    participantId: submission.participantId,
+    code: submission.participant.code,
+    name: submission.participant.name,
+    firstName: submission.participant.firstName,
+    lastName: submission.participant.lastName,
+    email: submission.participant.email,
+    phone: submission.participant.phone,
+    registeredAt: submission.createdAt.toISOString(),
+    answers: (submission.answers ?? {}) as Record<string, AnswerValue>,
+    fields,
+  };
+}
+
+export async function updateFormRegistrant(
+  organizationId: string,
+  actorUserId: string,
+  formId: string,
+  submissionId: string,
+  answers: Record<string, AnswerValue>,
+) {
+  const form = await loadForm(organizationId, formId);
+  const submission = await prisma.contestFormSubmission.findFirst({
+    where: { organizationId, formId, id: submissionId },
+    select: { id: true, participantId: true },
+  });
+  if (!submission) throw notFound('Registration not found.');
+  const fields = asFields(form.fields);
+  rejectAnswerIssues(validateAnswers(fields, answers));
+  const firstName = answerText(fields, answers, 'first_name');
+  const lastName = answerText(fields, answers, 'last_name');
+  const email = normalizeEmail(answerText(fields, answers, 'email'));
+  const phone = normalizeMobile(answerText(fields, answers, 'mobile'));
+  if (!firstName || !email) {
+    throw badRequest('This form needs a first name and an email.');
+  }
+  if (phone && !MOBILE_RE.test(phone)) {
+    throw badRequest('Enter a 10-digit mobile number.');
+  }
+  const name = `${firstName} ${lastName}`.trim();
+  const stored = storedAnswers(fields, answers);
+  await prisma.$transaction(async (tx) => {
+    await tx.contestFormSubmission.update({
+      where: { id: submission.id },
+      data: {
+        email,
+        mobile: MOBILE_RE.test(phone) ? phone : null,
+        answers: stored,
+      },
+    });
+    await tx.participant.update({
+      where: { id: submission.participantId },
+      data: {
+        name,
+        firstName,
+        lastName: lastName || null,
+        email,
+        phone: MOBILE_RE.test(phone) ? phone : null,
+      },
+    });
+  });
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'contest_form.registrant_update',
+    targetType: 'contest_form_submission',
+    targetId: submissionId,
+    metadata: { formId, participantId: submission.participantId },
+  });
+  return getFormRegistrant(organizationId, formId, submissionId);
 }
 
 export async function listContestQuizzes(organizationId: string, contestId: string) {
@@ -324,6 +537,11 @@ export async function createForm(organizationId: string, userId: string, input: 
   const domains = normalizeDomains(input.allowedDomains);
   const payload = { ...input, allowedDomains: domains ?? input.allowedDomains };
   assertIssues(validateForm(payload));
+  if (input.mode === 'step1') {
+    assertIssues(ruleReferenceIssues(payload.fields ?? [], input.rules ?? []));
+  }
+  await assertThankYouImage(organizationId, input.thankYouImageFileId);
+  await assertFieldImages(organizationId, payload.fields ?? []);
   const contest = await assertSponsorContest(organizationId, input.sponsorId, input.contestId);
   const status = input.mode === 'save' ? 'saved' : 'draft';
   const slug =
@@ -339,7 +557,14 @@ export async function createForm(organizationId: string, userId: string, input: 
     },
     include: formInclude,
   });
-  await replaceQuizzes(organizationId, row.id, input.quizIds, row.contestId, new Date());
+  await replaceQuizzes(
+    organizationId,
+    row.id,
+    activityListFromInput(input),
+    row.contestId,
+    new Date(),
+  );
+  await placeFormImages(organizationId, row.id);
   if (status === 'saved') await assignSavedForm(organizationId, row.id);
   await writeAudit({
     organizationId,
@@ -369,6 +594,7 @@ export async function updateForm(
     allowedDomains: domains ?? input.allowedDomains,
     fields: input.fields ?? asFields(existing.fields),
   };
+  await assertThankYouImage(organizationId, input.thankYouImageFileId);
   assertIssues(
     validateForm({
       ...payload,
@@ -382,8 +608,17 @@ export async function updateForm(
       domainRestriction: payload.domainRestriction ?? existing.domainRestriction,
       allowedDomains: payload.allowedDomains ?? existing.allowedDomains,
       domainMessage: payload.domainMessage ?? existing.domainMessage,
+      assignmentMode: payload.assignmentMode ?? existing.assignmentMode,
+      rules: payload.rules ?? normalizeRules(existing.rules),
     }),
   );
+  if (input.mode !== 'draft') {
+    // A field or option used by a rule can't be removed while the rule uses it.
+    assertIssues(
+      ruleReferenceIssues(payload.fields ?? [], payload.rules ?? normalizeRules(existing.rules)),
+    );
+  }
+  await assertFieldImages(organizationId, payload.fields ?? []);
   const contest = await assertSponsorContest(organizationId, sponsorId, contestId, id);
   const status = input.mode === 'save' ? 'saved' : existing.status;
   let slug = existing.slug;
@@ -400,14 +635,19 @@ export async function updateForm(
       updatedByUserId: userId,
     },
   });
+  const before = existing.quizzes.map((quiz) => quiz.activityId);
   const removed = await replaceQuizzes(
     organizationId,
     id,
-    input.quizIds,
+    activityListFromInput(input, assignmentOf(existing)),
     contestId ?? null,
     new Date(),
   );
-  if (status === 'saved') await assignSavedForm(organizationId, id, removed);
+  await placeFormImages(organizationId, id);
+  let kept = 0;
+  if (status === 'saved') {
+    kept = await assignSavedForm(organizationId, id, [...before, ...removed]);
+  }
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -415,6 +655,7 @@ export async function updateForm(
     action: 'contest_form.update',
     targetType: 'contest_form',
     targetId: id,
+    metadata: { startedActivitiesKept: kept },
   });
   return mapForm(await loadForm(organizationId, id));
 }
@@ -424,7 +665,8 @@ function normalizeDomains(domains: string[] | undefined) {
   const cleaned: string[] = [];
   for (const domain of domains) {
     const next = cleanDomain(domain);
-    if (!next) throw badRequest(`"${domain}" isn't a valid domain. Use a form like infosys.com.`);
+    if (!next)
+      throw badRequest(`"${domain}" isn't a valid domain. Use a form like brainpulses.com.`);
     if (!cleaned.includes(next)) cleaned.push(next);
   }
   return cleaned;
@@ -465,37 +707,102 @@ export async function regenerateLink(organizationId: string, userId: string, id:
   return mapForm(await loadForm(organizationId, id));
 }
 
+/**
+ * Gives everyone who registered the activities the form now says they should have.
+ * Activities the form used to give and no longer gives them are taken back, except ones
+ * the person has already started: those always stay.
+ * Returns how many started activities were kept that the rules no longer give.
+ */
 async function assignSavedForm(
   organizationId: string,
   formId: string,
-  removedActivityIds: string[] = [],
+  previousActivityIds: string[] = [],
 ) {
-  const [links, submissions] = await Promise.all([
-    prisma.contestFormQuiz.findMany({
-      where: { organizationId, formId },
-      select: { activityId: true },
-    }),
-    prisma.contestFormSubmission.findMany({
-      where: { organizationId, formId },
-      select: { participantId: true },
-    }),
-  ]);
-  const activityIds = links.map((link) => link.activityId);
-  const participantIds = submissions.map((submission) => submission.participantId);
+  const form = await prisma.contestRegistrationForm.findFirst({
+    where: { organizationId, id: formId },
+    select: {
+      fields: true,
+      assignmentMode: true,
+      rules: true,
+      fallbackActivityIds: true,
+      quizzes: { select: { activityId: true } },
+    },
+  });
+  if (!form) return 0;
+  const submissions = await prisma.contestFormSubmission.findMany({
+    where: { organizationId, formId },
+    select: { participantId: true, answers: true },
+  });
+  if (submissions.length === 0) return 0;
+  const config = assignmentOf(form);
+  const fields = asFields(form.fields);
+  const removable = new Set([...previousActivityIds, ...formActivityIds(config)]);
+  const participantIds = submissions.map((row) => row.participantId);
+  const attempts = await prisma.attempt.findMany({
+    where: {
+      organizationId,
+      participantId: { in: participantIds },
+      activityId: { in: [...removable] },
+    },
+    select: { participantId: true, activityId: true },
+  });
+  const started = new Set(attempts.map((row) => `${row.participantId}:${row.activityId}`));
+  let kept = 0;
   for (const submission of submissions) {
-    await assignQuizzes(organizationId, submission.participantId, activityIds);
-  }
-  if (removedActivityIds.length > 0 && participantIds.length > 0) {
-    await prisma.registration.updateMany({
-      where: {
-        organizationId,
-        activityId: { in: removedActivityIds },
-        participantId: { in: participantIds },
-        status: 'assigned',
-      },
-      data: { status: 'unassigned', assignedAt: null },
+    const target = activitiesFor({
+      ...config,
+      fields,
+      answers: (submission.answers ?? {}) as Record<string, AnswerValue>,
     });
+    await assignQuizzes(organizationId, submission.participantId, target);
+    const takeBack = [...removable].filter((activityId) => {
+      if (target.includes(activityId)) return false;
+      if (started.has(`${submission.participantId}:${activityId}`)) {
+        kept += 1;
+        return false;
+      }
+      return true;
+    });
+    if (takeBack.length > 0) {
+      await prisma.registration.updateMany({
+        where: {
+          organizationId,
+          participantId: submission.participantId,
+          activityId: { in: takeBack },
+          status: 'assigned',
+        },
+        data: { status: 'unassigned', assignedAt: null },
+      });
+    }
   }
+  return kept;
+}
+
+/** The activity list to store for the form: the ticked list, or everything the rules can give. */
+function activityListFromInput(
+  input: SaveFormInput,
+  existing?: ReturnType<typeof assignmentOf>,
+): string[] | undefined {
+  const mode = input.assignmentMode ?? existing?.mode ?? 'all';
+  if (mode === 'all') {
+    if (input.quizIds !== undefined) return input.quizIds;
+    // Switching from rules back to the ticked list without sending one: start empty.
+    if (input.assignmentMode === 'all' && existing?.mode === 'rules') return [];
+    return undefined;
+  }
+  if (
+    input.rules === undefined &&
+    input.fallbackActivityIds === undefined &&
+    existing?.mode === 'rules'
+  ) {
+    return undefined;
+  }
+  return formActivityIds({
+    mode: 'rules',
+    defaultActivityIds: [],
+    rules: input.rules ?? existing?.rules ?? [],
+    fallbackActivityIds: input.fallbackActivityIds ?? existing?.fallbackActivityIds ?? [],
+  });
 }
 
 async function assignQuizzes(organizationId: string, participantId: string, activityIds: string[]) {
@@ -511,7 +818,7 @@ async function assignQuizzes(organizationId: string, participantId: string, acti
         status: 'assigned',
         assignedAt: new Date(),
       },
-      update: { status: 'assigned', assignedAt: new Date() },
+      update: { status: 'assigned' },
     });
   }
 }
@@ -525,6 +832,11 @@ export async function giveQuizzes(
   const existing = await loadForm(organizationId, id);
   if (existing.status !== 'saved' || !existing.contestId) {
     throw badRequest('Save the registration form before giving a quiz.');
+  }
+  if (existing.assignmentMode === 'rules') {
+    throw badRequest(
+      'This form gives activities by rules. Add the activity to a rule or the fallback in Step 2.',
+    );
   }
   const before = new Set(existing.quizzes.map((quiz) => quiz.activityId));
   const added = activityIds.filter((activityId) => !before.has(activityId));
@@ -602,15 +914,101 @@ export async function publicForm(slug: string) {
       domainRestriction: form.domainRestriction,
       allowedDomains: form.domainRestriction ? form.allowedDomains : [],
       domainMessage: form.domainMessage,
+      thankYou: publicThankYou({
+        enabled: form.thankYouEnabled,
+        kind: form.thankYouKind,
+        title: form.thankYouTitle,
+        html: form.thankYouHtml,
+        hasImage: Boolean(form.thankYouImageFileId),
+        showNextSteps: form.thankYouShowNextSteps,
+        showQuizzes: form.thankYouShowQuizzes,
+        quizzes: form.quizzes
+          .filter((quiz) => quiz.kind === 'quiz' || quiz.kind === 'assessment')
+          .map((quiz) => ({
+            id: quiz.id,
+            name: quiz.name,
+            kind: quiz.kind as 'quiz' | 'assessment',
+          })),
+        buttonLabel: form.thankYouButtonLabel,
+        buttonUrl: form.thankYouButtonUrl,
+      }),
     },
   };
 }
 
-export async function publicImage(slug: string, which: 'contest' | 'sponsor') {
+async function assertThankYouImage(organizationId: string, fileId: string | null | undefined) {
+  if (!fileId) return;
+  const file = await prisma.fileObject.findFirst({
+    where: { organizationId, id: fileId },
+    select: { id: true, mimeType: true },
+  });
+  if (!file || !file.mimeType.startsWith('image/')) {
+    throw badRequest('Choose an image for the thank-you message.', {
+      thankYouImageFileId: 'Choose an image for the thank-you message.',
+    });
+  }
+}
+
+/** Moves the thank-you image and any image blocks into the form's folder. */
+async function placeFormImages(organizationId: string, formId: string) {
+  const row = await prisma.contestRegistrationForm.findFirst({
+    where: { organizationId, id: formId },
+    select: { thankYouImageFileId: true, fields: true, contest: { select: { name: true } } },
+  });
+  if (!row) return;
+  const fileIds = [
+    row.thankYouImageFileId,
+    ...asFields(row.fields).map((field) => (field.type === 'image' ? field.imageFileId : null)),
+  ].filter((id): id is string => Boolean(id));
+  for (const fileId of new Set(fileIds)) {
+    await placeOwnedImage(organizationId, fileId, {
+      kind: 'contest-form',
+      contestName: row.contest?.name || 'form',
+      formId,
+    });
+  }
+}
+
+async function assertFieldImages(organizationId: string, fields: FormField[]) {
+  const ids = fields
+    .filter((field) => field.type === 'image' && field.imageFileId && !field.deleted)
+    .map((field) => field.imageFileId as string);
+  if (ids.length === 0) return;
+  const files = await prisma.fileObject.findMany({
+    where: { organizationId, id: { in: ids } },
+    select: { id: true, mimeType: true },
+  });
+  const ok = new Set(files.filter((file) => file.mimeType.startsWith('image/')).map((f) => f.id));
+  const bad = fields.find(
+    (field) => field.type === 'image' && field.imageFileId && !ok.has(field.imageFileId),
+  );
+  if (bad) {
+    throw badRequest('Choose an image for the image block.', {
+      [bad.id]: 'Choose an image for the image block.',
+    });
+  }
+}
+
+/** An image block on a live form. */
+export async function publicFieldImage(slug: string, fieldId: string) {
   const found = await formBySlug(slug);
   if (!found.form || found.retired || !found.form.linkActive) throw notFound('Image not found.');
-  const fileId =
-    which === 'contest' ? found.form.contest?.imageFileId : found.form.sponsor?.imageFileId;
+  const field = asFields(found.form.fields).find(
+    (item) => item.id === fieldId && item.type === 'image' && !item.deleted,
+  );
+  if (!field?.imageFileId) throw notFound('Image not found.');
+  return readInlineImage(found.form.organizationId, field.imageFileId);
+}
+
+export async function publicImage(slug: string, which: 'contest' | 'sponsor' | 'thank-you') {
+  const found = await formBySlug(slug);
+  if (!found.form || found.retired || !found.form.linkActive) throw notFound('Image not found.');
+  let fileId: string | null | undefined;
+  if (which === 'contest') fileId = found.form.contest?.imageFileId;
+  else if (which === 'sponsor') fileId = found.form.sponsor?.imageFileId;
+  else if (found.form.thankYouEnabled && found.form.thankYouKind === 'image') {
+    fileId = found.form.thankYouImageFileId;
+  }
   if (!fileId) throw notFound('Image not found.');
   return readInlineImage(found.form.organizationId, fileId);
 }
@@ -681,7 +1079,10 @@ export async function register(slug: string, answers: Record<string, AnswerValue
     row.matchRule,
     row.keepExistingId,
   );
-  const activityIds = row.quizzes.map((quiz) => quiz.activityId);
+  const activityIds = activitiesFor({ ...assignmentOf(row), fields, answers });
+  const personActivities = row.quizzes
+    .filter((quiz) => activityIds.includes(quiz.activityId))
+    .map((quiz) => ({ id: quiz.activity.id, name: quiz.activity.name, kind: quiz.activity.kind }));
   if (match) {
     const person = participants.find((item) => item.id === match.id)!;
     const already = await prisma.contestFormSubmission.findFirst({
@@ -693,6 +1094,7 @@ export async function register(slug: string, answers: Record<string, AnswerValue
         outcome: 'already_on_form' as const,
         code: person.code,
         message: "You're already registered. Log in with your Registration ID.",
+        activities: [],
       };
     }
     await prisma.contestFormSubmission.create({
@@ -710,6 +1112,7 @@ export async function register(slug: string, answers: Record<string, AnswerValue
       outcome: 'existing_id' as const,
       code: person.code,
       message: `You're already registered with BrainPulses. Use your existing Registration ID ${person.code} to log in.`,
+      activities: personActivities,
     };
   }
   const sameForm = participants.find(
@@ -727,6 +1130,7 @@ export async function register(slug: string, answers: Record<string, AnswerValue
         outcome: 'already_on_form' as const,
         code: sameForm.code,
         message: "You're already registered. Log in with your Registration ID.",
+        activities: [],
       };
     }
   }
@@ -757,6 +1161,7 @@ export async function register(slug: string, answers: Record<string, AnswerValue
     outcome: 'created' as const,
     code,
     message: 'Use it to log in. Your quizzes appear after you log in.',
+    activities: personActivities,
   };
 }
 

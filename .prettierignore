@@ -1,0 +1,84 @@
+# Dependencies & installs
+node_modules/
+**/node_modules/
+.pnpm-store/
+package-lock.json
+**/package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Build / coverage / caches
+dist/
+**/dist/
+dist-ssr/
+**/dist-ssr/
+build/
+out/
+.next/
+.turbo/
+.vite/
+**/.vite/
+coverage/
+**/*.tsbuildinfo
+.cache/
+.eslintcache
+.stylelintcache
+*.log
+logs/
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+!**/.env.example
+!.env.*.example
+!**/.env.*.example
+
+# Generated / runtime
+graphify-out/
+**/graphify-out/
+**/generated/
+uploads/
+**/uploads/
+to-do/
+
+# Read-only / local tooling (never format)
+references/
+.agents/
+.cursor/
+.stitch/
+
+# Test artifacts
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+
+# OS / editors
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Binary / non-source assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.ico
+*.pdf
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.mp4
+*.webm
+*.zip
+*.gz
+*.tgz

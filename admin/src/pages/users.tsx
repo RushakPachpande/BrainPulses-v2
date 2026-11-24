@@ -439,6 +439,7 @@ export function UsersPage() {
                                 }
                               : undefined
                           }
+                          iconsOnly={narrow}
                         />
                       );
                     }
