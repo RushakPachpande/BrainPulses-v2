@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { useDebouncedValue } from '@/hooks/use-debounced-value';
 import {
   CheckCircle2Icon,
   ChevronLeftIcon,
@@ -139,6 +140,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
     : 'Question banks are reusable across assessments. You can attach a bank to any assessment.';
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkSearch, setBulkSearch] = useState('');
+  const debouncedBulkSearch = useDebouncedValue(bulkSearch);
   const [bulkSelectedId, setBulkSelectedId] = useState<string | null>(null);
 
   const sortColumns: { key: SortKey; label: string }[] = isQuiz
@@ -195,14 +197,14 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
   const [pageSize, setPageSize] = useState('10');
 
   const bulkBanks = useMemo(() => {
-    const q = bulkSearch.trim().toLowerCase();
+    const q = debouncedBulkSearch.trim().toLowerCase();
     if (!q) return banks;
     return banks.filter(
       (bank) =>
         bank.name.toLowerCase().includes(q) ||
         (!isQuiz && bank.description.toLowerCase().includes(q)),
     );
-  }, [banks, bulkSearch, isQuiz]);
+  }, [banks, debouncedBulkSearch, isQuiz]);
 
   function openBulkUpload() {
     setBulkSearch('');

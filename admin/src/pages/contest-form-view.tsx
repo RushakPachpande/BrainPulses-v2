@@ -7,7 +7,6 @@ import {
   ChevronRightIcon,
   CircleHelpIcon,
   ClipboardListIcon,
-  CopyIcon,
   IdCardIcon,
   LinkIcon,
   ListChecksIcon,
@@ -15,12 +14,15 @@ import {
   PlusIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
+  UserPlusIcon,
   UsersIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { GiveQuizDialog } from '@/components/give-quiz-dialog';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
+import { ContestFormShareCard } from '@/components/contest-form-share-card';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
+import { RowActions } from '@/components/row-actions';
 import { StatusPill, type PillTone } from '@/components/status-pill';
 import { Toolbar } from '@/components/toolbar';
 import { Badge } from '@/components/ui/badge';
@@ -35,16 +37,27 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/auth-context';
+import { ApiError } from '@/lib/api-client';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
-import { canMutateOrg } from '@/lib/access';
+import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
 import {
+  FIELD_TYPE_LABEL,
   formatIst,
-  registrationUrl,
+  normalizeFields,
+  ruleSentence,
   type ContestFormQuiz,
   type ContestFormRegistrant,
 } from '@/lib/contest-form';
-import { getContestForm, getContestFormRegistrants } from '@/services/contest-forms';
+import { deleteParticipant } from '@/services';
+import {
+  getContestForm,
+  getContestFormRegistrants,
+  regenerateContestFormLink,
+  updateContestForm,
+} from '@/services/contest-forms';
+import { FormAddRegistrationDialog } from '@/pages/form-add-registration-dialog';
+import { FormRegistrantDialog } from '@/pages/form-registrant-dialog';
 
 const registrantColumns: RecordColumn<ContestFormRegistrant>[] = [
   {
@@ -75,17 +88,6 @@ const registrantColumns: RecordColumn<ContestFormRegistrant>[] = [
   },
 ];
 
-const FIELD_TYPE_LABEL: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  email: 'Email',
-  phone: 'Phone',
-  textarea: 'Textarea',
-  dropdown: 'Dropdown',
-  multi_select: 'Multi-select',
-  consent: 'Consent',
-};
-
 export function ContestFormViewPage() {
   const { formId = '' } = useParams();
   const navigate = useNavigate();
@@ -94,10 +96,15 @@ export function ContestFormViewPage() {
   const { narrow, ref } = useContainerNarrow();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
-  const [giveOpen, setGiveOpen] = useState(false);
+  const canDelete = canManageUsersOrSettings(membership);
+  const confirm = useConfirm();
+  const [linkBusy, setLinkBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
+  const [addOpen, setAddOpen] = useState(false);
+  const [activeRegistrant, setActiveRegistrant] = useState<ContestFormRegistrant | null>(null);
+  const [registrantMode, setRegistrantMode] = useState<'view' | 'edit'>('view');
   const { data, isPending } = useQuery({
     queryKey: ['admin', 'contest-form', formId],
     queryFn: ({ signal }) => getContestForm(formId, signal),
@@ -120,6 +127,33 @@ export function ContestFormViewPage() {
     );
   }, [registrants, search]);
 
+  async function onDeleteRegistration(person: ContestFormRegistrant) {
+    if (!canDelete) return;
+    const password = await confirmSensitiveDelete(confirm, {
+      title: `Delete ${person.name}'s registration?`,
+      description: 'Permanently removes this participant. This cannot be undone.',
+      details: [
+        'Their registrations, attempts, scores, and reports are deleted.',
+        'They are removed from every quiz, assessment, and contest form they are on.',
+        'The live registration link can sign them up again as a new Registration ID.',
+      ],
+      confirmLabel: 'Delete registration',
+    });
+    if (!password) return;
+    try {
+      await deleteParticipant(person.participantId, password);
+      toast.success('Registration deleted.');
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'contest-form-registrants', formId],
+      });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-form', formId] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+      if (activeRegistrant?.id === person.id) setActiveRegistrant(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete registration.');
+    }
+  }
+
   const size = Number(pageSize);
   const pageCount = Math.max(1, Math.ceil(filteredRegistrants.length / size));
   const currentPage = Math.min(page, pageCount);
@@ -130,10 +164,49 @@ export function ContestFormViewPage() {
 
   if (isPending || !data) return <ListPageSkeleton />;
 
-  const link = data.slug ? registrationUrl(data.slug) : '';
+  async function refresh() {
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-form', formId] });
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+  }
+
+  async function onLinkActive(linkActive: boolean) {
+    setLinkBusy(true);
+    try {
+      await updateContestForm(formId, { mode: 'save', linkActive });
+      await refresh();
+      toast.success(linkActive ? 'Link turned on.' : 'Link turned off.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not change the link.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function onRegenerate() {
+    const ok = await confirm({
+      title: 'Create a new link?',
+      description:
+        'The old link stops working at once. People who already registered are not affected.',
+      confirmLabel: 'Regenerate link',
+    });
+    if (!ok) return;
+    setLinkBusy(true);
+    try {
+      await regenerateContestFormLink(formId);
+      await refresh();
+      toast.success('New link created. The old link no longer works.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not create a new link.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  const byRules = data.assignmentMode === 'rules';
+  const names = new Map(data.quizzes.map((quiz) => [quiz.id, quiz]));
   const quizzes = data.quizzes.filter((item) => item.kind !== 'assessment');
   const assessments = data.quizzes.filter((item) => item.kind === 'assessment');
-  const visibleFields = data.fields.filter((field) => !field.deleted);
+  const visibleFields = normalizeFields(data.fields).filter((field) => !field.deleted);
   const shown = [
     data.showContestImage ? 'Contest image' : null,
     data.showSponsorName ? 'Sponsor name' : null,
@@ -144,8 +217,18 @@ export function ContestFormViewPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
+        {canMutate && data.status === 'saved' ? (
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            <UserPlusIcon data-icon="inline-start" />
+            Add registration
+          </Button>
+        ) : null}
         {canMutate ? (
-          <Button type="button" variant="outline" onClick={() => setGiveOpen(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(`/participants/forms/${data.id}/edit?step=2`)}
+          >
             <PlusIcon />
             Assign activity
           </Button>
@@ -165,13 +248,14 @@ export function ContestFormViewPage() {
             className="inline-flex items-center gap-1 text-sm font-medium text-primary"
           >
             <ChevronLeftIcon className="size-4" aria-hidden />
-            Participants
+            Registration Forms
           </Link>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {data.contestName || 'Registration form'}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {data.sponsorName || 'No sponsor'} · {data.registrationCount} registered
+            {data.sponsorName || 'No sponsor'} · {data.registrationCount} registered ·{' '}
+            {data.status === 'saved' ? 'Published' : 'Draft'}
           </p>
         </div>
         <StatusPill
@@ -180,34 +264,27 @@ export function ContestFormViewPage() {
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LinkIcon className="size-4 text-muted-foreground" aria-hidden />
-            Registration link
-          </CardTitle>
-          <CardDescription>
-            Share this with people who should register for the contest.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <code className="min-w-0 flex-1 truncate rounded-lg bg-muted px-3 py-2 text-sm text-primary">
-            {link || 'Not live yet'}
-          </code>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!link}
-            onClick={() => {
-              void navigator.clipboard.writeText(link);
-              toast.success('Link copied');
-            }}
-          >
-            <CopyIcon />
-            Copy link
-          </Button>
-        </CardContent>
-      </Card>
+      {data.slug ? (
+        <ContestFormShareCard
+          slug={data.slug}
+          linkActive={data.linkActive}
+          contestName={data.contestName}
+          canMutate={canMutate && data.status === 'saved'}
+          busy={linkBusy}
+          onLinkActive={(active) => void onLinkActive(active)}
+          onRegenerate={() => void onRegenerate()}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LinkIcon className="size-4 text-muted-foreground" aria-hidden />
+              Registration link
+            </CardTitle>
+            <CardDescription>This form is a draft. Publish it to get its link.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SectionCard
@@ -215,6 +292,25 @@ export function ContestFormViewPage() {
           title="Activities"
           description="Quizzes and assessments people receive through this form."
         >
+          {byRules ? (
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-muted-foreground">
+                Given by answers. A person gets everything from every rule they match.
+              </p>
+              {data.rules.map((rule, index) => (
+                <p key={rule.id} className="rounded-lg bg-muted px-3 py-2">
+                  <span className="font-semibold">Rule {index + 1}: </span>
+                  {ruleSentence(rule, visibleFields, names)}
+                </p>
+              ))}
+              <p className="rounded-lg bg-muted px-3 py-2">
+                <span className="text-muted-foreground">If no rule matches → </span>
+                {data.fallbackActivityIds
+                  .map((id) => names.get(id)?.name ?? 'Removed activity')
+                  .join(', ') || 'nothing (they can still log in)'}
+              </p>
+            </div>
+          ) : null}
           <ActivityGroup title="Quizzes" items={quizzes} />
           <ActivityGroup title="Assessments" items={assessments} />
         </SectionCard>
@@ -312,7 +408,9 @@ export function ContestFormViewPage() {
               <div className="min-w-0">
                 <p className="font-medium">{field.label}</p>
                 {field.options?.length ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{field.options.join(', ')}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {field.options.map((option) => option.label).join(', ')}
+                  </p>
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -371,6 +469,40 @@ export function ContestFormViewPage() {
                   columns={registrantColumns}
                   narrow={narrow}
                   empty="No one has registered through this form yet."
+                  onRowOpen={(person) => {
+                    setRegistrantMode('view');
+                    setActiveRegistrant(person);
+                  }}
+                  renderActions={(person) => (
+                    <RowActions
+                      view={{
+                        onClick: () => {
+                          setRegistrantMode('view');
+                          setActiveRegistrant(person);
+                        },
+                      }}
+                      edit={
+                        canMutate
+                          ? {
+                              onClick: () => {
+                                setRegistrantMode('edit');
+                                setActiveRegistrant(person);
+                              },
+                            }
+                          : undefined
+                      }
+                      removeRegistration={
+                        canDelete
+                          ? {
+                              onClick: () => {
+                                void onDeleteRegistration(person);
+                              },
+                            }
+                          : undefined
+                      }
+                      iconsOnly={narrow}
+                    />
+                  )}
                 />
                 <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-sm text-muted-foreground">
@@ -436,18 +568,24 @@ export function ContestFormViewPage() {
         </Card>
       </div>
 
-      <GiveQuizDialog
-        form={data}
-        open={giveOpen}
-        onOpenChange={setGiveOpen}
-        onGiven={() => {
-          void queryClient.invalidateQueries({ queryKey: ['admin', 'contest-form', formId] });
-          void queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
-          void queryClient.invalidateQueries({
-            queryKey: ['admin', 'contest-form-registrants', formId],
-          });
-        }}
-      />
+      {addOpen ? <FormAddRegistrationDialog form={data} onOpenChange={setAddOpen} /> : null}
+      {activeRegistrant ? (
+        <FormRegistrantDialog
+          formId={formId}
+          registrant={activeRegistrant}
+          mode={registrantMode}
+          onOpenChange={(open) => {
+            if (!open) setActiveRegistrant(null);
+          }}
+          onEdit={
+            canMutate
+              ? () => {
+                  setRegistrantMode('edit');
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </div>
   );
 }

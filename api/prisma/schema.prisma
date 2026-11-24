@@ -114,6 +114,11 @@ enum ContestMatchRule {
   contact_only
 }
 
+enum ContestAssignmentMode {
+  all
+  rules
+}
+
 enum ContestThankYouKind {
   template
   custom
@@ -694,6 +699,12 @@ model ContestRegistrationForm {
   domainMessage          String            @default("Please use your {domains} email address to register.") @map("domain_message") @db.VarChar(160)
   keepExistingId         Boolean             @default(true) @map("keep_existing_id")
   matchRule              ContestMatchRule    @default(name_and_contact) @map("match_rule")
+  /// all = everyone gets the ticked activities (contest_form_quizzes). rules = by answers.
+  assignmentMode         ContestAssignmentMode @default(all) @map("assignment_mode")
+  /// AssignmentRule[]: conditions on choice-field option IDs, plus the activities to give.
+  rules                  Json                @default("[]")
+  /// Rules mode: given to people who match no rule.
+  fallbackActivityIds    String[]            @default([]) @map("fallback_activity_ids")
   thankYouEnabled        Boolean             @default(false) @map("thank_you_enabled")
   thankYouKind           ContestThankYouKind @default(template) @map("thank_you_kind")
   thankYouTitle          String?             @map("thank_you_title") @db.VarChar(120)

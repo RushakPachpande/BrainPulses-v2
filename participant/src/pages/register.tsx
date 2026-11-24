@@ -3,7 +3,11 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, CircleAlert, Clock, LoaderCircle, Lock, Users } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { PortalBackdrop } from '../components/portal-backdrop';
-import { RegisterSuccess, type PublicThankYou } from '../components/register-success';
+import {
+  RegisterSuccess,
+  type PublicThankYou,
+  type PublicThankYouQuiz,
+} from '../components/register-success';
 import { ThemeButton } from '../components/theme-button';
 import {
   Select,
@@ -27,10 +31,17 @@ type PublicField = {
   maxCharacters?: number | null;
   minValue?: number | null;
   maxValue?: number | null;
-  options?: string[];
+  options?: { id: string; label: string }[];
   consentText?: string;
   termsLink?: string;
+  /** Description block text. */
+  text?: string;
+  /** Image block: shown from the public form-image address. */
+  imageFileId?: string | null;
+  imageAlt?: string;
 };
+
+const CONTENT_TYPES = new Set(['heading', 'description', 'image', 'divider']);
 
 type PublicFormBody = {
   slug: string | null;
@@ -76,7 +87,11 @@ export function RegisterPage() {
   const [submitError, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [answers, setAnswers] = useState<Answers>({});
-  const [result, setResult] = useState<{ code: string; message: string } | null>(null);
+  const [result, setResult] = useState<{
+    code: string;
+    message: string;
+    activities: PublicThankYouQuiz[];
+  } | null>(null);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
@@ -112,13 +127,15 @@ export function RegisterPage() {
     setError('');
     setFieldErrors({});
     try {
-      const data = await apiPostData<{ outcome: string; code: string; message: string }>(
-        `/api/public/contest-forms/${encodeURIComponent(slug)}/register`,
-        { answers },
-        undefined,
-        { blocking: true },
-      );
-      setResult({ code: data.code, message: data.message });
+      const data = await apiPostData<{
+        outcome: string;
+        code: string;
+        message: string;
+        activities?: PublicThankYouQuiz[];
+      }>(`/api/public/contest-forms/${encodeURIComponent(slug)}/register`, { answers }, undefined, {
+        blocking: true,
+      });
+      setResult({ code: data.code, message: data.message, activities: data.activities ?? [] });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         setError(err.message);
@@ -178,6 +195,7 @@ export function RegisterPage() {
               code={result.code}
               slug={slug}
               thankYou={form.thankYou}
+              activities={result.activities}
               onCopy={() => void copyCode(result.code)}
             />
           ) : null}
@@ -226,6 +244,9 @@ export function RegisterPage() {
                         ))}
                       </div>
                     );
+                  }
+                  if (CONTENT_TYPES.has(field.type)) {
+                    return <ContentBlock key={field.id} field={field} slug={slug} />;
                   }
                   return (
                     <PublicFieldInput
@@ -465,8 +486,8 @@ function PublicFieldInput({
             </SelectTrigger>
             <SelectContent className="register-select">
               {(field.options ?? []).map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -482,7 +503,39 @@ function PublicFieldInput({
     );
   }
 
-  if (field.type === 'multi_select') {
+  if (field.type === 'radio') {
+    const picked = typeof value === 'string' ? value : '';
+    return (
+      <fieldset className={error ? 'field err' : 'field'}>
+        <legend>
+          {field.label}
+          {mark}
+        </legend>
+        <div className="checks" role="radiogroup" aria-describedby={describedBy}>
+          {(field.options ?? []).map((option) => (
+            <label key={option.id}>
+              <input
+                type="radio"
+                name={id}
+                checked={picked === option.id}
+                aria-invalid={error ? true : undefined}
+                onChange={() => onChange(option.id)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
+        </div>
+        {field.help ? (
+          <div className="help" id={helpId}>
+            {field.help}
+          </div>
+        ) : null}
+        {error ? <FieldError id={errorId} message={error} /> : null}
+      </fieldset>
+    );
+  }
+
+  if (field.type === 'multi_select' || field.type === 'checkboxes') {
     const picked = Array.isArray(value) ? value : [];
     return (
       <fieldset className={error ? 'field err' : 'field'}>
@@ -492,20 +545,20 @@ function PublicFieldInput({
         </legend>
         <div className="checks">
           {(field.options ?? []).map((option) => (
-            <label key={option}>
+            <label key={option.id}>
               <input
                 type="checkbox"
-                checked={picked.includes(option)}
+                checked={picked.includes(option.id)}
                 aria-describedby={describedBy}
                 onChange={(event) =>
                   onChange(
                     event.target.checked
-                      ? [...picked, option]
-                      : picked.filter((item) => item !== option),
+                      ? [...picked, option.id]
+                      : picked.filter((item) => item !== option.id),
                   )
                 }
               />
-              <span>{option}</span>
+              <span>{option.label}</span>
             </label>
           ))}
         </div>
@@ -543,7 +596,7 @@ function PublicFieldInput({
         ) : (
           <input
             id={id}
-            type={field.type === 'email' ? 'email' : field.type === 'number' ? 'number' : 'text'}
+            type={inputType(field.type)}
             inputMode={
               field.type === 'email' ? 'email' : field.type === 'phone' ? 'numeric' : undefined
             }
@@ -579,6 +632,34 @@ function PublicFieldInput({
       {error ? <FieldError id={errorId} message={error} /> : null}
     </div>
   );
+}
+
+function inputType(type: string) {
+  if (type === 'email') return 'email';
+  if (type === 'number') return 'number';
+  if (type === 'date') return 'date';
+  if (type === 'time') return 'time';
+  return 'text';
+}
+
+/** Heading, text, image or divider: shown on the form, never submitted. */
+function ContentBlock({ field, slug }: { field: PublicField; slug: string }) {
+  if (field.type === 'heading') return <h3 className="form-heading">{field.label}</h3>;
+  if (field.type === 'description') return <p className="form-text">{field.text}</p>;
+  if (field.type === 'divider') return <hr className="form-divider" />;
+  if (field.type === 'image' && field.imageFileId) {
+    return (
+      <img
+        className="form-image"
+        src={apiUrl(
+          `/api/public/contest-forms/${encodeURIComponent(slug)}/fields/${encodeURIComponent(field.id)}/image`,
+        )}
+        alt={field.imageAlt ?? ''}
+        loading="lazy"
+      />
+    );
+  }
+  return null;
 }
 
 function FieldError({ id, message }: { id?: string; message: string }) {

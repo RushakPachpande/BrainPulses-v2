@@ -87,21 +87,21 @@ describe('contest form rules', () => {
   });
 
   it('cleans domains and rejects junk', () => {
-    assert.equal(cleanDomain(' HTTPS://Infosys.com/path '), 'infosys.com');
+    assert.equal(cleanDomain(' HTTPS://brainpulses.com/path '), 'brainpulses.com');
     assert.equal(cleanDomain('@tcs.com'), 'tcs.com');
     assert.equal(cleanDomain('not a domain'), null);
     assert.equal(
       domainMessagePreview('Please use your {domains} email address to register.', [
-        'infosys.com',
+        'brainpulses.com',
         'tcs.com',
       ]),
-      'Please use your @infosys.com or @tcs.com email address to register.',
+      'Please use your @brainpulses.com or @tcs.com email address to register.',
     );
   });
 
   it('requires a closing time after opening, and two dropdown options', () => {
     const fields = defaultFields().map((field) =>
-      field.key === 'gender' ? { ...field, options: ['Male'] } : field,
+      field.key === 'gender' ? { ...field, options: [{ id: 'm', label: 'Male' }] } : field,
     );
     const issues = validateForm({
       mode: 'save',

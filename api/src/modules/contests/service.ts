@@ -3,7 +3,6 @@ import { writeAudit } from '../../lib/audit.js';
 import { badRequest, conflict, notFound } from '../../lib/errors.js';
 import { buildPage, listEnvelope, prismaCursorArgs } from '../../lib/pagination.js';
 import { prisma } from '../../lib/prisma.js';
-import { wipeRegistrationForm } from '../contest-forms/service.js';
 import { placeOwnedImage } from '../files/place.js';
 import { assertCatalogImage } from '../files/service.js';
 import type { contestListQuerySchema, createContestSchema, updateContestSchema } from './schema.js';
@@ -193,13 +192,13 @@ export async function deleteContest(organizationId: string, actorUserId: string,
       `Cannot delete this contest while ${activities} activit${activities === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
     );
   }
+  if (existing.registrationForm) {
+    throw conflict(
+      'Cannot delete this contest while a registration form still uses it. Remove that form first.',
+    );
+  }
 
-  const participantsRemoved = await prisma.$transaction(async (tx) => {
-    const formId = existing.registrationForm?.id;
-    const removed = formId ? await wipeRegistrationForm(tx, organizationId, formId) : 0;
-    await tx.contest.delete({ where: { id } });
-    return removed;
-  });
+  await prisma.contest.delete({ where: { id } });
   await writeAudit({
     organizationId,
     actorType: 'user',
@@ -207,11 +206,7 @@ export async function deleteContest(organizationId: string, actorUserId: string,
     action: 'contest.delete',
     targetType: 'contest',
     targetId: id,
-    metadata: {
-      name: existing.name,
-      registrationFormRemoved: Boolean(existing.registrationForm),
-      participantsRemoved,
-    },
+    metadata: { name: existing.name },
   });
   return { deleted: true, name: existing.name };
 }

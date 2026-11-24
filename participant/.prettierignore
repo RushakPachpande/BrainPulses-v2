@@ -1,23 +1,45 @@
 # Dependencies & build
-node_modules
-dist
-dist-ssr
-coverage
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
 *.tsbuildinfo
+.vite/
+.cache/
+.eslintcache
+.stylelintcache
 
-# Lockfile (npm owns this)
+# Lockfiles (package managers own these)
 package-lock.json
+pnpm-lock.yaml
+yarn.lock
 
-# Env
+# Env & secrets
 .env
 .env.*
 !.env.example
+!.env.*.example
 
-# Vite cache
-.vite
+# Generated / tooling
+graphify-out/
 
-# graphify
-graphify-out
+# Binary / static assets under public
+public/**/*.png
+public/**/*.jpg
+public/**/*.jpeg
+public/**/*.gif
+public/**/*.webp
+public/**/*.ico
+public/**/*.woff
+public/**/*.woff2
+public/**/*.ttf
+public/**/*.eot
 
 # Prototype handoff snapshot (intentionally dense)
 src/App.handoff.tsx
+
+# OS / editors
+.DS_Store
+Thumbs.db
+*.log

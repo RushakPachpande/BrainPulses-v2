@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useOrgId } from '@/hooks/use-org-id';
-import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import { canMutateOrg } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { SponsorEditorDialog } from '@/pages/sponsor-editor-dialog';
@@ -42,8 +42,8 @@ export function SponsorsPage() {
   const confirm = useConfirm();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
-  const canDelete = canManageUsersOrSettings(membership);
   const isSuperAdmin = membership?.role === 'super_admin';
+  const canDelete = isSuperAdmin;
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);

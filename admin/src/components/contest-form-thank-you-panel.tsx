@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ImageIcon } from 'lucide-react';
+import { ImageIcon, LockIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { AuthImage } from '@/components/auth-image';
 import { RichTextEditor } from '@/components/rich-text-editor';
@@ -44,6 +44,21 @@ export function ContestFormThankYouPanel({
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/50 p-3">
+        <p className="flex items-center gap-2 text-sm font-medium">
+          <LockIcon className="size-4" aria-hidden />
+          Always shown
+        </p>
+        <ul className="ml-5 list-disc text-sm text-muted-foreground">
+          <li>“You’re registered!” with a success tick</li>
+          <li>The Registration ID with a Copy button</li>
+          <li>The “Log in to BrainPulses” button, always last. Nothing is shown below it.</li>
+        </ul>
+        <p className="text-sm text-muted-foreground">
+          The Registration ID is the only login, so it can’t be hidden. Anything you add here goes
+          between the Registration ID and the Log in button.
+        </p>
+      </div>
       <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
         <div className="flex min-h-(--control-h) items-center justify-between gap-3">
           <Label htmlFor="thank-you-enabled">Enable thank-you message</Label>

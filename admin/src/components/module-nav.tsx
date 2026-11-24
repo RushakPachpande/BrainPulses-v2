@@ -16,7 +16,12 @@ type ModuleLink = {
   end?: boolean;
 };
 
-const modules: { prefix: string; label: string; links: ModuleLink[]; match?: (pathname: string) => boolean }[] = [
+const modules: {
+  prefix: string;
+  label: string;
+  links: ModuleLink[];
+  match?: (pathname: string) => boolean;
+}[] = [
   {
     prefix: '/assessments',
     label: 'Assessment',

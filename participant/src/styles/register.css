@@ -961,3 +961,30 @@ body.dk2 .register-select .select-item[data-highlighted] {
     animation: none;
   }
 }
+
+/* Content blocks on the registration form: heading, text, image, divider. */
+.register-screen .form-heading {
+  margin: 20px 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+.register-screen .form-text {
+  margin: 4px 0 12px;
+  color: var(--muted-foreground);
+  font-size: 15px;
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.register-screen .form-divider {
+  margin: 16px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+.register-screen .form-image {
+  display: block;
+  width: 100%;
+  max-height: 320px;
+  margin: 8px 0 16px;
+  border-radius: 12px;
+  object-fit: contain;
+}

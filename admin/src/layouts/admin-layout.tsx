@@ -59,7 +59,7 @@ type NavGroupItem = NavLinkItem & { children?: NavChildItem[] };
 
 const nav: NavGroupItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
-  { to: '/participants', label: 'Participants', icon: UsersIcon, end: true },
+  { to: '/participants', label: 'Registration Forms', icon: UsersIcon, end: true },
   { to: '/sponsors', label: 'Sponsors', icon: HandshakeIcon, end: true },
   { to: '/contests', label: 'Contests', icon: TrophyIcon, end: true },
   {

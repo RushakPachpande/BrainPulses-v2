@@ -84,3 +84,59 @@ describe('contest form builder fields', () => {
     ).toBe(true);
   });
 });
+
+describe('contest form rules in the builder', () => {
+  const rules = [
+    {
+      id: 'r1',
+      joins: [] as Array<'and' | 'or'>,
+      conditions: [{ id: 'c1', fieldId: 'gender', op: 'is' as const, optionId: 'gender-male' }],
+      activityIds: [] as string[],
+    },
+  ];
+
+  it('stops publishing a rule with no activity, but not saving a draft step', () => {
+    const save = validateBuilder({ ...base, mode: 'save', assignmentMode: 'rules', rules });
+    expect(
+      save.some((issue) => issue.message === 'Rule 1 needs at least one quiz or assessment.'),
+    ).toBe(true);
+    const step1 = validateBuilder({ ...base, assignmentMode: 'rules', rules });
+    expect(step1).toEqual([]);
+  });
+
+  it('flags a rule whose field was removed', () => {
+    const fields = defaultFields().filter((field) => field.key !== 'gender');
+    const issues = validateBuilder({ ...base, fields, assignmentMode: 'rules', rules });
+    expect(issues[0]?.field).toBe('rule:r1');
+  });
+
+  it('gives a duplicated choice field new option IDs', () => {
+    const result = duplicateField(defaultFields(), 'gender');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const copy = result.fields.find((field) => field.id === result.id)!;
+    expect(copy.options?.map((option) => option.label)).toEqual([
+      'Male',
+      'Female',
+      'Prefer not to say',
+    ]);
+    expect(copy.options?.some((option) => option.id === 'gender-male')).toBe(false);
+  });
+
+  it("doesn't count content blocks toward the 20 extra fields", () => {
+    let fields = defaultFields();
+    for (let i = 0; i < 18; i += 1) {
+      const next = addPaletteField(fields, 'text');
+      if (next.ok) fields = next.fields;
+    }
+    expect(addPaletteField(fields, 'text').ok).toBe(false);
+    expect(addPaletteField(fields, 'heading').ok).toBe(true);
+  });
+
+  it('keeps First name and Email on the form', () => {
+    expect(removeField(defaultFields(), 'first_name')).toEqual(defaultFields());
+    expect(
+      removeField(defaultFields(), 'mobile').find((field) => field.key === 'mobile')?.deleted,
+    ).toBe(true);
+  });
+});

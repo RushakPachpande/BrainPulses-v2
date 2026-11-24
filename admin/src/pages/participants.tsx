@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeftIcon, ChevronRightIcon, CopyIcon, PlusIcon, RotateCcwIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import { GiveQuizDialog } from '@/components/give-quiz-dialog';
+import { ContestFormCreateDialog } from '@/components/contest-form-create-dialog';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
 import { RecordSortSelect } from '@/components/record-sort-select';
 import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
@@ -80,7 +80,7 @@ export function ParticipantsPage() {
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
   const isSuperAdmin = membership?.role === 'super_admin';
-  const [giveForm, setGiveForm] = useState<ContestFormRecord | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [highlight, setHighlight] = useState('');
   const [search, setSearch] = useState('');
   const [sponsor, setSponsor] = useState<string[]>([]);
@@ -138,7 +138,7 @@ export function ParticipantsPage() {
         key: 'status',
         label: 'Status',
         placement: 'status',
-        render: (form) => (form.status === 'saved' ? 'Saved' : 'Draft'),
+        render: (form) => (form.status === 'saved' ? 'Published' : 'Draft'),
       },
       {
         key: 'quizCount',
@@ -281,7 +281,7 @@ export function ParticipantsPage() {
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
         {canMutate ? (
-          <Button type="button" onClick={() => navigate('/participants/forms/new')}>
+          <Button type="button" onClick={() => setCreateOpen(true)}>
             <PlusIcon data-icon="inline-start" />
             Create registration form
           </Button>
@@ -412,7 +412,7 @@ export function ParticipantsPage() {
                               variant="outline"
                               size="icon"
                               aria-label="Assign activity"
-                              onClick={() => setGiveForm(form)}
+                              onClick={() => navigate(`/participants/forms/${form.id}/edit?step=2`)}
                             >
                               <PlusIcon aria-hidden="true" />
                             </Button>
@@ -421,7 +421,11 @@ export function ParticipantsPage() {
                         <TooltipContent>Assign activity</TooltipContent>
                       </Tooltip>
                     ) : (
-                      <Button type="button" variant="outline" onClick={() => setGiveForm(form)}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigate(`/participants/forms/${form.id}/edit?step=2`)}
+                      >
                         <PlusIcon data-icon="inline-start" aria-hidden="true" />
                         Assign activity
                       </Button>
@@ -491,16 +495,7 @@ export function ParticipantsPage() {
           </CardContent>
         </Card>
       </div>
-      <GiveQuizDialog
-        form={giveForm}
-        open={Boolean(giveForm)}
-        onOpenChange={(open) => {
-          if (!open) setGiveForm(null);
-        }}
-        onGiven={() => {
-          void queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
-        }}
-      />
+      <ContestFormCreateDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

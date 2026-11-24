@@ -48,6 +48,36 @@ export async function registrants(req: Request, res: Response, next: NextFunctio
   }
 }
 
+export async function registrant(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.getFormRegistrant(
+      actor.organizationId,
+      req.params.id as string,
+      req.params.submissionId as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateRegistrant(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.updateFormRegistrant(
+      actor.organizationId,
+      actor.userId,
+      req.params.id as string,
+      req.params.submissionId as string,
+      req.body.answers as Record<string, string | string[] | boolean>,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}
+
 export async function create(req: Request, res: Response, next: NextFunction) {
   try {
     const actor = userActor(req);
@@ -137,6 +167,31 @@ export async function publicImage(req: Request, res: Response, next: NextFunctio
       throw notFound('Image not found.');
     }
     const { file, buffer } = await service.publicImage(req.params.slug as string, which);
+    res.setHeader('Content-Type', file.mimeType);
+    res.setHeader('Content-Disposition', 'inline');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function confirmPassword(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    await verifyActingUserPassword(actor.userId, req.body.password as string);
+    res.json({ data: { confirmed: true } });
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function publicFieldImage(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { file, buffer } = await service.publicFieldImage(
+      req.params.slug as string,
+      req.params.fieldId as string,
+    );
     res.setHeader('Content-Type', file.mimeType);
     res.setHeader('Content-Disposition', 'inline');
     res.setHeader('Cache-Control', 'public, max-age=300');

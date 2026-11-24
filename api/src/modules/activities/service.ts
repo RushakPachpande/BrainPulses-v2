@@ -883,7 +883,7 @@ export async function archiveActivity(
 }
 
 /**
- * Permanently deletes a quiz (full access) or an assessment (super admin only),
+ * Permanently deletes a quiz or assessment (kind full access),
  * plus related attempts, results, registrations, and local banks.
  */
 export async function deleteActivity(
@@ -898,9 +898,6 @@ export async function deleteActivity(
   });
   if (!existing) throw notFound('Activity not found.');
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, existing.kind, 'full');
-  if (existing.kind === 'assessment' && actor.role !== 'super_admin') {
-    throw forbidden('Only a super admin can permanently delete an assessment.');
-  }
   if (existing.kind !== 'quiz' && existing.kind !== 'assessment') {
     throw badRequest('Only quizzes and assessments can be permanently deleted.');
   }
@@ -956,7 +953,7 @@ export async function deleteActivity(
   return { id, deleted: true as const };
 }
 
-/** Super admin only: permanently delete one assessment round and its attempts. */
+/** Kind full access: permanently delete one assessment round and its attempts. */
 export async function deleteRound(
   organizationId: string,
   actorUserId: string,
@@ -964,9 +961,7 @@ export async function deleteRound(
   activityId: string,
   roundId: string,
 ) {
-  if (actor.role !== 'super_admin') {
-    throw forbidden('Only a super admin can permanently delete a round with attempts.');
-  }
+  assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, 'assessment', 'full');
   const activity = await prisma.activity.findFirst({
     where: { organizationId, id: activityId, kind: 'assessment' },
     select: { id: true },

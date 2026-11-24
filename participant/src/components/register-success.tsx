@@ -4,6 +4,8 @@ import { Link } from 'react-router';
 import { apiUrl } from '../lib/api-client';
 import { sanitizeInstructionsHtml } from '../lib/sanitize-html';
 
+export type PublicThankYouQuiz = { id: string; name: string; kind: string };
+
 export type PublicThankYou = {
   enabled: boolean;
   kind: 'template' | 'custom' | 'image';
@@ -12,7 +14,7 @@ export type PublicThankYou = {
   image: boolean;
   showNextSteps: boolean;
   showQuizzes: boolean;
-  quizzes?: { id: string; name: string; kind: string }[];
+  quizzes?: PublicThankYouQuiz[];
   buttonLabel: string | null;
   buttonUrl: string | null;
 };
@@ -24,6 +26,7 @@ export function RegisterSuccess({
   code,
   slug,
   thankYou,
+  activities,
   onCopy,
 }: {
   headingRef: RefObject<HTMLHeadingElement | null>;
@@ -32,6 +35,8 @@ export function RegisterSuccess({
   code: string;
   slug: string;
   thankYou?: PublicThankYou;
+  /** This person's own quizzes, from the register response. Falls back to the form's list. */
+  activities?: PublicThankYouQuiz[];
   onCopy: () => void;
 }) {
   if (!thankYou?.enabled) {
@@ -62,32 +67,33 @@ export function RegisterSuccess({
   const html =
     thankYou.kind === 'custom' && thankYou.html ? sanitizeInstructionsHtml(thankYou.html) : '';
   const href = safeHttpUrl(thankYou.buttonUrl);
-  const quizzes = thankYou.showQuizzes ? (thankYou.quizzes ?? []) : [];
+  const quizzes = thankYou.showQuizzes ? (activities ?? thankYou.quizzes ?? []) : [];
 
+  // Order: tick, title, welcome, Registration ID, then the admin's extras, then the buttons.
+  // "Log in to BrainPulses" is always last; nothing is shown below it.
   return (
     <div className="done">
+      <div className="ok">
+        <Check aria-hidden />
+      </div>
+      <h2 ref={headingRef} tabIndex={-1}>
+        {title}
+      </h2>
+      <p>
+        Welcome to {contestName}
+        {firstName ? `, ${firstName}` : ''}.
+      </p>
+      <RegistrationId code={code} onCopy={onCopy} />
       {thankYou.kind === 'image' && thankYou.image ? (
         <img
           className="thanks-image"
           src={apiUrl(`/api/public/contest-forms/${encodeURIComponent(slug)}/image/thank-you`)}
           alt=""
         />
-      ) : (
-        <div className="ok">
-          <Check aria-hidden />
-        </div>
-      )}
-      <h2 ref={headingRef} tabIndex={-1}>
-        {title}
-      </h2>
+      ) : null}
       {thankYou.kind === 'custom' && html ? (
         <div className="thanks-copy" dangerouslySetInnerHTML={{ __html: html }} />
-      ) : thankYou.kind === 'image' ? null : (
-        <p>
-          Welcome to {contestName}
-          {firstName ? `, ${firstName}` : ''}.
-        </p>
-      )}
+      ) : null}
       {thankYou.showNextSteps ? <NextSteps /> : null}
       {quizzes.length > 0 ? (
         <div className="thanks-quizzes">
@@ -102,7 +108,6 @@ export function RegisterSuccess({
           </ul>
         </div>
       ) : null}
-      <RegistrationId code={code} onCopy={onCopy} />
       <div className="done-actions">
         {href && thankYou.buttonLabel?.trim() ? (
           <a className="submit next" href={href} target="_blank" rel="noopener noreferrer">
