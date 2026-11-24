@@ -81,13 +81,9 @@ export function ExamShellSkeleton() {
         </div>
         <span className="exam-progress-pct skeleton-line" style={{ width: '3ch' }} />
       </div>
-      <div className="exam-layout">
-        <section className="question-column" aria-hidden>
-          <div className="question-topline">
-            <span className="skeleton-line w-sm" />
-            <span className="skeleton-line w-md" />
-          </div>
-          <div className="question-card skeleton-question-card">
+      <div className="exam-layout has-overview">
+        <div className="exam-main" aria-hidden>
+          <section className="qcard skeleton-question-card">
             <span className="skeleton-line w-sm" />
             <span className="skeleton-line w-full" />
             <span className="skeleton-line w-lg" />
@@ -97,16 +93,18 @@ export function ExamShellSkeleton() {
                 <span className="skeleton-line skeleton-option" key={i} />
               ))}
             </div>
-          </div>
-        </section>
-        <aside className="question-sidebar skeleton-exam-sidebar" aria-hidden>
+          </section>
+        </div>
+        <aside className="qov skeleton-exam-sidebar" aria-hidden>
           <span className="skeleton-line w-md" />
           <span className="skeleton-line w-full" />
-          <div className="question-grid skeleton-question-grid">
-            {Array.from({ length: 12 }, (_, i) => (
+          <div className="qov-grid skeleton-question-grid">
+            {Array.from({ length: 10 }, (_, i) => (
               <span className="skeleton-line skeleton-q-num" key={i} />
             ))}
           </div>
+          <span className="skeleton-line w-full" />
+          <span className="skeleton-line w-md" />
         </aside>
       </div>
     </div>

@@ -113,3 +113,9 @@ activitiesRouter.delete(
   validate({ params: roundQuestionParamsSchema, body: confirmPasswordSchema }),
   controller.deleteRoundQuestion,
 );
+activitiesRouter.delete(
+  '/:id/rounds/:roundId',
+  requireOrgAccess('full'),
+  validate({ params: roundIdParamSchema, body: confirmPasswordSchema }),
+  controller.deleteRound,
+);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { StoredImage } from './stored-image';
+import { PassagePanel } from './passage-panel';
 import { IconCheck, IconStar } from './portal-icons';
 import {
   instructionForType,
@@ -19,6 +20,7 @@ type Props = {
   marked: boolean;
   showMarkForReview?: boolean;
   showPassageInline?: boolean;
+  passageRange?: { start: number; end: number } | null;
   id?: string;
   perQuestionSeconds?: number | null;
   onAnswer: (answer: AttemptAnswerValue) => void;
@@ -34,6 +36,7 @@ export function AttemptQuestionBlock({
   marked,
   showMarkForReview = true,
   showPassageInline = true,
+  passageRange = null,
   id,
   perQuestionSeconds,
   onAnswer,
@@ -90,7 +93,7 @@ export function AttemptQuestionBlock({
         ) : null}
       </div>
       {showPassageInline && q.passageText ? (
-        <div className="rich-instructions">{q.passageText}</div>
+        <PassagePanel text={q.passageText} range={passageRange} className="qpassage--inline" />
       ) : null}
       {q.question.trim() ? <h2 className="qt">{q.question}</h2> : null}
       <p className="ql">

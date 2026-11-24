@@ -10,6 +10,7 @@ import { settleOpenAssessmentAttempts } from '../attempts/service.js';
 import { hasSubmittedAnswer, scoreObjective, toNumber } from '../attempts/scoring.js';
 import { buildAttemptReview, type ReviewVersion } from '../quiz-reports/review.js';
 import { wholePercent } from '../quiz-reports/rows.js';
+import { reportQuizStatus } from '../quiz-reports/rows.js';
 import {
   assessmentDisplayStatus,
   buildAssessmentRow,
@@ -228,40 +229,69 @@ export async function loadAssessmentReport(organizationId: string, actor: Assess
     return buildAssessmentRow(source, bestId ? (breakdowns.get(bestId) ?? null) : null);
   });
 
-  const assessments = new Map<
-    string,
-    { id: string; name: string; activityStatus: AssessmentReportRow['activityStatus'] }
-  >();
-  const roundOptions = new Map<string, RoundOption>();
-  for (const row of rows) {
-    if (!assessments.has(row.activityId)) {
-      assessments.set(row.activityId, {
-        id: row.activityId,
-        name: row.assessmentName,
-        activityStatus: row.activityStatus,
-      });
-    }
-    if (!roundOptions.has(row.roundId)) {
-      roundOptions.set(row.roundId, {
-        id: row.roundId,
-        name: row.roundName,
-        activityId: row.activityId,
-        assessmentName: row.assessmentName,
-        sortOrder: row.roundOrder,
-        scoreRelease: row.scoreRelease,
-        resultsPublishedAt: row.resultsPublishedAt,
-        withheldCount: withheldByRound.get(row.roundId) ?? 0,
-      });
-    }
-  }
+  const activeAssessments = await prisma.activity.findMany({
+    where: { organizationId, kind: 'assessment', status: 'active' },
+    select: {
+      id: true,
+      name: true,
+      status: true,
+      startsAt: true,
+      endsAt: true,
+      rounds: {
+        select: {
+          id: true,
+          name: true,
+          sortOrder: true,
+          durationMinutes: true,
+          durationMode: true,
+          perQuestionSeconds: true,
+          presentation: true,
+          passMode: true,
+          passingPercent: true,
+          passingScore: true,
+          settings: true,
+          resultsPublishedAt: true,
+        },
+        orderBy: { sortOrder: 'asc' },
+      },
+    },
+    orderBy: { name: 'asc' },
+  });
+  const assessments = activeAssessments.map((activity) => {
+    const displayStatus = assessmentDisplayStatus(
+      activity.status,
+      activity.startsAt,
+      activity.endsAt,
+    );
+    return {
+      id: activity.id,
+      name: activity.name,
+      activityStatus: reportQuizStatus(displayStatus),
+    };
+  });
+  const roundOptions: RoundOption[] = activeAssessments.flatMap((activity) =>
+    activity.rounds.map((round) => {
+      const settings = parseRoundRow(round);
+      return {
+        id: round.id,
+        name: round.name,
+        activityId: activity.id,
+        assessmentName: activity.name,
+        sortOrder: round.sortOrder,
+        scoreRelease: settings.scoreRelease,
+        resultsPublishedAt: round.resultsPublishedAt?.toISOString() ?? null,
+        withheldCount: withheldByRound.get(round.id) ?? 0,
+      };
+    }),
+  );
 
   return {
     rows,
     options: {
-      assessments: [...assessments.values()].sort((a, b) =>
+      assessments: assessments.sort((a, b) =>
         a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
       ),
-      rounds: [...roundOptions.values()].sort(
+      rounds: roundOptions.sort(
         (a, b) => a.assessmentName.localeCompare(b.assessmentName) || a.sortOrder - b.sortOrder,
       ),
     },
@@ -663,7 +693,7 @@ export async function publishRoundResults(
   if (round.resultsPublishedAt && withheld === 0) {
     return { resultsPublishedAt: round.resultsPublishedAt.toISOString() };
   }
-  const now = round.resultsPublishedAt ?? new Date();
+  const now = new Date();
   const held = await prisma.result.findMany({
     where: { organizationId, releaseStatus: 'withheld', attempt: { roundId } },
     select: { id: true },
@@ -691,4 +721,47 @@ export async function publishRoundResults(
     targetId: roundId,
   });
   return { resultsPublishedAt: now.toISOString() };
+}
+
+/** Hide every published score for the round so students cannot see results until the next publish. */
+export async function unpublishRoundResults(
+  organizationId: string,
+  actor: AssessmentReportActor,
+  roundId: string,
+) {
+  assertAssessment(actor, 'full');
+  const round = await prisma.activityRound.findFirst({
+    where: { organizationId, id: roundId, activity: { kind: 'assessment' } },
+  });
+  if (!round) throw notFound('Round not found.');
+  const settings = parseRoundRow(round);
+  if (settings.scoreRelease !== 'after_publish') {
+    throw badRequest('This round shows scores as soon as a student submits.');
+  }
+  if (!round.resultsPublishedAt) {
+    return { resultsPublishedAt: null as string | null };
+  }
+  await prisma.$transaction([
+    prisma.activityRound.update({
+      where: { id: roundId },
+      data: { resultsPublishedAt: null },
+    }),
+    prisma.result.updateMany({
+      where: {
+        organizationId,
+        releaseStatus: 'published',
+        attempt: { roundId, organizationId },
+      },
+      data: { releaseStatus: 'withheld', publishedAt: null },
+    }),
+  ]);
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId: actor.userId,
+    action: 'assessment.round_results_unpublish',
+    targetType: 'activity_round',
+    targetId: roundId,
+  });
+  return { resultsPublishedAt: null as string | null };
 }

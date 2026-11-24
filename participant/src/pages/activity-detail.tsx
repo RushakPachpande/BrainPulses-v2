@@ -357,8 +357,8 @@ function RoundCard({
   const completed = round.state === 'completed';
   const pending = Boolean(round.resultPendingPublish);
   const outOfAttempts = round.maxAttempts != null && (round.attemptsUsed ?? 0) >= round.maxAttempts;
-  const canStart =
-    (round.state === 'available' || round.state === 'in_progress') && !round.resultPendingPublish;
+  // Pending publish must not block a fresh attempt while retries remain.
+  const canStart = round.state === 'available' || round.state === 'in_progress';
   const showPrep = selected && canStart;
   const instructionHtml = round.instructions?.trim() ?? '';
   const hasInstructions = !isInstructionsEmpty(instructionHtml);
@@ -372,15 +372,17 @@ function RoundCard({
       ? `${round.attemptsUsed ?? 0} used`
       : `${round.attemptsUsed ?? 0} of ${round.maxAttempts}`;
 
-  const chip = pending
-    ? { tone: 'wait', label: 'Result pending' }
-    : completed
-      ? { tone: 'done', label: 'Completed' }
-      : round.state === 'in_progress'
-        ? { tone: 'live', label: 'In progress' }
-        : locked
-          ? { tone: 'lock', label: 'Locked' }
-          : { tone: 'ok', label: 'Available' };
+  const chip = completed
+    ? { tone: 'done', label: 'Completed' }
+    : round.state === 'in_progress'
+      ? { tone: 'live', label: 'In progress' }
+      : canStart
+        ? { tone: 'ok', label: 'Available' }
+        : pending
+          ? { tone: 'wait', label: 'Result pending' }
+          : locked
+            ? { tone: 'lock', label: 'Locked' }
+            : { tone: 'ok', label: 'Available' };
 
   const gate = locked
     ? previous && !previousDone
@@ -390,17 +392,27 @@ function RoundCard({
       : outOfAttempts
         ? 'No attempts left'
         : 'Not open right now'
-    : pending
-      ? 'Your result will be published soon'
-      : completed
-        ? next
-          ? `${next.name} is unlocked`
-          : 'All rounds done'
-        : next
-          ? round.passRequired === false
-            ? `Finish to unlock ${next.name}`
-            : `Pass to unlock ${next.name}`
-          : 'Final round';
+    : canStart && pending
+      ? 'You can try again while results are pending'
+      : canStart && round.passed
+        ? 'Passed · another attempt is available'
+        : canStart && (round.attemptsUsed ?? 0) > 0
+          ? 'Another attempt is available'
+          : pending
+            ? 'Your result will be published soon'
+            : completed
+              ? next
+                ? next.state === 'available' || next.state === 'in_progress'
+                  ? `${next.name} is unlocked`
+                  : next.state === 'completed'
+                    ? `${next.name} is done`
+                    : `${next.name} is next`
+                : 'All rounds done'
+              : next
+                ? round.passRequired === false
+                  ? `Finish to unlock ${next.name}`
+                  : `Pass to unlock ${next.name}`
+                : 'Final round';
 
   return (
     <li className={`rp-step ${locked ? 'is-locked' : ''} ${completed ? 'is-done' : ''}`}>
@@ -474,6 +486,7 @@ function RoundCard({
             <RoundAction
               round={round}
               index={index}
+              canStart={canStart}
               hideStart={showPrep}
               onStart={onStart}
               onResult={onResult}
@@ -546,24 +559,28 @@ function InstructionsBody({
 function RoundAction({
   round,
   index,
+  canStart,
   hideStart,
   onStart,
   onResult,
 }: {
   round: ParticipantActivityRound;
   index: number;
+  canStart: boolean;
   hideStart: boolean;
   onStart: () => void;
   onResult: () => void;
 }) {
-  if (round.resultPendingPublish) {
+  // Publish-held: wait only when no further attempt is allowed.
+  if (round.resultPendingPublish && !canStart) {
     return (
       <button className="rp-cta" type="button" disabled>
         Waiting for results
       </button>
     );
   }
-  if (round.state === 'completed') {
+  // Cleared round, or retries exhausted with a released score.
+  if (round.state === 'completed' || (!canStart && round.latestResultId)) {
     if (!round.latestResultId) return null;
     return (
       <button className="rp-cta rp-cta--o" type="button" onClick={onResult}>
@@ -578,10 +595,19 @@ function RoundAction({
       </button>
     );
   }
-  if (hideStart) return null;
+  const showLastResult = Boolean(round.latestResultId) && !round.resultPendingPublish;
   return (
-    <button className="rp-cta rp-cta--p" type="button" onClick={onStart}>
-      {round.state === 'in_progress' ? 'Resume' : 'Start'} round {index + 1} <IconArrow />
-    </button>
+    <>
+      {hideStart ? null : (
+        <button className="rp-cta rp-cta--p" type="button" onClick={onStart}>
+          {round.state === 'in_progress' ? 'Resume' : 'Start'} round {index + 1} <IconArrow />
+        </button>
+      )}
+      {showLastResult ? (
+        <button className="rp-cta rp-cta--o" type="button" onClick={onResult}>
+          View last result
+        </button>
+      ) : null}
+    </>
   );
 }

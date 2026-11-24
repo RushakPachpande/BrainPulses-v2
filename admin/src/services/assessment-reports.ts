@@ -112,3 +112,10 @@ export async function publishRoundResults(roundId: string) {
     {},
   );
 }
+
+export async function unpublishRoundResults(roundId: string) {
+  return apiPostData<{ resultsPublishedAt: string | null }>(
+    `/api/assessment-reports/rounds/${roundId}/unpublish`,
+    {},
+  );
+}

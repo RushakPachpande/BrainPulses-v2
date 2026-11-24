@@ -3,6 +3,7 @@ import {
   BarChart3Icon,
   ClipboardListIcon,
   SettingsIcon,
+  UserCogIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -15,7 +16,12 @@ type ModuleLink = {
   end?: boolean;
 };
 
-const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
+const modules: {
+  prefix: string;
+  label: string;
+  links: ModuleLink[];
+  match?: (pathname: string) => boolean;
+}[] = [
   {
     prefix: '/assessments',
     label: 'Assessment',
@@ -37,13 +43,23 @@ const modules: { prefix: string; label: string; links: ModuleLink[] }[] = [
   {
     prefix: '/settings',
     label: 'Settings',
-    links: [{ to: '/settings', label: 'General', icon: SettingsIcon, end: true }],
+    match: (pathname) =>
+      pathname === '/settings' ||
+      pathname.startsWith('/settings/') ||
+      pathname === '/users' ||
+      pathname.startsWith('/users/'),
+    links: [
+      { to: '/settings', label: 'General', icon: SettingsIcon, end: true },
+      { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
+    ],
   },
 ];
 
 export function ModuleNav({ pathname }: { pathname: string }) {
-  const module = modules.find(
-    (item) => pathname === item.prefix || pathname.startsWith(`${item.prefix}/`),
+  const module = modules.find((item) =>
+    item.match
+      ? item.match(pathname)
+      : pathname === item.prefix || pathname.startsWith(`${item.prefix}/`),
   );
   if (!module) return null;
 

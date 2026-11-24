@@ -43,3 +43,9 @@ quizReportsRouter.post(
   validate({ params: activityParamSchema }),
   controller.publish,
 );
+quizReportsRouter.post(
+  '/:activityId/unpublish',
+  requireOrgAccess('full'),
+  validate({ params: activityParamSchema }),
+  controller.unpublish,
+);

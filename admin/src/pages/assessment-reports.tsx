@@ -36,7 +36,9 @@ import {
   downloadAssessmentReport,
   getAssessmentReport,
   publishRoundResults,
+  unpublishRoundResults,
   type AssessmentReportRow,
+  type AssessmentRoundOption,
 } from '@/services/assessment-reports';
 import { AssessmentReportSheet } from '@/pages/assessment-report-sheet';
 import { QuizReportDownloadDialog } from '@/pages/quiz-report-download';
@@ -163,6 +165,7 @@ export function AssessmentReportsPage() {
   const [openRow, setOpenRow] = useState<AssessmentReportRow | null>(null);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
 
   useEffect(() => {
     if (userId) setColumns(readColumns(userId));
@@ -277,6 +280,9 @@ export function AssessmentReportsPage() {
     setActivityStatuses([]);
     setAttemptStatuses([]);
     setAutoSubmitted([]);
+    const columnsDefault = defaultColumns();
+    setColumns(columnsDefault);
+    if (userId) writeColumns(userId, columnsDefault);
     setPage(1);
     setSearchParams({}, { replace: true });
   }
@@ -404,37 +410,53 @@ export function AssessmentReportsPage() {
   const end = Math.min(currentPage * size, total);
   const pageCount = data?.page.pageCount ?? 1;
   const noRegistrations = Boolean(data && data.options.assessments.length === 0);
+  const pendingWithheld = (selectedRound?.withheldCount ?? 0) > 0;
   const holdsScores =
-    selectedRound?.scoreRelease === 'after_publish' && !selectedRound.resultsPublishedAt;
+    selectedRound?.scoreRelease === 'after_publish' &&
+    (!selectedRound.resultsPublishedAt || pendingWithheld);
   /** Legacy after_submit rows may still be withheld from the old manual-text hold. */
   const legacyHeld =
     (selectedRound?.withheldCount ?? 0) > 0 && selectedRound?.scoreRelease === 'after_submit';
   const showPublish = Boolean(
     selectedRound && (selectedRound.scoreRelease === 'after_publish' || legacyHeld),
   );
+  const canPublishNow = Boolean(
+    selectedRound &&
+    canPublish &&
+    (legacyHeld ||
+      (selectedRound.scoreRelease === 'after_publish' &&
+        (!selectedRound.resultsPublishedAt || pendingWithheld))),
+  );
+  const canUnpublishNow = Boolean(
+    selectedRound &&
+    canPublish &&
+    selectedRound.scoreRelease === 'after_publish' &&
+    selectedRound.resultsPublishedAt,
+  );
 
-  const unpublishedPool =
+  function roundNeedsPublish(round: AssessmentRoundOption) {
+    return (
+      round.scoreRelease === 'after_publish' &&
+      (!round.resultsPublishedAt || round.withheldCount > 0)
+    );
+  }
+
+  const releasePool =
     roundIds.length === 0
       ? roundChoices
       : roundChoices.filter((round) => roundIds.includes(round.id));
-  const unpublishedRounds = unpublishedPool.filter(
-    (round) => round.scoreRelease === 'after_publish' && !round.resultsPublishedAt,
-  );
-  const showUnpublishedList = roundIds.length !== 1 && unpublishedRounds.length > 0;
+  /** Every after_publish round in scope — includes fully published ones so Unpublish stays available. */
+  const releaseRounds = releasePool.filter((round) => round.scoreRelease === 'after_publish');
+  const showReleaseCard = releaseRounds.length > 0;
 
-  async function onPublish(round: {
-    id: string;
-    name: string;
-    scoreRelease: 'after_submit' | 'after_publish';
-    resultsPublishedAt: string | null;
-  }) {
+  async function onPublish(round: AssessmentRoundOption) {
     if (!canPublish) return;
-    const roundHolds = round.scoreRelease === 'after_publish' && !round.resultsPublishedAt;
+    const releasingNew = Boolean(round.resultsPublishedAt) && round.withheldCount > 0;
     const ok = await confirm({
       title: `Publish results for ${round.name}?`,
-      description: roundHolds
-        ? "Every student who has submitted this round will be able to see their score and result. You can't hide them again afterwards."
-        : "Publishing releases held scores so students can continue to the next round. You can't hide them again afterwards.",
+      description: releasingNew
+        ? `Publish ${round.withheldCount} new attempt${round.withheldCount === 1 ? '' : 's'} submitted since the last publish. Students with those attempts will see their scores.`
+        : 'Every student who has submitted this round will be able to see their score and result. You can unpublish later to hide them again.',
       confirmLabel: 'Publish results',
     });
     if (ok !== true) return;
@@ -450,6 +472,28 @@ export function AssessmentReportsPage() {
     }
   }
 
+  async function onUnpublish(round: AssessmentRoundOption) {
+    if (!canPublish) return;
+    const ok = await confirm({
+      title: `Unpublish results for ${round.name}?`,
+      description:
+        'All published scores for this round will be hidden from students until you publish again. This applies to everyone.',
+      confirmLabel: 'Unpublish results',
+      destructive: true,
+    });
+    if (ok !== true) return;
+    setUnpublishing(true);
+    try {
+      await unpublishRoundResults(round.id);
+      toast.success('Results unpublished');
+      await refetch();
+    } catch {
+      toast.error("Couldn't unpublish results. Try again.");
+    } finally {
+      setUnpublishing(false);
+    }
+  }
+
   const visible = COLUMNS.filter((column) => columns.includes(column.key)).map(
     (column) => column.key,
   );
@@ -458,38 +502,49 @@ export function AssessmentReportsPage() {
   return (
     <div ref={ref} className="flex flex-col gap-4">
       <PageHeaderActions>
-        {selectedRound?.scoreRelease === 'after_publish' &&
-        !selectedRound.resultsPublishedAt &&
-        canPublish ? (
-          <Button
-            type="button"
-            disabled={publishing}
-            aria-busy={publishing}
-            onClick={() => void onPublish(selectedRound)}
-          >
-            Publish results
-          </Button>
-        ) : null}
-        <div className="flex w-full flex-col items-stretch gap-1 sm:items-end">
-          {data && activityIds.length !== 1 ? (
-            <p
-              id="assessment-download-hint"
-              className="text-xs text-muted-foreground sm:max-w-xs sm:text-right"
+        <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          {canPublishNow && selectedRound ? (
+            <Button
+              type="button"
+              disabled={publishing || unpublishing}
+              aria-busy={publishing}
+              onClick={() => void onPublish(selectedRound)}
             >
-              Choose one assessment in the Assessment filter to download its report.
-            </p>
+              Publish results
+            </Button>
           ) : null}
-          <Button
-            type="button"
-            disabled={!canDownload}
-            aria-describedby={
-              data && activityIds.length !== 1 ? 'assessment-download-hint' : undefined
-            }
-            onClick={() => setDownloadOpen(true)}
-          >
-            <DownloadIcon data-icon="inline-start" />
-            Download report
-          </Button>
+          {canUnpublishNow && selectedRound ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={publishing || unpublishing}
+              aria-busy={unpublishing}
+              onClick={() => void onUnpublish(selectedRound)}
+            >
+              Unpublish results
+            </Button>
+          ) : null}
+          <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
+            {data && activityIds.length !== 1 ? (
+              <p
+                id="assessment-download-hint"
+                className="text-xs text-muted-foreground sm:max-w-xs sm:text-right"
+              >
+                Choose one assessment in the Assessment filter to download its report.
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              disabled={!canDownload}
+              aria-describedby={
+                data && activityIds.length !== 1 ? 'assessment-download-hint' : undefined
+              }
+              onClick={() => setDownloadOpen(true)}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              Download report
+            </Button>
+          </div>
         </div>
       </PageHeaderActions>
 
@@ -520,40 +575,75 @@ export function AssessmentReportsPage() {
             ))}
           </section>
 
-          {showUnpublishedList ? (
+          {showReleaseCard ? (
             <Card>
               <CardContent className="flex flex-col gap-3">
-                <p className="text-sm font-medium">Results not yet visible to students</p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">Score release</p>
+                  <p className="text-xs text-muted-foreground">
+                    Publish releases held scores. Unpublish hides every published score for that
+                    round until you publish again.
+                  </p>
+                </div>
                 <ul className="flex flex-col">
-                  {unpublishedRounds.map((round) => (
-                    <li
-                      key={round.id}
-                      className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <span className="text-sm">
-                        {round.assessmentName}
-                        <span className="text-muted-foreground"> · {round.name}</span>
-                      </span>
-                      {canPublish ? (
-                        <Button
-                          type="button"
-                          disabled={publishing}
-                          aria-busy={publishing}
-                          onClick={() => void onPublish(round)}
-                        >
-                          Publish results
-                        </Button>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Waiting to publish</span>
-                      )}
-                    </li>
-                  ))}
+                  {releaseRounds.map((round) => {
+                    const needsPublish = roundNeedsPublish(round);
+                    const isPublished = Boolean(round.resultsPublishedAt);
+                    return (
+                      <li
+                        key={round.id}
+                        className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-sm">
+                            {round.assessmentName}
+                            <span className="text-muted-foreground"> · {round.name}</span>
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {isPublished && round.resultsPublishedAt && round.withheldCount > 0
+                              ? `Published ${formatReportDate(round.resultsPublishedAt)} · ${round.withheldCount} new attempt${round.withheldCount === 1 ? '' : 's'} waiting`
+                              : isPublished && round.resultsPublishedAt
+                                ? `Published ${formatReportDate(round.resultsPublishedAt)} · visible to students`
+                                : 'Not published · scores held'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {canPublish && needsPublish ? (
+                            <Button
+                              type="button"
+                              disabled={publishing || unpublishing}
+                              aria-busy={publishing}
+                              onClick={() => void onPublish(round)}
+                            >
+                              Publish results
+                            </Button>
+                          ) : null}
+                          {canPublish && isPublished ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={publishing || unpublishing}
+                              aria-busy={unpublishing}
+                              onClick={() => void onUnpublish(round)}
+                            >
+                              Unpublish results
+                            </Button>
+                          ) : null}
+                          {!canPublish ? (
+                            <span className="text-sm text-muted-foreground">
+                              {needsPublish ? 'Waiting to publish' : 'Published'}
+                            </span>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </CardContent>
             </Card>
           ) : null}
 
-          {showPublish && selectedRound ? (
+          {showPublish && selectedRound && !showReleaseCard ? (
             <Alert
               className={
                 selectedRound.resultsPublishedAt && !legacyHeld && !holdsScores
@@ -562,22 +652,37 @@ export function AssessmentReportsPage() {
               }
             >
               <AlertTitle>
-                {selectedRound.resultsPublishedAt && !holdsScores
-                  ? `Results published on ${formatReportDate(selectedRound.resultsPublishedAt)}. Students can see their scores.`
-                  : holdsScores
-                    ? 'Results not yet visible to students.'
-                    : 'Some results are held. Publishing them lets students continue to the next round.'}
+                {selectedRound.resultsPublishedAt && pendingWithheld
+                  ? `Published on ${formatReportDate(selectedRound.resultsPublishedAt)}. ${selectedRound.withheldCount} new attempt${selectedRound.withheldCount === 1 ? '' : 's'} waiting to publish.`
+                  : selectedRound.resultsPublishedAt && !holdsScores
+                    ? `Results published on ${formatReportDate(selectedRound.resultsPublishedAt)}. Students can see their scores.`
+                    : holdsScores
+                      ? 'Results not yet visible to students.'
+                      : 'Some results are held. Publishing them lets students continue to the next round.'}
               </AlertTitle>
-              {(!selectedRound.resultsPublishedAt || legacyHeld || holdsScores) && canPublish ? (
-                <AlertDescription>
-                  <Button
-                    type="button"
-                    disabled={publishing}
-                    aria-busy={publishing}
-                    onClick={() => void onPublish(selectedRound)}
-                  >
-                    Publish results
-                  </Button>
+              {canPublishNow || canUnpublishNow ? (
+                <AlertDescription className="flex flex-wrap gap-2">
+                  {canPublishNow ? (
+                    <Button
+                      type="button"
+                      disabled={publishing || unpublishing}
+                      aria-busy={publishing}
+                      onClick={() => void onPublish(selectedRound)}
+                    >
+                      Publish results
+                    </Button>
+                  ) : null}
+                  {canUnpublishNow ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={publishing || unpublishing}
+                      aria-busy={unpublishing}
+                      onClick={() => void onUnpublish(selectedRound)}
+                    >
+                      Unpublish results
+                    </Button>
+                  ) : null}
                 </AlertDescription>
               ) : null}
             </Alert>

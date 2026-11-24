@@ -71,11 +71,13 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
 
   function open(item: ParticipantActivity) {
     const status = cardStatus(item);
-    if (status === 'Completed') {
+    if (status === 'Upcoming' || status === 'Closed') return;
+    // Assessments always open the rounds page (per-round attempt + result).
+    // Quizzes jump to the score only when fully submitted.
+    if (status === 'Completed' && item.kind === 'quiz') {
       if (item.latestResultId) navigate(`/results/${item.latestResultId}`);
       return;
     }
-    if (status === 'Upcoming' || status === 'Closed') return;
     navigate(`${base}/${item.activityId}`);
   }
 
@@ -96,7 +98,12 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
         {items.map((item) => {
           const status = cardStatus(item);
           const win = windowLabel(item, status);
-          const attempts = formatAttemptAllowance(item);
+          const rounds = item.rounds ?? [];
+          const roundsDone = rounds.filter((round) => round.state === 'completed').length;
+          const attempts =
+            item.kind === 'assessment' && rounds.length > 0
+              ? `${roundsDone} of ${rounds.length} rounds`
+              : formatAttemptAllowance(item);
           const disabled = status === 'Upcoming' || status === 'Closed';
           const label =
             status === 'Upcoming'
@@ -106,7 +113,9 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
                 : status === 'In progress'
                   ? 'Continue'
                   : status === 'Completed'
-                    ? 'View result'
+                    ? item.kind === 'assessment'
+                      ? 'View rounds'
+                      : 'View result'
                     : `Start ${word}`;
           return (
             <article className="card" key={item.activityId}>
@@ -135,7 +144,9 @@ export function LibraryPage({ kind }: { kind: ActivityKind }) {
                     {item.durationMinutes != null ? formatDuration(item.durationMinutes) : '—'}
                   </div>
                   <div className="at2">
-                    <small>Attempts</small>
+                    <small>
+                      {item.kind === 'assessment' && rounds.length > 0 ? 'Rounds' : 'Attempts'}
+                    </small>
                     {attempts}
                   </div>
                 </div>

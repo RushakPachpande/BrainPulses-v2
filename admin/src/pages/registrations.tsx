@@ -468,6 +468,7 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
                       }
                     : undefined
                 }
+                iconsOnly={narrow}
               />
             )}
             onRowOpen={(row) =>

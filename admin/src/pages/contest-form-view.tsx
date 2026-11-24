@@ -1,64 +1,212 @@
-import { useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CalendarDaysIcon,
   ChevronLeftIcon,
+  ChevronRightIcon,
   CircleHelpIcon,
   ClipboardListIcon,
-  CopyIcon,
   IdCardIcon,
   LinkIcon,
   ListChecksIcon,
   PencilIcon,
   PlusIcon,
+  RotateCcwIcon,
   ShieldCheckIcon,
+  UserPlusIcon,
   UsersIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { GiveQuizDialog } from '@/components/give-quiz-dialog';
+import { confirmSensitiveDelete, useConfirm } from '@/components/use-confirm';
+import { ContestFormShareCard } from '@/components/contest-form-share-card';
 import { ListPageSkeleton } from '@/components/loading-skeletons';
+import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-records';
+import { RowActions } from '@/components/row-actions';
 import { StatusPill, type PillTone } from '@/components/status-pill';
+import { Toolbar } from '@/components/toolbar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useAuth } from '@/contexts/auth-context';
+import { ApiError } from '@/lib/api-client';
 import { PageHeaderActions } from '@/contexts/page-header';
-import { canMutateOrg } from '@/lib/access';
-import { formatIst, registrationUrl, type ContestFormQuiz } from '@/lib/contest-form';
-import { getContestForm } from '@/services/contest-forms';
+import { useContainerNarrow } from '@/hooks/use-container-narrow';
+import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import {
+  FIELD_TYPE_LABEL,
+  formatIst,
+  normalizeFields,
+  ruleSentence,
+  type ContestFormQuiz,
+  type ContestFormRegistrant,
+} from '@/lib/contest-form';
+import { deleteParticipant } from '@/services';
+import {
+  getContestForm,
+  getContestFormRegistrants,
+  regenerateContestFormLink,
+  updateContestForm,
+} from '@/services/contest-forms';
+import { FormAddRegistrationDialog } from '@/pages/form-add-registration-dialog';
+import { FormRegistrantDialog } from '@/pages/form-registrant-dialog';
 
-const FIELD_TYPE_LABEL: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  email: 'Email',
-  phone: 'Phone',
-  textarea: 'Textarea',
-  dropdown: 'Dropdown',
-  multi_select: 'Multi-select',
-  consent: 'Consent',
-};
+const registrantColumns: RecordColumn<ContestFormRegistrant>[] = [
+  {
+    key: 'code',
+    label: 'Registration ID',
+    placement: 'identity',
+    identityPrefix: 'ID: ',
+    tableClassName: 'tabular-nums',
+    render: (person) => <span className="tabular-nums">{person.code}</span>,
+  },
+  {
+    key: 'name',
+    label: 'Name',
+    placement: 'title',
+    render: (person) => <span className="font-medium">{person.name}</span>,
+  },
+  {
+    key: 'email',
+    label: 'Email',
+    placement: 'primary',
+    render: (person) => person.email,
+  },
+  {
+    key: 'registeredAt',
+    label: 'Registered',
+    placement: 'details',
+    render: (person) => formatIst(person.registeredAt),
+  },
+];
 
 export function ContestFormViewPage() {
   const { formId = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const auth = useAuth();
+  const { narrow, ref } = useContainerNarrow();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
-  const [giveOpen, setGiveOpen] = useState(false);
+  const canDelete = canManageUsersOrSettings(membership);
+  const confirm = useConfirm();
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState('10');
+  const [addOpen, setAddOpen] = useState(false);
+  const [activeRegistrant, setActiveRegistrant] = useState<ContestFormRegistrant | null>(null);
+  const [registrantMode, setRegistrantMode] = useState<'view' | 'edit'>('view');
   const { data, isPending } = useQuery({
     queryKey: ['admin', 'contest-form', formId],
     queryFn: ({ signal }) => getContestForm(formId, signal),
     enabled: Boolean(formId),
   });
+  const { data: registrants = [], isPending: registrantsPending } = useQuery({
+    queryKey: ['admin', 'contest-form-registrants', formId],
+    queryFn: ({ signal }) => getContestFormRegistrants(formId, signal),
+    enabled: Boolean(formId),
+  });
+
+  const filteredRegistrants = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return registrants;
+    return registrants.filter(
+      (person) =>
+        person.name.toLowerCase().includes(query) ||
+        person.email.toLowerCase().includes(query) ||
+        person.code.toLowerCase().includes(query),
+    );
+  }, [registrants, search]);
+
+  async function onDeleteRegistration(person: ContestFormRegistrant) {
+    if (!canDelete) return;
+    const password = await confirmSensitiveDelete(confirm, {
+      title: `Delete ${person.name}'s registration?`,
+      description: 'Permanently removes this participant. This cannot be undone.',
+      details: [
+        'Their registrations, attempts, scores, and reports are deleted.',
+        'They are removed from every quiz, assessment, and contest form they are on.',
+        'The live registration link can sign them up again as a new Registration ID.',
+      ],
+      confirmLabel: 'Delete registration',
+    });
+    if (!password) return;
+    try {
+      await deleteParticipant(person.participantId, password);
+      toast.success('Registration deleted.');
+      await queryClient.invalidateQueries({
+        queryKey: ['admin', 'contest-form-registrants', formId],
+      });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-form', formId] });
+      await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+      if (activeRegistrant?.id === person.id) setActiveRegistrant(null);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not delete registration.');
+    }
+  }
+
+  const size = Number(pageSize);
+  const pageCount = Math.max(1, Math.ceil(filteredRegistrants.length / size));
+  const currentPage = Math.min(page, pageCount);
+  const start = (currentPage - 1) * size;
+  const pageRows = filteredRegistrants.slice(start, start + size);
+  const end =
+    filteredRegistrants.length === 0 ? 0 : Math.min(start + size, filteredRegistrants.length);
 
   if (isPending || !data) return <ListPageSkeleton />;
 
-  const link = data.slug ? registrationUrl(data.slug) : '';
+  async function refresh() {
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-form', formId] });
+    await queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
+  }
+
+  async function onLinkActive(linkActive: boolean) {
+    setLinkBusy(true);
+    try {
+      await updateContestForm(formId, { mode: 'save', linkActive });
+      await refresh();
+      toast.success(linkActive ? 'Link turned on.' : 'Link turned off.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not change the link.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function onRegenerate() {
+    const ok = await confirm({
+      title: 'Create a new link?',
+      description:
+        'The old link stops working at once. People who already registered are not affected.',
+      confirmLabel: 'Regenerate link',
+    });
+    if (!ok) return;
+    setLinkBusy(true);
+    try {
+      await regenerateContestFormLink(formId);
+      await refresh();
+      toast.success('New link created. The old link no longer works.');
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : 'Could not create a new link.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  const byRules = data.assignmentMode === 'rules';
+  const names = new Map(data.quizzes.map((quiz) => [quiz.id, quiz]));
   const quizzes = data.quizzes.filter((item) => item.kind !== 'assessment');
   const assessments = data.quizzes.filter((item) => item.kind === 'assessment');
-  const visibleFields = data.fields.filter((field) => !field.deleted);
+  const visibleFields = normalizeFields(data.fields).filter((field) => !field.deleted);
   const shown = [
     data.showContestImage ? 'Contest image' : null,
     data.showSponsorName ? 'Sponsor name' : null,
@@ -69,8 +217,18 @@ export function ContestFormViewPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
+        {canMutate && data.status === 'saved' ? (
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            <UserPlusIcon data-icon="inline-start" />
+            Add registration
+          </Button>
+        ) : null}
         {canMutate ? (
-          <Button type="button" variant="outline" onClick={() => setGiveOpen(true)}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(`/participants/forms/${data.id}/edit?step=2`)}
+          >
             <PlusIcon />
             Assign activity
           </Button>
@@ -90,13 +248,14 @@ export function ContestFormViewPage() {
             className="inline-flex items-center gap-1 text-sm font-medium text-primary"
           >
             <ChevronLeftIcon className="size-4" aria-hidden />
-            Participants
+            Registration Forms
           </Link>
           <h2 className="mt-2 text-2xl font-semibold tracking-tight">
             {data.contestName || 'Registration form'}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {data.sponsorName || 'No sponsor'} · {data.registrationCount} registered
+            {data.sponsorName || 'No sponsor'} · {data.registrationCount} registered ·{' '}
+            {data.status === 'saved' ? 'Published' : 'Draft'}
           </p>
         </div>
         <StatusPill
@@ -105,34 +264,27 @@ export function ContestFormViewPage() {
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <LinkIcon className="size-4 text-muted-foreground" aria-hidden />
-            Registration link
-          </CardTitle>
-          <CardDescription>
-            Share this with people who should register for the contest.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <code className="min-w-0 flex-1 truncate rounded-lg bg-muted px-3 py-2 text-sm text-primary">
-            {link || 'Not live yet'}
-          </code>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!link}
-            onClick={() => {
-              void navigator.clipboard.writeText(link);
-              toast.success('Link copied');
-            }}
-          >
-            <CopyIcon />
-            Copy link
-          </Button>
-        </CardContent>
-      </Card>
+      {data.slug ? (
+        <ContestFormShareCard
+          slug={data.slug}
+          linkActive={data.linkActive}
+          contestName={data.contestName}
+          canMutate={canMutate && data.status === 'saved'}
+          busy={linkBusy}
+          onLinkActive={(active) => void onLinkActive(active)}
+          onRegenerate={() => void onRegenerate()}
+        />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <LinkIcon className="size-4 text-muted-foreground" aria-hidden />
+              Registration link
+            </CardTitle>
+            <CardDescription>This form is a draft. Publish it to get its link.</CardDescription>
+          </CardHeader>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <SectionCard
@@ -140,6 +292,25 @@ export function ContestFormViewPage() {
           title="Activities"
           description="Quizzes and assessments people receive through this form."
         >
+          {byRules ? (
+            <div className="flex flex-col gap-2 text-sm">
+              <p className="text-muted-foreground">
+                Given by answers. A person gets everything from every rule they match.
+              </p>
+              {data.rules.map((rule, index) => (
+                <p key={rule.id} className="rounded-lg bg-muted px-3 py-2">
+                  <span className="font-semibold">Rule {index + 1}: </span>
+                  {ruleSentence(rule, visibleFields, names)}
+                </p>
+              ))}
+              <p className="rounded-lg bg-muted px-3 py-2">
+                <span className="text-muted-foreground">If no rule matches → </span>
+                {data.fallbackActivityIds
+                  .map((id) => names.get(id)?.name ?? 'Removed activity')
+                  .join(', ') || 'nothing (they can still log in)'}
+              </p>
+            </div>
+          ) : null}
           <ActivityGroup title="Quizzes" items={quizzes} />
           <ActivityGroup title="Assessments" items={assessments} />
         </SectionCard>
@@ -237,7 +408,9 @@ export function ContestFormViewPage() {
               <div className="min-w-0">
                 <p className="font-medium">{field.label}</p>
                 {field.options?.length ? (
-                  <p className="mt-1 text-sm text-muted-foreground">{field.options.join(', ')}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {field.options.map((option) => option.label).join(', ')}
+                  </p>
                 ) : null}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -252,15 +425,167 @@ export function ContestFormViewPage() {
         </ul>
       </SectionCard>
 
-      <GiveQuizDialog
-        form={data}
-        open={giveOpen}
-        onOpenChange={setGiveOpen}
-        onGiven={() => {
-          void queryClient.invalidateQueries({ queryKey: ['admin', 'contest-form', formId] });
-          void queryClient.invalidateQueries({ queryKey: ['admin', 'contest-forms'] });
-        }}
-      />
+      <div ref={ref} className="flex flex-col gap-4">
+        <Toolbar
+          filters={[]}
+          searchPlaceholder="Search by name, email, or registration ID..."
+          searchValue={search}
+          onSearchChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSearch('');
+                setPage(1);
+              }}
+              className="w-full sm:w-auto"
+            >
+              <RotateCcwIcon data-icon="inline-start" />
+              Clear Filters
+            </Button>
+          }
+        />
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {filteredRegistrants.length}{' '}
+              {filteredRegistrants.length === 1 ? 'participant' : 'participants'}
+            </CardTitle>
+            <CardDescription>People who registered through this form.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {registrantsPending ? (
+              <p className="text-sm text-muted-foreground">Loading participants…</p>
+            ) : (
+              <>
+                <ResponsiveRecords
+                  caption="Registered participants"
+                  rows={pageRows}
+                  getRowId={(person) => person.id}
+                  columns={registrantColumns}
+                  narrow={narrow}
+                  empty="No one has registered through this form yet."
+                  onRowOpen={(person) => {
+                    setRegistrantMode('view');
+                    setActiveRegistrant(person);
+                  }}
+                  renderActions={(person) => (
+                    <RowActions
+                      view={{
+                        onClick: () => {
+                          setRegistrantMode('view');
+                          setActiveRegistrant(person);
+                        },
+                      }}
+                      edit={
+                        canMutate
+                          ? {
+                              onClick: () => {
+                                setRegistrantMode('edit');
+                                setActiveRegistrant(person);
+                              },
+                            }
+                          : undefined
+                      }
+                      removeRegistration={
+                        canDelete
+                          ? {
+                              onClick: () => {
+                                void onDeleteRegistration(person);
+                              },
+                            }
+                          : undefined
+                      }
+                      iconsOnly={narrow}
+                    />
+                  )}
+                />
+                <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {filteredRegistrants.length === 0 ? 0 : start + 1} to {end} of{' '}
+                    {filteredRegistrants.length} participants
+                  </p>
+                  <div className="list-pager flex flex-nowrap items-center justify-between gap-2 sm:justify-end">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                        Rows per page
+                      </span>
+                      <Select
+                        value={pageSize}
+                        onValueChange={(value) => {
+                          setPageSize(value);
+                          setPage(1);
+                        }}
+                      >
+                        <SelectTrigger aria-label="Rows per page" className="w-16 shrink-0 sm:w-20">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {['10', '20', '50'].map((value) => (
+                              <SelectItem key={value} value={value}>
+                                {value}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Previous page"
+                        disabled={currentPage <= 1}
+                        onClick={() => setPage((current) => Math.max(1, current - 1))}
+                      >
+                        <ChevronLeftIcon />
+                      </Button>
+                      <Button type="button" variant="default" size="icon" aria-current="page">
+                        {currentPage}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label="Next page"
+                        disabled={currentPage >= pageCount}
+                        onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                      >
+                        <ChevronRightIcon />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {addOpen ? <FormAddRegistrationDialog form={data} onOpenChange={setAddOpen} /> : null}
+      {activeRegistrant ? (
+        <FormRegistrantDialog
+          formId={formId}
+          registrant={activeRegistrant}
+          mode={registrantMode}
+          onOpenChange={(open) => {
+            if (!open) setActiveRegistrant(null);
+          }}
+          onEdit={
+            canMutate
+              ? () => {
+                  setRegistrantMode('edit');
+                }
+              : undefined
+          }
+        />
+      ) : null}
     </div>
   );
 }

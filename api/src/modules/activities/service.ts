@@ -883,9 +883,8 @@ export async function archiveActivity(
 }
 
 /**
- * Permanently deletes a quiz and all related participant data (attempts, results,
- * registrations, reattempt grants, bank links). The quiz's private question
- * bank is removed. Shared assessment banks are kept.
+ * Permanently deletes a quiz or assessment (kind full access),
+ * plus related attempts, results, registrations, and local banks.
  */
 export async function deleteActivity(
   organizationId: string,
@@ -899,8 +898,8 @@ export async function deleteActivity(
   });
   if (!existing) throw notFound('Activity not found.');
   assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, existing.kind, 'full');
-  if (existing.kind !== 'quiz') {
-    throw badRequest('Only quizzes can be permanently deleted.');
+  if (existing.kind !== 'quiz' && existing.kind !== 'assessment') {
+    throw badRequest('Only quizzes and assessments can be permanently deleted.');
   }
 
   await prisma.$transaction(async (tx) => {
@@ -910,19 +909,32 @@ export async function deleteActivity(
         select: { bankId: true },
       })
     ).map((row) => row.bankId);
+    const roundLocalBanks =
+      existing.kind === 'assessment'
+        ? (
+            await tx.activityRound.findMany({
+              where: { organizationId, activityId: id, localBankId: { not: null } },
+              select: { localBankId: true },
+            })
+          )
+            .map((row) => row.localBankId)
+            .filter((bankId): bankId is string => Boolean(bankId))
+        : [];
     // Attempts first: round FK is Restrict; responses/results cascade from attempt.
     await tx.attempt.deleteMany({ where: { organizationId, activityId: id } });
     await tx.result.deleteMany({ where: { organizationId, activityId: id } });
     await tx.reattemptGrant.deleteMany({ where: { organizationId, activityId: id } });
     await tx.registration.deleteMany({ where: { organizationId, activityId: id } });
-    // Cascades activityBanks / rounds / round banks.
+    // Cascades activityBanks / rounds / round banks / contest form links.
     await tx.activity.delete({ where: { id } });
-    if (localBankIds.length > 0) {
+    const orphanBanks = [...localBankIds, ...roundLocalBanks];
+    if (orphanBanks.length > 0) {
       await tx.questionBank.deleteMany({
         where: {
-          id: { in: localBankIds },
-          origin: 'quiz_local',
+          id: { in: orphanBanks },
+          origin: { in: ['quiz_local', 'round_local'] },
           activityBanks: { none: {} },
+          localForRounds: { none: {} },
         },
       });
     }
@@ -935,10 +947,58 @@ export async function deleteActivity(
     action: 'activity.delete',
     targetType: 'activity',
     targetId: id,
-    metadata: { kind: 'quiz' },
+    metadata: { kind: existing.kind },
   });
   await invalidateDashboard(organizationId);
   return { id, deleted: true as const };
+}
+
+/** Kind full access: permanently delete one assessment round and its attempts. */
+export async function deleteRound(
+  organizationId: string,
+  actorUserId: string,
+  actor: AccessActor,
+  activityId: string,
+  roundId: string,
+) {
+  assertActivityAccess(actor.role, actor.assessmentAccess, actor.quizAccess, 'assessment', 'full');
+  const activity = await prisma.activity.findFirst({
+    where: { organizationId, id: activityId, kind: 'assessment' },
+    select: { id: true },
+  });
+  if (!activity) throw notFound('Assessment not found.');
+  const round = await prisma.activityRound.findFirst({
+    where: { organizationId, activityId, id: roundId },
+    select: { id: true, localBankId: true },
+  });
+  if (!round) throw notFound('Round not found.');
+  const roundCount = await prisma.activityRound.count({ where: { organizationId, activityId } });
+  if (roundCount <= 1) {
+    throw badRequest('Every assessment needs at least one round.');
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.attempt.deleteMany({ where: { organizationId, roundId } });
+    await tx.activityRoundBank.deleteMany({ where: { roundId } });
+    await tx.activityRound.update({ where: { id: roundId }, data: { localBankId: null } });
+    await tx.activityRound.delete({ where: { id: roundId } });
+    if (round.localBankId) {
+      await tx.question.deleteMany({ where: { bankId: round.localBankId } });
+      await tx.questionBank.delete({ where: { id: round.localBankId } }).catch(() => undefined);
+    }
+  });
+
+  await writeAudit({
+    organizationId,
+    actorType: 'user',
+    actorUserId,
+    action: 'activity.round_delete',
+    targetType: 'activity_round',
+    targetId: roundId,
+    metadata: { activityId },
+  });
+  await invalidateDashboard(organizationId);
+  return { id: roundId, deleted: true as const };
 }
 
 async function reloadActivity(organizationId: string, id: string) {

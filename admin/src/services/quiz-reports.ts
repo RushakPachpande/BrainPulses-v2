@@ -48,6 +48,7 @@ export type QuizReportQuiz = {
   displayStatus: string;
   scoreRelease: QuizReportRow['scoreRelease'];
   resultsPublishedAt: string | null;
+  withheldCount: number;
   passingPercent: number | null;
 };
 
@@ -149,4 +150,11 @@ export async function downloadQuizReport(query: string): Promise<void> {
 
 export async function publishQuizResults(activityId: string) {
   return apiPostData<{ resultsPublishedAt: string }>(`/api/quiz-reports/${activityId}/publish`, {});
+}
+
+export async function unpublishQuizResults(activityId: string) {
+  return apiPostData<{ resultsPublishedAt: string | null }>(
+    `/api/quiz-reports/${activityId}/unpublish`,
+    {},
+  );
 }

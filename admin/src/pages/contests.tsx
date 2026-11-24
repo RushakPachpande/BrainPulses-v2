@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { PageHeaderActions } from '@/contexts/page-header';
 import { useOrgId } from '@/hooks/use-org-id';
-import { canManageUsersOrSettings, canMutateOrg } from '@/lib/access';
+import { canMutateOrg } from '@/lib/access';
 import { ApiError } from '@/lib/api-client';
 import { adminQueryKeys } from '@/lib/query-keys';
 import { ContestEditorDialog } from '@/pages/contest-editor-dialog';
@@ -34,32 +34,23 @@ function compare(a: Contest, b: Contest, key: SortKey) {
   return a[key].localeCompare(b[key], undefined, { numeric: true });
 }
 
+function contestBlocked(contest: Contest) {
+  return contest.activityCount > 0 || Boolean(contest.registrationForm);
+}
+
 function contestDeleteCopy(contest: Contest) {
-  const form = contest.registrationForm;
-  if (!form) {
-    return {
-      description: 'Permanently removes this contest. This cannot be undone.',
-      details: undefined,
-    };
-  }
-  const statusLabel = form.status === 'saved' ? 'saved' : 'draft';
-  const details = [
-    `The ${statusLabel} registration form for this contest will be deleted, including its public link.`,
-  ];
-  if (form.submissionCount > 0) {
-    details.push(
-      `${form.submissionCount} registered participant${form.submissionCount === 1 ? '' : 's'} will be deleted, including their registrations, attempts, and reports. This includes any other contest they also joined.`,
-    );
-  }
-  if (form.quizCount > 0) {
-    details.push(
-      `${form.quizCount} quiz link${form.quizCount === 1 ? '' : 's'} on that form will be removed. The quizzes themselves stay.`,
-    );
-  }
   return {
-    description:
-      'Permanently removes this contest and the registration form that belongs to it. This cannot be undone.',
-    details,
+    description: 'Permanently removes this contest. This cannot be undone.',
+    details: contest.registrationForm
+      ? [
+          'Unlink or delete the registration form first.',
+          contest.activityCount > 0
+            ? 'Remove every quiz and assessment that still uses this contest.'
+            : null,
+        ].filter((item): item is string => Boolean(item))
+      : contest.activityCount > 0
+        ? ['Remove every quiz and assessment that still uses this contest.']
+        : undefined,
   };
 }
 
@@ -70,8 +61,8 @@ export function ContestsPage() {
   const confirm = useConfirm();
   const membership = auth.status === 'authenticated' ? auth.membership : null;
   const canMutate = canMutateOrg(membership);
-  const canDelete = canManageUsersOrSettings(membership);
   const isSuperAdmin = membership?.role === 'super_admin';
+  const canDelete = isSuperAdmin;
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
@@ -83,7 +74,7 @@ export function ContestsPage() {
   const contests = data ?? EMPTY;
 
   async function onDeleteContest(contest: Contest) {
-    if (!canDelete || contest.activityCount > 0) return;
+    if (!canDelete || contestBlocked(contest)) return;
     let current: Contest;
     try {
       current = await getContest(contest.id);
@@ -91,9 +82,11 @@ export function ContestsPage() {
       toast.error(err instanceof ApiError ? err.message : 'Could not load this contest.');
       return;
     }
-    if (current.activityCount > 0) {
+    if (contestBlocked(current)) {
       toast.error(
-        `Cannot delete this contest while ${current.activityCount} activit${current.activityCount === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
+        current.registrationForm
+          ? 'Cannot delete this contest while a registration form still uses it. Remove that form first.'
+          : `Cannot delete this contest while ${current.activityCount} activit${current.activityCount === 1 ? 'y' : 'ies'} still use it. Remove those links first.`,
       );
       await queryClient.invalidateQueries({ queryKey: ['admin', 'contests'] });
       return;
@@ -282,7 +275,7 @@ export function ContestsPage() {
               onView={isSuperAdmin ? () => setViewId(contest.id) : undefined}
               onEdit={canMutate ? () => setEditor(contest.id) : undefined}
               onDelete={
-                canDelete && contest.activityCount === 0
+                canDelete && !contestBlocked(contest)
                   ? () => void onDeleteContest(contest)
                   : undefined
               }

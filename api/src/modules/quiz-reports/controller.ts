@@ -92,3 +92,17 @@ export async function publish(req: Request, res: Response, next: NextFunction) {
     next(err);
   }
 }
+
+export async function unpublish(req: Request, res: Response, next: NextFunction) {
+  try {
+    const actor = userActor(req);
+    const data = await service.unpublishQuizResults(
+      actor.organizationId,
+      actorOf(req),
+      req.params.activityId as string,
+    );
+    res.json({ data });
+  } catch (err) {
+    next(err);
+  }
+}

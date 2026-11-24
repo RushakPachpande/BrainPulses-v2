@@ -151,7 +151,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 **Forms.** Persistent labels. Hints in muted text. Placeholder is not a label. Focus, invalid, and disabled states stay visible. Keep the user’s input after a recoverable error.
 
-**Tables.** Uppercase header, 1 px row borders, text-only name and ID columns, status pill, View and Edit buttons with an icon and a label (they wrap in the cell). Selected row mixes 12% primary into the card. When the list container is at least 720px wide, the table scrolls inside the card. Below that, each row is its own bordered card: name and ID, checkbox on the right, status, then the fields, then equal View and Edit actions. Sort moves to a toolbar select while cards are showing. A selected card uses a primary border. Footer: “Showing X to Y of Z”, rows per page 10 / 20 / 50, previous, current page, next. Empty state is one muted sentence. The question editor on a bank form keeps a scrolling table.
+**Tables.** Uppercase header, 1 px row borders, text-only name and ID columns (full text wraps in the cell — no ellipsis), status pill, and row actions. When the list container is at least 720px wide, actions show an icon and a label that wrap in the cell; the table may scroll inside the card when columns are many. Below 720px, each row is its own bordered card: name and ID, checkbox on the right, status, then the fields, then icon-only actions with accessible names and tooltips. Delete registration uses a filled destructive control (`UserX`); Delete attempt uses an outline destructive control (`FileX`) so the two stay distinct when icon-only. Sort moves to a toolbar select while cards are showing. Selected row mixes 12% primary into the card; a selected card uses a primary border. Footer: “Showing X to Y of Z”, rows per page 10 / 20 / 50, previous, current page, next. Empty state is one muted sentence. The question editor on a bank form keeps a scrolling table with labeled actions.
 
 **Status.** Use the tone table in section 2. Attempt Completed is `ok`. Activity and question-bank Completed is `pr`.
 
@@ -169,7 +169,7 @@ Import only from `lucide-react`. The same meaning uses the same icon. Dense cont
 
 ## 8. Responsive and accessibility
 
-Check about 375 px, 768 px, and 1280 px. Also review 360, 390, 1024, 1440, and 1920 px before release. Sidebar collapses to a rail and becomes a drawer below 768 px. Actions and filters wrap. Below a 720px list container, record lists become stacked panels inside the card. Wider lists stay tables and scroll inside the card. The bank question editor always scrolls. Module tabs may scroll horizontally.
+Check about 375 px, 768 px, and 1280 px. Also review 360, 390, 1024, 1440, and 1920 px before release. Sidebar collapses to a rail and becomes a drawer below 768 px. Actions and filters wrap. Below a 720px list container, record lists become stacked panels inside the card with icon-only row actions; wider lists stay tables with labeled row actions and may scroll inside the card. List cell text wraps (no ellipsis). The bank question editor always scrolls. Module tabs may scroll horizontally.
 
 Target WCAG 2.2 AA: keyboard focus, landmarks, labels, contrast, status that is not color alone, focus return from drawers and dialogs, reduced motion, and reflow. Theme changes must not reset the route, form values, or filters.
 

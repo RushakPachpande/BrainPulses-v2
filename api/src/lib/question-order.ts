@@ -9,7 +9,8 @@ export type QuestionOrderItem = {
 export type ShuffleFn = <T>(items: T[]) => T[];
 
 function stableSort(items: QuestionOrderItem[]): QuestionOrderItem[] {
-  return [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  // Equal sortOrder keeps the bank's createdAt order already loaded into `items`.
+  return [...items].sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
 /** Passage questions stay in one block. Other questions are blocks of one. */
@@ -22,7 +23,7 @@ export function blocksFromItems(items: QuestionOrderItem[]): QuestionOrderItem[]
     groups.set(item.passageId, list);
   }
   for (const list of groups.values()) {
-    list.sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+    list.sort((a, b) => a.sortOrder - b.sortOrder);
   }
 
   const emitted = new Set<string>();

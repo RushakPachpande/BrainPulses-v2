@@ -6,8 +6,10 @@ import { prisma } from '../../lib/prisma.js';
 import { servedQuestionCount } from '../../lib/question-order.js';
 import { isQuizScoreVisible, parseQuizSettings } from '../../lib/quiz-settings.js';
 import {
+  assessmentAttemptState,
   canRetryRound,
   parseRoundRow,
+  resolveParticipantRoundState,
   resultClearsRound,
   roundGateSatisfied,
   roundIsCleared,
@@ -166,25 +168,6 @@ export async function listMyActivities(
       const openAttempt = attempts.find((a) => a.status === 'in_progress');
       const latest = attempts[0];
 
-      let attemptState: 'not_started' | 'in_progress' | 'submitted' = 'not_started';
-      if (isAssessment && activity.rounds.length > 0) {
-        const allCleared = activity.rounds.every((round) =>
-          roundIsCleared(attempts, round.id, parseRoundRow(round), true),
-        );
-        if (openAttempt) attemptState = 'in_progress';
-        else if (allCleared) attemptState = 'submitted';
-        else if (attempts.length > 0) attemptState = 'in_progress';
-      } else if (latest) {
-        if (latest.status === 'in_progress') attemptState = 'in_progress';
-        else if (
-          latest.status === 'submitted' ||
-          latest.status === 'auto_submitted' ||
-          latest.result
-        ) {
-          attemptState = 'submitted';
-        }
-      }
-
       // Mirrors startAttempt guards so the client does not offer Start → 403.
       let canAttempt = activity.status === 'active';
       let attemptBlockedReason: string | null = null;
@@ -226,18 +209,13 @@ export async function listMyActivities(
               );
             }
 
-            let state: 'locked' | 'available' | 'in_progress' | 'completed';
-            if (cleared) {
-              state = 'completed';
-            } else if (open) {
-              state = 'in_progress';
-            } else if (!canAttempt || !previousCleared) {
-              state = 'locked';
-            } else if (canRetryRound(attempts, round.id, roundSettings, needsPublish)) {
-              state = 'available';
-            } else {
-              state = 'locked';
-            }
+            const state = resolveParticipantRoundState({
+              hasOpenAttempt: Boolean(open),
+              activityOpen: canAttempt,
+              previousGateSatisfied: previousCleared,
+              canRetry: canRetryRound(attempts, round.id, roundSettings, needsPublish),
+              cleared,
+            });
 
             const qCount = servedQuestionCount(
               round.localBank?.questions ?? [],
@@ -265,6 +243,24 @@ export async function listMyActivities(
             };
           })
         : undefined;
+
+      let attemptState: 'not_started' | 'in_progress' | 'submitted' = 'not_started';
+      if (isAssessment && rounds && rounds.length > 0) {
+        attemptState = assessmentAttemptState({
+          hasOpenAttempt: Boolean(openAttempt),
+          hasAnyAttempt: attempts.length > 0,
+          roundStates: rounds.map((round) => round.state),
+        });
+      } else if (latest) {
+        if (latest.status === 'in_progress') attemptState = 'in_progress';
+        else if (
+          latest.status === 'submitted' ||
+          latest.status === 'auto_submitted' ||
+          latest.result
+        ) {
+          attemptState = 'submitted';
+        }
+      }
 
       const latestCompleted = attempts.find(
         (a) => a.status === 'submitted' || a.status === 'auto_submitted' || Boolean(a.result),

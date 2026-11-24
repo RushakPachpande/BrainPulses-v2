@@ -10,7 +10,6 @@ import {
   LogOutIcon,
   SlidersHorizontalIcon,
   TrophyIcon,
-  UserCogIcon,
   UsersIcon,
   type LucideIcon,
 } from 'lucide-react';
@@ -60,8 +59,7 @@ type NavGroupItem = NavLinkItem & { children?: NavChildItem[] };
 
 const nav: NavGroupItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboardIcon, end: true },
-  { to: '/participants', label: 'Participants', icon: UsersIcon, end: true },
-  { to: '/users', label: 'Users', icon: UserCogIcon, end: true },
+  { to: '/participants', label: 'Registration Forms', icon: UsersIcon, end: true },
   { to: '/sponsors', label: 'Sponsors', icon: HandshakeIcon, end: true },
   { to: '/contests', label: 'Contests', icon: TrophyIcon, end: true },
   {
@@ -93,6 +91,7 @@ const nav: NavGroupItem[] = [
     end: false,
     children: [
       { to: '/settings', label: 'General', end: true },
+      { to: '/users', label: 'Users', end: true },
       { to: '/settings/design-system', label: 'Design System', end: true },
     ],
   },

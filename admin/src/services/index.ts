@@ -650,7 +650,7 @@ export async function archiveActivity(activityId: string, idempotencyKey?: strin
   return data;
 }
 
-/** Permanently deletes a quiz and all related attempts, results, and registrations. */
+/** Permanently deletes a quiz or assessment and related attempts, results, and registrations. */
 export async function deleteActivity(activityId: string, password: string) {
   if (useFixtures) {
     invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
@@ -658,6 +658,20 @@ export async function deleteActivity(activityId: string, password: string) {
   }
   const data = await apiRequest<{ data: { id: string; deleted: true } }>(
     `/api/activities/${activityId}`,
+    { method: 'DELETE', body: JSON.stringify({ password }) },
+  );
+  invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
+  return data.data;
+}
+
+/** Super admin: permanently delete one assessment round and its attempts. */
+export async function deleteAssessmentRound(activityId: string, roundId: string, password: string) {
+  if (useFixtures) {
+    invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);
+    return { id: roundId, deleted: true as const };
+  }
+  const data = await apiRequest<{ data: { id: string; deleted: true } }>(
+    `/api/activities/${activityId}/rounds/${roundId}`,
     { method: 'DELETE', body: JSON.stringify({ password }) },
   );
   invalidateAdmin(['activities', 'registrations', 'results', 'resultsSummary', 'dashboard']);

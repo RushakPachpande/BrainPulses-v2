@@ -43,3 +43,9 @@ assessmentReportsRouter.post(
   validate({ params: roundParamSchema }),
   controller.publish,
 );
+assessmentReportsRouter.post(
+  '/rounds/:roundId/unpublish',
+  requireOrgAccess('full'),
+  validate({ params: roundParamSchema }),
+  controller.unpublish,
+);

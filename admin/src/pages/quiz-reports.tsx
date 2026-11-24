@@ -9,7 +9,6 @@ import { ResponsiveRecords, type RecordColumn } from '@/components/responsive-re
 import { StatusPill } from '@/components/status-pill';
 import { Toolbar, type ToolbarFilter } from '@/components/toolbar';
 import { useConfirm } from '@/components/use-confirm';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -33,7 +32,13 @@ import { useOrgId } from '@/hooks/use-org-id';
 import { ApiError } from '@/lib/api-client';
 import { canFullKind } from '@/lib/access';
 import { adminQueryKeys } from '@/lib/query-keys';
-import { getQuizReport, publishQuizResults, type QuizReportRow } from '@/services/quiz-reports';
+import {
+  getQuizReport,
+  publishQuizResults,
+  unpublishQuizResults,
+  type QuizReportQuiz,
+  type QuizReportRow,
+} from '@/services/quiz-reports';
 import { QuizReportDownloadDialog } from '@/pages/quiz-report-download';
 import {
   AUTO_REASON_LABEL,
@@ -92,6 +97,7 @@ export function QuizReportsPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [unpublishing, setUnpublishing] = useState(false);
 
   useEffect(() => {
     if (userId) setColumns(readStoredColumns(userId));
@@ -184,6 +190,9 @@ export function QuizReportsPage() {
     setQuizStatuses([]);
     setAttemptStatuses([]);
     setAutoSubmitted([]);
+    const columnsDefault = defaultColumns();
+    setColumns(columnsDefault);
+    if (userId) writeStoredColumns(userId, columnsDefault);
     setPage(1);
     setSearchParams({}, { replace: true });
   }
@@ -313,21 +322,42 @@ export function QuizReportsPage() {
   const pageCount = data?.page.pageCount ?? 1;
   const noRegistrations = Boolean(data && data.options.quizzes.length === 0);
   const publishQuiz = selectedQuiz;
-  const unpublishedPool =
+  const pendingWithheld = (publishQuiz?.withheldCount ?? 0) > 0;
+  const canPublishNow = Boolean(
+    publishQuiz &&
+    canPublish &&
+    publishQuiz.scoreRelease === 'after_publish' &&
+    (!publishQuiz.resultsPublishedAt || pendingWithheld),
+  );
+  const canUnpublishNow = Boolean(
+    publishQuiz &&
+    canPublish &&
+    publishQuiz.scoreRelease === 'after_publish' &&
+    publishQuiz.resultsPublishedAt,
+  );
+
+  function quizNeedsPublish(quiz: QuizReportQuiz) {
+    return (
+      quiz.scoreRelease === 'after_publish' && (!quiz.resultsPublishedAt || quiz.withheldCount > 0)
+    );
+  }
+
+  const releasePool =
     activityIds.length === 0
       ? quizChoices
       : quizChoices.filter((quiz) => activityIds.includes(quiz.id));
-  const unpublishedQuizzes = unpublishedPool.filter(
-    (quiz) => quiz.scoreRelease === 'after_publish' && !quiz.resultsPublishedAt,
-  );
-  const showUnpublishedList = activityIds.length !== 1 && unpublishedQuizzes.length > 0;
+  /** Every after_publish quiz in scope — includes fully published ones so Unpublish stays available. */
+  const releaseQuizzes = releasePool.filter((quiz) => quiz.scoreRelease === 'after_publish');
+  const showReleaseCard = releaseQuizzes.length > 0;
 
-  async function onPublish(quiz: { id: string; name: string }) {
+  async function onPublish(quiz: QuizReportQuiz) {
     if (!canPublish) return;
+    const releasingNew = Boolean(quiz.resultsPublishedAt) && quiz.withheldCount > 0;
     const ok = await confirm({
       title: `Publish results for ${quiz.name}?`,
-      description:
-        "Every student who has submitted will be able to see their score and result. You can't hide them again afterwards.",
+      description: releasingNew
+        ? `Publish ${quiz.withheldCount} new attempt${quiz.withheldCount === 1 ? '' : 's'} submitted since the last publish. Students with those attempts will see their scores.`
+        : 'Every student who has submitted will be able to see their score and result. You can unpublish later to hide them again.',
       confirmLabel: 'Publish results',
     });
     if (ok !== true) return;
@@ -347,39 +377,72 @@ export function QuizReportsPage() {
     }
   }
 
+  async function onUnpublish(quiz: QuizReportQuiz) {
+    if (!canPublish) return;
+    const ok = await confirm({
+      title: `Unpublish results for ${quiz.name}?`,
+      description:
+        'All published scores for this quiz will be hidden from students until you publish again. This applies to everyone.',
+      confirmLabel: 'Unpublish results',
+      destructive: true,
+    });
+    if (ok !== true) return;
+    setUnpublishing(true);
+    try {
+      await unpublishQuizResults(quiz.id);
+      toast.success('Results unpublished');
+      await refetch();
+    } catch {
+      toast.error("Couldn't unpublish results. Try again.");
+    } finally {
+      setUnpublishing(false);
+    }
+  }
+
   return (
     <div ref={ref} className="flex flex-col gap-4">
       <PageHeaderActions>
-        {publishQuiz?.scoreRelease === 'after_publish' &&
-        !publishQuiz.resultsPublishedAt &&
-        canPublish ? (
-          <Button
-            type="button"
-            disabled={publishing}
-            aria-busy={publishing}
-            onClick={() => void onPublish(publishQuiz)}
-          >
-            Publish results
-          </Button>
-        ) : null}
-        <div className="flex w-full flex-col items-stretch gap-1 sm:items-end">
-          {data && activityIds.length !== 1 ? (
-            <p
-              id="quiz-download-hint"
-              className="text-xs text-muted-foreground sm:max-w-xs sm:text-right"
+        <div className="flex w-full flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          {canPublishNow && publishQuiz ? (
+            <Button
+              type="button"
+              disabled={publishing || unpublishing}
+              aria-busy={publishing}
+              onClick={() => void onPublish(publishQuiz)}
             >
-              Choose one quiz in the Quiz filter to download its report.
-            </p>
+              Publish results
+            </Button>
           ) : null}
-          <Button
-            type="button"
-            disabled={!data || isError || activityIds.length !== 1}
-            aria-describedby={data && activityIds.length !== 1 ? 'quiz-download-hint' : undefined}
-            onClick={() => setDownloadOpen(true)}
-          >
-            <DownloadIcon data-icon="inline-start" />
-            Download report
-          </Button>
+          {canUnpublishNow && publishQuiz ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={publishing || unpublishing}
+              aria-busy={unpublishing}
+              onClick={() => void onUnpublish(publishQuiz)}
+            >
+              Unpublish results
+            </Button>
+          ) : null}
+          <div className="flex w-full flex-col items-stretch gap-1 sm:w-auto sm:items-end">
+            {data && activityIds.length !== 1 ? (
+              <p
+                id="quiz-download-hint"
+                className="text-xs text-muted-foreground sm:max-w-xs sm:text-right"
+              >
+                Choose one quiz in the Quiz filter to download its report.
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              disabled={!data || isError || activityIds.length !== 1}
+              aria-describedby={data && activityIds.length !== 1 ? 'quiz-download-hint' : undefined}
+              onClick={() => setDownloadOpen(true)}
+            >
+              <DownloadIcon data-icon="inline-start" />
+              Download report
+            </Button>
+          </div>
         </div>
       </PageHeaderActions>
 
@@ -410,62 +473,69 @@ export function QuizReportsPage() {
             ))}
           </section>
 
-          {showUnpublishedList ? (
+          {showReleaseCard ? (
             <Card>
               <CardContent className="flex flex-col gap-3">
-                <p className="text-sm font-medium">Results not yet visible to students</p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-sm font-medium">Score release</p>
+                  <p className="text-xs text-muted-foreground">
+                    Publish releases held scores. Unpublish hides every published score for that
+                    quiz until you publish again.
+                  </p>
+                </div>
                 <ul className="flex flex-col">
-                  {unpublishedQuizzes.map((quiz) => (
-                    <li
-                      key={quiz.id}
-                      className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <span className="text-sm">{quiz.name}</span>
-                      {canPublish ? (
-                        <Button
-                          type="button"
-                          disabled={publishing}
-                          aria-busy={publishing}
-                          onClick={() => void onPublish(quiz)}
-                        >
-                          Publish results
-                        </Button>
-                      ) : (
-                        <span className="text-sm text-muted-foreground">Waiting to publish</span>
-                      )}
-                    </li>
-                  ))}
+                  {releaseQuizzes.map((quiz) => {
+                    const needsPublish = quizNeedsPublish(quiz);
+                    const isPublished = Boolean(quiz.resultsPublishedAt);
+                    return (
+                      <li
+                        key={quiz.id}
+                        className="flex flex-col gap-2 border-b border-border py-3 last:border-b-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-sm">{quiz.name}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {isPublished && quiz.resultsPublishedAt && quiz.withheldCount > 0
+                              ? `Published ${formatReportDate(quiz.resultsPublishedAt)} · ${quiz.withheldCount} new attempt${quiz.withheldCount === 1 ? '' : 's'} waiting`
+                              : isPublished && quiz.resultsPublishedAt
+                                ? `Published ${formatReportDate(quiz.resultsPublishedAt)} · visible to students`
+                                : 'Not published · scores held'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {canPublish && needsPublish ? (
+                            <Button
+                              type="button"
+                              disabled={publishing || unpublishing}
+                              aria-busy={publishing}
+                              onClick={() => void onPublish(quiz)}
+                            >
+                              Publish results
+                            </Button>
+                          ) : null}
+                          {canPublish && isPublished ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              disabled={publishing || unpublishing}
+                              aria-busy={unpublishing}
+                              onClick={() => void onUnpublish(quiz)}
+                            >
+                              Unpublish results
+                            </Button>
+                          ) : null}
+                          {!canPublish ? (
+                            <span className="text-sm text-muted-foreground">
+                              {needsPublish ? 'Waiting to publish' : 'Published'}
+                            </span>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               </CardContent>
             </Card>
-          ) : null}
-
-          {publishQuiz?.scoreRelease === 'after_publish' ? (
-            <Alert
-              className={
-                publishQuiz.resultsPublishedAt
-                  ? 'border-success/40 bg-success/10'
-                  : 'border-warning/40 bg-warning/10'
-              }
-            >
-              <AlertTitle>
-                {publishQuiz.resultsPublishedAt
-                  ? `Results published on ${formatReportDate(publishQuiz.resultsPublishedAt)}. Students can see their scores.`
-                  : 'Results not yet visible to students.'}
-              </AlertTitle>
-              {!publishQuiz.resultsPublishedAt && canPublish ? (
-                <AlertDescription>
-                  <Button
-                    type="button"
-                    disabled={publishing}
-                    aria-busy={publishing}
-                    onClick={() => void onPublish(publishQuiz)}
-                  >
-                    Publish results
-                  </Button>
-                </AlertDescription>
-              ) : null}
-            </Alert>
           ) : null}
 
           <Toolbar

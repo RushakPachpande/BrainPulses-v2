@@ -7,13 +7,13 @@ export type PageMeta = {
 export const pageMeta: Record<string, PageMeta> = {
   '/dashboard': { crumb: 'BrainPulses / Dashboard', title: 'Admin Dashboard' },
   '/participants': {
-    crumb: 'BrainPulses / Participants',
-    title: 'Participants',
+    crumb: 'BrainPulses / Registration Forms',
+    title: 'Registration Forms',
     description:
-      'One row per participant per contest. Participants join a contest through its registration form.',
+      'Registration forms for each contest. Open a form to see who registered and which activities they receive.',
   },
   '/participants/forms/new': {
-    crumb: 'BrainPulses / Participants / Create registration form',
+    crumb: 'BrainPulses / Registration Forms / Create registration form',
     title: 'Create registration form',
   },
   '/sponsors': {
@@ -27,7 +27,7 @@ export const pageMeta: Record<string, PageMeta> = {
     description: 'Manage contests and the sponsor each one belongs to.',
   },
   '/users': {
-    crumb: 'BrainPulses / Users',
+    crumb: 'BrainPulses / Settings / Users',
     title: 'User Management',
     description: 'Manage admin users, roles, and access to assessments and quizzes.',
   },
@@ -85,14 +85,14 @@ export function resolvePageMeta(pathname: string): PageMeta {
   const formEdit = pathname.match(/^\/participants\/forms\/([^/]+)\/edit$/);
   if (formEdit) {
     return {
-      crumb: 'BrainPulses / Participants / Edit registration form',
+      crumb: 'BrainPulses / Registration Forms / Edit registration form',
       title: 'Edit registration form',
     };
   }
   const formView = pathname.match(/^\/participants\/forms\/([^/]+)$/);
   if (formView && formView[1] !== 'new') {
     return {
-      crumb: 'BrainPulses / Participants / Registration form',
+      crumb: 'BrainPulses / Registration Forms / Registration form',
       title: 'Registration form',
     };
   }
