@@ -480,6 +480,7 @@ export function QuestionBanksPage({ kind }: { kind: ActivityKind }) {
                       }
                     : undefined
                 }
+                iconsOnly={narrow}
               />
             )}
             onRowOpen={(row) =>

@@ -27,7 +27,7 @@ export const pageMeta: Record<string, PageMeta> = {
     description: 'Manage contests and the sponsor each one belongs to.',
   },
   '/users': {
-    crumb: 'BrainPulses / Users',
+    crumb: 'BrainPulses / Settings / Users',
     title: 'User Management',
     description: 'Manage admin users, roles, and access to assessments and quizzes.',
   },

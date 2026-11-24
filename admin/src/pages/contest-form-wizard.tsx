@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { ChevronLeftIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { ContestFormBuilder } from '@/components/contest-form-builder';
 import { DateTimePicker } from '@/components/date-time-picker';
@@ -22,6 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { PageHeaderActions } from '@/contexts/page-header';
 import { ApiError } from '@/lib/api-client';
 import { isInstructionsEmpty, sanitizeInstructionsHtml } from '@/lib/sanitize-html';
 import {
@@ -264,8 +266,28 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
 
   const linkLabel = draft.slug ? registrationUrl(draft.slug) : 'Live after you save';
 
+  function cancelWizard() {
+    if (editingSaved && formId) {
+      navigate(`/participants/forms/${formId}`);
+      return;
+    }
+    navigate('/participants');
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      <PageHeaderActions>
+        <Button type="button" variant="outline" onClick={cancelWizard}>
+          Cancel
+        </Button>
+      </PageHeaderActions>
+      <Link
+        to="/participants"
+        className="inline-flex w-fit items-center gap-1 text-sm font-medium text-primary"
+      >
+        <ChevronLeftIcon className="size-4" aria-hidden />
+        Participants
+      </Link>
       <ol className="flex flex-wrap gap-2 text-sm" aria-label="Steps">
         <li>
           <button
@@ -497,19 +519,9 @@ export function ContestFormWizardPage({ mode }: { mode: 'create' | 'edit' }) {
               onThankYou={(partial) => patch(partial)}
             />
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              {editingSaved ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate(`/participants/forms/${formId}`)}
-                >
-                  Cancel
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" disabled>
-                  Back
-                </Button>
-              )}
+              <Button type="button" variant="outline" onClick={cancelWizard}>
+                Cancel
+              </Button>
               <Button
                 type="button"
                 variant="outline"

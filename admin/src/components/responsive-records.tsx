@@ -420,7 +420,7 @@ export function ResponsiveRecords<Row>({
                   }
                 >
                   {selection ? (
-                    <TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <Checkbox
                         checked={selection.selected.has(id)}
                         onCheckedChange={(checked) => selection.onToggleOne(id, checked === true)}
@@ -433,7 +433,9 @@ export function ResponsiveRecords<Row>({
                       {column.render(row)}
                     </TableCell>
                   ))}
-                  {renderActions ? <TableCell>{renderActions(row)}</TableCell> : null}
+                  {renderActions ? (
+                    <TableCell className="min-w-0">{renderActions(row)}</TableCell>
+                  ) : null}
                 </TableRow>
               );
             })

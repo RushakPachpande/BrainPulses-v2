@@ -318,8 +318,8 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
       case 'name':
         return (
           <div className="min-w-0">
-            <div className="truncate font-medium">{item.name}</div>
-            <div className="truncate text-xs font-normal text-muted-foreground">
+            <div className="min-w-0 font-medium wrap-break-word">{item.name}</div>
+            <div className="min-w-0 text-xs font-normal text-muted-foreground wrap-break-word">
               {item.subtitle}
             </div>
           </div>
@@ -481,7 +481,7 @@ export function ActivityListPage({ kind }: { kind: ActivityKind }) {
                     ? { label: 'Delete', onClick: () => void onDeleteActivity(item) }
                     : undefined
                 }
-                iconsOnly={!narrow}
+                iconsOnly={narrow}
               />
             )}
             onRowOpen={(item) => navigate(`${listPath}/${item.id}`)}

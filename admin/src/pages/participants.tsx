@@ -167,9 +167,7 @@ export function ParticipantsPage() {
         placement: 'details',
         render: (form) =>
           form.link ? (
-            <span className="truncate text-primary" title={form.link}>
-              {form.link}
-            </span>
+            <span className="min-w-0 text-primary wrap-break-word">{form.link}</span>
           ) : (
             <span className="text-muted-foreground">Not live yet</span>
           ),
@@ -349,9 +347,36 @@ export function ParticipantsPage() {
                 onSort: (key) => toggleSort(key as FormSortKey),
               }}
               renderActions={(form) => (
-                <div className="flex flex-wrap items-center gap-2">
+                <div
+                  data-icons-only={narrow ? '' : undefined}
+                  className={
+                    narrow
+                      ? 'flex w-full min-w-0 flex-wrap items-center gap-2'
+                      : 'flex flex-wrap items-center gap-2'
+                  }
+                >
                   {form.link ? (
                     narrow ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              aria-label="Copy link"
+                              onClick={() => {
+                                void navigator.clipboard.writeText(form.link);
+                                toast.success('Link copied');
+                              }}
+                            >
+                              <CopyIcon aria-hidden="true" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Copy link</TooltipContent>
+                      </Tooltip>
+                    ) : (
                       <Button
                         type="button"
                         variant="outline"
@@ -363,24 +388,6 @@ export function ParticipantsPage() {
                         <CopyIcon data-icon="inline-start" aria-hidden="true" />
                         Copy link
                       </Button>
-                    ) : (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="icon"
-                            aria-label="Copy link"
-                            onClick={() => {
-                              void navigator.clipboard.writeText(form.link);
-                              toast.success('Link copied');
-                            }}
-                          >
-                            <CopyIcon aria-hidden="true" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Copy link</TooltipContent>
-                      </Tooltip>
                     )
                   ) : null}
                   <RowActions
@@ -391,21 +398,34 @@ export function ParticipantsPage() {
                         ? { label: 'Delete', onClick: () => void onDeleteForm(form) }
                         : undefined
                     }
-                    iconsOnly={!narrow}
+                    iconsOnly={narrow}
                   />
                   {canMutate &&
                   form.quizCount + form.assessmentCount === 0 &&
                   form.status === 'saved' ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size={narrow ? 'default' : 'icon'}
-                      aria-label="Assign activity"
-                      onClick={() => setGiveForm(form)}
-                    >
-                      <PlusIcon data-icon={narrow ? 'inline-start' : undefined} />
-                      {narrow ? 'Assign activity' : null}
-                    </Button>
+                    narrow ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              aria-label="Assign activity"
+                              onClick={() => setGiveForm(form)}
+                            >
+                              <PlusIcon aria-hidden="true" />
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>Assign activity</TooltipContent>
+                      </Tooltip>
+                    ) : (
+                      <Button type="button" variant="outline" onClick={() => setGiveForm(form)}>
+                        <PlusIcon data-icon="inline-start" aria-hidden="true" />
+                        Assign activity
+                      </Button>
+                    )
                   ) : null}
                 </div>
               )}
