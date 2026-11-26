@@ -2,7 +2,7 @@
 
 ## Layout
 
-Configured via `UPLOAD_DIR` (default `./uploads`, usually `api/uploads` when the API cwd is `api/`). Existing placement trees under organization folders are preserved. Temporary job artifacts:
+Configured via `UPLOAD_DIR` (default `./uploads`, usually `api/uploads` when the API cwd is `api/`). Catalog uploads land under `{org}/pending/` until an owner claims them (sponsor, contest, activity, login branding, question bank, and so on). Temporary job artifacts:
 
 ```text
 uploads/

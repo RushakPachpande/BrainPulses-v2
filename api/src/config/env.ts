@@ -68,7 +68,7 @@ const envSchema = z
     /** Trusted proxy hop count. 0 = direct connections (default). */
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     DASHBOARD_CACHE_TTL_SECONDS: z.coerce.number().default(60),
-    /** Process jobs in-process (no BullMQ worker). Forced on in NODE_ENV=test. */
+    /** Process jobs in-process (no BullMQ worker). Also forced on in test and development. */
     QUEUE_INLINE: z
       .string()
       .optional()

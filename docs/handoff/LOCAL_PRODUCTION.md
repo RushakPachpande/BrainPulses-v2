@@ -45,8 +45,10 @@ CORS_ORIGIN=http://localhost:5173,http://localhost:5174
 ```powershell
 npm run dev:api
 npm run dev:admin
-npm run dev:client
+npm run dev:participant
 ```
+
+`npm run dev:api` starts only the HTTP API. Imports, exports, and OTP run in-process in development (no local worker). Production uses the separate PM2 worker.
 
 Health checks:
 

@@ -1,4 +1,5 @@
 import '../config/load-env.js';
+import { PARTICIPANT_LOGIN_IMAGE_KEY } from '../lib/participant-login.js';
 import { disconnectPrisma, prisma } from '../lib/prisma.js';
 import { destinationForBank, placeOwnedImage } from '../modules/files/place.js';
 import {
@@ -21,6 +22,25 @@ const ambiguousDest: ImageDestination = {
 
 async function claimsForOrganization(organizationId: string): Promise<Claim[]> {
   const claims: Claim[] = [];
+
+  const loginImage = await prisma.setting.findUnique({
+    where: {
+      organizationId_group_key: {
+        organizationId,
+        group: 'general',
+        key: PARTICIPANT_LOGIN_IMAGE_KEY,
+      },
+    },
+    select: { value: true },
+  });
+  if (typeof loginImage?.value === 'string' && loginImage.value.trim()) {
+    const dest: ImageDestination = { kind: 'login' };
+    claims.push({
+      fileId: loginImage.value.trim(),
+      ownerKey: destinationKey(dest),
+      dest,
+    });
+  }
 
   const sponsors = await prisma.sponsor.findMany({
     where: { organizationId },

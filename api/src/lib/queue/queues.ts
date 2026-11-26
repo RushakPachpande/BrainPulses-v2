@@ -87,9 +87,9 @@ function defaultJobOptions(
   };
 }
 
-/** True when jobs should run in-process (tests / QUEUE_INLINE). */
+/** True when jobs should run in-process (local/dev, tests, or QUEUE_INLINE). */
 export function useInlineQueue(): boolean {
-  return env.QUEUE_INLINE || env.NODE_ENV === 'test';
+  return env.QUEUE_INLINE || env.NODE_ENV === 'test' || env.NODE_ENV === 'development';
 }
 
 async function assertCapacity(q: Queue<JobPayload, JobResult, JobName>) {

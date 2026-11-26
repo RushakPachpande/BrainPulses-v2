@@ -59,6 +59,18 @@ describe('upload paths', () => {
     );
   });
 
+  it('moves a pending catalog upload into the login branding folder', async () => {
+    const root = await tempRoot();
+    const pending = path.join(root, ORG, 'pending', FILE);
+    await mkdir(path.dirname(pending), { recursive: true });
+    await writeFile(pending, 'login');
+    const dest: ImageDestination = { kind: 'login' };
+    const moved = await moveUploadFile(root, toDbStoragePath(`${ORG}/pending/${FILE}`), ORG, dest);
+    assert.equal(moved.status, 'moved');
+    assert.equal(moved.storagePath, `/uploads/${ORG}/branding/login/${FILE}`);
+    assert.equal(await readFile(absoluteStoragePath(root, moved.storagePath), 'utf8'), 'login');
+  });
+
   it('moves a single-owner file out of the flat organization folder', async () => {
     const root = await tempRoot();
     const legacy = path.join(root, ORG, FILE);

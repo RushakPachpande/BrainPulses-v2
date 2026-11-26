@@ -205,6 +205,10 @@ export async function createDownloadToken(
   };
 }
 
+function isMissingFileError(err: unknown): boolean {
+  return Boolean(err && typeof err === 'object' && 'code' in err && err.code === 'ENOENT');
+}
+
 export async function downloadWithToken(token: string) {
   const hash = createHash('sha256').update(token).digest('hex');
   const raw = await getRedis().get(`file:dl:${hash}`);
@@ -224,8 +228,13 @@ export async function downloadWithToken(token: string) {
   });
   if (!file) throw notFound('File not found.');
 
-  const buffer = await readFile(diskPath(file.storagePath));
-  return { file, buffer };
+  try {
+    const buffer = await readFile(diskPath(file.storagePath));
+    return { file, buffer };
+  } catch (err) {
+    if (isMissingFileError(err)) throw notFound('File not found.');
+    throw err;
+  }
 }
 
 const FILE_MAX_BYTES = 20 * 1024 * 1024;
@@ -254,6 +263,12 @@ export async function assertCatalogImage(organizationId: string, fileId: string)
   }
   if (file.sizeBytes <= 0 || file.sizeBytes > CATALOG_IMAGE_MAX_BYTES) {
     throw badRequest(`Image must be ${formatMegabytes(CATALOG_IMAGE_MAX_BYTES)} or smaller.`);
+  }
+  try {
+    await stat(diskPath(file.storagePath));
+  } catch (err) {
+    if (isMissingFileError(err)) throw badRequest('Upload an image before saving.');
+    throw err;
   }
   return file;
 }
@@ -292,8 +307,13 @@ export async function readInlineImage(organizationId: string, fileId: string) {
   if (!file.mimeType.startsWith('image/')) {
     throw badRequest('Only images can be shown inline.');
   }
-  const buffer = await readFile(diskPath(file.storagePath));
-  return { file, buffer };
+  try {
+    const buffer = await readFile(diskPath(file.storagePath));
+    return { file, buffer };
+  } catch (err) {
+    if (isMissingFileError(err)) throw notFound('File not found.');
+    throw err;
+  }
 }
 
 export async function deletePendingFile(organizationId: string, fileId: string) {

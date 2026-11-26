@@ -23,6 +23,7 @@ export function kindFolder(kind: 'assessment' | 'quiz'): 'assessments' | 'quizze
 }
 
 export type ImageDestination =
+  | { kind: 'login' }
   | { kind: 'sponsor'; sponsorName: string; sponsorId: string }
   | {
       kind: 'contest';
@@ -62,6 +63,8 @@ export type ImageDestination =
 
 export function destinationSegments(dest: ImageDestination): string[] {
   switch (dest.kind) {
+    case 'login':
+      return ['branding', 'login'];
     case 'sponsor':
       return ['sponsors', recordSlug(dest.sponsorName, dest.sponsorId)];
     case 'contest':
