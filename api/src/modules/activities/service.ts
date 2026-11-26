@@ -358,6 +358,17 @@ async function replaceRounds(
     throw badRequest('Assessments require at least one round.');
   }
 
+  const keptRounds = rounds.filter(
+    (round): round is RoundInput & { id: string } =>
+      typeof round.id === 'string' && keepIds.has(round.id),
+  );
+  for (let i = 0; i < keptRounds.length; i += 1) {
+    await tx.activityRound.update({
+      where: { id: keptRounds[i]!.id },
+      data: { sortOrder: -(i + 1) },
+    });
+  }
+
   for (const round of rounds) {
     const data = roundPersistData(round);
     if (round.id && keepIds.has(round.id)) {
