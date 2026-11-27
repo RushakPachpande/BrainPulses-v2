@@ -14,7 +14,6 @@ import {
   PlusIcon,
   RotateCcwIcon,
   ShieldCheckIcon,
-  UserPlusIcon,
   UsersIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -56,7 +55,6 @@ import {
   regenerateContestFormLink,
   updateContestForm,
 } from '@/services/contest-forms';
-import { FormAddRegistrationDialog } from '@/pages/form-add-registration-dialog';
 import { FormRegistrantDialog } from '@/pages/form-registrant-dialog';
 
 const registrantColumns: RecordColumn<ContestFormRegistrant>[] = [
@@ -102,7 +100,6 @@ export function ContestFormViewPage() {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState('10');
-  const [addOpen, setAddOpen] = useState(false);
   const [activeRegistrant, setActiveRegistrant] = useState<ContestFormRegistrant | null>(null);
   const [registrantMode, setRegistrantMode] = useState<'view' | 'edit'>('view');
   const { data, isPending } = useQuery({
@@ -217,12 +214,6 @@ export function ContestFormViewPage() {
   return (
     <div className="flex flex-col gap-4">
       <PageHeaderActions>
-        {canMutate && data.status === 'saved' ? (
-          <Button type="button" onClick={() => setAddOpen(true)}>
-            <UserPlusIcon data-icon="inline-start" />
-            Add registration
-          </Button>
-        ) : null}
         {canMutate ? (
           <Button
             type="button"
@@ -568,7 +559,6 @@ export function ContestFormViewPage() {
         </Card>
       </div>
 
-      {addOpen ? <FormAddRegistrationDialog form={data} onOpenChange={setAddOpen} /> : null}
       {activeRegistrant ? (
         <FormRegistrantDialog
           formId={formId}

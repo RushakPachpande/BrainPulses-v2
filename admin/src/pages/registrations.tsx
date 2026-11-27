@@ -7,7 +7,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   ClockIcon,
-  PlusIcon,
   RotateCcwIcon,
   UserIcon,
   UsersIcon,
@@ -31,7 +30,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAuth } from '@/contexts/auth-context';
-import { PageHeaderActions } from '@/contexts/page-header';
 import { useContainerNarrow } from '@/hooks/use-container-narrow';
 import { useRecordSelection } from '@/hooks/use-list-selection';
 import { useOrgId } from '@/hooks/use-org-id';
@@ -46,7 +44,6 @@ import {
   getRegistrations,
   type ActivityKind,
 } from '@/services';
-import { AddRegistrationDialog } from '@/pages/add-registration-dialog';
 import type { RegistrationRow as Registration } from '@/services/types';
 
 const EMPTY_ROWS: Registration[] = [];
@@ -139,8 +136,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
     enabled: Boolean(orgId),
   });
   const rows = data ?? EMPTY_ROWS;
-
-  const [addOpen, setAddOpen] = useState(false);
 
   async function onDeleteRegistration(row: Registration) {
     const password = await confirmSensitiveDelete(confirm, {
@@ -335,30 +330,13 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
   if (loading) {
     return (
       <div className="flex flex-col gap-4">
-        {canEdit ? (
-          <PageHeaderActions>
-            <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
-              <PlusIcon data-icon="inline-start" />
-              Add registration
-            </Button>
-          </PageHeaderActions>
-        ) : null}
         <ListPageSkeleton columns={7} />
-        {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
       </div>
     );
   }
 
   return (
     <div ref={ref} className="flex flex-col gap-4">
-      {canEdit ? (
-        <PageHeaderActions>
-          <Button type="button" className="w-full sm:w-auto" onClick={() => setAddOpen(true)}>
-            <PlusIcon data-icon="inline-start" />
-            Add registration
-          </Button>
-        </PageHeaderActions>
-      ) : null}
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map((metric) => {
           const Icon = metric.icon;
@@ -540,7 +518,6 @@ export function RegistrationsPage({ kind }: { kind: ActivityKind }) {
           </div>
         </CardContent>
       </Card>
-      {addOpen ? <AddRegistrationDialog kind={kind} onOpenChange={setAddOpen} /> : null}
     </div>
   );
 }
