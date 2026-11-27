@@ -3,6 +3,7 @@ import { writeAudit } from '../../lib/audit.js';
 import { badRequest } from '../../lib/errors.js';
 import { PARTICIPANT_LOGIN_IMAGE_KEY } from '../../lib/participant-login.js';
 import { prisma } from '../../lib/prisma.js';
+import { placeOwnedImage } from '../files/place.js';
 import { assertCatalogImage } from '../files/service.js';
 
 const DEFAULTS: Record<SettingGroup, Record<string, unknown>> = {
@@ -58,8 +59,13 @@ export async function patchSettings(
     } else if (typeof raw !== 'string') {
       throw badRequest('Login image is invalid.');
     } else {
-      await assertCatalogImage(organizationId, raw.trim());
-      next[PARTICIPANT_LOGIN_IMAGE_KEY] = raw.trim();
+      const fileId = raw.trim();
+      await assertCatalogImage(organizationId, fileId);
+      const placed = await placeOwnedImage(organizationId, fileId, { kind: 'login' });
+      if (placed === 'missing') {
+        throw badRequest('Upload an image before saving.');
+      }
+      next[PARTICIPANT_LOGIN_IMAGE_KEY] = fileId;
     }
   }
 

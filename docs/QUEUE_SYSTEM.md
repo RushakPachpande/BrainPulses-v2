@@ -9,7 +9,7 @@ BrainPulses uses **BullMQ** on the existing Redis instance for selected long-run
 | API | `brainpulses-api` | Validates requests, enqueues jobs, serves job status/download |
 | Worker | `brainpulses-worker` | Runs job processors (`api/src/worker.ts` → `dist/worker.js`) |
 
-Local/tests: `QUEUE_INLINE=true` or `NODE_ENV=test` runs processors in-process (no worker required).
+Local/dev: `npm run dev:api` starts only the HTTP API. Jobs run in-process whenever `NODE_ENV` is `development` or `test`, or when `QUEUE_INLINE=true`. Production uses `QUEUE_INLINE=false` and the separate PM2 worker (`npm run start:worker` / `brainpulses-worker`).
 
 ## Job types
 
@@ -28,7 +28,7 @@ Local/tests: `QUEUE_INLINE=true` or `NODE_ENV=test` runs processors in-process (
 3. On `completed`, export clients call `GET /api/jobs/:jobId/download`; import clients read `result.data`.
 4. Acceptance is never presented as success until status is `completed`.
 
-`QUEUE_INLINE=true` and `NODE_ENV=test` still run the processor in the API process and may return the file or import JSON on the first response. Production does not set `forceInline`.
+`QUEUE_INLINE=true`, `NODE_ENV=test`, and `NODE_ENV=development` run the processor in the API process and may return the file or import JSON on the first response. Production keeps `QUEUE_INLINE=false` and does not set `forceInline`.
 
 The worker deletes files in `uploads/temporary/jobs` older than 24 hours. A download does not delete the file, so a retry in that window still works.
 

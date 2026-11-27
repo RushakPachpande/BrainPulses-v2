@@ -19,6 +19,7 @@ Templates: `api/.env.dev.example`, `api/.env.prod.example`.
 
 Queue knobs (optional; code defaults exist): `QUEUE_INLINE`, `QUEUE_CONCURRENCY`,
 `QUEUE_MAX_WAITING`, `QUEUE_JOB_ATTEMPTS`, `QUEUE_BACKOFF_MS`, `QUEUE_JOB_TIMEOUT_MS`.
+Local/dev runs jobs in the API process; production uses `QUEUE_INLINE=false` plus the PM2 worker.
 
 PM2 starts with `--env production` so `NODE_ENV=production` before load-env runs.
 

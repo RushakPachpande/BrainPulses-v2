@@ -14,7 +14,6 @@
     "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "start:worker": "node dist/worker.js",
-    "dev:worker": "node --conditions=development --import tsx src/worker.ts",
     "typecheck": "tsc --noEmit && tsc -p prisma/tsconfig.json --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",

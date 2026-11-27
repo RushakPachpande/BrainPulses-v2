@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { FormField } from '@/lib/contest-form';
 
 /**
- * One field as participants see it. Used by the admin preview and by "Add registration".
+ * One field as participants see it. Used by the admin preview and registration edit dialog.
  * Choice answers are option IDs; the option label is what people see.
  */
 export function ContestFormFieldInput({

@@ -1239,42 +1239,6 @@ export async function exportBankQuestions(bankId: string, format: 'xlsx' = 'xlsx
   );
 }
 
-export async function createManualRegistration(
-  payload:
-    | {
-        activityId: string;
-        firstName: string;
-        lastName: string;
-        email: string;
-        phone: string;
-      }
-    | {
-        activityId: string;
-        formId: string;
-        answers: Record<string, string | string[] | boolean>;
-      },
-) {
-  const name =
-    'formId' in payload ? 'Participant' : `${payload.firstName} ${payload.lastName}`.trim();
-  if (useFixtures) {
-    invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
-    return {
-      participantId: crypto.randomUUID(),
-      code: 'BP00000000',
-      name,
-      activity: '',
-    };
-  }
-  const data = await apiPostData<{
-    participantId: string;
-    code: string;
-    name: string;
-    activity: string;
-  }>('/api/registrations/manual', payload, idempotencyHeaders());
-  invalidateAdmin(['registrations', 'participants', 'activities', 'dashboard']);
-  return data;
-}
-
 export async function unassignRegistrations(activityId: string, participantIds: string[]) {
   if (useFixtures) {
     invalidateAdmin(['registrations', 'activities']);
